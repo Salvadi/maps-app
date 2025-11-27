@@ -17,7 +17,6 @@ const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) => {
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [floor, setFloor] = useState<string>(project?.floors[0] || '0');
   const [roomOrIntervention, setRoomOrIntervention] = useState<string>('');
@@ -30,14 +29,11 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedImage(file);
-
       const reader = new FileReader();
       reader.onload = () => {
         setImagePreview(reader.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(e.target.files[0]);
     }
   };
 
@@ -102,7 +98,6 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
     alert('Mapping saved successfully!');
 
     // Reset form
-    setSelectedImage(null);
     setImagePreview(null);
     setRoomOrIntervention('');
     setCrossings([{ supporto: '', attraversamento: '', tipologicoId: undefined }]);
