@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Project } from '../App';
+import React, { useState, useEffect } from 'react';
+import { Project, User, getAllProjects, getProjectsForUser } from '../db';
 import './Home.css';
 
 interface HomeProps {
-  projects: Project[];
+  currentUser: User;
   onCreateProject: () => void;
   onEditProject: (project: Project) => void;
   onDeleteProject: (projectId: string) => void;
@@ -84,7 +84,7 @@ const getProjectIcon = (index: number, status: string) => {
 };
 
 const Home: React.FC<HomeProps> = ({
-  projects,
+  currentUser,
   onCreateProject,
   onEditProject,
   onDeleteProject,
@@ -92,6 +92,34 @@ const Home: React.FC<HomeProps> = ({
   onEnterMapping,
 }) => {
   const [activeProject, setActiveProject] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load projects from IndexedDB
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setIsLoading(true);
+        let loadedProjects: Project[];
+
+        if (currentUser.role === 'admin') {
+          // Admin can see all projects
+          loadedProjects = await getAllProjects();
+        } else {
+          // Regular users see only their projects
+          loadedProjects = await getProjectsForUser(currentUser.id);
+        }
+
+        setProjects(loadedProjects);
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, [currentUser]);
 
   const handleProjectClick = (projectId: string) => {
     if (activeProject === projectId) {
@@ -106,12 +134,45 @@ const Home: React.FC<HomeProps> = ({
     setActiveProject(null);
   };
 
+  if (isLoading) {
+    return (
+      <div className="home-page">
+        <div className="home-container">
+          <h1 className="home-title">Home</h1>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            color: 'var(--color-text-secondary)'
+          }}>
+            Caricamento progetti...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="home-page">
       <div className="home-container">
         <h1 className="home-title">Home</h1>
 
-        <div className="projects-grid">
+        {projects.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            gap: '16px',
+            color: 'var(--color-text-secondary)'
+          }}>
+            <p>Nessun progetto trovato</p>
+            <p style={{ fontSize: '0.875rem' }}>Premi il pulsante + per creare un nuovo progetto</p>
+          </div>
+        ) : (
+          <div className="projects-grid">
           {projects.map((project, index) => {
             const IconComponent = getProjectIcon(index, project.status);
             const isActive = activeProject === project.id;
@@ -168,7 +229,8 @@ const Home: React.FC<HomeProps> = ({
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
 
         <button className="fab-button" onClick={onCreateProject} aria-label="Create project">
           <PlusIcon className="fab-icon" />
