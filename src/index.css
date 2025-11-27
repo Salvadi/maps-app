@@ -1,3 +1,4 @@
+/* Base styles for the entire application */
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -5,6 +6,68 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #f0f2f5; /* Soft neutral background */
+  color: #333333; /* Dark neutral text */
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Consistent focus styles across the application */
+*:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140, 148, 156, 0.25); /* Neutral focus style */
+}
+
+/* Consistent button styles */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* Consistent input styles */
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Consistent link styles */
+a {
+  color: #5a8fc9; /* Neutral blue color */
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Consistent scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0f2f5; /* Light neutral background */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d0d4d9; /* Softer scrollbar color */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c0c4c9; /* Slightly darker on hover */
 }
 
 code {

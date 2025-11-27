@@ -1,0 +1,72 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f0f2f5; /* Soft neutral background */
+}
+
+.login-form {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px; /* More rounded corners */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* Softer shadow */
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-form h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333333; /* Dark neutral text */
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #555555; /* Medium neutral text */
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d0d4d9; /* Softer border color */
+  border-radius: 8px; /* More rounded corners */
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: all 0.2s ease; /* Smooth transitions */
+}
+
+.form-group input:focus {
+  border-color: #8c949c; /* Neutral focus color */
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140, 148, 156, 0.15); /* Softer focus shadow */
+}
+
+button {
+  width: 100%;
+  padding: 0.875rem; /* Slightly larger for better touch targets */
+  background-color: #e0e3e6; /* Neutral button background */
+  color: #333333; /* Dark text for contrast */
+  border: none;
+  border-radius: 8px; /* Consistent rounded corners */
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease; /* Smooth transitions */
+  font-weight: 500; /* Slightly bolder text */
+}
+
+button:hover {
+  background-color: #d0d4d9; /* Slightly darker on hover */
+  transform: translateY(-2px); /* Subtle lift effect */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08); /* Soft shadow on hover */
+}
+
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140, 148, 156, 0.25); /* Consistent focus style */
+}
