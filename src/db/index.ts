@@ -6,6 +6,6 @@ export * from './auth';
 
 // Re-export commonly used functions
 export { db, initializeDatabase, clearDatabase, getDatabaseStats } from './database';
-export { createProject, getProject, getAllProjects, updateProject, deleteProject } from './projects';
+export { createProject, getProject, getAllProjects, getProjectsForUser, updateProject, deleteProject } from './projects';
 export { createMappingEntry, getMappingEntry, getMappingEntriesForProject } from './mappings';
-export { login, logout, getCurrentUser, isAdmin } from './auth';
+export { login, logout, getCurrentUser, isAdmin, initializeMockUsers } from './auth';
