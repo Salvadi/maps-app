@@ -175,6 +175,6 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('Mapping App', options)
+    self.registration.showNotification('OPImaPPA', options)
   );
 });

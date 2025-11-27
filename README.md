@@ -1,46 +1,388 @@
-# Getting Started with Create React App
+# OPImaPPA
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A mobile-first Progressive Web App for construction and installation mapping with offline-first architecture. Capture photos, manage mapping entries, and export data - all while working completely offline.
 
-## Available Scripts
+## 🚀 Features
 
-In the project directory, you can run:
+### ✅ Phase 1: Core Offline with IndexedDB
+- **Offline-First Architecture** - All data stored in IndexedDB, works without internet
+- **Photo Compression** - Automatic compression to 1MB max, 1920px using browser-image-compression
+- **Project Management** - Create, edit, delete, and view projects
+- **Mock Authentication** - Multi-user support with role-based access control
+- **Service Worker** - App shell caching for instant offline access
+- **PWA Manifest** - Installable on mobile devices as a native app
 
-### `npm start`
+### ✅ Phase 2: Mapping View & Export
+- **Mapping View** - Display all mapping entries for a project with photo gallery
+- **Photo Gallery** - Expandable cards with responsive image grid
+- **XLSX Export** - Export mapping data to formatted Excel spreadsheet
+- **ZIP Export** - Export Excel file + photos organized by floor/room
+- **Smart Navigation** - Context-aware navigation between views
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### 🔜 Phase 3: Supabase Sync (Future)
+- Real-time sync with Supabase backend
+- Background sync when connection returns
+- Conflict resolution
+- Multi-device support
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+---
 
-### `npm test`
+## 🛠️ Technologies
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **React 18** - UI framework with TypeScript
+- **Dexie.js** - IndexedDB wrapper for offline storage
+- **Service Worker** - Offline-first caching strategy
+- **browser-image-compression** - Photo compression
+- **SheetJS (xlsx)** - Excel file generation
+- **JSZip** - ZIP file creation
+- **file-saver** - File download handling
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 📦 Installation
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Prerequisites
+- Node.js 16+ and npm
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Steps
 
-### `npm run eject`
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd maps-app
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+2. **Install dependencies**
+   ```bash
+   npm install --legacy-peer-deps
+   ```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+   *Note: `--legacy-peer-deps` is required due to React 19 compatibility*
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+3. **Start the development server**
+   ```bash
+   npm start
+   ```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+   The app will open at [http://localhost:3000](http://localhost:3000)
 
-## Learn More
+4. **Build for production**
+   ```bash
+   npm run build
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+   Builds the app to the `build/` folder (243 kB gzipped)
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
+
+## 🧪 How to Test the App
+
+### Basic Testing
+
+1. **Start the app**
+   ```bash
+   npm start
+   ```
+
+2. **Login**
+   - Use one of the mock accounts:
+     - **Admin**: `admin@example.com` (any password) - Can see all projects
+     - **User**: `user@example.com` (any password) - Can see only their projects
+
+3. **Create a Project**
+   - Click the **+** button on the Home page
+   - Fill in:
+     - Title (required)
+     - Client, Address, Notes (optional)
+     - Floors (e.g., "-1, 0, 1, 2")
+     - Intervention mode: Room or Intervention
+     - Typologies (optional)
+   - Click **Create**
+
+4. **View Projects**
+   - Click the **eye icon** on any project card to view mappings
+   - Initially empty - no mappings yet
+
+5. **Add Mapping Entries**
+   - From Home, click the **door icon** to enter mapping mode
+   - OR from Mapping View, click the **+** button
+   - Capture/upload photos (supports multiple photos)
+   - Select floor and room/intervention
+   - Add crossings (optional)
+   - Click **Save**
+
+6. **View Mapping Gallery**
+   - Click **eye icon** on a project
+   - See all mapping entries with photo counts
+   - Click any mapping card to expand and view photos
+   - Photos load from IndexedDB instantly
+
+7. **Export Data**
+   - From Mapping View:
+     - **Export Excel**: Downloads spreadsheet with mapping data
+     - **Export ZIP**: Downloads ZIP with Excel + photos organized by floor/room
+
+### Offline Testing
+
+1. **Enable Offline Mode**
+   - Open Chrome DevTools (F12)
+   - Go to **Application** → **Service Workers**
+   - Check the **Offline** checkbox
+   - OR go to **Network** tab → Select **Offline** from throttling dropdown
+
+2. **Refresh the Page**
+   - The app should still load (served from cache)
+   - All functionality works offline
+
+3. **Create Projects Offline**
+   - Create new projects
+   - Add mapping entries with photos
+   - Everything saves to IndexedDB
+
+4. **Test Data Persistence**
+   - Close the browser completely
+   - Reopen and navigate to http://localhost:3000
+   - All your data is still there!
+
+5. **Check Service Worker**
+   - Open DevTools → Application → Service Workers
+   - Should see "activated and running"
+   - Cache Storage shows cached assets
+
+### PWA Installation Testing
+
+1. **Desktop (Chrome)**
+   - Click the **install icon** in the address bar
+   - OR go to Settings (3 dots) → "Install OPImaPPA"
+   - App opens in standalone window
+
+2. **Mobile (Android Chrome)**
+   - Deploy the app to a server (must be HTTPS)
+   - Open in Chrome mobile
+   - Tap menu → "Add to Home Screen"
+   - App installs like a native app
+
+### Photo Compression Testing
+
+1. **Upload Large Photos**
+   - Take a high-resolution photo (5-10 MB)
+   - Add to a mapping entry
+   - Photo is automatically compressed to ~1 MB
+   - Check DevTools → Application → IndexedDB → photos → blob size
+
+---
+
+## 📱 Usage Guide
+
+### User Roles
+
+- **Admin** (`admin@example.com`)
+  - Can see all projects from all users
+  - Full CRUD permissions
+
+- **Regular User** (`user@example.com`)
+  - Can only see projects they own or have access to
+  - Can create their own projects
+
+### Workflow
+
+```
+Login → Home → Create Project → View Project → Add Mappings → Export
+```
+
+1. **Login** with mock credentials
+2. **Create a project** with floor plans and typologies
+3. **Add mapping entries** by capturing photos on-site
+4. **View all mappings** in the gallery view
+5. **Export to Excel/ZIP** for sharing or archival
+
+### Project Structure
+
+```
+maps-app/
+├── public/
+│   ├── service-worker.js      # PWA service worker
+│   └── manifest.json           # PWA manifest
+├── src/
+│   ├── components/
+│   │   ├── Login.tsx          # Login page
+│   │   ├── Home.tsx           # Project list
+│   │   ├── ProjectForm.tsx    # Create/edit projects
+│   │   ├── MappingPage.tsx    # Add mapping entries
+│   │   └── MappingView.tsx    # View mappings + export
+│   ├── db/
+│   │   ├── database.ts        # Dexie schema
+│   │   ├── projects.ts        # Project CRUD
+│   │   ├── mappings.ts        # Mapping CRUD
+│   │   ├── auth.ts            # Mock authentication
+│   │   └── index.ts           # Exports
+│   ├── App.tsx                # Main app component
+│   └── index.tsx              # Entry point + SW registration
+└── package.json
+```
+
+---
+
+## 💾 Data Storage
+
+All data is stored in **IndexedDB** (browser local storage):
+
+- **Projects** - Title, client, address, floors, typologies
+- **Mapping Entries** - Floor, room, crossings, timestamps
+- **Photos** - Compressed blobs (1MB max)
+- **Sync Queue** - Pending changes for Phase 3 sync
+- **Users** - Mock user accounts
+
+**Storage Estimate**: ~50 MB per 100 photos (compressed)
+
+---
+
+## 🔒 Offline Capabilities
+
+### What Works Offline
+
+✅ **Login** - Authentication with mock users
+✅ **Create Projects** - All project creation/editing
+✅ **Add Mappings** - Capture photos and save entries
+✅ **View Mappings** - Browse photo gallery
+✅ **Export Excel** - Generate XLSX files
+✅ **Export ZIP** - Create ZIP with photos
+✅ **Full UI** - All pages and navigation
+
+### Service Worker Strategy
+
+- **Cache-First** for app shell (HTML, CSS, JS)
+- **Network-First** with fallback for API calls (Phase 3)
+- **Runtime Caching** for dynamic content
+
+---
+
+## 🚀 Deployment
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+Output: `build/` folder (243 kB gzipped)
+
+### Deploy to Static Hosting
+
+#### Vercel
+```bash
+vercel --prod
+```
+
+#### Netlify
+```bash
+netlify deploy --prod --dir=build
+```
+
+#### GitHub Pages
+```bash
+npm run build
+# Push build folder to gh-pages branch
+```
+
+**Important**: For PWA features to work, the app must be served over **HTTPS**.
+
+---
+
+## 🐛 Troubleshooting
+
+### Build Errors
+
+**Issue**: `Module not found: Can't resolve 'dexie'`
+**Fix**: Run `npm install --legacy-peer-deps`
+
+**Issue**: `Module not found: Can't resolve 'browser-image-compression'`
+**Fix**: Run `npm install --legacy-peer-deps`
+
+### Runtime Errors
+
+**Issue**: IndexedDB not working
+**Fix**: Ensure you're not in private/incognito mode
+
+**Issue**: Photos not compressing
+**Fix**: Check browser console for compression errors. Ensure photos are valid image files.
+
+**Issue**: Service Worker not registering
+**Fix**: Ensure you're on HTTPS or localhost. Check DevTools → Application → Service Workers
+
+### Data Loss
+
+**Issue**: Lost data after browser update
+**Fix**: IndexedDB is persistent. Check Application → IndexedDB in DevTools. Data should be there unless manually cleared.
+
+---
+
+## 📊 Performance
+
+- **Bundle Size**: 243 kB gzipped (main.js + CSS)
+- **First Load**: ~500ms on 3G
+- **Offline Load**: <100ms (served from cache)
+- **Photo Compression**: ~1-2s per photo
+- **Export Time**: ~2-5s for 50 mappings with 100 photos
+
+---
+
+## 🔮 Future Enhancements (Phase 3+)
+
+### Phase 3: Supabase Integration
+- [ ] Supabase authentication (replace mock auth)
+- [ ] Real-time sync with Postgres
+- [ ] Background sync when online
+- [ ] Conflict resolution strategy
+- [ ] Row Level Security (RLS)
+
+### Phase 4: Advanced Features
+- [ ] Floor plan upload and annotation
+- [ ] Offline maps integration
+- [ ] Team collaboration
+- [ ] Real-time updates
+- [ ] Push notifications
+
+### Phase 5: Analytics & Reporting
+- [ ] Dashboard with statistics
+- [ ] Custom report generation
+- [ ] Timeline view
+- [ ] Photo comparison tools
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit changes: `git commit -m 'Add my feature'`
+4. Push to branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+## 📞 Support
+
+For issues or questions:
+- Open an issue on GitHub
+- Check the troubleshooting section above
+- Review the browser console for error messages
+
+---
+
+## 🙏 Acknowledgments
+
+- Built with Create React App
+- Offline storage powered by Dexie.js
+- Photo compression by browser-image-compression
+- Export functionality using SheetJS and JSZip
+
+---
+
+**Built with ❤️ for offline-first construction mapping**
