@@ -1,5 +1,6 @@
 import { db, Project, MappingEntry, Photo, SyncQueueItem } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
 /**
  * Sync Engine for Phase 3
@@ -131,27 +132,41 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
  * Sync a project to Supabase
  */
 async function syncProject(item: SyncQueueItem): Promise<void> {
-  const project = item.payload as Project;
-
-  // Convert IndexedDB format to Supabase format
-  const supabaseProject = {
-    id: project.id,
-    title: project.title,
-    client: project.client,
-    address: project.address,
-    notes: project.notes,
-    floors: project.floors,
-    plans: project.plans,
-    intervention_mode: project.interventionMode,
-    typologies: project.typologies,
-    owner_id: project.ownerId,
-    accessible_users: project.accessibleUsers,
-    created_at: new Date(project.createdAt).toISOString(),
-    updated_at: new Date(project.updatedAt).toISOString(),
-    synced: true
-  };
+  let project = item.payload as Project;
 
   if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    // Check for conflicts before syncing
+    const { hasConflict, remote } = await checkForConflicts('project', project.id);
+
+    if (hasConflict && remote) {
+      console.log(`⚠️  Conflict detected for project ${project.id}`);
+
+      // Resolve conflict using last-modified-wins strategy
+      project = await resolveProjectConflict(project, remote, 'last-modified-wins');
+
+      // Update local database with resolved version
+      await db.projects.put(project);
+      console.log(`✅ Conflict resolved for project ${project.id}`);
+    }
+
+    // Convert IndexedDB format to Supabase format
+    const supabaseProject = {
+      id: project.id,
+      title: project.title,
+      client: project.client,
+      address: project.address,
+      notes: project.notes,
+      floors: project.floors,
+      plans: project.plans,
+      intervention_mode: project.interventionMode,
+      typologies: project.typologies,
+      owner_id: project.ownerId,
+      accessible_users: project.accessibleUsers,
+      created_at: new Date(project.createdAt).toISOString(),
+      updated_at: new Date(project.updatedAt).toISOString(),
+      synced: true
+    };
+
     // Upsert (insert or update)
     const { error } = await supabase
       .from('projects')
@@ -181,26 +196,40 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
  * Sync a mapping entry to Supabase
  */
 async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
-  const entry = item.payload as MappingEntry;
-
-  const supabaseEntry = {
-    id: entry.id,
-    project_id: entry.projectId,
-    floor: entry.floor,
-    room_or_intervention: entry.roomOrIntervention,
-    crossings: entry.crossings,
-    timestamp: entry.timestamp,
-    last_modified: entry.lastModified,
-    version: entry.version,
-    created_by: entry.createdBy,
-    modified_by: entry.modifiedBy,
-    photos: entry.photos,
-    synced: true,
-    created_at: new Date(entry.timestamp).toISOString(),
-    updated_at: new Date(entry.lastModified).toISOString()
-  };
+  let entry = item.payload as MappingEntry;
 
   if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    // Check for conflicts before syncing
+    const { hasConflict, remote } = await checkForConflicts('mapping', entry.id);
+
+    if (hasConflict && remote) {
+      console.log(`⚠️  Conflict detected for mapping entry ${entry.id}`);
+
+      // Resolve conflict using last-modified-wins strategy
+      entry = await resolveMappingEntryConflict(entry, remote, 'last-modified-wins');
+
+      // Update local database with resolved version
+      await db.mappingEntries.put(entry);
+      console.log(`✅ Conflict resolved for mapping entry ${entry.id}`);
+    }
+
+    const supabaseEntry = {
+      id: entry.id,
+      project_id: entry.projectId,
+      floor: entry.floor,
+      room_or_intervention: entry.roomOrIntervention,
+      crossings: entry.crossings,
+      timestamp: entry.timestamp,
+      last_modified: entry.lastModified,
+      version: entry.version,
+      created_by: entry.createdBy,
+      modified_by: entry.modifiedBy,
+      photos: entry.photos,
+      synced: true,
+      created_at: new Date(entry.timestamp).toISOString(),
+      updated_at: new Date(entry.lastModified).toISOString()
+    };
+
     const { error } = await supabase
       .from('mapping_entries')
       .upsert(supabaseEntry, {
