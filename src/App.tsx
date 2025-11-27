@@ -3,10 +3,11 @@ import Login from './components/Login';
 import Home from './components/Home';
 import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
+import MappingView from './components/MappingView';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, User, Project } from './db';
 import './App.css';
 
-type View = 'login' | 'home' | 'projectForm' | 'projectEdit' | 'mapping';
+type View = 'login' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -14,6 +15,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('login');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
+  const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Initialize database on mount
@@ -84,13 +86,25 @@ const App: React.FC = () => {
   };
 
   const handleViewProject = (project: Project) => {
-    setSelectedProject(project);
-    setCurrentView('projectEdit');
+    setViewingProject(project);
+    setCurrentView('mappingView');
   };
 
   const handleEnterMapping = (project: Project) => {
     setCurrentMappingProject(project);
     setCurrentView('mapping');
+  };
+
+  const handleBackFromMappingView = () => {
+    setViewingProject(null);
+    setCurrentView('home');
+  };
+
+  const handleAddMappingFromView = () => {
+    if (viewingProject) {
+      setCurrentMappingProject(viewingProject);
+      setCurrentView('mapping');
+    }
   };
 
   const handleDeleteProject = async (projectId: string) => {
@@ -114,7 +128,12 @@ const App: React.FC = () => {
   };
 
   const handleBackToHome = () => {
-    setCurrentView('home');
+    // If we have a viewing project, go back to mapping view instead of home
+    if (viewingProject && currentMappingProject?.id === viewingProject.id) {
+      setCurrentView('mappingView');
+    } else {
+      setCurrentView('home');
+    }
     setCurrentMappingProject(null);
   };
 
@@ -163,6 +182,15 @@ const App: React.FC = () => {
             project={currentMappingProject}
             currentUser={currentUser}
             onBack={handleBackToHome}
+          />
+        );
+      case 'mappingView':
+        return (
+          <MappingView
+            project={viewingProject!}
+            currentUser={currentUser}
+            onBack={handleBackFromMappingView}
+            onAddMapping={handleAddMappingFromView}
           />
         );
       default:
