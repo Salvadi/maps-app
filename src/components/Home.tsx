@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Project } from '../App';
+import React, { useState, useEffect } from 'react';
+import { Project, User, getAllProjects, getProjectsForUser } from '../db';
 import './Home.css';
 
 interface HomeProps {
-  projects: Project[];
+  currentUser: User;
   onCreateProject: () => void;
   onEditProject: (project: Project) => void;
   onDeleteProject: (projectId: string) => void;
@@ -42,13 +42,6 @@ const EyeIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const LockIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M19 11H5C3.89543 11 3 11.8954 3 13V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V13C21 11.8954 20.1046 11 19 11Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M7 11V7C7 5.67392 7.52678 4.40215 8.46447 3.46447C9.40215 2.52678 10.6739 2 12 2C13.3261 2 14.5979 2.52678 15.5355 3.46447C16.4732 4.40215 17 5.67392 17 7V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
 const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M3 6H5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -77,14 +70,13 @@ const PlusIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const getProjectIcon = (index: number, status: string) => {
-  if (status === 'closed') return LockIcon;
+const getProjectIcon = (index: number) => {
   const icons = [DocumentIcon, FolderIcon, CalendarIcon, EyeIcon];
   return icons[index % icons.length];
 };
 
 const Home: React.FC<HomeProps> = ({
-  projects,
+  currentUser,
   onCreateProject,
   onEditProject,
   onDeleteProject,
@@ -92,6 +84,34 @@ const Home: React.FC<HomeProps> = ({
   onEnterMapping,
 }) => {
   const [activeProject, setActiveProject] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load projects from IndexedDB
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setIsLoading(true);
+        let loadedProjects: Project[];
+
+        if (currentUser.role === 'admin') {
+          // Admin can see all projects
+          loadedProjects = await getAllProjects();
+        } else {
+          // Regular users see only their projects
+          loadedProjects = await getProjectsForUser(currentUser.id);
+        }
+
+        setProjects(loadedProjects);
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, [currentUser]);
 
   const handleProjectClick = (projectId: string) => {
     if (activeProject === projectId) {
@@ -106,21 +126,53 @@ const Home: React.FC<HomeProps> = ({
     setActiveProject(null);
   };
 
+  if (isLoading) {
+    return (
+      <div className="home-page">
+        <div className="home-container">
+          <h1 className="home-title">Home</h1>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            color: 'var(--color-text-secondary)'
+          }}>
+            Caricamento progetti...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="home-page">
       <div className="home-container">
         <h1 className="home-title">Home</h1>
 
-        <div className="projects-grid">
+        {projects.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            gap: '16px',
+            color: 'var(--color-text-secondary)'
+          }}>
+            <p>Nessun progetto trovato</p>
+            <p style={{ fontSize: '0.875rem' }}>Premi il pulsante + per creare un nuovo progetto</p>
+          </div>
+        ) : (
+          <div className="projects-grid">
           {projects.map((project, index) => {
-            const IconComponent = getProjectIcon(index, project.status);
+            const IconComponent = getProjectIcon(index);
             const isActive = activeProject === project.id;
-            const isClosed = project.status === 'closed';
 
             return (
               <div key={project.id} className="project-card-wrapper">
                 <div
-                  className={`project-card ${isClosed ? 'closed' : ''}`}
+                  className="project-card"
                   onClick={() => handleProjectClick(project.id)}
                 >
                   <div className="project-icon">
@@ -168,7 +220,8 @@ const Home: React.FC<HomeProps> = ({
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
 
         <button className="fab-button" onClick={onCreateProject} aria-label="Create project">
           <PlusIcon className="fab-icon" />

@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Project, Crossing, MappingEntry } from '../App';
+import imageCompression from 'browser-image-compression';
+import { Project, Crossing, User, createMappingEntry } from '../db';
 import './MappingPage.css';
 
 interface MappingPageProps {
   project: Project | null;
-  onSave: (mapping: Omit<MappingEntry, 'id' | 'timestamp'>) => void;
+  currentUser: User;
   onBack: () => void;
 }
 
@@ -16,29 +17,45 @@ const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) => {
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack }) => {
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [floor, setFloor] = useState<string>(project?.floors[0] || '0');
   const [roomOrIntervention, setRoomOrIntervention] = useState<string>('');
   const [crossings, setCrossings] = useState<Omit<Crossing, 'id'>[]>([
     { supporto: '', attraversamento: '', tipologicoId: undefined }
   ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedImage(file);
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Store original files
+      setPhotoFiles(prev => [...prev, ...files]);
+
+      // Generate previews
+      const previews = await Promise.all(
+        files.map(file => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      setPhotoPreviews(prev => [...prev, ...previews]);
     }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotoFiles(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCameraClick = () => {
@@ -79,39 +96,91 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
     setCrossings(updatedCrossings);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
 
     if (!project) {
-      alert('No project selected');
+      setError('No project selected');
       return;
     }
 
-    const mappingData: Omit<MappingEntry, 'id' | 'timestamp'> = {
-      projectId: project.id,
-      floor,
-      roomOrIntervention,
-      photoURL: imagePreview || '',
-      crossings: crossings.map((c, index) => ({
-        ...c,
-        id: `${Date.now()}-${index}`
-      }))
-    };
+    if (photoFiles.length === 0) {
+      setError('Please capture at least one photo');
+      return;
+    }
 
-    onSave(mappingData);
-    alert('Mapping saved successfully!');
+    setIsSubmitting(true);
 
-    // Reset form
-    setSelectedImage(null);
-    setImagePreview(null);
-    setRoomOrIntervention('');
-    setCrossings([{ supporto: '', attraversamento: '', tipologicoId: undefined }]);
+    try {
+      // Compress photos
+      const compressedBlobs: Blob[] = await Promise.all(
+        photoFiles.map(async (file) => {
+          const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+          };
+
+          const compressedFile = await imageCompression(file, options);
+          return compressedFile as Blob;
+        })
+      );
+
+      console.log(`Compressed ${photoFiles.length} photos`);
+
+      // Save mapping entry to IndexedDB
+      const mappingEntry = await createMappingEntry(
+        {
+          projectId: project.id,
+          floor,
+          roomOrIntervention,
+          crossings: crossings.map((c, index) => ({
+            ...c,
+            id: `${Date.now()}-${index}`,
+          })),
+          createdBy: currentUser.id,
+        },
+        compressedBlobs
+      );
+
+      console.log('Mapping entry created:', mappingEntry.id);
+      alert('Mapping saved successfully!');
+
+      // Reset form
+      setPhotoFiles([]);
+      setPhotoPreviews([]);
+      setRoomOrIntervention('');
+      setCrossings([{ supporto: '', attraversamento: '', tipologicoId: undefined }]);
+
+      // Reset file inputs
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
+    } catch (err) {
+      console.error('Failed to save mapping:', err);
+      setError('Failed to save mapping. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="mapping-page">
       <div className="mapping-container">
         <h1 className="mapping-title">Mapping</h1>
+
+        {error && (
+          <div style={{
+            padding: '12px',
+            marginBottom: '16px',
+            backgroundColor: '#FEE2E2',
+            color: '#991B1B',
+            borderRadius: '8px',
+            fontSize: '0.875rem'
+          }}>
+            {error}
+          </div>
+        )}
 
         {/* Hidden file inputs */}
         <input
@@ -120,6 +189,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
           onChange={handleImageChange}
           accept="image/*"
           capture="environment"
+          multiple
           style={{ display: 'none' }}
         />
         <input
@@ -127,6 +197,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
           ref={fileInputRef}
           onChange={handleImageChange}
           accept="image/*"
+          multiple
           style={{ display: 'none' }}
         />
 
@@ -141,9 +212,51 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
             </button>
           </div>
 
-          {imagePreview && (
-            <div className="image-preview">
-              <img src={imagePreview} alt="Preview" />
+          {photoPreviews.length > 0 && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '12px',
+              marginTop: '16px'
+            }}>
+              {photoPreviews.map((preview, index) => (
+                <div key={index} style={{ position: 'relative' }}>
+                  <img
+                    src={preview}
+                    alt={`Preview ${index + 1}`}
+                    style={{
+                      width: '100%',
+                      height: '120px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: '1px solid var(--color-border)'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(index)}
+                    style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '24px',
+                      height: '24px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '16px',
+                      lineHeight: '1'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -243,11 +356,20 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, onSave, onBack }) =>
 
           {/* Actions */}
           <div className="mapping-actions">
-            <button type="button" className="back-btn" onClick={onBack}>
+            <button
+              type="button"
+              className="back-btn"
+              onClick={onBack}
+              disabled={isSubmitting}
+            >
               Back
             </button>
-            <button type="submit" className="save-btn">
-              Save
+            <button
+              type="submit"
+              className="save-btn"
+              disabled={isSubmitting || photoFiles.length === 0}
+            >
+              {isSubmitting ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>
