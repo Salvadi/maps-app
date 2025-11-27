@@ -11,35 +11,54 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(username, password);
+    if (username && password) {
+      onLogin(username, password);
+    }
+  };
+
+  const handleResetPassword = () => {
+    alert('Password reset functionality would be implemented here');
   };
 
   return (
-    <div className="login-container">
-      <div className="login-form">
-        <h2>Login</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
+    <div className="login-page">
+      <div className="login-container">
+        <h1 className="login-title">Login</h1>
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="form-field">
             <input
               type="text"
-              id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              className="login-input"
               required
             />
           </div>
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
+
+          <div className="form-field">
             <input
               type="password"
-              id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="login-input"
               required
             />
           </div>
-          <button type="submit">Login</button>
+
+          <button type="submit" className="login-button">
+            Accedi
+          </button>
+
+          <button
+            type="button"
+            className="reset-link"
+            onClick={handleResetPassword}
+          >
+            Reset password
+          </button>
         </form>
       </div>
     </div>
