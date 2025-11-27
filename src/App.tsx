@@ -110,6 +110,49 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Listen for background sync messages from Service Worker
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data && event.data.type === 'BACKGROUND_SYNC') {
+        console.log('📬 Received background sync message from Service Worker');
+
+        try {
+          await processSyncQueue();
+          await updateSyncStats();
+          console.log('✅ Background sync completed');
+        } catch (err) {
+          console.error('❌ Background sync failed:', err);
+        }
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleMessage);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  // Register background sync when changes are made
+  useEffect(() => {
+    const registerBackgroundSync = async () => {
+      if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          await (registration as any).sync.register('sync-queue');
+          console.log('🔄 Background sync registered');
+        } catch (err) {
+          console.warn('⚠️  Background sync registration failed:', err);
+        }
+      }
+    };
+
+    // Register background sync when coming online
+    if (isOnline && isSupabaseConfigured() && syncStats.pendingCount > 0) {
+      registerBackgroundSync();
+    }
+  }, [isOnline, syncStats.pendingCount]);
+
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setCurrentView('home');

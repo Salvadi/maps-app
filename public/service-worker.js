@@ -148,20 +148,52 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Background sync event (for Phase 3 - Supabase sync)
+// Background sync event - Phase 3 implementation
 self.addEventListener('sync', (event) => {
   console.log('[Service Worker] Background sync:', event.tag);
 
-  if (event.tag === 'sync-data') {
+  if (event.tag === 'sync-queue') {
     event.waitUntil(
-      // This will be implemented in Phase 3
-      Promise.resolve()
+      // Notify all clients to trigger sync
+      notifyClientsToSync()
         .then(() => {
-          console.log('[Service Worker] Sync completed');
+          console.log('[Service Worker] Sync notification sent to clients');
+        })
+        .catch((error) => {
+          console.error('[Service Worker] Sync notification failed:', error);
+          throw error; // Will retry later
         })
     );
   }
 });
+
+/**
+ * Notify all active clients to trigger sync
+ */
+async function notifyClientsToSync() {
+  const clients = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  });
+
+  console.log(`[Service Worker] Notifying ${clients.length} clients to sync`);
+
+  // Send message to all clients
+  for (const client of clients) {
+    client.postMessage({
+      type: 'BACKGROUND_SYNC',
+      tag: 'sync-queue',
+      timestamp: Date.now()
+    });
+  }
+
+  // If no clients are open, we can't sync
+  // Background Sync API will retry later
+  if (clients.length === 0) {
+    console.warn('[Service Worker] No active clients to sync');
+    throw new Error('No active clients');
+  }
+}
 
 // Push notification event (for future enhancements)
 self.addEventListener('push', (event) => {
