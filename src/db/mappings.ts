@@ -4,7 +4,7 @@ import { db, generateId, now, MappingEntry, Photo, SyncQueueItem } from './datab
  * Create a new mapping entry with photos
  */
 export async function createMappingEntry(
-  mappingData: Omit<MappingEntry, 'id' | 'timestamp' | 'lastModified' | 'version' | 'synced'>,
+  mappingData: Omit<MappingEntry, 'id' | 'timestamp' | 'lastModified' | 'version' | 'synced' | 'photos' | 'modifiedBy'>,
   photoBlobs: Blob[]
 ): Promise<MappingEntry> {
   const entry: MappingEntry = {
@@ -12,8 +12,10 @@ export async function createMappingEntry(
     id: generateId(),
     timestamp: now(),
     lastModified: now(),
+    modifiedBy: mappingData.createdBy,
     version: 1,
-    synced: false
+    synced: false,
+    photos: [] // Will be populated below
   };
 
   try {
@@ -270,7 +272,7 @@ export async function removePhotoFromMapping(
 export async function getUnsyncedMappings(): Promise<MappingEntry[]> {
   return await db.mappingEntries
     .where('synced')
-    .equals(false)
+    .equals(0)
     .toArray();
 }
 

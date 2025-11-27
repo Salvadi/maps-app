@@ -68,10 +68,10 @@ const App: React.FC = () => {
     setCurrentView('home');
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setCurrentView('login');
-  };
+  // const handleLogout = () => {
+  //   setCurrentUser(null);
+  //   setCurrentView('login');
+  // };
 
   const handleCreateProject = () => {
     setSelectedProject(null);

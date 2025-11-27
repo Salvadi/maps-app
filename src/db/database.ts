@@ -180,7 +180,7 @@ export async function getDatabaseStats() {
     db.projects.count(),
     db.mappingEntries.count(),
     db.photos.count(),
-    db.syncQueue.where('synced').equals(false).count(),
+    db.syncQueue.where('synced').equals(0).count(),
     db.users.count()
   ]);
 

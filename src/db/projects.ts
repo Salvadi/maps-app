@@ -171,7 +171,7 @@ export async function searchProjects(query: string): Promise<Project[]> {
 export async function getUnsyncedProjects(): Promise<Project[]> {
   return await db.projects
     .where('synced')
-    .equals(false)
+    .equals(0)
     .toArray();
 }
 
