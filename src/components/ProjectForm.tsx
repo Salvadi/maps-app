@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Project, Typology } from '../App';
+import { Project, Typology, User, createProject, updateProject } from '../db';
 import './ProjectForm.css';
 
 interface ProjectFormProps {
   project: Project | null;
-  onSave: (project: Omit<Project, 'id' | 'createdAt'>) => void;
+  currentUser: User;
+  onSave: () => void;
   onCancel: () => void;
 }
 
-const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSave, onCancel }) => {
+const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave, onCancel }) => {
   const [title, setTitle] = useState(project?.title || '');
   const [client, setClient] = useState(project?.client || '');
   const [address, setAddress] = useState(project?.address || '');
@@ -35,6 +36,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSave, onCancel }) 
           },
         ]
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleAddTypology = () => {
     const maxNumber = Math.max(...typologies.map((t) => t.number), 0);
@@ -66,33 +69,72 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSave, onCancel }) 
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
 
-    const floorsArray = floorsInput
-      .split(',')
-      .map((f) => f.trim())
-      .filter((f) => f !== '');
+    try {
+      const floorsArray = floorsInput
+        .split(',')
+        .map((f) => f.trim())
+        .filter((f) => f !== '');
 
-    const projectData: Omit<Project, 'id' | 'createdAt'> = {
-      title,
-      client,
-      address,
-      notes,
-      floors: floorsArray,
-      plans: [],
-      interventionMode,
-      typologies: showTipologici ? typologies : [],
-      status: 'active',
-    };
+      if (project) {
+        // Update existing project
+        await updateProject(project.id, {
+          title,
+          client,
+          address,
+          notes,
+          floors: floorsArray,
+          interventionMode,
+          typologies: showTipologici ? typologies : [],
+        });
+        console.log('Project updated:', project.id);
+      } else {
+        // Create new project
+        const newProject = await createProject({
+          title,
+          client,
+          address,
+          notes,
+          floors: floorsArray,
+          plans: [],
+          interventionMode,
+          typologies: showTipologici ? typologies : [],
+          ownerId: currentUser.id,
+          accessibleUsers: [currentUser.id],
+        });
+        console.log('Project created:', newProject.id);
+      }
 
-    onSave(projectData);
+      onSave();
+    } catch (err) {
+      console.error('Failed to save project:', err);
+      setError('Failed to save project. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="project-form-page">
       <div className="project-form-container">
-        <h1 className="form-title">Create Project</h1>
+        <h1 className="form-title">{project ? 'Edit Project' : 'Create Project'}</h1>
+
+        {error && (
+          <div style={{
+            padding: '12px',
+            marginBottom: '16px',
+            backgroundColor: '#FEE2E2',
+            color: '#991B1B',
+            borderRadius: '8px',
+            fontSize: '0.875rem'
+          }}>
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="project-form">
           {/* Title Section */}
@@ -294,11 +336,20 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSave, onCancel }) 
 
           {/* Form Actions */}
           <div className="form-actions">
-            <button type="button" className="cancel-btn" onClick={onCancel}>
+            <button
+              type="button"
+              className="cancel-btn"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
               Cancel
             </button>
-            <button type="submit" className="create-btn">
-              Create
+            <button
+              type="submit"
+              className="create-btn"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Saving...' : (project ? 'Save' : 'Create')}
             </button>
           </div>
         </form>
