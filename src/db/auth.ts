@@ -11,13 +11,15 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 const MOCK_USERS: User[] = [
   {
     id: 'user-1',
-    email: 'admin@example.com',
+    email: 'admin@opifiresafe.com',
+    username: 'admin',
     role: 'admin',
     createdAt: now()
   },
   {
     id: 'user-2',
-    email: 'user@example.com',
+    email: 'user@opifiresafe.com',
+    username: 'user',
     role: 'user',
     createdAt: now()
   }
@@ -72,6 +74,7 @@ export async function login(email: string, password: string): Promise<User | nul
       const user: User = {
         id: profile.id,
         email: profile.email,
+        username: profile.username || profile.email.split('@')[0],
         role: profile.role,
         createdAt: new Date(profile.created_at).getTime()
       };
@@ -112,7 +115,7 @@ async function loginOffline(email: string, password: string): Promise<User | nul
 /**
  * Sign up a new user (Supabase only)
  */
-export async function signUp(email: string, password: string): Promise<User | null> {
+export async function signUp(email: string, password: string, username: string): Promise<User | null> {
   if (!isSupabaseConfigured()) {
     console.error('❌ Sign up requires Supabase configuration');
     return null;
@@ -124,6 +127,7 @@ export async function signUp(email: string, password: string): Promise<User | nu
       password,
       options: {
         data: {
+          username,
           role: 'user' // Default role
         }
       }
@@ -154,6 +158,7 @@ export async function signUp(email: string, password: string): Promise<User | nu
     const user: User = {
       id: profile.id,
       email: profile.email,
+      username: profile.username || username,
       role: profile.role,
       createdAt: new Date(profile.created_at).getTime()
     };
@@ -188,6 +193,7 @@ export async function getCurrentUser(): Promise<User | null> {
           const user: User = {
             id: profile.id,
             email: profile.email,
+            username: profile.username || profile.email.split('@')[0],
             role: profile.role,
             createdAt: new Date(profile.created_at).getTime()
           };
@@ -253,6 +259,7 @@ export async function getAllUsers(): Promise<User[]> {
       return profiles.map(p => ({
         id: p.id,
         email: p.email,
+        username: p.username || p.email.split('@')[0],
         role: p.role,
         createdAt: new Date(p.created_at).getTime()
       }));
@@ -356,6 +363,7 @@ export function onAuthStateChange(callback: (user: User | null) => void) {
         const user: User = {
           id: profile.id,
           email: profile.email,
+          username: profile.username || profile.email.split('@')[0],
           role: profile.role,
           createdAt: new Date(profile.created_at).getTime()
         };
@@ -372,4 +380,56 @@ export function onAuthStateChange(callback: (user: User | null) => void) {
   });
 
   return subscription;
+}
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(email: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { success: false, error: 'Password reset requires Supabase configuration' };
+  }
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+
+    if (error) {
+      console.error('❌ Password reset error:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ Password reset email sent to:', email);
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Password reset exception:', err);
+    return { success: false, error: 'Failed to send password reset email' };
+  }
+}
+
+/**
+ * Update password (when user clicks reset link)
+ */
+export async function updatePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { success: false, error: 'Password update requires Supabase configuration' };
+  }
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      console.error('❌ Password update error:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ Password updated successfully');
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Password update exception:', err);
+    return { success: false, error: 'Failed to update password' };
+  }
 }

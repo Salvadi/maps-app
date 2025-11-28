@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
+import PasswordReset from './components/PasswordReset';
 import Home from './components/Home';
 import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
@@ -9,7 +10,7 @@ import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, getSyncStats, SyncStats } from './sync/syncEngine';
 import './App.css';
 
-type View = 'login' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
+type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -31,6 +32,16 @@ const App: React.FC = () => {
       try {
         await initializeDatabase();
         await initializeMockUsers();
+
+        // Check if we're on password reset page
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const type = hashParams.get('type');
+
+        if (type === 'recovery' || window.location.pathname === '/reset-password') {
+          setCurrentView('passwordReset');
+          setIsInitialized(true);
+          return;
+        }
 
         // Check if user is already logged in
         const user = await getCurrentUser();
@@ -238,6 +249,15 @@ const App: React.FC = () => {
   }
 
   const renderView = () => {
+    // Handle password reset view (doesn't require authentication)
+    if (currentView === 'passwordReset') {
+      return <PasswordReset onSuccess={() => {
+        setCurrentView('login');
+        // Clear URL hash
+        window.history.replaceState(null, '', window.location.pathname);
+      }} />;
+    }
+
     if (!currentUser) {
       return <Login onLogin={handleLogin} />;
     }

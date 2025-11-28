@@ -16,9 +16,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL UNIQUE,
+  username TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT username_length CHECK (char_length(username) >= 3 AND char_length(username) <= 20),
+  CONSTRAINT username_format CHECK (username ~ '^[a-zA-Z][a-zA-Z0-9_]*$')
 );
 
 -- Projects table
@@ -397,9 +400,22 @@ CREATE TRIGGER update_photos_updated_at BEFORE UPDATE ON public.photos
 -- Function to automatically create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  user_username TEXT;
 BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (NEW.id, NEW.email, 'user');
+  -- Extract username from raw_user_meta_data, fallback to email username
+  user_username := COALESCE(
+    NEW.raw_user_meta_data->>'username',
+    split_part(NEW.email, '@', 1)
+  );
+
+  -- Ensure username meets requirements
+  IF char_length(user_username) < 3 THEN
+    user_username := split_part(NEW.email, '@', 1);
+  END IF;
+
+  INSERT INTO public.profiles (id, email, username, role)
+  VALUES (NEW.id, NEW.email, user_username, 'user');
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
