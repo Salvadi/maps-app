@@ -55,11 +55,11 @@ const PencilIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const DoorIcon: React.FC<{ className?: string }> = ({ className }) => (
+const MapIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M18 3H6C4.89543 3 4 3.89543 4 5V21H20V5C20 3.89543 19.1046 3 18 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M15 13H15.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M4 21H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M1 6V22L8 18L16 22L23 18V2L16 6L8 2L1 6Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 2V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M16 6V22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -172,51 +172,51 @@ const Home: React.FC<HomeProps> = ({
             return (
               <div key={project.id} className="project-card-wrapper">
                 <div
-                  className="project-card"
+                  className={`project-card ${isActive ? 'active' : ''}`}
                   onClick={() => handleProjectClick(project.id)}
                 >
                   <div className="project-icon">
                     <IconComponent className="icon" />
                   </div>
                   <div className="project-name">{project.title}</div>
-
-                  {isActive && (
-                    <div className="overlay-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        className="action-btn action-trash"
-                        onClick={() => handleAction(() => {
-                          if (window.confirm(`Delete ${project.title}?`)) {
-                            onDeleteProject(project.id);
-                          }
-                        })}
-                        aria-label="Delete project"
-                      >
-                        <TrashIcon className="action-icon" />
-                      </button>
-                      <button
-                        className="action-btn action-view"
-                        onClick={() => handleAction(() => onViewProject(project))}
-                        aria-label="View project"
-                      >
-                        <EyeIcon className="action-icon" />
-                      </button>
-                      <button
-                        className="action-btn action-edit"
-                        onClick={() => handleAction(() => onEditProject(project))}
-                        aria-label="Edit project"
-                      >
-                        <PencilIcon className="action-icon" />
-                      </button>
-                      <button
-                        className="action-btn action-door"
-                        onClick={() => handleAction(() => onEnterMapping(project))}
-                        aria-label="Enter mapping"
-                      >
-                        <DoorIcon className="action-icon" />
-                      </button>
-                    </div>
-                  )}
                 </div>
+
+                {isActive && (
+                  <div className="action-toolbar" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="action-btn action-trash"
+                      onClick={() => handleAction(() => {
+                        if (window.confirm(`Delete ${project.title}?`)) {
+                          onDeleteProject(project.id);
+                        }
+                      })}
+                      aria-label="Delete project"
+                    >
+                      <TrashIcon className="action-icon" />
+                    </button>
+                    <button
+                      className="action-btn action-view"
+                      onClick={() => handleAction(() => onViewProject(project))}
+                      aria-label="View project"
+                    >
+                      <EyeIcon className="action-icon" />
+                    </button>
+                    <button
+                      className="action-btn action-edit"
+                      onClick={() => handleAction(() => onEditProject(project))}
+                      aria-label="Edit project"
+                    >
+                      <PencilIcon className="action-icon" />
+                    </button>
+                    <button
+                      className="action-btn action-map"
+                      onClick={() => handleAction(() => onEnterMapping(project))}
+                      aria-label="Enter mapping"
+                    >
+                      <MapIcon className="action-icon" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
