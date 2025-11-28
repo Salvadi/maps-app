@@ -1,18 +1,20 @@
 /* eslint-disable no-restricted-globals */
 
 // Service Worker for offline-first PWA
-// Uses cache-first strategy for app shell and network-first for API calls
+// Uses network-first strategy for JS/CSS (they have hashed names that change on deploy)
+// Uses cache-first strategy for documents and images
 
-const CACHE_NAME = 'mapping-app-v1';
-const RUNTIME_CACHE = 'mapping-app-runtime-v1';
+// IMPORTANT: Increment version number on each deployment to force cache update
+const CACHE_VERSION = 2; // Increment this on every deploy!
+const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
+const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
 // App shell - critical files needed for offline functionality
+// Note: Do NOT include specific JS/CSS files here as they have hashed names
+// that change on each build (e.g., main.044d3b01.js → main.5f2312f1.js)
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/static/js/bundle.js',
-  '/static/js/main.chunk.js',
-  '/static/js/0.chunk.js',
   '/manifest.json',
 ];
 
@@ -62,7 +64,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network-first for JS/CSS, cache-first for documents/images
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -72,12 +74,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first strategy for app shell and static assets
+  // Network-first for JS and CSS (they have hashed names that change on deploy)
+  if (
+    request.method === 'GET' &&
+    (request.destination === 'style' || request.destination === 'script')
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache for offline use
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Fallback to cache if offline
+          console.log('[Service Worker] Network failed, serving from cache:', request.url);
+          return caches.match(request);
+        })
+    );
+    return;
+  }
+
+  // Cache-first strategy for documents and images
   if (
     request.method === 'GET' &&
     (
-      request.destination === 'style' ||
-      request.destination === 'script' ||
       request.destination === 'document' ||
       request.destination === 'image' ||
       url.pathname.startsWith('/static/')
