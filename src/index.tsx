@@ -8,6 +8,11 @@ import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+
+// Create a simple event system for service worker updates
+window.swUpdateAvailable = false;
+window.swRegistration = null;
+
 root.render(
   <React.StrictMode>
     <App />
@@ -21,15 +26,22 @@ serviceWorkerRegistration.register({
   },
   onUpdate: (registration) => {
     console.log('Service Worker: New content available');
-    // Optionally show a notification to the user
-    if (window.confirm('New version available! Reload to update?')) {
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-      window.location.reload();
-    }
+    // Store the registration globally
+    window.swRegistration = registration;
+    window.swUpdateAvailable = true;
+
+    // Dispatch custom event to notify App
+    window.dispatchEvent(new CustomEvent('swUpdate', { detail: registration }));
   },
 });
+
+// Extend Window interface
+declare global {
+  interface Window {
+    swUpdateAvailable: boolean;
+    swRegistration: ServiceWorkerRegistration | null;
+  }
+}
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
