@@ -118,7 +118,7 @@ async function loginOffline(email: string, password: string): Promise<User | nul
 export async function signUp(email: string, password: string, username: string): Promise<User | null> {
   if (!isSupabaseConfigured()) {
     console.error('❌ Sign up requires Supabase configuration');
-    return null;
+    throw new Error('Sign up requires Supabase configuration');
   }
 
   try {
@@ -126,6 +126,7 @@ export async function signUp(email: string, password: string, username: string):
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}`,
         data: {
           username,
           role: 'user' // Default role
@@ -135,39 +136,29 @@ export async function signUp(email: string, password: string, username: string):
 
     if (error) {
       console.error('❌ Sign up error:', error.message);
-      return null;
+      throw new Error(error.message);
     }
 
     if (!data.user) {
-      return null;
+      throw new Error('Failed to create user account');
     }
 
-    // Profile is automatically created by trigger in Supabase
-    // Fetch the created profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', data.user.id)
-      .single();
+    console.log('✅ User signed up:', data.user.email);
+    console.log('📧 Confirmation email sent. Please check your inbox.');
 
-    if (profileError) {
-      console.error('❌ Profile fetch error:', profileError.message);
-      return null;
-    }
-
-    const user: User = {
-      id: profile.id,
-      email: profile.email,
-      username: profile.username || username,
-      role: profile.role,
-      createdAt: new Date(profile.created_at).getTime()
+    // Return a temporary user object (profile will be created after email confirmation)
+    const tempUser: User = {
+      id: data.user.id,
+      email: data.user.email!,
+      username: username,
+      role: 'user',
+      createdAt: Date.now()
     };
 
-    console.log('✅ User signed up:', user.email);
-    return user;
+    return tempUser;
   } catch (err) {
     console.error('❌ Sign up exception:', err);
-    return null;
+    throw err;
   }
 }
 

@@ -33,9 +33,10 @@ const App: React.FC = () => {
         await initializeDatabase();
         await initializeMockUsers();
 
-        // Check if we're on password reset page
+        // Check if we're on password reset or email confirmation page
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const type = hashParams.get('type');
+        const accessToken = hashParams.get('access_token');
 
         if (type === 'recovery' || window.location.pathname === '/reset-password') {
           setCurrentView('passwordReset');
@@ -43,11 +44,27 @@ const App: React.FC = () => {
           return;
         }
 
+        // Handle email confirmation callback
+        if (type === 'signup' && accessToken) {
+          console.log('📧 Email confirmed! Logging you in...');
+          // Supabase will automatically set the session
+          // Wait a moment for session to be established
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Clear the hash
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+
         // Check if user is already logged in
         const user = await getCurrentUser();
         if (user) {
           setCurrentUser(user);
           setCurrentView('home');
+
+          // Show success message if they just confirmed email
+          if (type === 'signup' && accessToken) {
+            alert('✅ Email confirmed! Welcome to OPImaPPA.');
+          }
         }
 
         // Start auto-sync if Supabase is configured

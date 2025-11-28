@@ -123,7 +123,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       try {
         const user = await signUp(email, password, username);
         if (user) {
-          setSuccess('Account created! Please check your email to verify your account, then login.');
+          setSuccess('Account created! Please check your email to verify your account before logging in.');
           setMode('login');
           setEmail('');
           setPassword('');
@@ -131,9 +131,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         } else {
           setError('Failed to create account. Please try again.');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Sign up error:', err);
-        setError('An error occurred during sign up');
+        const errorMessage = err?.message || 'An error occurred during sign up';
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -145,7 +146,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         if (user) {
           onLogin(user);
         } else {
-          setError('Invalid email or password');
+          setError('Invalid email or password. If you just signed up, please verify your email first.');
         }
       } catch (err) {
         console.error('Login error:', err);
