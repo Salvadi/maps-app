@@ -5,6 +5,7 @@ import Home from './components/Home';
 import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
+import UpdateNotification from './components/UpdateNotification';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, User, Project } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, getSyncStats, SyncStats } from './sync/syncEngine';
@@ -20,6 +21,7 @@ const App: React.FC = () => {
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
     pendingCount: 0,
     lastSyncTime: null,
@@ -180,6 +182,22 @@ const App: React.FC = () => {
       registerBackgroundSync();
     }
   }, [isOnline, syncStats.pendingCount]);
+
+  // Listen for service worker updates
+  useEffect(() => {
+    const handleSwUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const registration = customEvent.detail as ServiceWorkerRegistration;
+      console.log('📦 Service Worker update detected in App');
+      setSwRegistration(registration);
+    };
+
+    window.addEventListener('swUpdate', handleSwUpdate);
+
+    return () => {
+      window.removeEventListener('swUpdate', handleSwUpdate);
+    };
+  }, []);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -361,6 +379,9 @@ const App: React.FC = () => {
       )}
 
       {renderView()}
+
+      {/* Update notification banner */}
+      <UpdateNotification registration={swRegistration} />
     </div>
   );
 };
