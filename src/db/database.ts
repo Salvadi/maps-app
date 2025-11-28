@@ -9,7 +9,7 @@ export interface Project {
   notes: string;
   floors: string[]; // e.g., ['-1', '0', '1', '2']
   plans: string[]; // URLs or local blob IDs
-  interventionMode: 'room' | 'intervento';
+  interventionMode: 'room' | 'intervento' | 'none';
   typologies: Typology[];
   ownerId: string; // user UUID
   accessibleUsers: string[]; // array of user UUIDs

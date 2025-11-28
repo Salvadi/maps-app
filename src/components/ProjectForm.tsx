@@ -2,6 +2,30 @@ import React, { useState } from 'react';
 import { Project, Typology, User, createProject, updateProject } from '../db';
 import './ProjectForm.css';
 
+// Costanti per i menu dei Tipologici
+const SUPPORTO_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'brick', label: 'Mattoni' },
+  { value: 'concrete', label: 'Cemento' },
+  { value: 'wood', label: 'Legno' },
+  { value: 'steel', label: 'Acciaio' },
+];
+
+const MATERIALI_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'plastic', label: 'Plastica' },
+  { value: 'metal', label: 'Metallo' },
+  { value: 'fiber', label: 'Fibra' },
+  { value: 'composite', label: 'Composito' },
+];
+
+const ATTRAVERSAMENTO_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'horizontal', label: 'Orizzontale' },
+  { value: 'vertical', label: 'Verticale' },
+  { value: 'diagonal', label: 'Diagonale' },
+];
+
 interface ProjectFormProps {
   project: Project | null;
   currentUser: User;
@@ -20,8 +44,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [floorsEnabled, setFloorsEnabled] = useState(
     project?.floors && project.floors.length > 0 && project.floors[0] !== '0'
   );
-  const [interventionMode, setInterventionMode] = useState<'room' | 'intervento'>(
-    project?.interventionMode || 'room'
+  const [interventionMode, setInterventionMode] = useState<'room' | 'intervento' | 'none'>(
+    project?.interventionMode || 'none'
   );
   const [showTipologici, setShowTipologici] = useState(
     project?.typologies && project.typologies.length > 0
@@ -217,22 +241,22 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
               <div className="switch-container">
                 <div
                   className={`switch ${interventionMode === 'room' ? 'active' : ''}`}
-                  onClick={() => setInterventionMode('room')}
+                  onClick={() => setInterventionMode(interventionMode === 'room' ? 'none' : 'room')}
                 >
                   <div className="switch-thumb"></div>
                 </div>
-                <label className="switch-label" onClick={() => setInterventionMode('room')}>
+                <label className="switch-label" onClick={() => setInterventionMode(interventionMode === 'room' ? 'none' : 'room')}>
                   Stanza
                 </label>
               </div>
               <div className="switch-container">
                 <div
                   className={`switch ${interventionMode === 'intervento' ? 'active' : ''}`}
-                  onClick={() => setInterventionMode('intervento')}
+                  onClick={() => setInterventionMode(interventionMode === 'intervento' ? 'none' : 'intervento')}
                 >
                   <div className="switch-thumb"></div>
                 </div>
-                <label className="switch-label" onClick={() => setInterventionMode('intervento')}>
+                <label className="switch-label" onClick={() => setInterventionMode(interventionMode === 'intervento' ? 'none' : 'intervento')}>
                   Intervento n.
                 </label>
               </div>
@@ -255,15 +279,15 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             {showTipologici && (
               <div className="tipologici-table">
                 <div className="table-header">
-                  <div className="table-cell">Number</div>
-                  <div className="table-cell">Support</div>
-                  <div className="table-cell">Materials</div>
-                  <div className="table-cell">Crossing</div>
+                  <div className="table-cell table-cell-number">N.</div>
+                  <div className="table-cell">Supporto</div>
+                  <div className="table-cell">Materiali</div>
+                  <div className="table-cell">Attraversamento</div>
                 </div>
 
                 {typologies.map((typology) => (
                   <div key={typology.id} className="table-row">
-                    <div className="table-cell">
+                    <div className="table-cell table-cell-number">
                       <input
                         type="number"
                         value={typology.number}
@@ -274,8 +298,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                             parseInt(e.target.value) || 1
                           )
                         }
-                        className="table-input"
+                        className="table-input table-input-number"
                         min="1"
+                        max="999"
                       />
                     </div>
                     <div className="table-cell">
@@ -286,11 +311,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                         }
                         className="table-select"
                       >
-                        <option value=""></option>
-                        <option value="brick">Brick</option>
-                        <option value="concrete">Concrete</option>
-                        <option value="wood">Wood</option>
-                        <option value="steel">Steel</option>
+                        {SUPPORTO_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="table-cell">
@@ -301,11 +324,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                         }
                         className="table-select"
                       >
-                        <option value=""></option>
-                        <option value="plastic">Plastic</option>
-                        <option value="metal">Metal</option>
-                        <option value="fiber">Fiber</option>
-                        <option value="composite">Composite</option>
+                        {MATERIALI_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="table-cell">
@@ -320,10 +341,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                         }
                         className="table-select"
                       >
-                        <option value=""></option>
-                        <option value="horizontal">Horizontal</option>
-                        <option value="vertical">Vertical</option>
-                        <option value="diagonal">Diagonal</option>
+                        {ATTRAVERSAMENTO_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="table-cell actions">
