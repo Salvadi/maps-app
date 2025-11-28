@@ -82,7 +82,8 @@ export interface Database {
           notes: string;
           floors: any; // JSONB
           plans: any; // JSONB
-          intervention_mode: 'room' | 'intervento';
+          use_room_numbering: boolean;
+          use_intervention_numbering: boolean;
           typologies: any; // JSONB
           owner_id: string;
           accessible_users: any; // JSONB
@@ -98,7 +99,8 @@ export interface Database {
           notes?: string;
           floors?: any;
           plans?: any;
-          intervention_mode?: 'room' | 'intervento';
+          use_room_numbering?: boolean;
+          use_intervention_numbering?: boolean;
           typologies?: any;
           owner_id: string;
           accessible_users?: any;
@@ -114,7 +116,8 @@ export interface Database {
           notes?: string;
           floors?: any;
           plans?: any;
-          intervention_mode?: 'room' | 'intervento';
+          use_room_numbering?: boolean;
+          use_intervention_numbering?: boolean;
           typologies?: any;
           owner_id?: string;
           accessible_users?: any;

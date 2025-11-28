@@ -44,8 +44,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [floorsEnabled, setFloorsEnabled] = useState(
     project?.floors && project.floors.length > 0 && project.floors[0] !== '0'
   );
-  const [interventionMode, setInterventionMode] = useState<'room' | 'intervento' | 'none'>(
-    project?.interventionMode || 'none'
+  const [useRoomNumbering, setUseRoomNumbering] = useState(
+    project?.useRoomNumbering || false
+  );
+  const [useInterventionNumbering, setUseInterventionNumbering] = useState(
+    project?.useInterventionNumbering || false
   );
   const [showTipologici, setShowTipologici] = useState(
     project?.typologies && project.typologies.length > 0
@@ -117,7 +120,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           address,
           notes,
           floors: floorsArray,
-          interventionMode,
+          useRoomNumbering,
+          useInterventionNumbering,
           typologies: showTipologici ? typologies : [],
         });
         console.log('Project updated:', project.id);
@@ -130,7 +134,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           notes,
           floors: floorsArray,
           plans: [],
-          interventionMode,
+          useRoomNumbering,
+          useInterventionNumbering,
           typologies: showTipologici ? typologies : [],
           ownerId: currentUser.id,
           accessibleUsers: [currentUser.id],
@@ -240,23 +245,23 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             <div className="intervention-switches">
               <div className="switch-container">
                 <div
-                  className={`switch ${interventionMode === 'room' ? 'active' : ''}`}
-                  onClick={() => setInterventionMode(interventionMode === 'room' ? 'none' : 'room')}
+                  className={`switch ${useRoomNumbering ? 'active' : ''}`}
+                  onClick={() => setUseRoomNumbering(!useRoomNumbering)}
                 >
                   <div className="switch-thumb"></div>
                 </div>
-                <label className="switch-label" onClick={() => setInterventionMode(interventionMode === 'room' ? 'none' : 'room')}>
+                <label className="switch-label" onClick={() => setUseRoomNumbering(!useRoomNumbering)}>
                   Stanza
                 </label>
               </div>
               <div className="switch-container">
                 <div
-                  className={`switch ${interventionMode === 'intervento' ? 'active' : ''}`}
-                  onClick={() => setInterventionMode(interventionMode === 'intervento' ? 'none' : 'intervento')}
+                  className={`switch ${useInterventionNumbering ? 'active' : ''}`}
+                  onClick={() => setUseInterventionNumbering(!useInterventionNumbering)}
                 >
                   <div className="switch-thumb"></div>
                 </div>
-                <label className="switch-label" onClick={() => setInterventionMode(interventionMode === 'intervento' ? 'none' : 'intervento')}>
+                <label className="switch-label" onClick={() => setUseInterventionNumbering(!useInterventionNumbering)}>
                   Intervento n.
                 </label>
               </div>
