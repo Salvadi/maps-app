@@ -225,7 +225,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 60px 1fr 1fr 1fr;
+  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr;
   gap: var(--spacing-xs);
   padding: var(--spacing-sm);
   background-color: var(--color-bg-input);
@@ -237,9 +237,13 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 60px 1fr 1fr 1fr auto;
+  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr auto;
   gap: var(--spacing-xs);
   align-items: center;
+}
+
+.table-row-mobile-first {
+  display: contents;
 }
 
 .table-cell-number {
@@ -393,10 +397,19 @@
     position: relative;
   }
 
+  /* Prima row: N. e Supporto affiancati */
+  .table-row-mobile-first {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-sm);
+    align-items: flex-end;
+  }
+
   .table-cell {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
+    width: 100%;
   }
 
   .table-cell::before {
@@ -407,19 +420,28 @@
     text-transform: uppercase;
   }
 
+  .table-cell-number {
+    flex: 0 0 80px;
+    max-width: 80px;
+  }
+
   .table-cell-number::before {
     content: 'N.';
   }
 
-  .table-cell:nth-child(2)::before {
+  .table-row-mobile-first .table-cell:nth-child(2)::before {
     content: 'Supporto';
   }
 
-  .table-cell:nth-child(3)::before {
+  .table-row > .table-cell:nth-child(2)::before {
+    content: 'Tipo Supporto';
+  }
+
+  .table-row > .table-cell:nth-child(3)::before {
     content: 'Materiali';
   }
 
-  .table-cell:nth-child(4)::before {
+  .table-row > .table-cell:nth-child(4)::before {
     content: 'Attraversamento';
   }
 
@@ -434,7 +456,14 @@
   }
 
   .table-input-number {
-    max-width: 80px;
+    width: 100%;
+    text-align: center;
+    background-color: var(--color-bg-secondary);
+    cursor: not-allowed;
+  }
+
+  .table-select {
+    width: 100%;
   }
 
   .radio-group {

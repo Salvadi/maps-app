@@ -23,6 +23,7 @@ export interface Typology {
   id: string;
   number: number;
   supporto: string;
+  tipoSupporto: string;
   materiali: string;
   attraversamento: string;
 }
