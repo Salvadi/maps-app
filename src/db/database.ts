@@ -26,6 +26,8 @@ export interface Typology {
   tipoSupporto: string;
   materiali: string;
   attraversamento: string;
+  marcaProdottoUtilizzato: string;
+  prodottiSelezionati: string[];
 }
 
 export interface PhotoMetadata {
