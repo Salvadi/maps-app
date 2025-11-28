@@ -146,11 +146,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         if (user) {
           onLogin(user);
         } else {
-          setError('Invalid email or password. If you just signed up, please verify your email first.');
+          setError(
+            'Login failed. Please check the browser console (F12) for details. ' +
+            'Common issues: profile not created, email not verified, or incorrect credentials.'
+          );
         }
       } catch (err) {
         console.error('Login error:', err);
-        setError('An error occurred during login');
+        setError('An error occurred during login. Check console for details.');
       } finally {
         setIsLoading(false);
       }

@@ -66,7 +66,26 @@ export async function login(email: string, password: string): Promise<User | nul
         .single();
 
       if (profileError) {
-        console.error('❌ Profile fetch error:', profileError.message);
+        console.error('❌ Profile fetch error:', profileError);
+        console.error('❌ Profile fetch error details:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        });
+
+        // Check if profile doesn't exist
+        if (profileError.code === 'PGRST116') {
+          console.error('❌ Profile does not exist for user:', data.user.email);
+          console.error('💡 The trigger might not have run. Check Supabase Dashboard → Authentication → Users');
+          console.error('💡 Manually create the profile or check if the handle_new_user trigger is set up correctly');
+        }
+
+        return null;
+      }
+
+      if (!profile) {
+        console.error('❌ Profile is null for user:', data.user.email);
         return null;
       }
 
