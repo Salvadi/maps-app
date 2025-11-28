@@ -225,7 +225,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: 60px 1fr 1fr 1fr;
   gap: var(--spacing-xs);
   padding: var(--spacing-sm);
   background-color: var(--color-bg-input);
@@ -237,9 +237,20 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr auto;
+  grid-template-columns: 60px 1fr 1fr 1fr auto;
   gap: var(--spacing-xs);
   align-items: center;
+}
+
+.table-cell-number {
+  max-width: 60px;
+}
+
+.table-input-number {
+  width: 100%;
+  max-width: 60px;
+  text-align: center;
+  padding: var(--spacing-xs) var(--spacing-xs);
 }
 
 .table-cell {
@@ -354,7 +365,7 @@
   transform: scale(0.98);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .project-form-container {
     padding: var(--spacing-md);
   }
@@ -367,23 +378,63 @@
     padding: var(--spacing-lg);
   }
 
-  .table-header,
+  .table-header {
+    display: none;
+  }
+
   .table-row {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    background-color: var(--color-bg-input);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+    position: relative;
+  }
+
+  .table-cell {
+    display: flex;
+    flex-direction: column;
     gap: var(--spacing-xs);
   }
 
-  .table-row {
-    grid-template-columns: 1fr;
-    background-color: var(--color-bg-input);
-    padding: var(--spacing-sm);
-    border-radius: var(--radius-sm);
-    margin-bottom: var(--spacing-xs);
+  .table-cell::before {
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+  }
+
+  .table-cell-number::before {
+    content: 'N.';
+  }
+
+  .table-cell:nth-child(2)::before {
+    content: 'Supporto';
+  }
+
+  .table-cell:nth-child(3)::before {
+    content: 'Materiali';
+  }
+
+  .table-cell:nth-child(4)::before {
+    content: 'Attraversamento';
   }
 
   .table-cell.actions {
-    justify-content: flex-start;
+    flex-direction: row;
+    justify-content: flex-end;
     margin-top: var(--spacing-xs);
+  }
+
+  .table-cell.actions::before {
+    content: '';
+  }
+
+  .table-input-number {
+    max-width: 80px;
   }
 
   .radio-group {
