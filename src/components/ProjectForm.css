@@ -134,6 +134,62 @@
   color: var(--color-text-primary);
 }
 
+/* Switch Styles */
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.switch {
+  position: relative;
+  width: 48px;
+  height: 24px;
+  background-color: #9CA3AF;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.switch.active {
+  background-color: #22C55E;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.switch.active .switch-thumb {
+  transform: translateX(24px);
+}
+
+.switch-label {
+  font-size: 1rem;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.floors-input-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.intervention-switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
 .tipologici-section {
   border-top: 1px solid var(--color-border);
   padding-top: var(--spacing-lg);

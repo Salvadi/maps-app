@@ -17,6 +17,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [floorsInput, setFloorsInput] = useState(
     project?.floors.join(', ') || '-1, 0, 1, 2, 3'
   );
+  const [floorsEnabled, setFloorsEnabled] = useState(
+    project?.floors && project.floors.length > 0 && project.floors[0] !== '0'
+  );
   const [interventionMode, setInterventionMode] = useState<'room' | 'intervento'>(
     project?.interventionMode || 'room'
   );
@@ -75,10 +78,12 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     setIsSubmitting(true);
 
     try {
-      const floorsArray = floorsInput
-        .split(',')
-        .map((f) => f.trim())
-        .filter((f) => f !== '');
+      const floorsArray = floorsEnabled
+        ? floorsInput
+            .split(',')
+            .map((f) => f.trim())
+            .filter((f) => f !== '')
+        : ['0'];
 
       if (project) {
         // Update existing project
@@ -121,7 +126,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   return (
     <div className="project-form-page">
       <div className="project-form-container">
-        <h1 className="form-title">{project ? 'Edit Project' : 'Create Project'}</h1>
+        <h1 className="form-title">{project ? 'Modifica Dati Cantiere' : 'Dati Cantiere'}</h1>
 
         {error && (
           <div style={{
@@ -139,7 +144,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         <form onSubmit={handleSubmit} className="project-form">
           {/* Title Section */}
           <section className="form-section">
-            <label className="section-label">Title</label>
+            <label className="section-label">Nome Cantiere</label>
             <input
               type="text"
               value={title}
@@ -179,46 +184,58 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           <section className="form-section">
             <label className="section-label">Struttura</label>
             <button type="button" className="upload-button">
-              Upload floor plan
+              Carica pianta
             </button>
             <div className="floors-input-group">
-              <label className="field-label">Floors</label>
-              <input
-                type="text"
-                value={floorsInput}
-                onChange={(e) => setFloorsInput(e.target.value)}
-                placeholder="-1, 0, 1, 2, 3..."
-                className="form-input floors-input"
-              />
+              <div className="switch-container">
+                <div
+                  className={`switch ${floorsEnabled ? 'active' : ''}`}
+                  onClick={() => setFloorsEnabled(!floorsEnabled)}
+                >
+                  <div className="switch-thumb"></div>
+                </div>
+                <label className="switch-label" onClick={() => setFloorsEnabled(!floorsEnabled)}>
+                  Piani
+                </label>
+              </div>
+              {floorsEnabled && (
+                <input
+                  type="text"
+                  value={floorsInput}
+                  onChange={(e) => setFloorsInput(e.target.value)}
+                  placeholder="-1, 0, 1, 2, 3..."
+                  className="form-input floors-input"
+                />
+              )}
             </div>
           </section>
 
           {/* Numerazione interventi Section */}
           <section className="form-section">
             <label className="section-label">Numerazione interventi</label>
-            <div className="radio-group">
-              <label className="radio-label">
-                <input
-                  type="radio"
-                  name="interventionMode"
-                  value="room"
-                  checked={interventionMode === 'room'}
-                  onChange={() => setInterventionMode('room')}
-                  className="radio-input"
-                />
-                <span className="radio-text">Room</span>
-              </label>
-              <label className="radio-label">
-                <input
-                  type="radio"
-                  name="interventionMode"
-                  value="intervento"
-                  checked={interventionMode === 'intervento'}
-                  onChange={() => setInterventionMode('intervento')}
-                  className="radio-input"
-                />
-                <span className="radio-text">Intervention N...</span>
-              </label>
+            <div className="intervention-switches">
+              <div className="switch-container">
+                <div
+                  className={`switch ${interventionMode === 'room' ? 'active' : ''}`}
+                  onClick={() => setInterventionMode('room')}
+                >
+                  <div className="switch-thumb"></div>
+                </div>
+                <label className="switch-label" onClick={() => setInterventionMode('room')}>
+                  Stanza
+                </label>
+              </div>
+              <div className="switch-container">
+                <div
+                  className={`switch ${interventionMode === 'intervento' ? 'active' : ''}`}
+                  onClick={() => setInterventionMode('intervento')}
+                >
+                  <div className="switch-thumb"></div>
+                </div>
+                <label className="switch-label" onClick={() => setInterventionMode('intervento')}>
+                  Intervento n.
+                </label>
+              </div>
             </div>
           </section>
 
