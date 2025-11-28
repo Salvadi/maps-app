@@ -225,7 +225,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr;
+  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr 1.2fr 2fr;
   gap: var(--spacing-xs);
   padding: var(--spacing-sm);
   background-color: var(--color-bg-input);
@@ -237,7 +237,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr auto;
+  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr 1.2fr 2fr auto;
   gap: var(--spacing-xs);
   align-items: center;
 }
@@ -397,12 +397,13 @@
     position: relative;
   }
 
-  /* Prima row: N. e Supporto affiancati */
+  /* Prima row: N., Supporto e Tipo Supporto affiancati con layout giustificato */
   .table-row-mobile-first {
     display: flex;
     flex-direction: row;
     gap: var(--spacing-sm);
     align-items: flex-end;
+    justify-content: space-between;
   }
 
   .table-cell {
@@ -433,16 +434,24 @@
     content: 'Supporto';
   }
 
-  .table-row > .table-cell:nth-child(2)::before {
+  .table-row-mobile-first .table-cell:nth-child(3)::before {
     content: 'Tipo Supporto';
   }
 
-  .table-row > .table-cell:nth-child(3)::before {
+  .table-row > .table-cell:nth-child(2)::before {
     content: 'Materiali';
   }
 
-  .table-row > .table-cell:nth-child(4)::before {
+  .table-row > .table-cell:nth-child(3)::before {
     content: 'Attraversamento';
+  }
+
+  .table-row > .table-cell:nth-child(4)::before {
+    content: 'Marca Prodotto';
+  }
+
+  .table-row > .table-cell:nth-child(5)::before {
+    content: 'Prodotti Selezionati';
   }
 
   .table-cell.actions {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Typology, User, createProject, updateProject } from '../db';
+import ProductSelector from './ProductSelector';
 import './ProjectForm.css';
 
 // Costanti per i menu dei Tipologici
@@ -31,6 +32,14 @@ const ATTRAVERSAMENTO_OPTIONS = [
   { value: 'horizontal', label: 'Orizzontale' },
   { value: 'vertical', label: 'Verticale' },
   { value: 'diagonal', label: 'Diagonale' },
+];
+
+const MARCA_PRODOTTO_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'Promat', label: 'Promat' },
+  { value: 'AF Systems', label: 'AF Systems' },
+  { value: 'Global Building', label: 'Global Building' },
+  { value: 'Hilti', label: 'Hilti' },
 ];
 
 interface ProjectFormProps {
@@ -71,6 +80,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             tipoSupporto: '',
             materiali: '',
             attraversamento: '',
+            marcaProdottoUtilizzato: '',
+            prodottiSelezionati: [],
           },
         ]
   );
@@ -88,6 +99,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         tipoSupporto: '',
         materiali: '',
         attraversamento: '',
+        marcaProdottoUtilizzato: '',
+        prodottiSelezionati: [],
       },
     ]);
   };
@@ -101,7 +114,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const handleTypologyChange = (
     id: string,
     field: keyof Omit<Typology, 'id'>,
-    value: string | number
+    value: string | number | string[]
   ) => {
     setTypologies(
       typologies.map((t) => (t.id === id ? { ...t, [field]: value } : t))
@@ -298,6 +311,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   <div className="table-cell">Tipo Supporto</div>
                   <div className="table-cell">Materiali</div>
                   <div className="table-cell">Attraversamento</div>
+                  <div className="table-cell">Marca Prodotto</div>
+                  <div className="table-cell">Prodotti Selezionati</div>
                 </div>
 
                 {typologies.map((typology) => (
@@ -326,19 +341,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                           ))}
                         </select>
                       </div>
-                    </div>
-                    <div className="table-cell">
-                      <select
-                        value={typology.tipoSupporto}
-                        onChange={(e) =>
-                          handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)
-                        }
-                        className="table-select"
-                      >
-                        {TIPO_SUPPORTO_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                      <div className="table-cell">
+                        <select
+                          value={typology.tipoSupporto}
+                          onChange={(e) =>
+                            handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)
+                          }
+                          className="table-select"
+                        >
+                          {TIPO_SUPPORTO_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div className="table-cell">
                       <select
@@ -369,6 +384,32 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
+                    </div>
+                    <div className="table-cell">
+                      <select
+                        value={typology.marcaProdottoUtilizzato}
+                        onChange={(e) =>
+                          handleTypologyChange(
+                            typology.id,
+                            'marcaProdottoUtilizzato',
+                            e.target.value
+                          )
+                        }
+                        className="table-select"
+                      >
+                        {MARCA_PRODOTTO_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="table-cell">
+                      <ProductSelector
+                        marca={typology.marcaProdottoUtilizzato}
+                        selectedProducts={typology.prodottiSelezionati}
+                        onChange={(products) =>
+                          handleTypologyChange(typology.id, 'prodottiSelezionati', products)
+                        }
+                      />
                     </div>
                     <div className="table-cell actions">
                       {typologies.length > 1 && (
