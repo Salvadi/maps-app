@@ -5,6 +5,8 @@ import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, User, Project } from './db';
+import { isSupabaseConfigured } from './lib/supabase';
+import { startAutoSync, stopAutoSync, processSyncQueue, getSyncStats, SyncStats } from './sync/syncEngine';
 import './App.css';
 
 type View = 'login' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
@@ -17,6 +19,11 @@ const App: React.FC = () => {
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncStats, setSyncStats] = useState<SyncStats>({
+    pendingCount: 0,
+    lastSyncTime: null,
+    isSyncing: false
+  });
 
   // Initialize database on mount
   useEffect(() => {
@@ -32,6 +39,17 @@ const App: React.FC = () => {
           setCurrentView('home');
         }
 
+        // Start auto-sync if Supabase is configured
+        if (isSupabaseConfigured()) {
+          startAutoSync(60000); // Sync every 60 seconds
+          console.log('🔄 Auto-sync enabled');
+        } else {
+          console.log('📦 Running in offline-only mode');
+        }
+
+        // Update sync stats
+        updateSyncStats();
+
         setIsInitialized(true);
         console.log('App initialized successfully');
       } catch (error) {
@@ -41,19 +59,40 @@ const App: React.FC = () => {
     };
 
     initialize();
+
+    // Cleanup on unmount
+    return () => {
+      stopAutoSync();
+    };
   }, []);
+
+  // Update sync stats helper
+  const updateSyncStats = async () => {
+    const stats = await getSyncStats();
+    setSyncStats(stats);
+  };
 
   // Monitor online/offline status
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setIsOnline(true);
-      console.log('App is online');
-      // TODO: Trigger sync in Phase 3
+      console.log('🌐 App is online');
+
+      // Trigger immediate sync when connection returns
+      if (isSupabaseConfigured()) {
+        console.log('🔄 Triggering sync after reconnection...');
+        try {
+          await processSyncQueue();
+          await updateSyncStats();
+        } catch (err) {
+          console.error('❌ Sync after reconnection failed:', err);
+        }
+      }
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      console.log('App is offline');
+      console.log('📴 App is offline');
     };
 
     window.addEventListener('online', handleOnline);
@@ -64,6 +103,55 @@ const App: React.FC = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Periodically update sync stats
+  useEffect(() => {
+    const interval = setInterval(updateSyncStats, 10000); // Update every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen for background sync messages from Service Worker
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data && event.data.type === 'BACKGROUND_SYNC') {
+        console.log('📬 Received background sync message from Service Worker');
+
+        try {
+          await processSyncQueue();
+          await updateSyncStats();
+          console.log('✅ Background sync completed');
+        } catch (err) {
+          console.error('❌ Background sync failed:', err);
+        }
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleMessage);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  // Register background sync when changes are made
+  useEffect(() => {
+    const registerBackgroundSync = async () => {
+      if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          await (registration as any).sync.register('sync-queue');
+          console.log('🔄 Background sync registered');
+        } catch (err) {
+          console.warn('⚠️  Background sync registration failed:', err);
+        }
+      }
+    };
+
+    // Register background sync when coming online
+    if (isOnline && isSupabaseConfigured() && syncStats.pendingCount > 0) {
+      registerBackgroundSync();
+    }
+  }, [isOnline, syncStats.pendingCount]);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -213,6 +301,25 @@ const App: React.FC = () => {
       {!isOnline && (
         <div className="offline-indicator">
           ⚠️ You are offline. Changes will be synced when connection returns.
+        </div>
+      )}
+
+      {/* Sync status indicator */}
+      {isOnline && isSupabaseConfigured() && syncStats.pendingCount > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: '#FFF3E0',
+          color: '#E65100',
+          padding: '8px',
+          textAlign: 'center',
+          fontSize: '0.875rem',
+          zIndex: 1000,
+          borderBottom: '1px solid #FFB74D'
+        }}>
+          🔄 Syncing {syncStats.pendingCount} {syncStats.pendingCount === 1 ? 'item' : 'items'}...
         </div>
       )}
 
