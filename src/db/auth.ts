@@ -247,7 +247,7 @@ export async function getAllUsers(): Promise<User[]> {
         return [];
       }
 
-      return profiles.map(p => ({
+      return profiles.map((p: any) => ({
         id: p.id,
         email: p.email,
         username: p.username || p.email.split('@')[0],
@@ -339,7 +339,7 @@ export function onAuthStateChange(callback: (user: User | null) => void) {
     return { unsubscribe: () => {} };
   }
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
     console.log('🔄 Auth state changed:', event);
 
     if (session?.user) {

@@ -51,6 +51,7 @@ export function validatePasswordStrength(password: string): PasswordStrength {
   }
 
   // Check for special characters
+  // eslint-disable-next-line no-useless-escape
   if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
     feedback.push('Include at least one special character (!@#$%^&*...)');
   } else {

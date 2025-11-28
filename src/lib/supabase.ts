@@ -19,16 +19,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
 /**
  * Supabase client instance
  * Used for authentication, database queries, and storage
+ * Only created if credentials are available
  */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // Store session in localStorage for persistence
-    storage: window.localStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-});
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        // Store session in localStorage for persistence
+        storage: window.localStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      }
+    })
+  : null as any; // Fallback to null for offline-only mode or tests
 
 /**
  * Check if Supabase is configured
