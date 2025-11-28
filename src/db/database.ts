@@ -88,6 +88,7 @@ export interface SyncQueueItem {
 export interface User {
   id: string; // UUID
   email: string;
+  username: string; // Display name
   role: 'admin' | 'user';
   createdAt: number;
 }
