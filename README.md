@@ -196,6 +196,65 @@ Login → Home → Create Project → View Project → Add Mappings → Export
 4. **View all mappings** in the gallery view
 5. **Export to Excel/ZIP** for sharing or archival
 
+### Customizing Typologies Menu Options
+
+The Typologies section in the Project Form uses predefined menu options that can be easily customized. To modify the available options:
+
+1. **Open** `src/components/ProjectForm.tsx`
+2. **Locate** the constants at the top of the file (lines 5-34):
+
+```typescript
+// Supporto options (Parete, Solaio)
+const SUPPORTO_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'parete', label: 'Parete' },
+  { value: 'solaio', label: 'Solaio' },
+];
+
+// Tipo Supporto options (Mattoni, Cemento, etc.)
+const TIPO_SUPPORTO_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'brick', label: 'Mattoni' },
+  { value: 'concrete', label: 'Cemento' },
+  { value: 'wood', label: 'Legno' },
+  { value: 'steel', label: 'Acciaio' },
+  { value: 'plasterboard', label: 'Cartongesso' },
+];
+
+// Materiali options
+const MATERIALI_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'plastic', label: 'Plastica' },
+  { value: 'metal', label: 'Metallo' },
+  { value: 'fiber', label: 'Fibra' },
+  { value: 'composite', label: 'Composito' },
+];
+
+// Attraversamento options
+const ATTRAVERSAMENTO_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'horizontal', label: 'Orizzontale' },
+  { value: 'vertical', label: 'Verticale' },
+  { value: 'diagonal', label: 'Diagonale' },
+];
+```
+
+3. **Add, remove, or modify** entries as needed
+4. **Format**: Each entry requires `{ value: 'key', label: 'Display Text' }`
+5. **Save** and rebuild the app
+
+**Example - Adding a new material:**
+```typescript
+const MATERIALI_OPTIONS = [
+  { value: '', label: '' },
+  { value: 'plastic', label: 'Plastica' },
+  { value: 'metal', label: 'Metallo' },
+  { value: 'fiber', label: 'Fibra' },
+  { value: 'composite', label: 'Composito' },
+  { value: 'ceramic', label: 'Ceramica' }, // ← New option
+];
+```
+
 ### Project Structure
 
 ```

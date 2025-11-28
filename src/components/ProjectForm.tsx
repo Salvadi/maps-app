@@ -5,10 +5,17 @@ import './ProjectForm.css';
 // Costanti per i menu dei Tipologici
 const SUPPORTO_OPTIONS = [
   { value: '', label: '' },
+  { value: 'parete', label: 'Parete' },
+  { value: 'solaio', label: 'Solaio' },
+];
+
+const TIPO_SUPPORTO_OPTIONS = [
+  { value: '', label: '' },
   { value: 'brick', label: 'Mattoni' },
   { value: 'concrete', label: 'Cemento' },
   { value: 'wood', label: 'Legno' },
   { value: 'steel', label: 'Acciaio' },
+  { value: 'plasterboard', label: 'Cartongesso' },
 ];
 
 const MATERIALI_OPTIONS = [
@@ -61,6 +68,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             id: Date.now().toString(),
             number: 1,
             supporto: '',
+            tipoSupporto: '',
             materiali: '',
             attraversamento: '',
           },
@@ -77,6 +85,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         id: Date.now().toString(),
         number: maxNumber + 1,
         supporto: '',
+        tipoSupporto: '',
         materiali: '',
         attraversamento: '',
       },
@@ -286,37 +295,47 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                 <div className="table-header">
                   <div className="table-cell table-cell-number">N.</div>
                   <div className="table-cell">Supporto</div>
+                  <div className="table-cell">Tipo Supporto</div>
                   <div className="table-cell">Materiali</div>
                   <div className="table-cell">Attraversamento</div>
                 </div>
 
                 {typologies.map((typology) => (
                   <div key={typology.id} className="table-row">
-                    <div className="table-cell table-cell-number">
-                      <input
-                        type="number"
-                        value={typology.number}
-                        onChange={(e) =>
-                          handleTypologyChange(
-                            typology.id,
-                            'number',
-                            parseInt(e.target.value) || 1
-                          )
-                        }
-                        className="table-input table-input-number"
-                        min="1"
-                        max="999"
-                      />
+                    <div className="table-row-mobile-first">
+                      <div className="table-cell table-cell-number">
+                        <input
+                          type="number"
+                          value={typology.number}
+                          readOnly
+                          className="table-input table-input-number"
+                          min="1"
+                          max="999"
+                        />
+                      </div>
+                      <div className="table-cell">
+                        <select
+                          value={typology.supporto}
+                          onChange={(e) =>
+                            handleTypologyChange(typology.id, 'supporto', e.target.value)
+                          }
+                          className="table-select"
+                        >
+                          {SUPPORTO_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div className="table-cell">
                       <select
-                        value={typology.supporto}
+                        value={typology.tipoSupporto}
                         onChange={(e) =>
-                          handleTypologyChange(typology.id, 'supporto', e.target.value)
+                          handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)
                         }
                         className="table-select"
                       >
-                        {SUPPORTO_OPTIONS.map(opt => (
+                        {TIPO_SUPPORTO_OPTIONS.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
