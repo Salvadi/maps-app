@@ -273,8 +273,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   <div className="table-cell">Supporto</div>
                   <div className="table-cell">Tipo Supporto</div>
                   <div className="table-cell">Attraversamento</div>
-                  <div className="table-cell">Marca materiali</div>
-                  <div className="table-cell">Prodotti</div>
+                  <div className="table-cell">Marca prodotto</div>
+                  <div className="table-cell">Prodotti utilizzati</div>
                 </div>
 
                 {typologies.map((typology) => (
