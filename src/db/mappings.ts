@@ -272,7 +272,7 @@ export async function removePhotoFromMapping(
 export async function getUnsyncedMappings(): Promise<MappingEntry[]> {
   return await db.mappingEntries
     .where('synced')
-    .equals(0)
+    .equals(false)
     .toArray();
 }
 

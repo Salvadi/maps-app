@@ -50,7 +50,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
   // Get all unsynced items, ordered by timestamp
   const pendingItems = await db.syncQueue
     .where('synced')
-    .equals(0)
+    .equals(false)
     .sortBy('timestamp');
 
   if (pendingItems.length === 0) {
@@ -374,7 +374,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
 export async function getSyncStats(): Promise<SyncStats> {
   const pendingCount = await db.syncQueue
     .where('synced')
-    .equals(0)
+    .equals(false)
     .count();
 
   const lastSyncMeta = await db.metadata.get('lastSyncTime');
@@ -396,7 +396,7 @@ export async function getSyncStats(): Promise<SyncStats> {
 export async function clearSyncedItems(): Promise<number> {
   const syncedItems = await db.syncQueue
     .where('synced')
-    .equals(1)
+    .equals(true)
     .toArray();
 
   await db.syncQueue.bulkDelete(syncedItems.map(item => item.id));
