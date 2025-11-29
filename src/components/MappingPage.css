@@ -170,6 +170,14 @@
   grid-column: 1 / -1;
 }
 
+.crossing-field.tipologico-field {
+  grid-column: 1 / -1;
+}
+
+.tipologico-select {
+  min-width: 100%;
+}
+
 .crossing-label {
   font-size: 0.875rem;
   font-weight: 500;

@@ -4,7 +4,6 @@ import { Project, Crossing, User, createMappingEntry, getMappingEntriesForProjec
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
-import MultiValueSelector from './MultiValueSelector';
 import './MappingPage.css';
 
 interface MappingPageProps {
@@ -24,11 +23,21 @@ const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
 const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  const [floor, setFloor] = useState<string>(project?.floors[0] || '0');
+
+  // Recupera l'ultimo piano usato da localStorage
+  const getLastUsedFloor = () => {
+    const lastFloor = localStorage.getItem('lastUsedFloor');
+    if (lastFloor && project?.floors.includes(lastFloor)) {
+      return lastFloor;
+    }
+    return project?.floors[0] || '0';
+  };
+
+  const [floor, setFloor] = useState<string>(getLastUsedFloor());
   const [roomNumber, setRoomNumber] = useState<string>('');
   const [interventionNumber, setInterventionNumber] = useState<number>(1);
   const [sigillature, setSigillature] = useState<Omit<Crossing, 'id'>[]>([
-    { supporto: '', tipoSupporto: '', attraversamento: [], tipologicoId: undefined, notes: '' }
+    { supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -98,9 +107,17 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
   };
 
   const handleAddSigillatura = () => {
+    // Pre-compila con i valori dell'ultima riga
+    const lastSig = sigillature[sigillature.length - 1];
     setSigillature([
       ...sigillature,
-      { supporto: '', tipoSupporto: '', attraversamento: [], tipologicoId: undefined, notes: '' }
+      {
+        supporto: lastSig?.supporto || '',
+        tipoSupporto: lastSig?.tipoSupporto || '',
+        attraversamento: '',
+        tipologicoId: undefined,
+        notes: ''
+      }
     ]);
   };
 
@@ -113,14 +130,20 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
   const handleSigillaturaChange = (
     index: number,
     field: keyof Omit<Crossing, 'id'>,
-    value: string | string[]
+    value: string
   ) => {
     const updatedSigillature = [...sigillature];
     updatedSigillature[index] = {
       ...updatedSigillature[index],
-      [field]: value || (field === 'attraversamento' ? [] : undefined)
+      [field]: value || undefined
     };
     setSigillature(updatedSigillature);
+  };
+
+  const handleFloorChange = (newFloor: string) => {
+    setFloor(newFloor);
+    // Salva in localStorage
+    localStorage.setItem('lastUsedFloor', newFloor);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -132,29 +155,28 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
       return;
     }
 
-    if (photoFiles.length === 0) {
-      setError('Per favore scatta almeno una foto');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      // Compress photos
-      const compressedBlobs: Blob[] = await Promise.all(
-        photoFiles.map(async (file) => {
-          const options = {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1920,
-            useWebWorker: true,
-          };
+      let compressedBlobs: Blob[] = [];
 
-          const compressedFile = await imageCompression(file, options);
-          return compressedFile as Blob;
-        })
-      );
+      // Comprimi le foto solo se ce ne sono
+      if (photoFiles.length > 0) {
+        compressedBlobs = await Promise.all(
+          photoFiles.map(async (file) => {
+            const options = {
+              maxSizeMB: 1,
+              maxWidthOrHeight: 1920,
+              useWebWorker: true,
+            };
 
-      console.log(`Compresse ${photoFiles.length} foto`);
+            const compressedFile = await imageCompression(file, options);
+            return compressedFile as Blob;
+          })
+        );
+
+        console.log(`Compresse ${photoFiles.length} foto`);
+      }
 
       // Determine room/intervention value
       let roomOrIntervention = '';
@@ -189,7 +211,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
       if (project.useInterventionNumbering) {
         setInterventionNumber(prev => prev + 1);
       }
-      setSigillature([{ supporto: '', tipoSupporto: '', attraversamento: [], tipologicoId: undefined, notes: '' }]);
+      setSigillature([{ supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]);
 
       // Reset file inputs
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -303,7 +325,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
             <label className="field-label">Piano</label>
             <select
               value={floor}
-              onChange={(e) => setFloor(e.target.value)}
+              onChange={(e) => handleFloorChange(e.target.value)}
               className="mapping-select"
             >
               {project?.floors && project.floors.length > 0 ? (
@@ -383,25 +405,30 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
                       </select>
                     </div>
 
-                    <div className="crossing-field full-width">
+                    <div className="crossing-field">
                       <label className="crossing-label">Attraversamento</label>
-                      <MultiValueSelector
-                        options={ATTRAVERSAMENTO_OPTIONS}
-                        selectedValues={sig.attraversamento}
-                        onChange={(values) => handleSigillaturaChange(index, 'attraversamento', values)}
-                        placeholder="Seleziona attraversamenti..."
-                      />
+                      <select
+                        value={sig.attraversamento}
+                        onChange={(e) =>
+                          handleSigillaturaChange(index, 'attraversamento', e.target.value)
+                        }
+                        className="crossing-select"
+                      >
+                        {ATTRAVERSAMENTO_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                     </div>
 
                     {project?.typologies && project.typologies.length > 0 && (
-                      <div className="crossing-field">
+                      <div className="crossing-field tipologico-field">
                         <label className="crossing-label">Tipologico</label>
                         <select
                           value={sig.tipologicoId || ''}
                           onChange={(e) =>
                             handleSigillaturaChange(index, 'tipologicoId', e.target.value)
                           }
-                          className="crossing-select"
+                          className="crossing-select tipologico-select"
                         >
                           <option value=""></option>
                           {project.typologies.map((tip) => (
@@ -445,7 +472,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
               className="add-crossing-btn"
               onClick={handleAddSigillatura}
             >
-              + Aggiungi sigillatura
+              +
             </button>
           </div>
 
@@ -462,7 +489,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
             <button
               type="submit"
               className="save-btn"
-              disabled={isSubmitting || photoFiles.length === 0}
+              disabled={isSubmitting}
             >
               {isSubmitting ? 'Salvataggio...' : 'Salva'}
             </button>
