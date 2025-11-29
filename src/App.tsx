@@ -6,9 +6,9 @@ import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import UpdateNotification from './components/UpdateNotification';
-import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, User, Project } from './db';
+import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
-import { startAutoSync, stopAutoSync, processSyncQueue, getSyncStats, SyncStats } from './sync/syncEngine';
+import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, SyncStats } from './sync/syncEngine';
 import './App.css';
 
 type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
@@ -108,11 +108,12 @@ const App: React.FC = () => {
       setIsOnline(true);
       console.log('🌐 App is online');
 
-      // Trigger immediate sync when connection returns
+      // Trigger immediate bidirectional sync when connection returns
       if (isSupabaseConfigured()) {
-        console.log('🔄 Triggering sync after reconnection...');
+        console.log('🔄 Triggering bidirectional sync after reconnection...');
         try {
-          await processSyncQueue();
+          await processSyncQueue(); // Upload local changes
+          await syncFromSupabase(); // Download remote changes
           await updateSyncStats();
         } catch (err) {
           console.error('❌ Sync after reconnection failed:', err);
@@ -147,7 +148,8 @@ const App: React.FC = () => {
         console.log('📬 Received background sync message from Service Worker');
 
         try {
-          await processSyncQueue();
+          await processSyncQueue(); // Upload
+          await syncFromSupabase(); // Download
           await updateSyncStats();
           console.log('✅ Background sync completed');
         } catch (err) {
@@ -204,10 +206,17 @@ const App: React.FC = () => {
     setCurrentView('home');
   };
 
-  // const handleLogout = () => {
-  //   setCurrentUser(null);
-  //   setCurrentView('login');
-  // };
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setCurrentUser(null);
+      setCurrentView('login');
+      console.log('✅ Logout successful');
+    } catch (error) {
+      console.error('❌ Logout failed:', error);
+      alert('Logout failed. Please try again.');
+    }
+  };
 
   const handleCreateProject = () => {
     setSelectedProject(null);
@@ -307,6 +316,7 @@ const App: React.FC = () => {
             onDeleteProject={handleDeleteProject}
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
+            onLogout={handleLogout}
           />
         );
       case 'projectForm':
@@ -345,6 +355,7 @@ const App: React.FC = () => {
             onDeleteProject={handleDeleteProject}
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
+            onLogout={handleLogout}
           />
         );
     }

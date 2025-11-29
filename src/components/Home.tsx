@@ -9,6 +9,7 @@ interface HomeProps {
   onDeleteProject: (projectId: string) => void;
   onViewProject: (project: Project) => void;
   onEnterMapping: (project: Project) => void;
+  onLogout: () => void;
 }
 
 // SVG Icon Components
@@ -70,6 +71,14 @@ const PlusIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const LogoutIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M16 17L21 12L16 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M21 12H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const getProjectIcon = (index: number) => {
   const icons = [DocumentIcon, FolderIcon, CalendarIcon, EyeIcon];
   return icons[index % icons.length];
@@ -82,6 +91,7 @@ const Home: React.FC<HomeProps> = ({
   onDeleteProject,
   onViewProject,
   onEnterMapping,
+  onLogout,
 }) => {
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -130,7 +140,17 @@ const Home: React.FC<HomeProps> = ({
     return (
       <div className="home-page">
         <div className="home-container">
-          <h1 className="home-title">Home</h1>
+          <div className="home-header">
+            <h1 className="home-title">Home</h1>
+            <button
+              className="logout-button"
+              onClick={onLogout}
+              aria-label="Logout"
+              title="Logout"
+            >
+              <LogoutIcon className="logout-icon" />
+            </button>
+          </div>
           <div style={{
             display: 'flex',
             justifyContent: 'center',
@@ -148,7 +168,17 @@ const Home: React.FC<HomeProps> = ({
   return (
     <div className="home-page">
       <div className="home-container">
-        <h1 className="home-title">Home</h1>
+        <div className="home-header">
+          <h1 className="home-title">Home</h1>
+          <button
+            className="logout-button"
+            onClick={onLogout}
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogoutIcon className="logout-icon" />
+          </button>
+        </div>
 
         {projects.length === 0 ? (
           <div style={{
