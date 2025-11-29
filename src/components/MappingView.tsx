@@ -94,21 +94,30 @@ const MappingView: React.FC<MappingViewProps> = ({
     try {
       // Prepare data for Excel
       const data = mappings.map((mapping) => ({
-        Floor: mapping.floor,
-        'Room/Intervention': mapping.roomOrIntervention,
-        'Photo Count': mappingPhotos[mapping.id]?.length || 0,
-        'Created By': mapping.createdBy,
-        'Created At': new Date(mapping.timestamp).toLocaleString(),
-        Crossings: mapping.crossings
-          .map((c) => `${c.supporto || 'N/A'} - ${c.attraversamento || 'N/A'}`)
-          .join('; '),
+        Piano: mapping.floor,
+        'Stanza/Intervento': mapping.roomOrIntervention,
+        'N. Foto': mappingPhotos[mapping.id]?.length || 0,
+        'Creato da': mapping.createdBy,
+        'Data Creazione': new Date(mapping.timestamp).toLocaleString(),
+        Sigillature: mapping.crossings
+          .map((c) => {
+            const parts = [];
+            if (c.supporto) parts.push(`Supporto: ${c.supporto}`);
+            if (c.tipoSupporto) parts.push(`Tipo: ${c.tipoSupporto}`);
+            if (c.attraversamento && c.attraversamento.length > 0) {
+              parts.push(`Attr: ${c.attraversamento.join(', ')}`);
+            }
+            if (c.notes) parts.push(`Note: ${c.notes}`);
+            return parts.join(' | ');
+          })
+          .join(' || '),
       }));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(data);
 
       // Auto-size columns
-      const maxWidth = data.reduce((w, r) => Math.max(w, r['Room/Intervention'].length), 10);
+      const maxWidth = data.reduce((w, r) => Math.max(w, r['Stanza/Intervento'].length), 10);
       ws['!cols'] = [
         { wch: 10 },
         { wch: maxWidth },
@@ -139,13 +148,22 @@ const MappingView: React.FC<MappingViewProps> = ({
 
       // Add Excel file
       const data = mappings.map((mapping) => ({
-        Floor: mapping.floor,
-        'Room/Intervention': mapping.roomOrIntervention,
-        'Photo Count': mappingPhotos[mapping.id]?.length || 0,
-        'Created At': new Date(mapping.timestamp).toLocaleString(),
-        Crossings: mapping.crossings
-          .map((c) => `${c.supporto || 'N/A'} - ${c.attraversamento || 'N/A'}`)
-          .join('; '),
+        Piano: mapping.floor,
+        'Stanza/Intervento': mapping.roomOrIntervention,
+        'N. Foto': mappingPhotos[mapping.id]?.length || 0,
+        'Data Creazione': new Date(mapping.timestamp).toLocaleString(),
+        Sigillature: mapping.crossings
+          .map((c) => {
+            const parts = [];
+            if (c.supporto) parts.push(`Supporto: ${c.supporto}`);
+            if (c.tipoSupporto) parts.push(`Tipo: ${c.tipoSupporto}`);
+            if (c.attraversamento && c.attraversamento.length > 0) {
+              parts.push(`Attr: ${c.attraversamento.join(', ')}`);
+            }
+            if (c.notes) parts.push(`Note: ${c.notes}`);
+            return parts.join(' | ');
+          })
+          .join(' || '),
       }));
 
       const wb = XLSX.utils.book_new();
@@ -273,15 +291,22 @@ const MappingView: React.FC<MappingViewProps> = ({
 
                   {isExpanded && (
                     <div className="mapping-details" onClick={(e) => e.stopPropagation()}>
-                      {/* Crossings */}
+                      {/* Sigillature */}
                       {mapping.crossings.length > 0 && (
                         <div className="crossings-section">
-                          <h4>Attraversamenti:</h4>
+                          <h4>Sigillature:</h4>
                           <ul>
-                            {mapping.crossings.map((crossing, idx) => (
-                              <li key={idx}>
-                                {crossing.supporto || 'N/A'} - {crossing.attraversamento || 'N/A'}
-                                {crossing.tipologicoId && ` (Tip. ${crossing.tipologicoId})`}
+                            {mapping.crossings.map((sig, idx) => (
+                              <li key={idx} style={{ marginBottom: '8px' }}>
+                                <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
+                                <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
+                                <strong>Attraversamento:</strong> {sig.attraversamento && sig.attraversamento.length > 0 ? sig.attraversamento.join(', ') : 'N/A'}<br />
+                                {sig.tipologicoId && (
+                                  <><strong>Tipologico:</strong> {sig.tipologicoId}<br /></>
+                                )}
+                                {sig.notes && (
+                                  <><strong>Note:</strong> {sig.notes}<br /></>
+                                )}
                               </li>
                             ))}
                           </ul>

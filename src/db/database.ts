@@ -24,7 +24,6 @@ export interface Typology {
   number: number;
   supporto: string;
   tipoSupporto: string;
-  materiali: string;
   attraversamento: string;
   marcaProdottoUtilizzato: string;
   prodottiSelezionati: string[];
@@ -42,8 +41,10 @@ export interface PhotoMetadata {
 export interface Crossing {
   id: string;
   supporto: string;
-  attraversamento: string;
+  tipoSupporto: string;
+  attraversamento: string[];
   tipologicoId?: string;
+  notes?: string;
 }
 
 export interface MappingEntry {

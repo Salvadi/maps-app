@@ -166,6 +166,10 @@
   gap: var(--spacing-xs);
 }
 
+.crossing-field.full-width {
+  grid-column: 1 / -1;
+}
+
 .crossing-label {
   font-size: 0.875rem;
   font-weight: 500;
@@ -185,6 +189,29 @@
 
 .crossing-select:focus {
   border-color: var(--color-text-secondary);
+}
+
+.crossing-textarea {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  resize: vertical;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.crossing-textarea:focus {
+  border-color: var(--color-text-secondary);
+}
+
+.sigillatura-row .crossing-fields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
 }
 
 .remove-crossing-btn {
