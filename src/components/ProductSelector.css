@@ -27,6 +27,14 @@
   background-color: var(--color-bg-secondary);
 }
 
+.product-tags-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-top: var(--spacing-xs);
+  margin-bottom: -4px;
+}
+
 .product-tags {
   display: flex;
   flex-wrap: wrap;
