@@ -1,6 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Project, Crossing, User, createMappingEntry } from '../db';
+import { Project, Crossing, User, createMappingEntry, getMappingEntriesForProject } from '../db';
+import { SUPPORTO_OPTIONS } from '../config/supporto';
+import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
+import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
+import MultiValueSelector from './MultiValueSelector';
 import './MappingPage.css';
 
 interface MappingPageProps {
@@ -21,15 +25,38 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [floor, setFloor] = useState<string>(project?.floors[0] || '0');
-  const [roomOrIntervention, setRoomOrIntervention] = useState<string>('');
-  const [crossings, setCrossings] = useState<Omit<Crossing, 'id'>[]>([
-    { supporto: '', attraversamento: '', tipologicoId: undefined }
+  const [roomNumber, setRoomNumber] = useState<string>('');
+  const [interventionNumber, setInterventionNumber] = useState<number>(1);
+  const [sigillature, setSigillature] = useState<Omit<Crossing, 'id'>[]>([
+    { supporto: '', tipoSupporto: '', attraversamento: [], tipologicoId: undefined, notes: '' }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-calculate next intervention number if enabled
+  useEffect(() => {
+    const calculateNextInterventionNumber = async () => {
+      if (project?.useInterventionNumbering) {
+        try {
+          const existingMappings = await getMappingEntriesForProject(project.id);
+          const maxNumber = existingMappings.reduce((max, mapping) => {
+            const num = parseInt(mapping.roomOrIntervention);
+            return !isNaN(num) && num > max ? num : max;
+          }, 0);
+          setInterventionNumber(maxNumber + 1);
+        } catch (error) {
+          console.error('Failed to calculate intervention number:', error);
+        }
+      }
+    };
+
+    if (project) {
+      calculateNextInterventionNumber();
+    }
+  }, [project]);
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -70,30 +97,30 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
     }
   };
 
-  const handleAddCrossing = () => {
-    setCrossings([
-      ...crossings,
-      { supporto: '', attraversamento: '', tipologicoId: undefined }
+  const handleAddSigillatura = () => {
+    setSigillature([
+      ...sigillature,
+      { supporto: '', tipoSupporto: '', attraversamento: [], tipologicoId: undefined, notes: '' }
     ]);
   };
 
-  const handleRemoveCrossing = (index: number) => {
-    if (crossings.length > 1) {
-      setCrossings(crossings.filter((_, i) => i !== index));
+  const handleRemoveSigillatura = (index: number) => {
+    if (sigillature.length > 1) {
+      setSigillature(sigillature.filter((_, i) => i !== index));
     }
   };
 
-  const handleCrossingChange = (
+  const handleSigillaturaChange = (
     index: number,
     field: keyof Omit<Crossing, 'id'>,
-    value: string
+    value: string | string[]
   ) => {
-    const updatedCrossings = [...crossings];
-    updatedCrossings[index] = {
-      ...updatedCrossings[index],
-      [field]: value || undefined
+    const updatedSigillature = [...sigillature];
+    updatedSigillature[index] = {
+      ...updatedSigillature[index],
+      [field]: value || (field === 'attraversamento' ? [] : undefined)
     };
-    setCrossings(updatedCrossings);
+    setSigillature(updatedSigillature);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,12 +128,12 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
     setError('');
 
     if (!project) {
-      setError('No project selected');
+      setError('Nessun progetto selezionato');
       return;
     }
 
     if (photoFiles.length === 0) {
-      setError('Please capture at least one photo');
+      setError('Per favore scatta almeno una foto');
       return;
     }
 
@@ -127,7 +154,15 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
         })
       );
 
-      console.log(`Compressed ${photoFiles.length} photos`);
+      console.log(`Compresse ${photoFiles.length} foto`);
+
+      // Determine room/intervention value
+      let roomOrIntervention = '';
+      if (project.useInterventionNumbering) {
+        roomOrIntervention = interventionNumber.toString();
+      } else if (project.useRoomNumbering) {
+        roomOrIntervention = roomNumber;
+      }
 
       // Save mapping entry to IndexedDB
       const mappingEntry = await createMappingEntry(
@@ -135,8 +170,8 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
           projectId: project.id,
           floor,
           roomOrIntervention,
-          crossings: crossings.map((c, index) => ({
-            ...c,
+          crossings: sigillature.map((s, index) => ({
+            ...s,
             id: `${Date.now()}-${index}`,
           })),
           createdBy: currentUser.id,
@@ -144,21 +179,24 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
         compressedBlobs
       );
 
-      console.log('Mapping entry created:', mappingEntry.id);
-      alert('Mapping saved successfully!');
+      console.log('Mappatura creata:', mappingEntry.id);
+      alert('Mappatura salvata con successo!');
 
       // Reset form
       setPhotoFiles([]);
       setPhotoPreviews([]);
-      setRoomOrIntervention('');
-      setCrossings([{ supporto: '', attraversamento: '', tipologicoId: undefined }]);
+      setRoomNumber('');
+      if (project.useInterventionNumbering) {
+        setInterventionNumber(prev => prev + 1);
+      }
+      setSigillature([{ supporto: '', tipoSupporto: '', attraversamento: [], tipologicoId: undefined, notes: '' }]);
 
       // Reset file inputs
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (cameraInputRef.current) cameraInputRef.current.value = '';
     } catch (err) {
-      console.error('Failed to save mapping:', err);
-      setError('Failed to save mapping. Please try again.');
+      console.error('Errore nel salvataggio della mappatura:', err);
+      setError('Errore nel salvataggio. Riprova.');
     } finally {
       setIsSubmitting(false);
     }
@@ -167,7 +205,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
   return (
     <div className="mapping-page">
       <div className="mapping-container">
-        <h1 className="mapping-title">Mapping</h1>
+        <h1 className="mapping-title">Mappatura</h1>
 
         {error && (
           <div style={{
@@ -208,7 +246,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
               <CameraIcon className="camera-icon" />
             </button>
             <button type="button" className="browse-btn" onClick={handleBrowseClick}>
-              Browse
+              Sfoglia
             </button>
           </div>
 
@@ -223,7 +261,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
                 <div key={index} style={{ position: 'relative' }}>
                   <img
                     src={preview}
-                    alt={`Preview ${index + 1}`}
+                    alt={`Anteprima ${index + 1}`}
                     style={{
                       width: '100%',
                       height: '120px',
@@ -262,7 +300,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
 
           {/* Floor Selection */}
           <div className="form-field">
-            <label className="field-label">Floor</label>
+            <label className="field-label">Piano</label>
             <select
               value={floor}
               onChange={(e) => setFloor(e.target.value)}
@@ -280,63 +318,120 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
             </select>
           </div>
 
-          {/* Room/Intervention Input */}
-          <div className="form-field">
-            <label className="field-label">Room</label>
-            <input
-              type="text"
-              value={roomOrIntervention}
-              onChange={(e) => setRoomOrIntervention(e.target.value)}
-              className="mapping-input"
-            />
-          </div>
+          {/* Room/Intervention Input - Conditional */}
+          {project?.useRoomNumbering && (
+            <div className="form-field">
+              <label className="field-label">Stanza</label>
+              <input
+                type="text"
+                value={roomNumber}
+                onChange={(e) => setRoomNumber(e.target.value)}
+                className="mapping-input"
+                placeholder="Es: A1, B2, Cucina..."
+              />
+            </div>
+          )}
 
-          {/* Crossings Section */}
+          {project?.useInterventionNumbering && (
+            <div className="form-field">
+              <label className="field-label">Intervento n.</label>
+              <input
+                type="number"
+                value={interventionNumber}
+                onChange={(e) => setInterventionNumber(parseInt(e.target.value) || 1)}
+                className="mapping-input"
+                min="1"
+              />
+            </div>
+          )}
+
+          {/* Sigillature Section */}
           <div className="crossings-section">
-            <label className="section-label">Crossings</label>
+            <label className="section-label">Sigillature</label>
 
             <div className="crossings-list">
-              {crossings.map((crossing, index) => (
-                <div key={index} className="crossing-row">
+              {sigillature.map((sig, index) => (
+                <div key={index} className="crossing-row sigillatura-row">
                   <div className="crossing-fields">
                     <div className="crossing-field">
-                      <label className="crossing-label">Support</label>
+                      <label className="crossing-label">Supporto</label>
                       <select
-                        value={crossing.supporto}
+                        value={sig.supporto}
                         onChange={(e) =>
-                          handleCrossingChange(index, 'supporto', e.target.value)
+                          handleSigillaturaChange(index, 'supporto', e.target.value)
                         }
                         className="crossing-select"
                       >
-                        <option value=""></option>
-                        <option value="brick">Brick</option>
-                        <option value="concrete">Concrete</option>
-                        <option value="wood">Wood</option>
-                        <option value="steel">Steel</option>
+                        {SUPPORTO_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
                       </select>
                     </div>
+
                     <div className="crossing-field">
-                      <label className="crossing-label">Crossing</label>
+                      <label className="crossing-label">Tipo Supporto</label>
                       <select
-                        value={crossing.attraversamento}
+                        value={sig.tipoSupporto}
                         onChange={(e) =>
-                          handleCrossingChange(index, 'attraversamento', e.target.value)
+                          handleSigillaturaChange(index, 'tipoSupporto', e.target.value)
                         }
                         className="crossing-select"
                       >
-                        <option value=""></option>
-                        <option value="horizontal">Horizontal</option>
-                        <option value="vertical">Vertical</option>
-                        <option value="diagonal">Diagonal</option>
+                        {TIPO_SUPPORTO_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
                       </select>
+                    </div>
+
+                    <div className="crossing-field full-width">
+                      <label className="crossing-label">Attraversamento</label>
+                      <MultiValueSelector
+                        options={ATTRAVERSAMENTO_OPTIONS}
+                        selectedValues={sig.attraversamento}
+                        onChange={(values) => handleSigillaturaChange(index, 'attraversamento', values)}
+                        placeholder="Seleziona attraversamenti..."
+                      />
+                    </div>
+
+                    {project?.typologies && project.typologies.length > 0 && (
+                      <div className="crossing-field">
+                        <label className="crossing-label">Tipologico</label>
+                        <select
+                          value={sig.tipologicoId || ''}
+                          onChange={(e) =>
+                            handleSigillaturaChange(index, 'tipologicoId', e.target.value)
+                          }
+                          className="crossing-select"
+                        >
+                          <option value=""></option>
+                          {project.typologies.map((tip) => (
+                            <option key={tip.id} value={tip.id}>
+                              Tip. {tip.number} - {tip.supporto} {tip.tipoSupporto}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="crossing-field full-width">
+                      <label className="crossing-label">Note</label>
+                      <textarea
+                        value={sig.notes || ''}
+                        onChange={(e) =>
+                          handleSigillaturaChange(index, 'notes', e.target.value)
+                        }
+                        className="crossing-textarea"
+                        placeholder="Note aggiuntive..."
+                        rows={2}
+                      />
                     </div>
                   </div>
 
-                  {crossings.length > 1 && (
+                  {sigillature.length > 1 && (
                     <button
                       type="button"
                       className="remove-crossing-btn"
-                      onClick={() => handleRemoveCrossing(index)}
+                      onClick={() => handleRemoveSigillatura(index)}
                     >
                       −
                     </button>
@@ -348,9 +443,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
             <button
               type="button"
               className="add-crossing-btn"
-              onClick={handleAddCrossing}
+              onClick={handleAddSigillatura}
             >
-              +
+              + Aggiungi sigillatura
             </button>
           </div>
 
@@ -362,14 +457,14 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
               onClick={onBack}
               disabled={isSubmitting}
             >
-              Back
+              Indietro
             </button>
             <button
               type="submit"
               className="save-btn"
               disabled={isSubmitting || photoFiles.length === 0}
             >
-              {isSubmitting ? 'Saving...' : 'Save'}
+              {isSubmitting ? 'Salvataggio...' : 'Salva'}
             </button>
           </div>
         </form>

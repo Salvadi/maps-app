@@ -1,46 +1,11 @@
 import React, { useState } from 'react';
 import { Project, Typology, User, createProject, updateProject } from '../db';
 import ProductSelector from './ProductSelector';
+import { SUPPORTO_OPTIONS } from '../config/supporto';
+import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
+import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
+import { MARCA_PRODOTTO_OPTIONS } from '../config/marcaProdotto';
 import './ProjectForm.css';
-
-// Costanti per i menu dei Tipologici
-const SUPPORTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'parete', label: 'Parete' },
-  { value: 'solaio', label: 'Solaio' },
-];
-
-const TIPO_SUPPORTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'brick', label: 'Mattoni' },
-  { value: 'concrete', label: 'Cemento' },
-  { value: 'wood', label: 'Legno' },
-  { value: 'steel', label: 'Acciaio' },
-  { value: 'plasterboard', label: 'Cartongesso' },
-];
-
-const MATERIALI_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'plastic', label: 'Plastica' },
-  { value: 'metal', label: 'Metallo' },
-  { value: 'fiber', label: 'Fibra' },
-  { value: 'composite', label: 'Composito' },
-];
-
-const ATTRAVERSAMENTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'horizontal', label: 'Orizzontale' },
-  { value: 'vertical', label: 'Verticale' },
-  { value: 'diagonal', label: 'Diagonale' },
-];
-
-const MARCA_PRODOTTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'Promat', label: 'Promat' },
-  { value: 'AF Systems', label: 'AF Systems' },
-  { value: 'Global Building', label: 'Global Building' },
-  { value: 'Hilti', label: 'Hilti' },
-];
 
 interface ProjectFormProps {
   project: Project | null;
@@ -78,7 +43,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             number: 1,
             supporto: '',
             tipoSupporto: '',
-            materiali: '',
             attraversamento: '',
             marcaProdottoUtilizzato: '',
             prodottiSelezionati: [],
@@ -97,7 +61,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         number: maxNumber + 1,
         supporto: '',
         tipoSupporto: '',
-        materiali: '',
         attraversamento: '',
         marcaProdottoUtilizzato: '',
         prodottiSelezionati: [],
@@ -309,7 +272,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   <div className="table-cell table-cell-number">N.</div>
                   <div className="table-cell">Supporto</div>
                   <div className="table-cell">Tipo Supporto</div>
-                  <div className="table-cell">Materiali</div>
                   <div className="table-cell">Attraversamento</div>
                   <div className="table-cell">Marca Prodotto</div>
                   <div className="table-cell">Prodotti Selezionati</div>
@@ -354,19 +316,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                           ))}
                         </select>
                       </div>
-                    </div>
-                    <div className="table-cell">
-                      <select
-                        value={typology.materiali}
-                        onChange={(e) =>
-                          handleTypologyChange(typology.id, 'materiali', e.target.value)
-                        }
-                        className="table-select"
-                      >
-                        {MATERIALI_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
                     </div>
                     <div className="table-cell">
                       <select
