@@ -82,25 +82,27 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache for offline use
+          // Cache successful responses for offline use
           if (response && response.status === 200) {
             const responseToCache = response.clone();
-            caches.open(RUNTIME_CACHE).then((cache) => {
-              cache.put(request, responseToCache);
-            });
+            caches.open(RUNTIME_CACHE)
+              .then((cache) => {
+                cache.put(request, responseToCache);
+              });
           }
+          console.log('[Service Worker] Fetched from network:', request.url);
           return response;
         })
-        .catch(() => {
+        .catch((error) => {
+          console.log('[Service Worker] Network failed, trying cache:', request.url);
           // Fallback to cache if offline
-          console.log('[Service Worker] Network failed, serving from cache:', request.url);
           return caches.match(request);
         })
     );
     return;
   }
 
-  // Cache-first strategy for documents and images
+  // Cache-first strategy for documents, images and static files
   if (
     request.method === 'GET' &&
     (
