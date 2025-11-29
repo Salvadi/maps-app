@@ -104,8 +104,8 @@ const MappingView: React.FC<MappingViewProps> = ({
             const parts = [];
             if (c.supporto) parts.push(`Supporto: ${c.supporto}`);
             if (c.tipoSupporto) parts.push(`Tipo: ${c.tipoSupporto}`);
-            if (c.attraversamento && c.attraversamento.length > 0) {
-              parts.push(`Attr: ${c.attraversamento.join(', ')}`);
+            if (c.attraversamento) {
+              parts.push(`Attr: ${c.attraversamento}`);
             }
             if (c.notes) parts.push(`Note: ${c.notes}`);
             return parts.join(' | ');
@@ -157,8 +157,8 @@ const MappingView: React.FC<MappingViewProps> = ({
             const parts = [];
             if (c.supporto) parts.push(`Supporto: ${c.supporto}`);
             if (c.tipoSupporto) parts.push(`Tipo: ${c.tipoSupporto}`);
-            if (c.attraversamento && c.attraversamento.length > 0) {
-              parts.push(`Attr: ${c.attraversamento.join(', ')}`);
+            if (c.attraversamento) {
+              parts.push(`Attr: ${c.attraversamento}`);
             }
             if (c.notes) parts.push(`Note: ${c.notes}`);
             return parts.join(' | ');
@@ -300,7 +300,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                               <li key={idx} style={{ marginBottom: '8px' }}>
                                 <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
                                 <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
-                                <strong>Attraversamento:</strong> {sig.attraversamento && sig.attraversamento.length > 0 ? sig.attraversamento.join(', ') : 'N/A'}<br />
+                                <strong>Attraversamento:</strong> {sig.attraversamento || 'N/A'}<br />
                                 {sig.tipologicoId && (
                                   <><strong>Tipologico:</strong> {sig.tipologicoId}<br /></>
                                 )}

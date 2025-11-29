@@ -42,7 +42,7 @@ export interface Crossing {
   id: string;
   supporto: string;
   tipoSupporto: string;
-  attraversamento: string[];
+  attraversamento: string;
   tipologicoId?: string;
   notes?: string;
 }

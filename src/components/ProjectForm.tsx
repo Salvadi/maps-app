@@ -3,7 +3,6 @@ import { Project, Typology, User, createProject, updateProject } from '../db';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
-import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import { MARCA_PRODOTTO_OPTIONS } from '../config/marcaProdotto';
 import './ProjectForm.css';
 
@@ -272,9 +271,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   <div className="table-cell table-cell-number">N.</div>
                   <div className="table-cell">Supporto</div>
                   <div className="table-cell">Tipo Supporto</div>
-                  <div className="table-cell">Attraversamento</div>
-                  <div className="table-cell">Marca Prodotto</div>
-                  <div className="table-cell">Prodotti Selezionati</div>
+                  <div className="table-cell">Marca materiali</div>
+                  <div className="table-cell">Prodotti</div>
                 </div>
 
                 {typologies.map((typology) => (
@@ -316,23 +314,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                           ))}
                         </select>
                       </div>
-                    </div>
-                    <div className="table-cell">
-                      <select
-                        value={typology.attraversamento}
-                        onChange={(e) =>
-                          handleTypologyChange(
-                            typology.id,
-                            'attraversamento',
-                            e.target.value
-                          )
-                        }
-                        className="table-select"
-                      >
-                        {ATTRAVERSAMENTO_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
                     </div>
                     <div className="table-cell">
                       <select
