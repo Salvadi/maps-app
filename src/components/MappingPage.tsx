@@ -405,14 +405,14 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
                       </select>
                     </div>
 
-                    <div className="crossing-field">
+                    <div className="crossing-field attraversamento-field">
                       <label className="crossing-label">Attraversamento</label>
                       <select
                         value={sig.attraversamento}
                         onChange={(e) =>
                           handleSigillaturaChange(index, 'attraversamento', e.target.value)
                         }
-                        className="crossing-select"
+                        className="crossing-select attraversamento-select"
                       >
                         {ATTRAVERSAMENTO_OPTIONS.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>

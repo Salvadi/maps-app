@@ -170,11 +170,13 @@
   grid-column: 1 / -1;
 }
 
-.crossing-field.tipologico-field {
+.crossing-field.tipologico-field,
+.crossing-field.attraversamento-field {
   grid-column: 1 / -1;
 }
 
-.tipologico-select {
+.tipologico-select,
+.attraversamento-select {
   min-width: 100%;
 }
 
