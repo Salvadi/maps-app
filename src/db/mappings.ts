@@ -14,7 +14,7 @@ export async function createMappingEntry(
     lastModified: now(),
     modifiedBy: mappingData.createdBy,
     version: 1,
-    synced: false,
+    synced: 0,
     photos: [] // Will be populated below
   };
 
@@ -62,7 +62,7 @@ export async function createMappingEntry(
       payload: entry,
       timestamp: now(),
       retryCount: 0,
-      synced: false
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
 
@@ -132,7 +132,7 @@ export async function updateMappingEntry(
     lastModified: now(),
     modifiedBy: userId,
     version: entry.version + 1,
-    synced: false
+    synced: 0
   };
 
   try {
@@ -147,7 +147,7 @@ export async function updateMappingEntry(
       payload: updatedEntry,
       timestamp: now(),
       retryCount: 0,
-      synced: false
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
 
@@ -179,7 +179,7 @@ export async function deleteMappingEntry(id: string): Promise<void> {
       payload: { id },
       timestamp: now(),
       retryCount: 0,
-      synced: false
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
 
@@ -272,7 +272,7 @@ export async function removePhotoFromMapping(
 export async function getUnsyncedMappings(): Promise<MappingEntry[]> {
   return await db.mappingEntries
     .where('synced')
-    .equals(false)
+    .equals(0)
     .toArray();
 }
 
@@ -280,7 +280,7 @@ export async function getUnsyncedMappings(): Promise<MappingEntry[]> {
  * Mark mapping entry as synced
  */
 export async function markMappingSynced(id: string): Promise<void> {
-  await db.mappingEntries.update(id, { synced: true });
+  await db.mappingEntries.update(id, { synced: 1 });
 }
 
 /**
