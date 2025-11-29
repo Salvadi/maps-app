@@ -87,45 +87,94 @@ const MappingView: React.FC<MappingViewProps> = ({
     loadMappings();
   }, [project.id]);
 
+  // Generate photo filename prefix based on project settings
+  const generatePhotoPrefix = (floor: string, roomOrIntervention: string): string => {
+    const parts: string[] = [];
+
+    // Always include Piano if project has multiple floors
+    if (project.floors && project.floors.length > 1) {
+      parts.push(`P${floor}`);
+    }
+
+    // Include Stanza if room numbering is enabled
+    if (project.useRoomNumbering) {
+      parts.push(`S${roomOrIntervention}`);
+    }
+
+    // Include Intervento if intervention numbering is enabled
+    if (project.useInterventionNumbering) {
+      parts.push(`Int${roomOrIntervention}`);
+    }
+
+    return parts.length > 0 ? parts.join('_') + '_' : '';
+  };
+
   // Export to XLSX
   const handleExportExcel = async () => {
     setIsExporting(true);
 
     try {
-      // Prepare data for Excel
-      const data = mappings.map((mapping) => ({
-        Piano: mapping.floor,
-        'Stanza/Intervento': mapping.roomOrIntervention,
-        'N. Foto': mappingPhotos[mapping.id]?.length || 0,
-        'Creato da': mapping.createdBy,
-        'Data Creazione': new Date(mapping.timestamp).toLocaleString(),
-        Sigillature: mapping.crossings
-          .map((c) => {
-            const parts = [];
-            if (c.supporto) parts.push(`Supporto: ${c.supporto}`);
-            if (c.tipoSupporto) parts.push(`Tipo: ${c.tipoSupporto}`);
-            if (c.attraversamento) {
-              parts.push(`Attr: ${c.attraversamento}`);
-            }
-            if (c.notes) parts.push(`Note: ${c.notes}`);
-            return parts.join(' | ');
-          })
-          .join(' || '),
-      }));
+      // Prepare data for Excel with conditional columns and multiple rows per attraversamento
+      const data: any[] = [];
+
+      for (const mapping of mappings) {
+        const photos = mappingPhotos[mapping.id] || [];
+        const crossings = mapping.crossings.length > 0 ? mapping.crossings : [null];
+
+        // Create one row per attraversamento
+        for (const crossing of crossings) {
+          const row: any = {};
+
+          // Conditional column: Piano (only if multiple floors)
+          if (project.floors && project.floors.length > 1) {
+            row['Piano'] = mapping.floor;
+          }
+
+          // Conditional column: Stanza (only if room numbering enabled)
+          if (project.useRoomNumbering) {
+            row['Stanza'] = mapping.roomOrIntervention;
+          }
+
+          // Conditional column: Intervento N. (only if intervention numbering enabled)
+          if (project.useInterventionNumbering) {
+            row['Intervento N.'] = mapping.roomOrIntervention;
+          }
+
+          // N. foto - generate photo numbers with zero padding
+          const photoNumbers = photos.map((_, idx) => {
+            const photoNum = (idx + 1).toString().padStart(2, '0');
+            const prefix = generatePhotoPrefix(mapping.floor, mapping.roomOrIntervention);
+            return `${prefix}${photoNum}`;
+          }).join(', ');
+          row['N. foto'] = photoNumbers || '-';
+
+          // Crossing data
+          if (crossing) {
+            row['Supporto'] = crossing.supporto || '-';
+            row['Tipo supporto'] = crossing.tipoSupporto || '-';
+            row['Attraversamento'] = crossing.attraversamento || '-';
+            row['Tipologico'] = crossing.tipologicoId || '-';
+          } else {
+            row['Supporto'] = '-';
+            row['Tipo supporto'] = '-';
+            row['Attraversamento'] = '-';
+            row['Tipologico'] = '-';
+          }
+
+          // Data and User
+          row['Data'] = new Date(mapping.timestamp).toLocaleString('it-IT');
+          row['User'] = mapping.createdBy;
+
+          data.push(row);
+        }
+      }
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(data);
 
       // Auto-size columns
-      const maxWidth = data.reduce((w, r) => Math.max(w, r['Stanza/Intervento'].length), 10);
-      ws['!cols'] = [
-        { wch: 10 },
-        { wch: maxWidth },
-        { wch: 12 },
-        { wch: 15 },
-        { wch: 20 },
-        { wch: 40 },
-      ];
+      const colCount = Object.keys(data[0] || {}).length;
+      ws['!cols'] = Array(colCount).fill({ wch: 15 });
 
       XLSX.utils.book_append_sheet(wb, ws, 'Mappings');
       XLSX.writeFile(wb, `${project.title}_mappings.xlsx`);
@@ -146,40 +195,79 @@ const MappingView: React.FC<MappingViewProps> = ({
     try {
       const zip = new JSZip();
 
-      // Add Excel file
-      const data = mappings.map((mapping) => ({
-        Piano: mapping.floor,
-        'Stanza/Intervento': mapping.roomOrIntervention,
-        'N. Foto': mappingPhotos[mapping.id]?.length || 0,
-        'Data Creazione': new Date(mapping.timestamp).toLocaleString(),
-        Sigillature: mapping.crossings
-          .map((c) => {
-            const parts = [];
-            if (c.supporto) parts.push(`Supporto: ${c.supporto}`);
-            if (c.tipoSupporto) parts.push(`Tipo: ${c.tipoSupporto}`);
-            if (c.attraversamento) {
-              parts.push(`Attr: ${c.attraversamento}`);
-            }
-            if (c.notes) parts.push(`Note: ${c.notes}`);
-            return parts.join(' | ');
-          })
-          .join(' || '),
-      }));
+      // Prepare Excel data with same logic as handleExportExcel
+      const data: any[] = [];
 
+      for (const mapping of mappings) {
+        const photos = mappingPhotos[mapping.id] || [];
+        const crossings = mapping.crossings.length > 0 ? mapping.crossings : [null];
+
+        // Create one row per attraversamento
+        for (const crossing of crossings) {
+          const row: any = {};
+
+          // Conditional column: Piano (only if multiple floors)
+          if (project.floors && project.floors.length > 1) {
+            row['Piano'] = mapping.floor;
+          }
+
+          // Conditional column: Stanza (only if room numbering enabled)
+          if (project.useRoomNumbering) {
+            row['Stanza'] = mapping.roomOrIntervention;
+          }
+
+          // Conditional column: Intervento N. (only if intervention numbering enabled)
+          if (project.useInterventionNumbering) {
+            row['Intervento N.'] = mapping.roomOrIntervention;
+          }
+
+          // N. foto - generate photo numbers with zero padding
+          const photoNumbers = photos.map((_, idx) => {
+            const photoNum = (idx + 1).toString().padStart(2, '0');
+            const prefix = generatePhotoPrefix(mapping.floor, mapping.roomOrIntervention);
+            return `${prefix}${photoNum}`;
+          }).join(', ');
+          row['N. foto'] = photoNumbers || '-';
+
+          // Crossing data
+          if (crossing) {
+            row['Supporto'] = crossing.supporto || '-';
+            row['Tipo supporto'] = crossing.tipoSupporto || '-';
+            row['Attraversamento'] = crossing.attraversamento || '-';
+            row['Tipologico'] = crossing.tipologicoId || '-';
+          } else {
+            row['Supporto'] = '-';
+            row['Tipo supporto'] = '-';
+            row['Attraversamento'] = '-';
+            row['Tipologico'] = '-';
+          }
+
+          // Data and User
+          row['Data'] = new Date(mapping.timestamp).toLocaleString('it-IT');
+          row['User'] = mapping.createdBy;
+
+          data.push(row);
+        }
+      }
+
+      // Create Excel file
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(data);
+      const colCount = Object.keys(data[0] || {}).length;
+      ws['!cols'] = Array(colCount).fill({ wch: 15 });
       XLSX.utils.book_append_sheet(wb, ws, 'Mappings');
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       zip.file(`${project.title}_mappings.xlsx`, excelBuffer);
 
-      // Add photos
+      // Add photos with correct naming convention
       for (const mapping of mappings) {
         const photos = mappingPhotos[mapping.id] || [];
-        const folderName = `${mapping.floor}_${mapping.roomOrIntervention}`.replace(/[^a-z0-9_-]/gi, '_');
+        const prefix = generatePhotoPrefix(mapping.floor, mapping.roomOrIntervention);
 
         for (let i = 0; i < photos.length; i++) {
           const photo = photos[i];
-          const filename = `${folderName}/photo_${i + 1}.jpg`;
+          const photoNum = (i + 1).toString().padStart(2, '0');
+          const filename = `${prefix}${photoNum}.jpg`;
           zip.file(filename, photo.blob);
         }
       }
