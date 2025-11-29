@@ -50,7 +50,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
   // Get all unsynced items, ordered by timestamp
   const pendingItems = await db.syncQueue
     .where('synced')
-    .equals(false)
+    .equals(0)
     .sortBy('timestamp');
 
   if (pendingItems.length === 0) {
@@ -75,7 +75,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
       await processSyncItem(item);
 
       // Mark as synced
-      await db.syncQueue.update(item.id, { synced: true });
+      await db.syncQueue.update(item.id, { synced: 1 });
       processedCount++;
 
       console.log(`✅ Synced ${item.entityType} ${item.operation}:`, item.entityId);
@@ -173,7 +173,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       accessible_users: project.accessibleUsers,
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
-      synced: true
+      synced: 1
     };
 
     // Upsert (insert or update)
@@ -188,7 +188,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
     }
 
     // Mark local project as synced
-    await db.projects.update(project.id, { synced: true });
+    await db.projects.update(project.id, { synced: 1 });
   } else if (item.operation === 'DELETE') {
     const { error } = await supabase
       .from('projects')
@@ -234,7 +234,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       created_by: entry.createdBy,
       modified_by: entry.modifiedBy,
       photos: entry.photos,
-      synced: true,
+      synced: 1,
       created_at: new Date(entry.timestamp).toISOString(),
       updated_at: new Date(entry.lastModified).toISOString()
     };
@@ -250,7 +250,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
     }
 
     // Mark local entry as synced
-    await db.mappingEntries.update(entry.id, { synced: true });
+    await db.mappingEntries.update(entry.id, { synced: 1 });
 
     // Sync photos associated with this mapping entry
     const photos = await db.photos
@@ -269,7 +269,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
           payload: photo,
           timestamp: Date.now(),
           retryCount: 0,
-          synced: false
+          synced: 0
         };
 
         // Check if this photo sync item already exists
@@ -374,7 +374,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
 export async function getSyncStats(): Promise<SyncStats> {
   const pendingCount = await db.syncQueue
     .where('synced')
-    .equals(false)
+    .equals(0)
     .count();
 
   const lastSyncMeta = await db.metadata.get('lastSyncTime');
@@ -396,7 +396,7 @@ export async function getSyncStats(): Promise<SyncStats> {
 export async function clearSyncedItems(): Promise<number> {
   const syncedItems = await db.syncQueue
     .where('synced')
-    .equals(true)
+    .equals(1)
     .toArray();
 
   await db.syncQueue.bulkDelete(syncedItems.map(item => item.id));

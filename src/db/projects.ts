@@ -11,7 +11,7 @@ export async function createProject(
     id: generateId(),
     createdAt: now(),
     updatedAt: now(),
-    synced: false
+    synced: 0
   };
 
   try {
@@ -26,7 +26,7 @@ export async function createProject(
       payload: project,
       timestamp: now(),
       retryCount: 0,
-      synced: false
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
 
@@ -83,7 +83,7 @@ export async function updateProject(
     ...project,
     ...updates,
     updatedAt: now(),
-    synced: false
+    synced: 0
   };
 
   try {
@@ -98,7 +98,7 @@ export async function updateProject(
       payload: updatedProject,
       timestamp: now(),
       retryCount: 0,
-      synced: false
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
 
@@ -140,7 +140,7 @@ export async function deleteProject(id: string): Promise<void> {
       payload: { id },
       timestamp: now(),
       retryCount: 0,
-      synced: false
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
 
@@ -171,7 +171,7 @@ export async function searchProjects(query: string): Promise<Project[]> {
 export async function getUnsyncedProjects(): Promise<Project[]> {
   return await db.projects
     .where('synced')
-    .equals(false)
+    .equals(0)
     .toArray();
 }
 
@@ -179,5 +179,5 @@ export async function getUnsyncedProjects(): Promise<Project[]> {
  * Mark project as synced
  */
 export async function markProjectSynced(id: string): Promise<void> {
-  await db.projects.update(id, { synced: true });
+  await db.projects.update(id, { synced: 1 });
 }

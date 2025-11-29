@@ -138,7 +138,7 @@ function convertRemoteToLocalMapping(remote: any): MappingEntry {
     createdBy: remote.created_by,
     modifiedBy: remote.modified_by,
     photos: remote.photos || [],
-    synced: true
+    synced: 1
   };
 }
 
@@ -161,7 +161,7 @@ function convertRemoteToLocalProject(remote: any): Project {
     accessibleUsers: remote.accessible_users || [],
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
-    synced: true
+    synced: 1
   };
 }
 

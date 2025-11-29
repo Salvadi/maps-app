@@ -16,7 +16,7 @@ export interface Project {
   accessibleUsers: string[]; // array of user UUIDs
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
-  synced: boolean;
+  synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
 }
 
 export interface Typology {
@@ -59,7 +59,7 @@ export interface MappingEntry {
   lastModified: number;
   modifiedBy: string;
   version: number; // For conflict detection
-  synced: boolean;
+  synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
 }
 
 export interface Photo {
@@ -87,7 +87,7 @@ export interface SyncQueueItem {
   timestamp: number;
   retryCount: number;
   lastError?: string;
-  synced: boolean;
+  synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
 }
 
 export interface User {
@@ -186,7 +186,7 @@ export async function getDatabaseStats() {
     db.projects.count(),
     db.mappingEntries.count(),
     db.photos.count(),
-    db.syncQueue.where('synced').equals(false).count(),
+    db.syncQueue.where('synced').equals(0).count(),
     db.users.count()
   ]);
 
