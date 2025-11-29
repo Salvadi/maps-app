@@ -1,163 +1,212 @@
-# Supabase Setup Guide for OPImaPPA
+# Supabase Setup Guide
 
-## Step 1: Create Supabase Account & Project
+This guide will help you set up your Supabase project for the OPImaPPA application.
 
-1. **Go to [supabase.com](https://supabase.com)**
-2. **Sign up** with GitHub (recommended) or email
-3. **Create a new project**:
-   - Organization: Choose or create one
-   - Project Name: `opimappa`
-   - Database Password: Generate a strong password (save it!)
-   - Region: Choose closest to your users (e.g., Europe West for Italy)
-   - Pricing Plan: **Free** (includes authentication, database, storage)
+## Prerequisites
 
-4. **Wait 2-3 minutes** for the project to provision
+- A Supabase account (https://supabase.com)
+- A Supabase project created
+- Your project's credentials added to `.env.local`
 
----
+## Step 1: Database Setup
 
-## Step 2: Get Your API Keys
+1. Go to your Supabase Dashboard
+2. Navigate to **SQL Editor**
+3. Create a new query
+4. Copy and paste the contents of `supabase-schema.sql`
+5. Click **Run** to execute the SQL
 
-1. In your Supabase project, go to **Settings** → **API**
-2. Copy these values (we'll need them):
+This will create:
+- All database tables (profiles, projects, mapping_entries, photos, sync_queue)
+- Row Level Security policies
+- Indexes for performance
+- Triggers for automatic timestamps
+- Auto-create user profiles on signup
 
-   ```
-   Project URL: https://xxxxx.supabase.co
-   anon public key: eyJhbGciOi...
-   service_role key: eyJhbGciOi... (keep secret!)
-   ```
+## Step 2: Storage Bucket Setup
 
-3. **Save these securely** - we'll add them to the app
+### 2.1 Create the Photos Bucket (Alternative to SQL)
 
----
+If the bucket doesn't exist, you can create it via the UI:
 
-## Step 3: Set Up Database Schema
-
-1. Go to **SQL Editor** in your Supabase dashboard
-2. Click **New Query**
-3. Copy and paste the SQL from `supabase-schema.sql`
-4. Click **Run** to create all tables
-5. Verify tables were created: **Database** → **Tables**
-
-You should see:
-- `profiles` - User profiles
-- `projects` - Construction projects
-- `mapping_entries` - Mapping data
-- `photos` - Photo metadata
-- `sync_queue` - Sync tracking
-
----
-
-## Step 4: Enable Row Level Security (RLS)
-
-The SQL script automatically enables RLS policies that:
-- ✅ Users can only see their own projects
-- ✅ Admin users can see all data
-- ✅ Users can only edit data they own
-- ✅ Photos are private to project members
-
----
-
-## Step 5: Set Up Storage for Photos
-
-1. Go to **Storage** in Supabase dashboard
+1. Go to **Storage** in your Supabase Dashboard
 2. Click **New Bucket**
-3. Bucket name: `photos`
-4. Settings:
-   - **Public bucket**: No (private)
-   - **Allowed MIME types**: image/jpeg, image/png, image/webp
-   - **File size limit**: 5 MB
-5. Click **Create bucket**
+3. Configure:
+   - **Name**: `photos`
+   - **Public**: ❌ Unchecked (private bucket)
+   - **File size limit**: `10485760` (10MB)
+   - **Allowed MIME types**: `image/jpeg, image/jpg, image/png, image/webp`
+4. Click **Create Bucket**
 
-6. **Set up storage policies**:
-   - Go to **Policies** tab in the `photos` bucket
-   - Add policies from the SQL script (in Step 3)
+### 2.2 Apply Storage Policies
 
----
+1. Go to **SQL Editor**
+2. Create a new query
+3. Copy and paste the contents of `supabase-storage-policies.sql`
+4. Click **Run** to execute the SQL
 
-## Step 6: Enable Authentication
+This will create policies that allow:
+- Users to upload photos to mapping entries they have access to
+- Users to view/update/delete photos from accessible mapping entries
+- Admins to view all photos
+- File type and size restrictions
 
-1. Go to **Authentication** → **Providers**
-2. Enable **Email** provider (already enabled by default)
-3. Optional: Enable **Google**, **GitHub**, or other OAuth providers
-4. Configure email templates:
-   - **Authentication** → **Email Templates**
-   - Customize confirmation and password reset emails
+## Step 3: Verify Setup
 
----
+### 3.1 Check Database Tables
 
-## Step 7: Configure Environment Variables
+Run this query in SQL Editor:
 
-Add these to your local `.env.local` file:
-
-```env
-REACT_APP_SUPABASE_URL=https://xxxxx.supabase.co
-REACT_APP_SUPABASE_ANON_KEY=eyJhbGciOi...
+```sql
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
 ```
 
-For Vercel deployment:
-1. Go to **Vercel Dashboard** → Your Project → **Settings** → **Environment Variables**
-2. Add:
-   - `REACT_APP_SUPABASE_URL`: Your Project URL
-   - `REACT_APP_SUPABASE_ANON_KEY`: Your anon public key
-3. Redeploy
+You should see:
+- `mapping_entries`
+- `photos`
+- `profiles`
+- `projects`
+- `sync_queue`
 
----
+### 3.2 Check RLS is Enabled
 
-## What's Next?
+Run this query:
 
-After completing these steps, we'll:
-1. ✅ Replace mock authentication with Supabase Auth
-2. ✅ Implement sync queue processor
-3. ✅ Add photo upload to Supabase Storage
-4. ✅ Enable real-time sync
-5. ✅ Test multi-device sync
+```sql
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY tablename;
+```
 
----
+All tables should have `rowsecurity = true`.
 
-## Free Tier Limits
+### 3.3 Check Storage Policies
 
-Supabase Free Tier includes:
-- ✅ 500 MB database space
-- ✅ 1 GB file storage
-- ✅ 50,000 monthly active users
-- ✅ 2 GB bandwidth
-- ✅ Unlimited API requests
+Run this query:
 
-**This is perfect for OPImaPPA!** You can store ~500 projects with ~5,000 photos.
+```sql
+SELECT policyname, cmd
+FROM pg_policies
+WHERE schemaname = 'storage'
+  AND tablename = 'objects'
+ORDER BY policyname;
+```
 
----
+You should see 4 policies:
+- `Users can upload photos to accessible mapping entries` (INSERT)
+- `Users can view photos from accessible mapping entries` (SELECT)
+- `Users can update photos in accessible mapping entries` (UPDATE)
+- `Users can delete photos from accessible mapping entries` (DELETE)
 
-## Security Notes
+## Step 4: Create Your First User
 
-- ✅ **Never commit** API keys to git
-- ✅ Use `.env.local` for local development
-- ✅ Use Vercel Environment Variables for production
-- ✅ Only use `anon` key in frontend (never `service_role`)
-- ✅ RLS policies protect all data
+1. Go to **Authentication** > **Users**
+2. Click **Add User**
+3. Enter email and password
+4. Click **Create User**
 
----
+A profile will be automatically created in the `profiles` table.
+
+To make a user an admin:
+
+```sql
+UPDATE public.profiles
+SET role = 'admin'
+WHERE email = 'your-admin@example.com';
+```
+
+## Step 5: Test the App
+
+1. Clear your browser's IndexedDB (to reset local data):
+   - Open DevTools → Application → IndexedDB
+   - Delete `MappingDatabase`
+
+2. Reload the app
+
+3. Log in with your Supabase user credentials
+
+4. Create a project and add photos
+
+5. Check the console - you should see:
+   ```
+   🔄 Processing X sync queue items as user [user-id]...
+   ✅ Synced project CREATE: [project-id]
+   ✅ Synced mapping_entry CREATE: [entry-id]
+   ✅ Synced photo CREATE: [photo-id]
+   ```
+
+6. Verify in Supabase:
+   - **Database** → Check tables for your data
+   - **Storage** → Check `photos` bucket for uploaded images
 
 ## Troubleshooting
 
-**Issue: Can't create project**
-- Check email confirmation
-- Try different region
-- Wait a few minutes and refresh
+### Issue: "new row violates row-level security policy"
 
-**Issue: SQL script fails**
-- Run queries one at a time
-- Check for syntax errors
-- Ensure you're in the correct project
+**Cause**: User is not authenticated or RLS policies are not set up correctly.
 
-**Issue: RLS blocking queries**
-- Verify you're authenticated
-- Check RLS policies in **Authentication** → **Policies**
-- Use **SQL Editor** to test queries
+**Solution**:
+1. Ensure you're logged in (check localStorage for `supabase.auth.token`)
+2. Run the storage policies SQL again
+3. Clear browser cache and reload
 
----
+### Issue: "User not authenticated. Please log in to sync data."
 
-Ready to proceed? Complete Steps 1-6 above, then let me know your:
-- ✅ Supabase Project URL
-- ✅ Anon public key
+**Cause**: No active Supabase session.
 
-I'll help you integrate it into the app! 🚀
+**Solution**:
+1. Implement and use the login/signup UI
+2. Make sure session persists in localStorage
+3. Check that `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are set correctly
+
+### Issue: Photos upload to storage but metadata insert fails
+
+**Cause**: Database RLS policies blocking the insert.
+
+**Solution**:
+1. Verify the mapping entry exists in Supabase
+2. Verify you have access to the project that owns the mapping entry
+3. Check that `created_by` matches the authenticated user
+
+### Issue: Storage bucket not found
+
+**Cause**: The `photos` bucket doesn't exist.
+
+**Solution**:
+1. Go to Storage in Supabase Dashboard
+2. Create the `photos` bucket manually
+3. Or run the `INSERT INTO storage.buckets` command from `supabase-storage-policies.sql`
+
+## Environment Variables
+
+Make sure your `.env.local` file contains:
+
+```env
+REACT_APP_SUPABASE_URL=https://your-project.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Get these from: **Supabase Dashboard** → **Settings** → **API**
+
+## Security Notes
+
+- ✅ Row Level Security is enabled on all tables
+- ✅ Storage bucket is private (requires authentication)
+- ✅ File types are restricted to images only
+- ✅ File size is limited to 10MB
+- ✅ Users can only access their own data or shared projects
+- ✅ Admins can view all data
+
+## Next Steps
+
+Once setup is complete:
+1. Test creating projects, mapping entries, and uploading photos
+2. Test sharing projects with other users
+3. Verify sync works correctly
+4. Set up automated backups in Supabase Dashboard
+
+For more help, see the [Supabase Documentation](https://supabase.com/docs).
