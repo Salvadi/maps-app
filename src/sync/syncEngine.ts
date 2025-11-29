@@ -93,6 +93,14 @@ export async function processSyncQueue(): Promise<SyncResult> {
   // Update last sync time
   await db.metadata.put({ key: 'lastSyncTime', value: Date.now() });
 
+  // Clean up synced items from the queue (housekeeping)
+  if (processedCount > 0) {
+    const cleanedCount = await clearSyncedItems();
+    if (cleanedCount > 0) {
+      console.log(`🗑️  Cleaned up ${cleanedCount} synced items from queue`);
+    }
+  }
+
   const result: SyncResult = {
     success: failedCount === 0,
     processedCount,
@@ -117,7 +125,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
     case 'project':
       await syncProject(item);
       break;
-    case 'mapping':
+    case 'mapping_entry':
       await syncMappingEntry(item);
       break;
     case 'photo':
@@ -243,6 +251,35 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
 
     // Mark local entry as synced
     await db.mappingEntries.update(entry.id, { synced: true });
+
+    // Sync photos associated with this mapping entry
+    const photos = await db.photos
+      .where('mappingEntryId')
+      .equals(entry.id)
+      .toArray();
+
+    for (const photo of photos) {
+      if (!photo.uploaded) {
+        // Add photo to sync queue if not already uploaded
+        const photoSyncItem: SyncQueueItem = {
+          id: `${entry.id}-photo-${photo.id}`,
+          operation: 'CREATE',
+          entityType: 'photo',
+          entityId: photo.id,
+          payload: photo,
+          timestamp: Date.now(),
+          retryCount: 0,
+          synced: false
+        };
+
+        // Check if this photo sync item already exists
+        const existingPhotoSync = await db.syncQueue.get(photoSyncItem.id);
+        if (!existingPhotoSync) {
+          await db.syncQueue.add(photoSyncItem);
+          console.log(`📸 Added photo ${photo.id} to sync queue`);
+        }
+      }
+    }
   } else if (item.operation === 'DELETE') {
     const { error } = await supabase
       .from('mapping_entries')

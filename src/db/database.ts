@@ -81,7 +81,7 @@ export interface Photo {
 export interface SyncQueueItem {
   id: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
-  entityType: 'project' | 'mapping' | 'photo';
+  entityType: 'project' | 'mapping_entry' | 'photo';
   entityId: string;
   payload: any; // The actual data to sync
   timestamp: number;

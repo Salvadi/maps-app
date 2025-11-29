@@ -57,7 +57,7 @@ export async function createMappingEntry(
     const syncItem: SyncQueueItem = {
       id: generateId(),
       operation: 'CREATE',
-      entityType: 'mapping',
+      entityType: 'mapping_entry',
       entityId: entry.id,
       payload: entry,
       timestamp: now(),
@@ -142,7 +142,7 @@ export async function updateMappingEntry(
     const syncItem: SyncQueueItem = {
       id: generateId(),
       operation: 'UPDATE',
-      entityType: 'mapping',
+      entityType: 'mapping_entry',
       entityId: id,
       payload: updatedEntry,
       timestamp: now(),
@@ -174,7 +174,7 @@ export async function deleteMappingEntry(id: string): Promise<void> {
     const syncItem: SyncQueueItem = {
       id: generateId(),
       operation: 'DELETE',
-      entityType: 'mapping',
+      entityType: 'mapping_entry',
       entityId: id,
       payload: { id },
       timestamp: now(),
