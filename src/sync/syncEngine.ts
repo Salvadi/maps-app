@@ -47,6 +47,18 @@ export async function processSyncQueue(): Promise<SyncResult> {
     };
   }
 
+  // Check if user is authenticated
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    console.warn('⚠️  Sync skipped: User not authenticated');
+    return {
+      success: false,
+      processedCount: 0,
+      failedCount: 0,
+      errors: [{ item: {} as SyncQueueItem, error: 'User not authenticated. Please log in to sync data.' }]
+    };
+  }
+
   // Get all unsynced items, ordered by timestamp
   const pendingItems = await db.syncQueue
     .where('synced')
@@ -63,7 +75,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
     };
   }
 
-  console.log(`🔄 Processing ${pendingItems.length} sync queue items...`);
+  console.log(`🔄 Processing ${pendingItems.length} sync queue items as user ${session.user.id}...`);
 
   let processedCount = 0;
   let failedCount = 0;
