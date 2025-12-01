@@ -439,20 +439,17 @@
   }
 
   .table-row > .table-cell:nth-child(2)::before {
-    content: 'Materiali';
-  }
-
-  .table-row > .table-cell:nth-child(3)::before {
     content: 'Attraversamento';
   }
 
-  .table-row > .table-cell:nth-child(4)::before {
+  .table-row > .table-cell:nth-child(3)::before {
     content: 'Marca Prodotto';
   }
 
-  .table-row > .table-cell:nth-child(5)::before {
-    content: 'Prodotti Selezionati';
+  .table-row > .table-cell:nth-child(4)::before {
+    content: 'Materiali';
   }
+
 
   .table-cell.actions {
     flex-direction: row;
