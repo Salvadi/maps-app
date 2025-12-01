@@ -30,4 +30,3 @@ export const ATTRAVERSAMENTO_OPTIONS: MenuOption[] = [
   { value: 'Altro', label: 'Altro' },
 ];
 
-];
