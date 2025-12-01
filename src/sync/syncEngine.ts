@@ -606,20 +606,137 @@ export async function downloadMappingEntriesFromSupabase(userId: string): Promis
 }
 
 /**
+ * Download photos from Supabase Storage and save to IndexedDB
+ */
+export async function downloadPhotosFromSupabase(userId: string): Promise<number> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Download skipped: Supabase not configured');
+    return 0;
+  }
+
+  if (!navigator.onLine) {
+    console.warn('⚠️  Download skipped: No internet connection');
+    return 0;
+  }
+
+  console.log(`⬇️  Downloading photos from Supabase for user ${userId}...`);
+
+  try {
+    // Get all mapping entries for this user
+    const userProjects = await db.projects
+      .where('ownerId')
+      .equals(userId)
+      .or('accessibleUsers')
+      .equals(userId)
+      .toArray();
+
+    if (userProjects.length === 0) {
+      console.log('✅ No projects found, skipping photos download');
+      return 0;
+    }
+
+    const projectIds = userProjects.map(p => p.id);
+
+    // Get all mapping entries for these projects
+    const mappingEntries = await db.mappingEntries
+      .where('projectId')
+      .anyOf(projectIds)
+      .toArray();
+
+    if (mappingEntries.length === 0) {
+      console.log('✅ No mapping entries found, skipping photos download');
+      return 0;
+    }
+
+    const mappingEntryIds = mappingEntries.map(e => e.id);
+
+    // Download photo metadata from Supabase
+    const { data: photoMetadata, error } = await supabase
+      .from('photos')
+      .select('*')
+      .in('mapping_entry_id', mappingEntryIds);
+
+    if (error) {
+      throw new Error(`Failed to download photo metadata: ${error.message}`);
+    }
+
+    if (!photoMetadata || photoMetadata.length === 0) {
+      console.log('✅ No photos to download');
+      return 0;
+    }
+
+    console.log(`📥 Found ${photoMetadata.length} photos to download`);
+
+    let downloadedCount = 0;
+
+    for (const photoMeta of photoMetadata) {
+      try {
+        // Check if photo already exists locally
+        const existingPhoto = await db.photos.get(photoMeta.id);
+        if (existingPhoto && existingPhoto.uploaded) {
+          console.log(`⏭️  Photo ${photoMeta.id} already exists locally, skipping`);
+          continue;
+        }
+
+        // Download the photo blob from Supabase Storage
+        const { data: blob, error: downloadError } = await supabase.storage
+          .from('photos')
+          .download(photoMeta.storage_path);
+
+        if (downloadError) {
+          console.error(`❌ Failed to download photo ${photoMeta.id}:`, downloadError.message);
+          continue;
+        }
+
+        if (!blob) {
+          console.error(`❌ No blob returned for photo ${photoMeta.id}`);
+          continue;
+        }
+
+        // Save photo to IndexedDB
+        const photo: Photo = {
+          id: photoMeta.id,
+          blob: blob,
+          mappingEntryId: photoMeta.mapping_entry_id,
+          metadata: photoMeta.metadata,
+          uploaded: true,
+          remoteUrl: photoMeta.url
+        };
+
+        await db.photos.put(photo);
+        console.log(`✅ Downloaded photo: ${photoMeta.id}`);
+        downloadedCount++;
+      } catch (photoErr) {
+        const photoErrorMessage = photoErr instanceof Error ? photoErr.message : String(photoErr);
+        console.error(`❌ Error downloading photo ${photoMeta.id}:`, photoErrorMessage);
+        // Continue with next photo even if one fails
+      }
+    }
+
+    console.log(`✅ Downloaded ${downloadedCount} photos from Supabase`);
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download photos:', errorMessage);
+    throw err;
+  }
+}
+
+/**
  * Sync data FROM Supabase TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
-export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number }> {
+export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number }> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
-    return { projectsCount: 0, entriesCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0 };
   }
 
   // Check if user is authenticated
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
-    return { projectsCount: 0, entriesCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0 };
   }
 
   console.log('⬇️  Starting sync FROM Supabase...');
@@ -627,10 +744,11 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
   try {
     const projectsCount = await downloadProjectsFromSupabase(session.user.id);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id);
+    const photosCount = await downloadPhotosFromSupabase(session.user.id);
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries`);
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos`);
 
-    return { projectsCount, entriesCount };
+    return { projectsCount, entriesCount, photosCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Sync from Supabase failed:', errorMessage);
@@ -688,7 +806,7 @@ export function stopAutoSync(): void {
  */
 export async function manualSync(): Promise<{
   uploadResult: SyncResult;
-  downloadResult: { projectsCount: number; entriesCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number }
 }> {
   console.log('🔄 Manual bidirectional sync triggered');
 
@@ -698,7 +816,7 @@ export async function manualSync(): Promise<{
   // Download remote changes
   const downloadResult = await syncFromSupabase();
 
-  console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects and ${downloadResult.entriesCount} entries`);
+  console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
 
   return { uploadResult, downloadResult };
 }
