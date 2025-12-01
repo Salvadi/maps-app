@@ -8,7 +8,7 @@ import MappingView from './components/MappingView';
 import UpdateNotification from './components/UpdateNotification';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
-import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, SyncStats } from './sync/syncEngine';
+import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, SyncStats } from './sync/syncEngine';
 import './App.css';
 
 type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
@@ -218,6 +218,29 @@ const App: React.FC = () => {
     }
   };
 
+  const handleManualSync = async () => {
+    if (!isSupabaseConfigured()) {
+      alert('Supabase not configured. Cannot sync.');
+      return;
+    }
+
+    try {
+      setSyncStats(prev => ({ ...prev, isSyncing: true }));
+      const result = await manualSync();
+      await updateSyncStats();
+
+      const message = `Sync complete!\nUploaded: ${result.uploadResult.processedCount} items\nDownloaded: ${result.downloadResult.projectsCount} projects, ${result.downloadResult.entriesCount} entries`;
+      alert(message);
+
+      // Reload the current view to reflect changes
+      window.location.reload();
+    } catch (error) {
+      console.error('❌ Manual sync failed:', error);
+      alert('Sync failed. Please try again.');
+      setSyncStats(prev => ({ ...prev, isSyncing: false }));
+    }
+  };
+
   const handleCreateProject = () => {
     setSelectedProject(null);
     setCurrentView('projectForm');
@@ -317,6 +340,8 @@ const App: React.FC = () => {
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
             onLogout={handleLogout}
+            onManualSync={handleManualSync}
+            isSyncing={syncStats.isSyncing}
           />
         );
       case 'projectForm':
@@ -356,6 +381,8 @@ const App: React.FC = () => {
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
             onLogout={handleLogout}
+            onManualSync={handleManualSync}
+            isSyncing={syncStats.isSyncing}
           />
         );
     }
