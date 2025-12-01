@@ -229,7 +229,7 @@ const App: React.FC = () => {
       const result = await manualSync();
       await updateSyncStats();
 
-      const message = `Sync complete!\nUploaded: ${result.uploadResult.processedCount} items\nDownloaded: ${result.downloadResult.projectsCount} projects, ${result.downloadResult.entriesCount} entries`;
+      const message = `Sync complete!\nUploaded: ${result.uploadResult.processedCount} items\nDownloaded: ${result.downloadResult.projectsCount} projects, ${result.downloadResult.entriesCount} entries, ${result.downloadResult.photosCount} photos`;
       alert(message);
 
       // Reload the current view to reflect changes
