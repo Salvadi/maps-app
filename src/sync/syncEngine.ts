@@ -435,40 +435,37 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
   console.log(`⬇️  Downloading projects from Supabase for user ${userId}...`);
 
   try {
-    // Download projects where user is owner
-    const { data: ownedProjects, error: ownedError } = await supabase
+    // Download ALL projects and filter client-side
+    // This is less efficient but more reliable than PostgREST array queries
+    const { data: allProjects, error } = await supabase
       .from('projects')
-      .select('*')
-      .eq('owner_id', userId);
+      .select('*');
 
-    if (ownedError) {
-      throw new Error(`Failed to download owned projects: ${ownedError.message}`);
+    if (error) {
+      throw new Error(`Failed to download projects: ${error.message}`);
     }
 
-    // Download projects where user has access (shared projects)
-    const { data: sharedProjects, error: sharedError } = await supabase
-      .from('projects')
-      .select('*')
-      .contains('accessible_users', [userId]);
-
-    if (sharedError) {
-      throw new Error(`Failed to download shared projects: ${sharedError.message}`);
-    }
-
-    // Combine and deduplicate projects
-    const allProjects = [...(ownedProjects || []), ...(sharedProjects || [])];
-    const uniqueProjects = Array.from(
-      new Map(allProjects.map(p => [p.id, p])).values()
-    );
-
-    if (uniqueProjects.length === 0) {
+    if (!allProjects || allProjects.length === 0) {
       console.log('✅ No projects to download');
       return 0;
     }
 
+    // Filter projects where user is owner or has access
+    const userProjects = allProjects.filter((p: any) =>
+      p.owner_id === userId ||
+      (p.accessible_users && Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
+    );
+
+    if (userProjects.length === 0) {
+      console.log('✅ No projects accessible to this user');
+      return 0;
+    }
+
+    console.log(`📥 Found ${userProjects.length} projects for user`);
+
     let downloadedCount = 0;
 
-    for (const supabaseProject of uniqueProjects) {
+    for (const supabaseProject of userProjects) {
       // Convert Supabase format to IndexedDB format
       const project: Project = {
         id: supabaseProject.id,
