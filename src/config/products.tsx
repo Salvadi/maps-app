@@ -1,4 +1,4 @@
-const PRODUCTS_BY_BRAND: Record<string, string[]> = {
+export const PRODUCTS_BY_BRAND: Record<string, string[]> = {
   'Promat': [
     'Promat PROMASEAL-A',
     'Promat PROMASEAL-AG',
