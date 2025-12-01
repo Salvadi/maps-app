@@ -1,17 +1,28 @@
-// Mapping dei prodotti per ogni marca
-export const PRODUCTS_BY_BRAND: Record<string, string[]> = {
+const PRODUCTS_BY_BRAND: Record<string, string[]> = {
   'Promat': [
     'Promat PROMASEAL-A',
-    'Promat PROMASTOP-I',
+    'Promat PROMASEAL-AG',
     'Promat PROMASTOP-CC',
-    'Promat PROMASEAL-PL',
-    'Promat MASTERFLOW 928',
+    'Promat PROMASTOP-W',
+    'Promat LANA DI ROCCIA',
+    'Promat PROMASTOP-FC MD',
+    'Promat PROMASEAL-A Spray',
+    'Promat PROMASTOP-FB',
+    'Promat PROMATECT-L500',
   ],
   'AF Systems': [
-    'AF Systems Firestop Compound',
-    'AF Systems Firestop Sealant',
-    'AF Systems Firestop Mortar',
-    'AF Systems Firestop Wrap',
+    'AF Seal W',
+    'AF Panel',
+    'AF Pipeguard',
+    'AF Sleeves',
+    'AF Sleeve B3',
+    'AF Brick',
+    'AF Multicollar',
+    'AF Collar',
+    'AF Collar C',
+    'AF Fireguard 3',
+    'AF Safeguard',
+    'AF Bags',
   ],
   'Global Building': [
     'Global Building FireSeal',
