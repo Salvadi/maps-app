@@ -5,6 +5,6 @@ export interface MenuOption {
 
 export const SUPPORTO_OPTIONS: MenuOption[] = [
   { value: '', label: '' },
-  { value: 'parete', label: 'Parete' },
-  { value: 'solaio', label: 'Solaio' },
+  { value: 'Parete', label: 'Parete' },
+  { value: 'Solaio', label: 'Solaio' },
 ];
