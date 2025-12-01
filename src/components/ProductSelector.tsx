@@ -17,12 +17,15 @@ const PRODUCTS_BY_BRAND: Record<string, string[]> = {
   'AF Systems': [
     'AF Seal W',
     'AF Panel',
+    'AF Pipeguard',
     'AF Sleeves',
     'AF Sleeve B3',
     'AF Brick',
     'AF Multicollar',
     'AF Collar',
     'AF Collar C',
+    'AF Fireguard 3',
+    'AF Safeguard',
     'AF Bags',
   ],
   'Global Building': [
