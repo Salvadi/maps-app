@@ -314,22 +314,19 @@
   transform: scale(0.98);
 }
 
-/* Typology Input with Eye Icon */
-.tipologico-input-wrapper {
+/* Typology Label with Eye Icon */
+.tipologico-label-wrapper {
   display: flex;
+  align-items: center;
   gap: var(--spacing-xs);
-  align-items: stretch;
-}
-
-.tipologico-input-wrapper .crossing-select {
-  flex: 1;
 }
 
 .eye-btn {
-  width: 40px;
-  min-width: 40px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
   padding: 0;
-  background-color: var(--color-bg-secondary);
+  background-color: transparent;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   display: flex;
@@ -342,12 +339,12 @@
 .eye-btn:hover {
   background-color: var(--color-bg-input);
   border-color: var(--color-text-secondary);
-  transform: scale(1.05);
+  transform: scale(1.1);
 }
 
 .eye-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   color: var(--color-text-secondary);
 }
 

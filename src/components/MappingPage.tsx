@@ -607,25 +607,8 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                     {project?.typologies && project.typologies.length > 0 && (
                       <>
                         <div className="crossing-field tipologico-field">
-                          <label className="crossing-label">Tipologico</label>
-                          <div className="tipologico-input-wrapper">
-                            <select
-                              value={sig.tipologicoId || ''}
-                              onChange={(e) =>
-                                handleSigillaturaChange(index, 'tipologicoId', e.target.value)
-                              }
-                              className="crossing-select tipologico-select"
-                            >
-                              <option value=""></option>
-                              {getSortedTypologies(sig).map((tip) => {
-                                const isMatching = findMatchingTypology(sig)?.id === tip.id;
-                                return (
-                                  <option key={tip.id} value={tip.id}>
-                                    {isMatching ? '⭐ ' : ''}Tip. {tip.number} - {tip.supporto} {tip.tipoSupporto}
-                                  </option>
-                                );
-                              })}
-                            </select>
+                          <div className="tipologico-label-wrapper">
+                            <label className="crossing-label">Tipologico</label>
                             <button
                               type="button"
                               className="eye-btn"
@@ -635,6 +618,23 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                               <EyeIcon className="eye-icon" />
                             </button>
                           </div>
+                          <select
+                            value={sig.tipologicoId || ''}
+                            onChange={(e) =>
+                              handleSigillaturaChange(index, 'tipologicoId', e.target.value)
+                            }
+                            className="crossing-select tipologico-select"
+                          >
+                            <option value=""></option>
+                            {getSortedTypologies(sig).map((tip) => {
+                              const isMatching = findMatchingTypology(sig)?.id === tip.id;
+                              return (
+                                <option key={tip.id} value={tip.id}>
+                                  {isMatching ? '⭐ ' : ''}Tip. {tip.number} - {tip.supporto} {tip.tipoSupporto}
+                                </option>
+                              );
+                            })}
+                          </select>
                         </div>
                         {sig.tipologicoId && !isTypologyCoherent(sig) && (
                           <div className="crossing-field full-width">
