@@ -90,24 +90,21 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       </select>
 
       {selectedProducts.length > 0 && (
-        <>
-          <div className="product-tags-label">Prodotti selezionati</div>
-          <div className="product-tags">
-            {selectedProducts.map((product) => (
-              <div key={product} className="product-tag">
-                <span className="product-tag-text">{product}</span>
-                <button
-                  type="button"
-                  className="product-tag-remove"
-                  onClick={() => handleRemoveProduct(product)}
-                  aria-label={`Rimuovi ${product}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
+        <div className="product-tags">
+          {selectedProducts.map((product) => (
+            <div key={product} className="product-tag">
+              <span className="product-tag-text">{product}</span>
+              <button
+                type="button"
+                className="product-tag-remove"
+                onClick={() => handleRemoveProduct(product)}
+                aria-label={`Rimuovi ${product}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
