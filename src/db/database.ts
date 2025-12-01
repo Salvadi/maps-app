@@ -44,6 +44,9 @@ export interface Crossing {
   tipoSupporto: string;
   attraversamento: string;
   tipologicoId?: string;
+  quantita?: number;
+  diametro?: string;
+  dimensioni?: string;
   notes?: string;
 }
 
