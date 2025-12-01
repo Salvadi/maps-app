@@ -186,7 +186,8 @@
   color: var(--color-text-secondary);
 }
 
-.crossing-select {
+.crossing-select,
+.crossing-input {
   width: 100%;
   padding: var(--spacing-sm);
   background-color: var(--color-bg-secondary);
@@ -197,8 +198,10 @@
   transition: all 0.2s ease;
 }
 
-.crossing-select:focus {
+.crossing-select:focus,
+.crossing-input:focus {
   border-color: var(--color-text-secondary);
+  outline: none;
 }
 
 .crossing-textarea {

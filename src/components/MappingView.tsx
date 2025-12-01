@@ -170,11 +170,17 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Supporto'] = crossing.supporto || '-';
             row['Tipo supporto'] = crossing.tipoSupporto || '-';
             row['Attraversamento'] = crossing.attraversamento || '-';
+            row['Quantità'] = crossing.quantita || '-';
+            row['Diametro'] = crossing.diametro || '-';
+            row['Dimensioni'] = crossing.dimensioni || '-';
             row['Tipologico'] = crossing.tipologicoId || '-';
           } else {
             row['Supporto'] = '-';
             row['Tipo supporto'] = '-';
             row['Attraversamento'] = '-';
+            row['Quantità'] = '-';
+            row['Diametro'] = '-';
+            row['Dimensioni'] = '-';
             row['Tipologico'] = '-';
           }
 
@@ -251,11 +257,17 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Supporto'] = crossing.supporto || '-';
             row['Tipo supporto'] = crossing.tipoSupporto || '-';
             row['Attraversamento'] = crossing.attraversamento || '-';
+            row['Quantità'] = crossing.quantita || '-';
+            row['Diametro'] = crossing.diametro || '-';
+            row['Dimensioni'] = crossing.dimensioni || '-';
             row['Tipologico'] = crossing.tipologicoId || '-';
           } else {
             row['Supporto'] = '-';
             row['Tipo supporto'] = '-';
             row['Attraversamento'] = '-';
+            row['Quantità'] = '-';
+            row['Diametro'] = '-';
+            row['Dimensioni'] = '-';
             row['Tipologico'] = '-';
           }
 

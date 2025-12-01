@@ -122,7 +122,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [sigillature, setSigillature] = useState<Crossing[]>(
     editingEntry && editingEntry.crossings.length > 0
       ? editingEntry.crossings
-      : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]
+      : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -167,6 +167,17 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       selectedTypology.tipoSupporto === crossing.tipoSupporto &&
       selectedTypology.attraversamento === crossing.attraversamento
     );
+  };
+
+  // Helper function to check if attraversamento needs diametro field
+  const needsDiametro = (attraversamento: string) => {
+    return attraversamento.toLowerCase().includes('tubo');
+  };
+
+  // Helper function to check if attraversamento needs dimensioni field
+  const needsDimensioni = (attraversamento: string) => {
+    const dimTypes = ['canalina', 'serranda', 'canala', 'asola', 'altro'];
+    return dimTypes.some(type => attraversamento.toLowerCase().includes(type));
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -278,6 +289,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         tipoSupporto: lastSig?.tipoSupporto || '',
         attraversamento: '',
         tipologicoId: undefined,
+        quantita: undefined,
+        diametro: undefined,
+        dimensioni: undefined,
         notes: ''
       }
     ]);
@@ -292,7 +306,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const handleSigillaturaChange = (
     index: number,
     field: keyof Omit<Crossing, 'id'>,
-    value: string
+    value: string | number
   ) => {
     const updatedSigillature = [...sigillature];
     updatedSigillature[index] = {
@@ -394,7 +408,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         if (project.useInterventionNumbering) {
           setInterventionNumber(prev => prev + 1);
         }
-        setSigillature([{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]);
+        setSigillature([{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
 
         // Reset file inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -603,6 +617,55 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                         ))}
                       </select>
                     </div>
+
+                    {/* Quantità - shown for all attraversamenti when not empty */}
+                    {sig.attraversamento && (
+                      <div className="crossing-field">
+                        <label className="crossing-label">Quantità</label>
+                        <input
+                          type="number"
+                          value={sig.quantita || ''}
+                          onChange={(e) =>
+                            handleSigillaturaChange(index, 'quantita', e.target.value ? parseInt(e.target.value) : '')
+                          }
+                          className="crossing-input"
+                          placeholder="N. attraversamenti"
+                          min="1"
+                        />
+                      </div>
+                    )}
+
+                    {/* Diametro - shown for tubo types */}
+                    {sig.attraversamento && needsDiametro(sig.attraversamento) && (
+                      <div className="crossing-field">
+                        <label className="crossing-label">Diametro</label>
+                        <input
+                          type="text"
+                          value={sig.diametro || ''}
+                          onChange={(e) =>
+                            handleSigillaturaChange(index, 'diametro', e.target.value)
+                          }
+                          className="crossing-input"
+                          placeholder="Es: 50mm, 2 pollici..."
+                        />
+                      </div>
+                    )}
+
+                    {/* Dimensioni - shown for canalina, serranda, asola, canala, altro */}
+                    {sig.attraversamento && needsDimensioni(sig.attraversamento) && (
+                      <div className="crossing-field">
+                        <label className="crossing-label">Dimensioni</label>
+                        <input
+                          type="text"
+                          value={sig.dimensioni || ''}
+                          onChange={(e) =>
+                            handleSigillaturaChange(index, 'dimensioni', e.target.value)
+                          }
+                          className="crossing-input"
+                          placeholder="Es: 30x40cm, 500x300mm..."
+                        />
+                      </div>
+                    )}
 
                     {project?.typologies && project.typologies.length > 0 && (
                       <>
