@@ -51,10 +51,10 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [interventionNumber, setInterventionNumber] = useState<number>(
     editingEntry ? parseInt(editingEntry.roomOrIntervention) || 1 : 1
   );
-  const [sigillature, setSigillature] = useState<Omit<Crossing, 'id'>[]>(
+  const [sigillature, setSigillature] = useState<Crossing[]>(
     editingEntry && editingEntry.crossings.length > 0
-      ? editingEntry.crossings.map(({ id, ...rest }) => rest)
-      : [{ supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]
+      ? editingEntry.crossings
+      : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -163,6 +163,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     setSigillature([
       ...sigillature,
       {
+        id: `${Date.now()}-${sigillature.length}`,
         supporto: lastSig?.supporto || '',
         tipoSupporto: lastSig?.tipoSupporto || '',
         attraversamento: '',
@@ -283,7 +284,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         if (project.useInterventionNumbering) {
           setInterventionNumber(prev => prev + 1);
         }
-        setSigillature([{ supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]);
+        setSigillature([{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]);
 
         // Reset file inputs
         if (fileInputRef.current) fileInputRef.current.value = '';
