@@ -271,8 +271,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                 <div className="table-header">
                   <div className="table-cell table-cell-number">N.</div>
                   <div className="table-cell">Supporto</div>
-                  <div className="table-cell">Attraversamento</div>
                   <div className="table-cell">Tipo Supporto</div>
+                  <div className="table-cell">Attraversamento</div>
                   <div className="table-cell">Marca prodotto</div>
                   <div className="table-cell">Prodotti utilizzati</div>
                 </div>
@@ -305,13 +305,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                       </div>
                       <div className="table-cell">
                         <select
-                          value={typology.attraversamento}
+                          value={typology.tipoSupporto}
                           onChange={(e) =>
-                            handleTypologyChange(typology.id, 'attraversamento', e.target.value)
+                            handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)
                           }
                           className="table-select"
                         >
-                          {ATTRAVERSAMENTO_OPTIONS.map(opt => (
+                          {TIPO_SUPPORTO_OPTIONS.map(opt => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
                         </select>
@@ -319,13 +319,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                     </div>
                     <div className="table-cell">
                       <select
-                        value={typology.tipoSupporto}
+                        value={typology.attraversamento}
                         onChange={(e) =>
-                          handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)
+                          handleTypologyChange(typology.id, 'attraversamento', e.target.value)
                         }
                         className="table-select"
                       >
-                        {TIPO_SUPPORTO_OPTIONS.map(opt => (
+                        {ATTRAVERSAMENTO_OPTIONS.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
