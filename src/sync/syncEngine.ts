@@ -435,24 +435,40 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
   console.log(`⬇️  Downloading projects from Supabase for user ${userId}...`);
 
   try {
-    // Download projects where user is owner or has access
-    const { data: projects, error } = await supabase
+    // Download projects where user is owner
+    const { data: ownedProjects, error: ownedError } = await supabase
       .from('projects')
       .select('*')
-      .or(`owner_id.eq.${userId},accessible_users.cs.{${userId}}`);
+      .eq('owner_id', userId);
 
-    if (error) {
-      throw new Error(`Failed to download projects: ${error.message}`);
+    if (ownedError) {
+      throw new Error(`Failed to download owned projects: ${ownedError.message}`);
     }
 
-    if (!projects || projects.length === 0) {
+    // Download projects where user has access (shared projects)
+    const { data: sharedProjects, error: sharedError } = await supabase
+      .from('projects')
+      .select('*')
+      .contains('accessible_users', [userId]);
+
+    if (sharedError) {
+      throw new Error(`Failed to download shared projects: ${sharedError.message}`);
+    }
+
+    // Combine and deduplicate projects
+    const allProjects = [...(ownedProjects || []), ...(sharedProjects || [])];
+    const uniqueProjects = Array.from(
+      new Map(allProjects.map(p => [p.id, p])).values()
+    );
+
+    if (uniqueProjects.length === 0) {
       console.log('✅ No projects to download');
       return 0;
     }
 
     let downloadedCount = 0;
 
-    for (const supabaseProject of projects) {
+    for (const supabaseProject of uniqueProjects) {
       // Convert Supabase format to IndexedDB format
       const project: Project = {
         id: supabaseProject.id,
