@@ -1,5 +1,6 @@
 import { db, now, User } from './database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { syncFromSupabase } from '../sync/syncEngine';
 
 /**
  * Phase 3: Supabase Authentication with offline-first fallback
@@ -103,6 +104,17 @@ export async function login(email: string, password: string): Promise<User | nul
       await db.metadata.put({ key: 'currentUser', value: user });
 
       console.log('✅ User logged in (Supabase):', user.email);
+
+      // Sync data from Supabase to local database
+      try {
+        console.log('⬇️  Starting initial sync from Supabase...');
+        const syncResult = await syncFromSupabase();
+        console.log(`✅ Initial sync complete: ${syncResult.projectsCount} projects, ${syncResult.entriesCount} entries`);
+      } catch (syncErr) {
+        console.error('⚠️  Initial sync failed, but login successful:', syncErr);
+        // Don't fail the login if sync fails - user can still work offline
+      }
+
       return user;
     } catch (err) {
       console.error('❌ Login exception:', err);

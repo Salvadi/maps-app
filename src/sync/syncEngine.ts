@@ -418,6 +418,214 @@ export async function clearSyncedItems(): Promise<number> {
 }
 
 /**
+ * Download projects from Supabase and save to IndexedDB
+ * This pulls data from the server to the local database
+ */
+export async function downloadProjectsFromSupabase(userId: string): Promise<number> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Download skipped: Supabase not configured');
+    return 0;
+  }
+
+  if (!navigator.onLine) {
+    console.warn('⚠️  Download skipped: No internet connection');
+    return 0;
+  }
+
+  console.log(`⬇️  Downloading projects from Supabase for user ${userId}...`);
+
+  try {
+    // Download projects where user is owner or has access
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*')
+      .or(`owner_id.eq.${userId},accessible_users.cs.{${userId}}`);
+
+    if (error) {
+      throw new Error(`Failed to download projects: ${error.message}`);
+    }
+
+    if (!projects || projects.length === 0) {
+      console.log('✅ No projects to download');
+      return 0;
+    }
+
+    let downloadedCount = 0;
+
+    for (const supabaseProject of projects) {
+      // Convert Supabase format to IndexedDB format
+      const project: Project = {
+        id: supabaseProject.id,
+        title: supabaseProject.title,
+        client: supabaseProject.client,
+        address: supabaseProject.address,
+        notes: supabaseProject.notes,
+        floors: supabaseProject.floors,
+        plans: supabaseProject.plans,
+        useRoomNumbering: supabaseProject.use_room_numbering,
+        useInterventionNumbering: supabaseProject.use_intervention_numbering,
+        typologies: supabaseProject.typologies,
+        ownerId: supabaseProject.owner_id,
+        accessibleUsers: supabaseProject.accessible_users || [],
+        createdAt: new Date(supabaseProject.created_at).getTime(),
+        updatedAt: new Date(supabaseProject.updated_at).getTime(),
+        synced: 1
+      };
+
+      // Check if project exists locally
+      const existingProject = await db.projects.get(project.id);
+
+      if (existingProject) {
+        // Only update if remote is newer
+        if (project.updatedAt > existingProject.updatedAt) {
+          await db.projects.put(project);
+          console.log(`✅ Updated project from server: ${project.title}`);
+          downloadedCount++;
+        }
+      } else {
+        // New project, just add it
+        await db.projects.put(project);
+        console.log(`✅ Downloaded new project: ${project.title}`);
+        downloadedCount++;
+      }
+    }
+
+    console.log(`✅ Downloaded ${downloadedCount} projects from Supabase`);
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download projects:', errorMessage);
+    throw err;
+  }
+}
+
+/**
+ * Download mapping entries from Supabase and save to IndexedDB
+ */
+export async function downloadMappingEntriesFromSupabase(userId: string): Promise<number> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Download skipped: Supabase not configured');
+    return 0;
+  }
+
+  if (!navigator.onLine) {
+    console.warn('⚠️  Download skipped: No internet connection');
+    return 0;
+  }
+
+  console.log(`⬇️  Downloading mapping entries from Supabase for user ${userId}...`);
+
+  try {
+    // First, get all project IDs that the user has access to
+    const userProjects = await db.projects
+      .where('ownerId')
+      .equals(userId)
+      .or('accessibleUsers')
+      .equals(userId)
+      .toArray();
+
+    if (userProjects.length === 0) {
+      console.log('✅ No projects found, skipping mapping entries download');
+      return 0;
+    }
+
+    const projectIds = userProjects.map(p => p.id);
+
+    // Download mapping entries for these projects
+    const { data: mappingEntries, error } = await supabase
+      .from('mapping_entries')
+      .select('*')
+      .in('project_id', projectIds);
+
+    if (error) {
+      throw new Error(`Failed to download mapping entries: ${error.message}`);
+    }
+
+    if (!mappingEntries || mappingEntries.length === 0) {
+      console.log('✅ No mapping entries to download');
+      return 0;
+    }
+
+    let downloadedCount = 0;
+
+    for (const supabaseEntry of mappingEntries) {
+      // Convert Supabase format to IndexedDB format
+      const mappingEntry: MappingEntry = {
+        id: supabaseEntry.id,
+        projectId: supabaseEntry.project_id,
+        floor: supabaseEntry.floor,
+        roomOrIntervention: supabaseEntry.room_or_intervention,
+        photos: supabaseEntry.photos || [],
+        crossings: supabaseEntry.crossings || [],
+        timestamp: new Date(supabaseEntry.created_at).getTime(),
+        createdBy: supabaseEntry.created_by,
+        lastModified: new Date(supabaseEntry.updated_at).getTime(),
+        modifiedBy: supabaseEntry.modified_by,
+        version: supabaseEntry.version || 1,
+        synced: 1
+      };
+
+      // Check if mapping entry exists locally
+      const existingEntry = await db.mappingEntries.get(mappingEntry.id);
+
+      if (existingEntry) {
+        // Only update if remote is newer
+        if (mappingEntry.lastModified > existingEntry.lastModified) {
+          await db.mappingEntries.put(mappingEntry);
+          console.log(`✅ Updated mapping entry from server: ${mappingEntry.id}`);
+          downloadedCount++;
+        }
+      } else {
+        // New entry, just add it
+        await db.mappingEntries.put(mappingEntry);
+        console.log(`✅ Downloaded new mapping entry: ${mappingEntry.id}`);
+        downloadedCount++;
+      }
+    }
+
+    console.log(`✅ Downloaded ${downloadedCount} mapping entries from Supabase`);
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download mapping entries:', errorMessage);
+    throw err;
+  }
+}
+
+/**
+ * Sync data FROM Supabase TO local IndexedDB
+ * This is the "pull" operation that complements the "push" in processSyncQueue
+ */
+export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number }> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
+    return { projectsCount: 0, entriesCount: 0 };
+  }
+
+  // Check if user is authenticated
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
+    return { projectsCount: 0, entriesCount: 0 };
+  }
+
+  console.log('⬇️  Starting sync FROM Supabase...');
+
+  try {
+    const projectsCount = await downloadProjectsFromSupabase(session.user.id);
+    const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id);
+
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries`);
+
+    return { projectsCount, entriesCount };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Sync from Supabase failed:', errorMessage);
+    throw err;
+  }
+}
+
+/**
  * Auto-sync on interval (call this on app startup)
  */
 let syncInterval: NodeJS.Timeout | null = null;
@@ -428,17 +636,25 @@ export function startAutoSync(intervalMs: number = 60000): void {
     return;
   }
 
-  console.log(`🔄 Starting auto-sync every ${intervalMs / 1000}s`);
+  console.log(`🔄 Starting auto-sync (bidirectional) every ${intervalMs / 1000}s`);
 
-  // Sync immediately
-  processSyncQueue().catch(err => {
-    console.error('❌ Initial sync failed:', err);
-  });
+  // Sync immediately (both upload and download)
+  Promise.all([
+    processSyncQueue().catch(err => {
+      console.error('❌ Initial upload sync failed:', err);
+    }),
+    syncFromSupabase().catch(err => {
+      console.error('❌ Initial download sync failed:', err);
+    })
+  ]);
 
-  // Then sync on interval
+  // Then sync on interval (bidirectional)
   syncInterval = setInterval(async () => {
     try {
+      // Upload local changes
       await processSyncQueue();
+      // Download remote changes
+      await syncFromSupabase();
     } catch (err) {
       console.error('❌ Auto-sync failed:', err);
     }
