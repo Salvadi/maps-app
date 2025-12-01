@@ -1,6 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Project, Crossing, User, createMappingEntry, getMappingEntriesForProject } from '../db';
+import {
+  Project,
+  Crossing,
+  User,
+  MappingEntry,
+  createMappingEntry,
+  getMappingEntriesForProject,
+  updateMappingEntry,
+  getPhotosForMapping
+} from '../db';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
@@ -10,6 +19,7 @@ interface MappingPageProps {
   project: Project | null;
   currentUser: User;
   onBack: () => void;
+  editingEntry?: MappingEntry;
 }
 
 // Camera Icon Component
@@ -20,12 +30,15 @@ const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack }) => {
+const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
-  // Recupera l'ultimo piano usato da localStorage
+  // Recupera l'ultimo piano usato da localStorage o dall'entry in modifica
   const getLastUsedFloor = () => {
+    if (editingEntry) {
+      return editingEntry.floor;
+    }
     const lastFloor = localStorage.getItem('lastUsedFloor');
     if (lastFloor && project?.floors.includes(lastFloor)) {
       return lastFloor;
@@ -34,21 +47,59 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
   };
 
   const [floor, setFloor] = useState<string>(getLastUsedFloor());
-  const [roomNumber, setRoomNumber] = useState<string>('');
-  const [interventionNumber, setInterventionNumber] = useState<number>(1);
-  const [sigillature, setSigillature] = useState<Omit<Crossing, 'id'>[]>([
-    { supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }
-  ]);
+  const [roomNumber, setRoomNumber] = useState<string>(editingEntry?.roomOrIntervention || '');
+  const [interventionNumber, setInterventionNumber] = useState<number>(
+    editingEntry ? parseInt(editingEntry.roomOrIntervention) || 1 : 1
+  );
+  const [sigillature, setSigillature] = useState<Crossing[]>(
+    editingEntry && editingEntry.crossings.length > 0
+      ? editingEntry.crossings
+      : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-calculate next intervention number if enabled
+  // Load existing photos if editing
+  useEffect(() => {
+    const loadExistingPhotos = async () => {
+      if (editingEntry) {
+        try {
+          const photos = await getPhotosForMapping(editingEntry.id);
+
+          // Convert photos to previews and files
+          const previews = await Promise.all(
+            photos.map(photo => {
+              return new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.readAsDataURL(photo.blob);
+              });
+            })
+          );
+
+          // Convert Blobs to Files for consistency
+          const files = photos.map((photo, idx) =>
+            new File([photo.blob], `photo-${idx}.jpg`, { type: photo.blob.type })
+          );
+
+          setPhotoPreviews(previews);
+          setPhotoFiles(files);
+        } catch (error) {
+          console.error('Failed to load existing photos:', error);
+        }
+      }
+    };
+
+    loadExistingPhotos();
+  }, [editingEntry]);
+
+  // Auto-calculate next intervention number if enabled (only for new entries)
   useEffect(() => {
     const calculateNextInterventionNumber = async () => {
-      if (project?.useInterventionNumbering) {
+      if (!editingEntry && project?.useInterventionNumbering) {
         try {
           const existingMappings = await getMappingEntriesForProject(project.id);
           const maxNumber = existingMappings.reduce((max, mapping) => {
@@ -65,7 +116,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
     if (project) {
       calculateNextInterventionNumber();
     }
-  }, [project]);
+  }, [project, editingEntry]);
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -112,6 +163,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
     setSigillature([
       ...sigillature,
       {
+        id: `${Date.now()}-${sigillature.length}`,
         supporto: lastSig?.supporto || '',
         tipoSupporto: lastSig?.tipoSupporto || '',
         attraversamento: '',
@@ -186,36 +238,58 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
         roomOrIntervention = roomNumber;
       }
 
-      // Save mapping entry to IndexedDB
-      const mappingEntry = await createMappingEntry(
-        {
-          projectId: project.id,
-          floor,
-          roomOrIntervention,
-          crossings: sigillature.map((s, index) => ({
-            ...s,
-            id: `${Date.now()}-${index}`,
-          })),
-          createdBy: currentUser.id,
-        },
-        compressedBlobs
-      );
+      if (editingEntry) {
+        // Update existing entry
+        await updateMappingEntry(
+          editingEntry.id,
+          {
+            floor,
+            roomOrIntervention,
+            crossings: sigillature.map((s, index) => ({
+              ...s,
+              id: s.id || `${Date.now()}-${index}`,
+            })),
+          },
+          currentUser.id
+        );
 
-      console.log('Mappatura creata:', mappingEntry.id);
-      alert('Mappatura salvata con successo!');
+        console.log('Mappatura aggiornata:', editingEntry.id);
+        alert('Mappatura aggiornata con successo!');
 
-      // Reset form
-      setPhotoFiles([]);
-      setPhotoPreviews([]);
-      setRoomNumber('');
-      if (project.useInterventionNumbering) {
-        setInterventionNumber(prev => prev + 1);
+        // Go back to view
+        onBack();
+      } else {
+        // Create new entry
+        const mappingEntry = await createMappingEntry(
+          {
+            projectId: project.id,
+            floor,
+            roomOrIntervention,
+            crossings: sigillature.map((s, index) => ({
+              ...s,
+              id: `${Date.now()}-${index}`,
+            })),
+            createdBy: currentUser.id,
+          },
+          compressedBlobs
+        );
+
+        console.log('Mappatura creata:', mappingEntry.id);
+        alert('Mappatura salvata con successo!');
+
+        // Reset form
+        setPhotoFiles([]);
+        setPhotoPreviews([]);
+        setRoomNumber('');
+        if (project.useInterventionNumbering) {
+          setInterventionNumber(prev => prev + 1);
+        }
+        setSigillature([{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]);
+
+        // Reset file inputs
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
       }
-      setSigillature([{ supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, notes: '' }]);
-
-      // Reset file inputs
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
     } catch (err) {
       console.error('Errore nel salvataggio della mappatura:', err);
       setError('Errore nel salvataggio. Riprova.');
@@ -227,7 +301,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
   return (
     <div className="mapping-page">
       <div className="mapping-container">
-        <h1 className="mapping-title">Mappatura</h1>
+        <h1 className="mapping-title">{editingEntry ? 'Modifica Mappatura' : 'Mappatura'}</h1>
 
         {error && (
           <div style={{
@@ -491,7 +565,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack 
               className="save-btn"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Salvataggio...' : 'Salva'}
+              {isSubmitting ? (editingEntry ? 'Aggiornamento...' : 'Salvataggio...') : (editingEntry ? 'Aggiorna' : 'Salva')}
             </button>
           </div>
         </form>

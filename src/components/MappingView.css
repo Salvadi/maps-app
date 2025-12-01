@@ -15,20 +15,24 @@
 .view-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  justify-content: center;
+  position: relative;
   margin-bottom: var(--spacing-lg);
 }
 
 .view-header .back-btn {
+  position: absolute;
+  left: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: 4px;
+  padding: 6px 12px;
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
   font-weight: 500;
+  font-size: 0.875rem;
   transition: all 0.2s;
 }
 
@@ -38,15 +42,16 @@
 }
 
 .view-header .back-btn .icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .view-title {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 0;
+  text-align: center;
 }
 
 /* Export Actions */
@@ -122,6 +127,44 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--spacing-md);
+}
+
+.mapping-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mapping-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.mapping-action-btn:hover {
+  background-color: var(--color-bg-input);
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
+}
+
+.mapping-action-btn.delete:hover {
+  background-color: #FEE2E2;
+  color: #DC2626;
+  border-color: #DC2626;
+}
+
+.mapping-action-btn .icon {
+  width: 16px;
+  height: 16px;
 }
 
 .mapping-title {

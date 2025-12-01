@@ -9,6 +9,7 @@ import {
   User,
   getMappingEntriesForProject,
   getPhotosForMapping,
+  deleteMappingEntry,
 } from '../db';
 import './MappingView.css';
 
@@ -17,6 +18,7 @@ interface MappingViewProps {
   currentUser: User;
   onBack: () => void;
   onAddMapping: () => void;
+  onEditMapping: (mappingEntry: MappingEntry) => void;
 }
 
 // Icon Components
@@ -50,11 +52,26 @@ const ImageIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const EditIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const DeleteIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 6H5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const MappingView: React.FC<MappingViewProps> = ({
   project,
   currentUser,
   onBack,
   onAddMapping,
+  onEditMapping,
 }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -285,6 +302,38 @@ const MappingView: React.FC<MappingViewProps> = ({
     }
   };
 
+  // Handle delete mapping
+  const handleDeleteMapping = async (mappingId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!window.confirm('Sei sicuro di voler eliminare questa mappatura? Questa azione non può essere annullata.')) {
+      return;
+    }
+
+    try {
+      await deleteMappingEntry(mappingId);
+
+      // Remove from local state
+      setMappings(prev => prev.filter(m => m.id !== mappingId));
+
+      // Clean up photos
+      const updatedPhotos = { ...mappingPhotos };
+      delete updatedPhotos[mappingId];
+      setMappingPhotos(updatedPhotos);
+
+      console.log('Mapping deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete mapping:', error);
+      alert('Errore durante l\'eliminazione della mappatura');
+    }
+  };
+
+  // Handle edit mapping
+  const handleEditMapping = (mapping: MappingEntry, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEditMapping(mapping);
+  };
+
   if (isLoading) {
     return (
       <div className="mapping-view-page">
@@ -371,9 +420,25 @@ const MappingView: React.FC<MappingViewProps> = ({
                         {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
                       </p>
                     </div>
-                    <div className="photo-count">
-                      <ImageIcon className="icon" />
-                      {photos.length}
+                    <div className="mapping-header-actions">
+                      <button
+                        className="mapping-action-btn"
+                        onClick={(e) => handleEditMapping(mapping, e)}
+                        aria-label="Modifica mappatura"
+                      >
+                        <EditIcon className="icon" />
+                      </button>
+                      <button
+                        className="mapping-action-btn delete"
+                        onClick={(e) => handleDeleteMapping(mapping.id, e)}
+                        aria-label="Elimina mappatura"
+                      >
+                        <DeleteIcon className="icon" />
+                      </button>
+                      <div className="photo-count">
+                        <ImageIcon className="icon" />
+                        {photos.length}
+                      </div>
                     </div>
                   </div>
 
