@@ -6,7 +6,7 @@ import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import UpdateNotification from './components/UpdateNotification';
-import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project } from './db';
+import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, SyncStats } from './sync/syncEngine';
 import './App.css';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
+  const [editingMappingEntry, setEditingMappingEntry] = useState<MappingEntry | undefined>(undefined);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
@@ -269,6 +270,15 @@ const App: React.FC = () => {
   const handleAddMappingFromView = () => {
     if (viewingProject) {
       setCurrentMappingProject(viewingProject);
+      setEditingMappingEntry(undefined);
+      setCurrentView('mapping');
+    }
+  };
+
+  const handleEditMappingFromView = (mappingEntry: MappingEntry) => {
+    if (viewingProject) {
+      setCurrentMappingProject(viewingProject);
+      setEditingMappingEntry(mappingEntry);
       setCurrentView('mapping');
     }
   };
@@ -301,6 +311,7 @@ const App: React.FC = () => {
       setCurrentView('home');
     }
     setCurrentMappingProject(null);
+    setEditingMappingEntry(undefined);
   };
 
   // Show loading state while initializing
@@ -360,6 +371,7 @@ const App: React.FC = () => {
             project={currentMappingProject}
             currentUser={currentUser}
             onBack={handleBackToHome}
+            editingEntry={editingMappingEntry}
           />
         );
       case 'mappingView':
@@ -369,6 +381,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             onBack={handleBackFromMappingView}
             onAddMapping={handleAddMappingFromView}
+            onEditMapping={handleEditMappingFromView}
           />
         );
       default:
