@@ -671,8 +671,21 @@ export function stopAutoSync(): void {
 
 /**
  * Manual sync trigger (for UI button)
+ * Performs bidirectional sync: upload local changes and download remote changes
  */
-export async function manualSync(): Promise<SyncResult> {
-  console.log('🔄 Manual sync triggered');
-  return await processSyncQueue();
+export async function manualSync(): Promise<{
+  uploadResult: SyncResult;
+  downloadResult: { projectsCount: number; entriesCount: number }
+}> {
+  console.log('🔄 Manual bidirectional sync triggered');
+
+  // Upload local changes
+  const uploadResult = await processSyncQueue();
+
+  // Download remote changes
+  const downloadResult = await syncFromSupabase();
+
+  console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects and ${downloadResult.entriesCount} entries`);
+
+  return { uploadResult, downloadResult };
 }

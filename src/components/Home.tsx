@@ -10,6 +10,8 @@ interface HomeProps {
   onViewProject: (project: Project) => void;
   onEnterMapping: (project: Project) => void;
   onLogout: () => void;
+  onManualSync: () => void;
+  isSyncing: boolean;
 }
 
 // SVG Icon Components
@@ -79,6 +81,14 @@ const LogoutIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M21.5 2V6H17.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M2.5 22V18H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M19.13 5.87C18.1164 4.53677 16.7415 3.53498 15.172 2.98818C13.6024 2.44137 11.9084 2.37582 10.3002 2.79936C8.69199 3.22289 7.24076 4.11722 6.13 5.36C5.01924 6.60277 4.29779 8.14213 4.05 9.79M19.95 14.21C19.7022 15.8579 18.9808 17.3972 17.87 18.64C16.7592 19.8828 15.308 20.7771 13.6998 21.2006C12.0916 21.6242 10.3976 21.5586 8.82803 21.0118C7.25849 20.465 5.88364 19.4632 4.87 18.13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const getProjectIcon = (index: number) => {
   const icons = [DocumentIcon, FolderIcon, CalendarIcon, EyeIcon];
   return icons[index % icons.length];
@@ -92,6 +102,8 @@ const Home: React.FC<HomeProps> = ({
   onViewProject,
   onEnterMapping,
   onLogout,
+  onManualSync,
+  isSyncing,
 }) => {
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -142,14 +154,25 @@ const Home: React.FC<HomeProps> = ({
         <div className="home-container">
           <div className="home-header">
             <h1 className="home-title">Home</h1>
-            <button
-              className="logout-button"
-              onClick={onLogout}
-              aria-label="Logout"
-              title="Logout"
-            >
-              <LogoutIcon className="logout-icon" />
-            </button>
+            <div className="header-buttons">
+              <button
+                className={`sync-button ${isSyncing ? 'syncing' : ''}`}
+                onClick={onManualSync}
+                disabled={isSyncing}
+                aria-label="Sync"
+                title="Sync with Supabase"
+              >
+                <SyncIcon className="sync-icon" />
+              </button>
+              <button
+                className="logout-button"
+                onClick={onLogout}
+                aria-label="Logout"
+                title="Logout"
+              >
+                <LogoutIcon className="logout-icon" />
+              </button>
+            </div>
           </div>
           <div style={{
             display: 'flex',
@@ -170,14 +193,25 @@ const Home: React.FC<HomeProps> = ({
       <div className="home-container">
         <div className="home-header">
           <h1 className="home-title">Home</h1>
-          <button
-            className="logout-button"
-            onClick={onLogout}
-            aria-label="Logout"
-            title="Logout"
-          >
-            <LogoutIcon className="logout-icon" />
-          </button>
+          <div className="header-buttons">
+            <button
+              className={`sync-button ${isSyncing ? 'syncing' : ''}`}
+              onClick={onManualSync}
+              disabled={isSyncing}
+              aria-label="Sync"
+              title="Sync with Supabase"
+            >
+              <SyncIcon className="sync-icon" />
+            </button>
+            <button
+              className="logout-button"
+              onClick={onLogout}
+              aria-label="Logout"
+              title="Logout"
+            >
+              <LogoutIcon className="logout-icon" />
+            </button>
+          </div>
         </div>
 
         {projects.length === 0 ? (
