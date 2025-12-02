@@ -5,7 +5,7 @@
 // Uses cache-first strategy for documents and images
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 2; // Increment this on every deploy!
+const CACHE_VERSION = 3; // Increment this on every deploy!
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
@@ -237,4 +237,28 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification('OPImaPPA', options)
   );
+});
+
+// Message event - handle messages from the app
+self.addEventListener('message', (event) => {
+  console.log('[Service Worker] Message received:', event.data);
+
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[Service Worker] Skipping waiting and activating immediately');
+    self.skipWaiting();
+  }
+
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('[Service Worker] Clearing all caches');
+    event.waitUntil(
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            console.log('[Service Worker] Deleting cache:', cacheName);
+            return caches.delete(cacheName);
+          })
+        );
+      })
+    );
+  }
 });
