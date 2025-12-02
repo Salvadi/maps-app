@@ -20,6 +20,8 @@ interface MappingPageProps {
   currentUser: User;
   onBack: () => void;
   editingEntry?: MappingEntry;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 // Camera Icon Component
@@ -27,6 +29,21 @@ const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 3H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     <path d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+// Sync Icon Component
+const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M21 10C21 10 18.995 7.26822 17.3662 5.63824C15.7373 4.00827 13.4864 3 11 3C6.02944 3 2 7.02944 2 12C2 16.9706 6.02944 21 11 21C15.1031 21 18.5649 18.2543 19.6482 14.5M21 10V4M21 10H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+// Back Icon Component
+const BackIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M19 12H5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 19L5 12L12 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -98,7 +115,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
   );
 };
 
-const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry }) => {
+const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
@@ -425,7 +442,23 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   return (
     <div className="mapping-page">
       <div className="mapping-container">
-        <h1 className="mapping-title">{editingEntry ? 'Modifica Mappatura' : 'Mappatura'}</h1>
+        {/* Header */}
+        <div className="mapping-header">
+          <button className="header-back-btn" onClick={onBack}>
+            <BackIcon className="icon" />
+          </button>
+          <h1 className="mapping-title">{editingEntry ? 'Modifica Mappatura' : 'Mappatura'}</h1>
+          {onSync && (
+            <button
+              className={`header-sync-btn ${isSyncing ? 'syncing' : ''}`}
+              onClick={onSync}
+              disabled={isSyncing}
+              aria-label="Sync"
+            >
+              <SyncIcon className="icon" />
+            </button>
+          )}
+        </div>
 
         {error && (
           <div style={{

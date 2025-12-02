@@ -19,6 +19,8 @@ interface MappingViewProps {
   onBack: () => void;
   onAddMapping: () => void;
   onEditMapping: (mappingEntry: MappingEntry) => void;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 // Icon Components
@@ -27,6 +29,12 @@ const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => (
     <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 2.58579 20.4142C2.21071 20.0391 2 19.5304 2 19V15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     <path d="M7 10L12 15L17 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     <path d="M12 15V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M21 10C21 10 18.995 7.26822 17.3662 5.63824C15.7373 4.00827 13.4864 3 11 3C6.02944 3 2 7.02944 2 12C2 16.9706 6.02944 21 11 21C15.1031 21 18.5649 18.2543 19.6482 14.5M21 10V4M21 10H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -72,6 +80,8 @@ const MappingView: React.FC<MappingViewProps> = ({
   onBack,
   onAddMapping,
   onEditMapping,
+  onSync,
+  isSyncing,
 }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -375,6 +385,16 @@ const MappingView: React.FC<MappingViewProps> = ({
             Back
           </button>
           <h1 className="view-title">{project.title}</h1>
+          {onSync && (
+            <button
+              className={`sync-btn ${isSyncing ? 'syncing' : ''}`}
+              onClick={onSync}
+              disabled={isSyncing}
+              aria-label="Sync"
+            >
+              <SyncIcon className="icon" />
+            </button>
+          )}
         </div>
 
         {/* Export Buttons */}

@@ -363,6 +363,8 @@ const App: React.FC = () => {
             currentUser={currentUser}
             onSave={handleProjectSaved}
             onCancel={handleCancelProject}
+            onSync={handleManualSync}
+            isSyncing={syncStats.isSyncing}
           />
         );
       case 'mapping':
@@ -372,6 +374,8 @@ const App: React.FC = () => {
             currentUser={currentUser}
             onBack={handleBackToHome}
             editingEntry={editingMappingEntry}
+            onSync={handleManualSync}
+            isSyncing={syncStats.isSyncing}
           />
         );
       case 'mappingView':
@@ -382,6 +386,8 @@ const App: React.FC = () => {
             onBack={handleBackFromMappingView}
             onAddMapping={handleAddMappingFromView}
             onEditMapping={handleEditMappingFromView}
+            onSync={handleManualSync}
+            isSyncing={syncStats.isSyncing}
           />
         );
       default:
@@ -407,25 +413,6 @@ const App: React.FC = () => {
       {!isOnline && (
         <div className="offline-indicator">
           ⚠️ You are offline. Changes will be synced when connection returns.
-        </div>
-      )}
-
-      {/* Sync status indicator */}
-      {isOnline && isSupabaseConfigured() && syncStats.pendingCount > 0 && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: '#FFF3E0',
-          color: '#E65100',
-          padding: '8px',
-          textAlign: 'center',
-          fontSize: '0.875rem',
-          zIndex: 1000,
-          borderBottom: '1px solid #FFB74D'
-        }}>
-          🔄 Syncing {syncStats.pendingCount} {syncStats.pendingCount === 1 ? 'item' : 'items'}...
         </div>
       )}
 
