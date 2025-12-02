@@ -198,7 +198,8 @@ CREATE POLICY "Users can create projects"
 CREATE POLICY "Users can update own projects"
   ON public.projects
   FOR UPDATE
-  USING (owner_id = auth.uid());
+  USING (owner_id = auth.uid())
+  WITH CHECK (owner_id = auth.uid());
 
 -- Users can update projects they have access to
 CREATE POLICY "Users can update accessible projects"
@@ -215,7 +216,8 @@ CREATE POLICY "Users can update accessible projects"
 CREATE POLICY "Admins can update all projects"
   ON public.projects
   FOR UPDATE
-  USING (public.is_admin());
+  USING (public.is_admin())
+  WITH CHECK (true);
 
 -- Users can delete projects they own
 CREATE POLICY "Users can delete own projects"
