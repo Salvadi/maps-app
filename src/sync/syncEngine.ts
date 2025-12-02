@@ -422,7 +422,7 @@ export async function clearSyncedItems(): Promise<number> {
  * Download projects from Supabase and save to IndexedDB
  * This pulls data from the server to the local database
  */
-export async function downloadProjectsFromSupabase(userId: string): Promise<number> {
+export async function downloadProjectsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Download skipped: Supabase not configured');
     return 0;
@@ -433,21 +433,9 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
     return 0;
   }
 
-  console.log(`⬇️  Downloading projects from Supabase for user ${userId}...`);
+  console.log(`⬇️  Downloading projects from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
 
   try {
-    // Get user profile to check if admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (profileError) {
-      console.warn(`⚠️  Failed to get user profile: ${profileError.message}`);
-    }
-
-    const isAdmin = profile?.role === 'admin';
 
     // Download ALL projects and filter client-side
     // This is less efficient but more reliable than PostgREST array queries
@@ -536,7 +524,7 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
 /**
  * Download mapping entries from Supabase and save to IndexedDB
  */
-export async function downloadMappingEntriesFromSupabase(userId: string): Promise<number> {
+export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Download skipped: Supabase not configured');
     return 0;
@@ -547,21 +535,9 @@ export async function downloadMappingEntriesFromSupabase(userId: string): Promis
     return 0;
   }
 
-  console.log(`⬇️  Downloading mapping entries from Supabase for user ${userId}...`);
+  console.log(`⬇️  Downloading mapping entries from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
 
   try {
-    // Get user profile to check if admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (profileError) {
-      console.warn(`⚠️  Failed to get user profile: ${profileError.message}`);
-    }
-
-    const isAdmin = profile?.role === 'admin';
 
     // Get all project IDs that the user has access to (or all projects if admin)
     let userProjects;
@@ -648,7 +624,7 @@ export async function downloadMappingEntriesFromSupabase(userId: string): Promis
 /**
  * Download photos from Supabase Storage and save to IndexedDB
  */
-export async function downloadPhotosFromSupabase(userId: string): Promise<number> {
+export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Download skipped: Supabase not configured');
     return 0;
@@ -659,21 +635,9 @@ export async function downloadPhotosFromSupabase(userId: string): Promise<number
     return 0;
   }
 
-  console.log(`⬇️  Downloading photos from Supabase for user ${userId}...`);
+  console.log(`⬇️  Downloading photos from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
 
   try {
-    // Get user profile to check if admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (profileError) {
-      console.warn(`⚠️  Failed to get user profile: ${profileError.message}`);
-    }
-
-    const isAdmin = profile?.role === 'admin';
 
     // Get all projects for this user (or all projects if admin)
     let userProjects;
@@ -801,9 +765,29 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
   console.log('⬇️  Starting sync FROM Supabase...');
 
   try {
-    const projectsCount = await downloadProjectsFromSupabase(session.user.id);
-    const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id);
-    const photosCount = await downloadPhotosFromSupabase(session.user.id);
+    // Get user profile once to check if admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) {
+      console.error('⚠️  Failed to get user profile for sync:', profileError.message);
+      console.error('⚠️  Continuing with regular user permissions');
+    }
+
+    const isAdmin = profile?.role === 'admin';
+
+    if (isAdmin) {
+      console.log('👑 Admin user detected: will sync all projects');
+    } else {
+      console.log('👤 Regular user: will sync accessible projects only');
+    }
+
+    const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
+    const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+    const photosCount = await downloadPhotosFromSupabase(session.user.id, isAdmin);
 
     console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos`);
 
