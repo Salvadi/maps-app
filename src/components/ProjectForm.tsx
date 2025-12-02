@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Project, Typology, User, createProject, updateProject } from '../db';
+import { Project, Typology, User, createProject, updateProject, archiveProject } from '../db';
 import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -137,6 +137,24 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       setError('Failed to save project. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!project) return;
+
+    if (window.confirm(`Archiviare il progetto "${project.title}"? Non sarà più visibile nella home page.`)) {
+      setIsSubmitting(true);
+      try {
+        await archiveProject(project.id);
+        console.log('Project archived:', project.id);
+        onSave(); // Return to home
+      } catch (err) {
+        console.error('Failed to archive project:', err);
+        setError('Failed to archive project. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -406,6 +424,20 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
               {isSubmitting ? 'Saving...' : (project ? 'Save' : 'Create')}
             </button>
           </div>
+
+          {/* Archive Button - only for existing projects */}
+          {project && (
+            <div className="archive-section">
+              <button
+                type="button"
+                className="archive-btn"
+                onClick={handleArchive}
+                disabled={isSubmitting}
+              >
+                Archivia
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

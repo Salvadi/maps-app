@@ -159,6 +159,7 @@ function convertRemoteToLocalProject(remote: any): Project {
     typologies: remote.typologies || [],
     ownerId: remote.owner_id,
     accessibleUsers: remote.accessible_users || [],
+    archived: remote.archived || 0,
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
     synced: 1

@@ -4,11 +4,12 @@ import { db, generateId, now, Project, SyncQueueItem } from './database';
  * Create a new project
  */
 export async function createProject(
-  projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'synced'>
+  projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'archived'>
 ): Promise<Project> {
   const project: Project = {
     ...projectData,
     id: generateId(),
+    archived: 0,
     createdAt: now(),
     updatedAt: now(),
     synced: 0
@@ -180,4 +181,18 @@ export async function getUnsyncedProjects(): Promise<Project[]> {
  */
 export async function markProjectSynced(id: string): Promise<void> {
   await db.projects.update(id, { synced: 1 });
+}
+
+/**
+ * Archive a project
+ */
+export async function archiveProject(id: string): Promise<Project> {
+  return await updateProject(id, { archived: 1 });
+}
+
+/**
+ * Unarchive a project
+ */
+export async function unarchiveProject(id: string): Promise<Project> {
+  return await updateProject(id, { archived: 0 });
 }
