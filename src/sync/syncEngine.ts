@@ -436,6 +436,19 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
   console.log(`⬇️  Downloading projects from Supabase for user ${userId}...`);
 
   try {
+    // Get user profile to check if admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.warn(`⚠️  Failed to get user profile: ${profileError.message}`);
+    }
+
+    const isAdmin = profile?.role === 'admin';
+
     // Download ALL projects and filter client-side
     // This is less efficient but more reliable than PostgREST array queries
     const { data: allProjects, error } = await supabase
@@ -451,11 +464,17 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
       return 0;
     }
 
-    // Filter projects where user is owner or has access
-    const userProjects = allProjects.filter((p: any) =>
-      p.owner_id === userId ||
-      (p.accessible_users && Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
-    );
+    // Filter projects: admins see all, regular users see only accessible
+    let userProjects;
+    if (isAdmin) {
+      console.log('👑 Admin user: downloading all projects');
+      userProjects = allProjects;
+    } else {
+      userProjects = allProjects.filter((p: any) =>
+        p.owner_id === userId ||
+        (p.accessible_users && Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
+      );
+    }
 
     if (userProjects.length === 0) {
       console.log('✅ No projects accessible to this user');
@@ -531,13 +550,32 @@ export async function downloadMappingEntriesFromSupabase(userId: string): Promis
   console.log(`⬇️  Downloading mapping entries from Supabase for user ${userId}...`);
 
   try {
-    // First, get all project IDs that the user has access to
-    const userProjects = await db.projects
-      .where('ownerId')
-      .equals(userId)
-      .or('accessibleUsers')
-      .equals(userId)
-      .toArray();
+    // Get user profile to check if admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.warn(`⚠️  Failed to get user profile: ${profileError.message}`);
+    }
+
+    const isAdmin = profile?.role === 'admin';
+
+    // Get all project IDs that the user has access to (or all projects if admin)
+    let userProjects;
+    if (isAdmin) {
+      console.log('👑 Admin user: downloading mapping entries for all projects');
+      userProjects = await db.projects.toArray();
+    } else {
+      userProjects = await db.projects
+        .where('ownerId')
+        .equals(userId)
+        .or('accessibleUsers')
+        .equals(userId)
+        .toArray();
+    }
 
     if (userProjects.length === 0) {
       console.log('✅ No projects found, skipping mapping entries download');
@@ -624,13 +662,32 @@ export async function downloadPhotosFromSupabase(userId: string): Promise<number
   console.log(`⬇️  Downloading photos from Supabase for user ${userId}...`);
 
   try {
-    // Get all mapping entries for this user
-    const userProjects = await db.projects
-      .where('ownerId')
-      .equals(userId)
-      .or('accessibleUsers')
-      .equals(userId)
-      .toArray();
+    // Get user profile to check if admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.warn(`⚠️  Failed to get user profile: ${profileError.message}`);
+    }
+
+    const isAdmin = profile?.role === 'admin';
+
+    // Get all projects for this user (or all projects if admin)
+    let userProjects;
+    if (isAdmin) {
+      console.log('👑 Admin user: downloading photos for all projects');
+      userProjects = await db.projects.toArray();
+    } else {
+      userProjects = await db.projects
+        .where('ownerId')
+        .equals(userId)
+        .or('accessibleUsers')
+        .equals(userId)
+        .toArray();
+    }
 
     if (userProjects.length === 0) {
       console.log('✅ No projects found, skipping photos download');
