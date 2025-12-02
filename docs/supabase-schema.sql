@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
   typologies JSONB NOT NULL DEFAULT '[]'::jsonb,
   owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   accessible_users JSONB NOT NULL DEFAULT '[]'::jsonb,
+  archived BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   synced BOOLEAN NOT NULL DEFAULT true
@@ -95,6 +96,7 @@ CREATE TABLE IF NOT EXISTS public.sync_queue (
 CREATE INDEX IF NOT EXISTS idx_projects_owner ON public.projects(owner_id);
 CREATE INDEX IF NOT EXISTS idx_projects_updated ON public.projects(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_projects_synced ON public.projects(synced);
+CREATE INDEX IF NOT EXISTS idx_projects_archived ON public.projects(archived);
 
 -- Mapping entries indexes
 CREATE INDEX IF NOT EXISTS idx_mapping_entries_project ON public.mapping_entries(project_id);

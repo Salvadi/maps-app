@@ -202,6 +202,36 @@ SELECT * FROM public.profiles;
 -- Dovrebbe restituire TUTTI i profili
 ```
 
+## Errore "Column Not Found" Durante Upload
+
+Se vedi questo errore durante l'upload di progetti:
+```
+❌ Failed to sync project UPDATE: Could not find the 'archived' column of 'projects' in the schema cache
+```
+
+**Causa**: Lo schema Supabase non è sincronizzato con lo schema locale. Il database locale (IndexedDB) ha colonne che non esistono su Supabase.
+
+**Soluzione**:
+1. Vai su Supabase Dashboard → SQL Editor
+2. Esegui il file di migrazione: `docs/migration-add-archived-column.sql`
+3. Questo aggiungerà la colonna `archived` alla tabella `projects`
+4. Riprova l'upload del progetto
+
+**Verifica**:
+```sql
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'projects'
+  AND column_name = 'archived';
+```
+
+Dovresti vedere:
+```
+column_name | data_type | is_nullable | column_default
+archived    | boolean   | NO          | false
+```
+
 ## Checklist Risoluzione
 
 - [ ] RLS è abilitato sulla tabella `profiles`
@@ -212,6 +242,7 @@ SELECT * FROM public.profiles;
 - [ ] Il trigger `handle_new_user` è attivo
 - [ ] Ho fatto logout/login dopo aver cambiato il ruolo
 - [ ] Ho cancellato IndexedDB e ricaricato i dati (vedi UPDATE_SYSTEM.md)
+- [ ] Lo schema Supabase ha tutte le colonne richieste (incluso `archived`)
 
 ## Riapplicare Tutto lo Schema
 
