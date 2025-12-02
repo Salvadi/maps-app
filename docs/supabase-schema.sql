@@ -125,6 +125,22 @@ ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_queue ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
+-- HELPER FUNCTIONS FOR POLICIES
+-- ============================================
+
+-- Function to check if current user is admin
+-- Uses SECURITY DEFINER to bypass RLS and avoid infinite recursion
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
 -- PROFILES POLICIES
 -- ============================================
 
@@ -140,16 +156,11 @@ CREATE POLICY "Users can update own profile"
   FOR UPDATE
   USING (auth.uid() = id);
 
--- Admins can view all profiles
+-- Admins can view all profiles (uses helper function to avoid recursion)
 CREATE POLICY "Admins can view all profiles"
   ON public.profiles
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (public.is_admin());
 
 -- ============================================
 -- PROJECTS POLICIES
@@ -173,12 +184,7 @@ CREATE POLICY "Users can view accessible projects"
 CREATE POLICY "Admins can view all projects"
   ON public.projects
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (public.is_admin());
 
 -- Users can create their own projects
 CREATE POLICY "Users can create projects"
@@ -221,12 +227,7 @@ CREATE POLICY "Users can view mapping entries for accessible projects"
 CREATE POLICY "Admins can view all mapping entries"
   ON public.mapping_entries
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (public.is_admin());
 
 -- Users can create mapping entries for accessible projects
 CREATE POLICY "Users can create mapping entries"
@@ -289,12 +290,7 @@ CREATE POLICY "Users can view photos for accessible entries"
 CREATE POLICY "Admins can view all photos"
   ON public.photos
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (public.is_admin());
 
 -- Users can create photos for accessible mapping entries
 CREATE POLICY "Users can create photos"

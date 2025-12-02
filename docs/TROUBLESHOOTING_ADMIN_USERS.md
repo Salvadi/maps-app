@@ -4,6 +4,17 @@
 
 Quando un admin crea o modifica un progetto, la sezione "Condividi Progetto" non mostra alcun utente o mostra solo l'admin stesso.
 
+## Errore "Infinite Recursion"
+
+Se vedi questo errore nella console:
+```
+❌ Profile fetch error: {code: '42P17', message: 'infinite recursion detected in policy for relation "profiles"'}
+```
+
+**Causa**: Le RLS policies stanno cercando di leggere dalla tabella `profiles` per verificare se l'utente è admin, ma per leggere da `profiles` devono verificare le policies... che cercano di leggere da `profiles`... loop infinito!
+
+**Soluzione**: Usa la funzione helper `is_admin()` con `SECURITY DEFINER` che bypassa RLS. Segui le istruzioni nella sezione "RLS Policies Non Applicate" qui sotto.
+
 ## Cause Possibili
 
 ### 1. RLS Policies Non Applicate
@@ -19,6 +30,24 @@ Le Row Level Security (RLS) policies potrebbero non essere state applicate corre
 **Come Risolvere:**
 Se le policies non ci sono, eseguile manualmente:
 
+**IMPORTANTE**: Prima crea la funzione helper per evitare ricorsione infinita:
+
+```sql
+-- Funzione helper per verificare se l'utente è admin
+-- SECURITY DEFINER bypassa RLS per evitare ricorsione
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+Poi crea le policies:
+
 ```sql
 -- Abilita RLS sulla tabella profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -29,16 +58,22 @@ CREATE POLICY "Users can view own profile"
   FOR SELECT
   USING (auth.uid() = id);
 
--- Policy per admin
+-- Policy per admin (usa la funzione helper)
 CREATE POLICY "Admins can view all profiles"
   ON public.profiles
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (public.is_admin());
+```
+
+**ATTENZIONE**: NON usare mai questa sintassi che causa ricorsione infinita:
+```sql
+-- ❌ SBAGLIATO - Causa errore "infinite recursion"
+USING (
+  EXISTS (
+    SELECT 1 FROM public.profiles  -- Legge dalla stessa tabella!
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
 ```
 
 ### 2. Utente Admin Senza Ruolo
