@@ -1,63 +1,28 @@
 /* Mapping View Page */
 .mapping-view-page {
-  min-height: 100vh;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   background-color: var(--color-bg-primary);
-  padding: var(--spacing-lg);
-  padding-bottom: 100px;
+  overflow: auto;
+  padding-top: 80px; /* Space for fixed navigation bar + extra margin */
 }
 
 .mapping-view-container {
+  flex: 1;
+  padding: var(--spacing-lg);
+  padding-bottom: 100px; /* Space for FAB button */
   max-width: 900px;
   margin: 0 auto;
-}
-
-/* Header */
-.view-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  margin-bottom: var(--spacing-lg);
-}
-
-.view-header .back-btn {
-  position: absolute;
-  left: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
-  font-weight: 500;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
-
-.view-header .back-btn:hover {
-  background-color: var(--color-bg-input);
-  box-shadow: 0 2px 8px var(--color-shadow);
-}
-
-.view-header .back-btn .icon {
-  width: 16px;
-  height: 16px;
-}
-
-.view-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0;
-  text-align: center;
+  width: 100%;
 }
 
 /* Export Actions */
 .export-actions {
   display: flex;
   gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
   flex-wrap: wrap;
 }
@@ -284,15 +249,17 @@
 /* Responsive */
 @media (max-width: 768px) {
   .mapping-view-page {
-    padding: var(--spacing-md);
+    padding-top: 90px; /* More space on smaller screens */
   }
 
-  .view-title {
-    font-size: 1.5rem;
+  .mapping-view-container {
+    padding: var(--spacing-md);
+    padding-bottom: 100px;
   }
 
   .export-actions {
     flex-direction: column;
+    margin-top: var(--spacing-lg);
   }
 
   .export-btn {

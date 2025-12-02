@@ -14,6 +14,7 @@ export interface Project {
   typologies: Typology[];
   ownerId: string; // user UUID
   accessibleUsers: string[]; // array of user UUIDs
+  archived: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
   synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
@@ -119,7 +120,7 @@ export class MappingDatabase extends Dexie {
   constructor() {
     super('MappingDatabase');
 
-    // Define schema
+    // Define schema v1
     this.version(1).stores({
       projects: 'id, ownerId, *accessibleUsers, synced, updatedAt',
       mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
@@ -127,6 +128,23 @@ export class MappingDatabase extends Dexie {
       syncQueue: 'id, synced, timestamp, entityType, entityId',
       users: 'id, email, role',
       metadata: 'key'
+    });
+
+    // Define schema v2 - add archived field to projects
+    this.version(2).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key'
+    }).upgrade(tx => {
+      // Set archived = 0 for all existing projects
+      return tx.table('projects').toCollection().modify(project => {
+        if (project.archived === undefined) {
+          project.archived = 0;
+        }
+      });
     });
   }
 }

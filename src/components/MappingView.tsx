@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import NavigationBar from './NavigationBar';
 import {
   Project,
   MappingEntry,
@@ -19,6 +20,8 @@ interface MappingViewProps {
   onBack: () => void;
   onAddMapping: () => void;
   onEditMapping: (mappingEntry: MappingEntry) => void;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 // Icon Components
@@ -34,13 +37,6 @@ const PlusIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 5V19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     <path d="M5 12H19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const BackIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M19 12H5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M12 19L5 12L12 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -72,6 +68,8 @@ const MappingView: React.FC<MappingViewProps> = ({
   onBack,
   onAddMapping,
   onEditMapping,
+  onSync,
+  isSyncing,
 }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -367,16 +365,13 @@ const MappingView: React.FC<MappingViewProps> = ({
 
   return (
     <div className="mapping-view-page">
+      <NavigationBar
+        title={project.title}
+        onBack={onBack}
+        onSync={onSync}
+        isSyncing={isSyncing}
+      />
       <div className="mapping-view-container">
-        {/* Header */}
-        <div className="view-header">
-          <button className="back-btn" onClick={onBack}>
-            <BackIcon className="icon" />
-            Back
-          </button>
-          <h1 className="view-title">{project.title}</h1>
-        </div>
-
         {/* Export Buttons */}
         <div className="export-actions">
           <button

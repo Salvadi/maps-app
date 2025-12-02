@@ -5,6 +5,7 @@
   flex-direction: column;
   background-color: var(--color-bg-primary);
   overflow: auto;
+  padding-top: 80px; /* Space for fixed navigation bar + margin */
 }
 
 .project-form-container {
@@ -13,14 +14,6 @@
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
-}
-
-.form-title {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin-bottom: var(--spacing-xl);
-  text-align: center;
 }
 
 .project-form {
@@ -369,13 +362,75 @@
   transform: scale(0.98);
 }
 
+.archive-section {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: center;
+}
+
+.archive-btn {
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: transparent;
+  border: 1px solid #DC2626;
+  color: #DC2626;
+}
+
+.archive-btn:hover {
+  background-color: #DC2626;
+  color: white;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+.archive-btn:active {
+  transform: scale(0.98);
+}
+
+.archive-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.unarchive-btn {
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: transparent;
+  border: 1px solid #16A34A;
+  color: #16A34A;
+}
+
+.unarchive-btn:hover {
+  background-color: #16A34A;
+  color: white;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.unarchive-btn:active {
+  transform: scale(0.98);
+}
+
+.unarchive-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
-  .project-form-container {
-    padding: var(--spacing-md);
+  .project-form-page {
+    padding-top: 90px; /* More space on smaller screens */
   }
 
-  .form-title {
-    font-size: 1.75rem;
+  .project-form-container {
+    padding: var(--spacing-md);
   }
 
   .project-form {

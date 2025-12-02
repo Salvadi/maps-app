@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Project, Typology, User, createProject, updateProject } from '../db';
+import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject } from '../db';
+import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
@@ -12,9 +13,11 @@ interface ProjectFormProps {
   currentUser: User;
   onSave: () => void;
   onCancel: () => void;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
-const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave, onCancel }) => {
+const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave, onCancel, onSync, isSyncing }) => {
   const [title, setTitle] = useState(project?.title || '');
   const [client, setClient] = useState(project?.client || '');
   const [address, setAddress] = useState(project?.address || '');
@@ -137,11 +140,51 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     }
   };
 
+  const handleArchive = async () => {
+    if (!project) return;
+
+    if (window.confirm(`Archiviare il progetto "${project.title}"? Non sarà più visibile nella home page.`)) {
+      setIsSubmitting(true);
+      try {
+        await archiveProject(project.id);
+        console.log('Project archived:', project.id);
+        onSave(); // Return to home
+      } catch (err) {
+        console.error('Failed to archive project:', err);
+        setError('Failed to archive project. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!project) return;
+
+    if (window.confirm(`Riaprire il progetto "${project.title}"? Sarà nuovamente visibile nella home page.`)) {
+      setIsSubmitting(true);
+      try {
+        await unarchiveProject(project.id);
+        console.log('Project unarchived:', project.id);
+        onSave(); // Return to home
+      } catch (err) {
+        console.error('Failed to unarchive project:', err);
+        setError('Failed to unarchive project. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
   return (
     <div className="project-form-page">
+      <NavigationBar
+        title={project ? 'Modifica Dati Cantiere' : 'Dati Cantiere'}
+        onBack={onCancel}
+        onSync={onSync}
+        isSyncing={isSyncing}
+      />
       <div className="project-form-container">
-        <h1 className="form-title">{project ? 'Modifica Dati Cantiere' : 'Dati Cantiere'}</h1>
-
         {error && (
           <div style={{
             padding: '12px',
@@ -399,6 +442,31 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
               {isSubmitting ? 'Saving...' : (project ? 'Save' : 'Create')}
             </button>
           </div>
+
+          {/* Archive/Unarchive Button - only for existing projects */}
+          {project && (
+            <div className="archive-section">
+              {project.archived === 1 ? (
+                <button
+                  type="button"
+                  className="unarchive-btn"
+                  onClick={handleUnarchive}
+                  disabled={isSubmitting}
+                >
+                  Riapri
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="archive-btn"
+                  onClick={handleArchive}
+                  disabled={isSubmitting}
+                >
+                  Archivia
+                </button>
+              )}
+            </div>
+          )}
         </form>
       </div>
     </div>

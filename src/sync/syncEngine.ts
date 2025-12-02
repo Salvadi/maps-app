@@ -183,6 +183,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       typologies: project.typologies,
       owner_id: project.ownerId,
       accessible_users: project.accessibleUsers,
+      archived: project.archived,
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
       synced: 1
@@ -480,6 +481,7 @@ export async function downloadProjectsFromSupabase(userId: string): Promise<numb
         typologies: supabaseProject.typologies,
         ownerId: supabaseProject.owner_id,
         accessibleUsers: supabaseProject.accessible_users || [],
+        archived: supabaseProject.archived || 0,
         createdAt: new Date(supabaseProject.created_at).getTime(),
         updatedAt: new Date(supabaseProject.updated_at).getTime(),
         synced: 1

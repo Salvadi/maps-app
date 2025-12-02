@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import imageCompression from 'browser-image-compression';
+import NavigationBar from './NavigationBar';
 import {
   Project,
   Crossing,
@@ -20,6 +21,8 @@ interface MappingPageProps {
   currentUser: User;
   onBack: () => void;
   editingEntry?: MappingEntry;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 // Camera Icon Component
@@ -98,7 +101,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
   );
 };
 
-const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry }) => {
+const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
@@ -424,9 +427,13 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
 
   return (
     <div className="mapping-page">
+      <NavigationBar
+        title={editingEntry ? 'Modifica Mappatura' : 'Mappatura'}
+        onBack={onBack}
+        onSync={onSync}
+        isSyncing={isSyncing}
+      />
       <div className="mapping-container">
-        <h1 className="mapping-title">{editingEntry ? 'Modifica Mappatura' : 'Mappatura'}</h1>
-
         {error && (
           <div style={{
             padding: '12px',

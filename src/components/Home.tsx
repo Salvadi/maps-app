@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Project, User, getAllProjects, getProjectsForUser } from '../db';
 import './Home.css';
 
@@ -89,10 +89,25 @@ const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const SearchIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const FilterIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22 3H2L10 12.46V19L14 21V12.46L22 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const getProjectIcon = (index: number) => {
   const icons = [DocumentIcon, FolderIcon, CalendarIcon, EyeIcon];
   return icons[index % icons.length];
 };
+
+type SortOption = 'alphabetical' | 'alphabetical-reverse' | 'date-created' | 'date-updated';
 
 const Home: React.FC<HomeProps> = ({
   currentUser,
@@ -108,6 +123,9 @@ const Home: React.FC<HomeProps> = ({
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOption, setSortOption] = useState<SortOption>('date-updated');
+  const [showArchived, setShowArchived] = useState(false);
 
   // Load projects from IndexedDB
   useEffect(() => {
@@ -134,6 +152,45 @@ const Home: React.FC<HomeProps> = ({
 
     loadProjects();
   }, [currentUser]);
+
+  // Filter and sort projects
+  const filteredAndSortedProjects = useMemo(() => {
+    let filtered = projects;
+
+    // Filter by archived status
+    if (!showArchived) {
+      filtered = filtered.filter(p => p.archived === 0);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.title.toLowerCase().includes(query) ||
+        p.client.toLowerCase().includes(query) ||
+        p.address.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort
+    const sorted = [...filtered];
+    switch (sortOption) {
+      case 'alphabetical':
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
+        break;
+      case 'alphabetical-reverse':
+        sorted.sort((a, b) => b.title.localeCompare(a.title));
+        break;
+      case 'date-created':
+        sorted.sort((a, b) => b.createdAt - a.createdAt);
+        break;
+      case 'date-updated':
+        sorted.sort((a, b) => b.updatedAt - a.updatedAt);
+        break;
+    }
+
+    return sorted;
+  }, [projects, searchQuery, sortOption, showArchived]);
 
   const handleProjectClick = (projectId: string) => {
     if (activeProject === projectId) {
@@ -214,7 +271,47 @@ const Home: React.FC<HomeProps> = ({
           </div>
         </div>
 
-        {projects.length === 0 ? (
+        {/* Search and Filter Section */}
+        <div className="search-filter-section">
+          <div className="search-bar">
+            <SearchIcon className="search-icon" />
+            <input
+              type="text"
+              placeholder="Cerca per nome, cliente o indirizzo..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+          </div>
+
+          <div className="filter-controls">
+            <div className="filter-group">
+              <FilterIcon className="filter-icon-small" />
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="filter-select"
+              >
+                <option value="date-updated">Più recenti</option>
+                <option value="date-created">Data di creazione</option>
+                <option value="alphabetical">A-Z</option>
+                <option value="alphabetical-reverse">Z-A</option>
+              </select>
+            </div>
+
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="checkbox-input"
+              />
+              <span>{showArchived ? 'Nascondi archiviati' : 'Mostra archiviati'}</span>
+            </label>
+          </div>
+        </div>
+
+        {filteredAndSortedProjects.length === 0 ? (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -225,11 +322,15 @@ const Home: React.FC<HomeProps> = ({
             color: 'var(--color-text-secondary)'
           }}>
             <p>Nessun progetto trovato</p>
-            <p style={{ fontSize: '0.875rem' }}>Premi il pulsante + per creare un nuovo progetto</p>
+            {projects.length === 0 ? (
+              <p style={{ fontSize: '0.875rem' }}>Premi il pulsante + per creare un nuovo progetto</p>
+            ) : (
+              <p style={{ fontSize: '0.875rem' }}>Prova a modificare i filtri di ricerca</p>
+            )}
           </div>
         ) : (
           <div className="projects-grid">
-          {projects.map((project, index) => {
+          {filteredAndSortedProjects.map((project, index) => {
             const IconComponent = getProjectIcon(index);
             const isActive = activeProject === project.id;
 
