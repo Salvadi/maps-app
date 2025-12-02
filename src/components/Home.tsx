@@ -306,7 +306,7 @@ const Home: React.FC<HomeProps> = ({
                 onChange={(e) => setShowArchived(e.target.checked)}
                 className="checkbox-input"
               />
-              <span>Mostra archiviati</span>
+              <span>{showArchived ? 'Nascondi archiviati' : 'Mostra archiviati'}</span>
             </label>
           </div>
         </div>

@@ -397,6 +397,33 @@
   cursor: not-allowed;
 }
 
+.unarchive-btn {
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: transparent;
+  border: 1px solid #16A34A;
+  color: #16A34A;
+}
+
+.unarchive-btn:hover {
+  background-color: #16A34A;
+  color: white;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.unarchive-btn:active {
+  transform: scale(0.98);
+}
+
+.unarchive-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .project-form-page {
     padding-top: 90px; /* More space on smaller screens */

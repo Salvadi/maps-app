@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Project, Typology, User, createProject, updateProject, archiveProject } from '../db';
+import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject } from '../db';
 import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -152,6 +152,24 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       } catch (err) {
         console.error('Failed to archive project:', err);
         setError('Failed to archive project. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!project) return;
+
+    if (window.confirm(`Riaprire il progetto "${project.title}"? Sarà nuovamente visibile nella home page.`)) {
+      setIsSubmitting(true);
+      try {
+        await unarchiveProject(project.id);
+        console.log('Project unarchived:', project.id);
+        onSave(); // Return to home
+      } catch (err) {
+        console.error('Failed to unarchive project:', err);
+        setError('Failed to unarchive project. Please try again.');
       } finally {
         setIsSubmitting(false);
       }
@@ -425,17 +443,28 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             </button>
           </div>
 
-          {/* Archive Button - only for existing projects */}
+          {/* Archive/Unarchive Button - only for existing projects */}
           {project && (
             <div className="archive-section">
-              <button
-                type="button"
-                className="archive-btn"
-                onClick={handleArchive}
-                disabled={isSubmitting}
-              >
-                Archivia
-              </button>
+              {project.archived === 1 ? (
+                <button
+                  type="button"
+                  className="unarchive-btn"
+                  onClick={handleUnarchive}
+                  disabled={isSubmitting}
+                >
+                  Riapri
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="archive-btn"
+                  onClick={handleArchive}
+                  disabled={isSubmitting}
+                >
+                  Archivia
+                </button>
+              )}
             </div>
           )}
         </form>
