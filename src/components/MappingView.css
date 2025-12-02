@@ -23,15 +23,16 @@
 .view-header .back-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
-  font-weight: 500;
-  font-size: 0.875rem;
-  transition: all 0.2s;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .view-header .back-btn:hover {
@@ -40,8 +41,8 @@
 }
 
 .view-header .back-btn .icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .view-header .sync-btn {

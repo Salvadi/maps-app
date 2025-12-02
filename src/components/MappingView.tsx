@@ -34,7 +34,9 @@ const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M21 10C21 10 18.995 7.26822 17.3662 5.63824C15.7373 4.00827 13.4864 3 11 3C6.02944 3 2 7.02944 2 12C2 16.9706 6.02944 21 11 21C15.1031 21 18.5649 18.2543 19.6482 14.5M21 10V4M21 10H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M21.5 2V6H17.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M2.5 22V18H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M19.13 5.87C18.1164 4.53677 16.7415 3.53498 15.172 2.98818C13.6024 2.44137 11.9084 2.37582 10.3002 2.79936C8.69199 3.22289 7.24076 4.11722 6.13 5.36C5.01924 6.60277 4.29779 8.14213 4.05 9.79M19.95 14.21C19.7022 15.8579 18.9808 17.3972 17.87 18.64C16.7592 19.8828 15.308 20.7771 13.6998 21.2006C12.0916 21.6242 10.3976 21.5586 8.82803 21.0118C7.25849 20.465 5.88364 19.4632 4.87 18.13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -380,9 +382,8 @@ const MappingView: React.FC<MappingViewProps> = ({
       <div className="mapping-view-container">
         {/* Header */}
         <div className="view-header">
-          <button className="back-btn" onClick={onBack}>
+          <button className="back-btn" onClick={onBack} aria-label="Back">
             <BackIcon className="icon" />
-            Back
           </button>
           <h1 className="view-title">{project.title}</h1>
           {onSync && (

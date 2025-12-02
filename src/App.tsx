@@ -232,9 +232,6 @@ const App: React.FC = () => {
 
       const message = `Sync complete!\nUploaded: ${result.uploadResult.processedCount} items\nDownloaded: ${result.downloadResult.projectsCount} projects, ${result.downloadResult.entriesCount} entries, ${result.downloadResult.photosCount} photos`;
       alert(message);
-
-      // Reload the current view to reflect changes
-      window.location.reload();
     } catch (error) {
       console.error('❌ Manual sync failed:', error);
       alert('Sync failed. Please try again.');
