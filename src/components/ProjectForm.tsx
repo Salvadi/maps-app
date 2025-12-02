@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Typology, User, createProject, updateProject } from '../db';
+import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
@@ -15,23 +16,6 @@ interface ProjectFormProps {
   onSync?: () => void;
   isSyncing?: boolean;
 }
-
-// Sync Icon Component
-const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M21.5 2V6H17.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M2.5 22V18H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M19.13 5.87C18.1164 4.53677 16.7415 3.53498 15.172 2.98818C13.6024 2.44137 11.9084 2.37582 10.3002 2.79936C8.69199 3.22289 7.24076 4.11722 6.13 5.36C5.01924 6.60277 4.29779 8.14213 4.05 9.79M19.95 14.21C19.7022 15.8579 18.9808 17.3972 17.87 18.64C16.7592 19.8828 15.308 20.7771 13.6998 21.2006C12.0916 21.6242 10.3976 21.5586 8.82803 21.0118C7.25849 20.465 5.88364 19.4632 4.87 18.13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-// Back Icon Component
-const BackIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M19 12H5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M12 19L5 12L12 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
 
 const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave, onCancel, onSync, isSyncing }) => {
   const [title, setTitle] = useState(project?.title || '');
@@ -158,25 +142,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
 
   return (
     <div className="project-form-page">
+      <NavigationBar
+        title={project ? 'Modifica Dati Cantiere' : 'Dati Cantiere'}
+        onBack={onCancel}
+        onSync={onSync}
+        isSyncing={isSyncing}
+      />
       <div className="project-form-container">
-        {/* Header */}
-        <div className="form-header">
-          <button className="header-back-btn" onClick={onCancel}>
-            <BackIcon className="icon" />
-          </button>
-          <h1 className="form-title">{project ? 'Modifica Dati Cantiere' : 'Dati Cantiere'}</h1>
-          {onSync && (
-            <button
-              className={`header-sync-btn ${isSyncing ? 'syncing' : ''}`}
-              onClick={onSync}
-              disabled={isSyncing}
-              aria-label="Sync"
-            >
-              <SyncIcon className="icon" />
-            </button>
-          )}
-        </div>
-
         {error && (
           <div style={{
             padding: '12px',
