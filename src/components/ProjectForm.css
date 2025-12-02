@@ -5,7 +5,7 @@
   flex-direction: column;
   background-color: var(--color-bg-primary);
   overflow: auto;
-  padding-top: 64px; /* Space for fixed navigation bar */
+  padding-top: 80px; /* Space for fixed navigation bar + margin */
 }
 
 .project-form-container {
@@ -363,12 +363,12 @@
 }
 
 @media (max-width: 768px) {
-  .project-form-container {
-    padding: var(--spacing-md);
+  .project-form-page {
+    padding-top: 90px; /* More space on smaller screens */
   }
 
-  .form-title {
-    font-size: 1.75rem;
+  .project-form-container {
+    padding: var(--spacing-md);
   }
 
   .project-form {
