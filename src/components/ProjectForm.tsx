@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject } from '../db';
+import React, { useState, useEffect } from 'react';
+import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers } from '../db';
 import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -55,6 +55,51 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Admin-only: User sharing
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(
+    project?.accessibleUsers || [currentUser.id]
+  );
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  // Load all users if current user is admin
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (currentUser.role === 'admin') {
+        console.log('👑 Current user is admin, loading all users for sharing...');
+        console.log('👤 Current user details:', {
+          id: currentUser.id,
+          email: currentUser.email,
+          role: currentUser.role
+        });
+
+        setIsLoadingUsers(true);
+        try {
+          const users = await getAllUsers();
+          setAllUsers(users);
+          console.log(`✅ Loaded ${users.length} users for sharing`);
+
+          if (users.length === 0) {
+            console.warn('⚠️  No users loaded! Check:');
+            console.warn('   1. Supabase RLS policies allow admin to view profiles');
+            console.warn('   2. Admin user has role="admin" in profiles table');
+            console.warn('   3. There are other users in the profiles table');
+            console.warn('   See browser console for detailed error messages');
+          }
+        } catch (err) {
+          console.error('❌ Failed to load users:', err);
+          setError('Failed to load users. Check console for details.');
+        } finally {
+          setIsLoadingUsers(false);
+        }
+      } else {
+        console.log('👤 Current user is not admin, skipping user list load');
+      }
+    };
+
+    loadUsers();
+  }, [currentUser.role]);
+
   const handleAddTypology = () => {
     const maxNumber = Math.max(...typologies.map((t) => t.number), 0);
     setTypologies([
@@ -87,6 +132,28 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     );
   };
 
+  const handleUserToggle = (userId: string) => {
+    if (selectedUserIds.includes(userId)) {
+      // Don't allow removing the owner
+      if (userId === (project?.ownerId || currentUser.id)) {
+        return;
+      }
+      setSelectedUserIds(selectedUserIds.filter(id => id !== userId));
+    } else {
+      setSelectedUserIds([...selectedUserIds, userId]);
+    }
+  };
+
+  const handleSelectAllUsers = () => {
+    setSelectedUserIds(allUsers.map(u => u.id));
+  };
+
+  const handleDeselectAllUsers = () => {
+    // Keep only the owner
+    const ownerId = project?.ownerId || currentUser.id;
+    setSelectedUserIds([ownerId]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -111,6 +178,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           useRoomNumbering,
           useInterventionNumbering,
           typologies: showTipologici ? typologies : [],
+          accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : project.accessibleUsers,
         });
         console.log('Project updated:', project.id);
       } else {
@@ -126,7 +194,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           useInterventionNumbering,
           typologies: showTipologici ? typologies : [],
           ownerId: currentUser.id,
-          accessibleUsers: [currentUser.id],
+          accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : [currentUser.id],
         });
         console.log('Project created:', newProject.id);
       }
@@ -236,6 +304,74 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
               rows={3}
             />
           </section>
+
+          {/* Admin-only: Share Project Section */}
+          {currentUser.role === 'admin' && (
+            <section className="form-section">
+              <label className="section-label">
+                Condividi Progetto
+                <span className="label-badge">ADMIN</span>
+              </label>
+              {isLoadingUsers ? (
+                <div className="loading-users">Caricamento utenti...</div>
+              ) : (
+                <>
+                  <div className="user-select-actions">
+                    <button
+                      type="button"
+                      className="select-action-btn"
+                      onClick={handleSelectAllUsers}
+                    >
+                      Seleziona Tutti
+                    </button>
+                    <button
+                      type="button"
+                      className="select-action-btn"
+                      onClick={handleDeselectAllUsers}
+                    >
+                      Deseleziona Tutti
+                    </button>
+                    <span className="selected-count">
+                      {selectedUserIds.length} di {allUsers.length} selezionati
+                    </span>
+                  </div>
+                  <div className="user-select-list">
+                    {allUsers.map((user) => {
+                      const isOwner = user.id === (project?.ownerId || currentUser.id);
+                      const isSelected = selectedUserIds.includes(user.id);
+
+                      return (
+                        <label
+                          key={user.id}
+                          className={`user-select-item ${isSelected ? 'selected' : ''} ${isOwner ? 'owner' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleUserToggle(user.id)}
+                            disabled={isOwner}
+                            className="user-checkbox"
+                          />
+                          <div className="user-info">
+                            <span className="user-email">{user.email}</span>
+                            <span className="user-meta">
+                              {user.role === 'admin' && <span className="user-badge admin">Admin</span>}
+                              {isOwner && <span className="user-badge owner">Proprietario</span>}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {allUsers.length === 0 && (
+                    <div className="no-users-message">
+                      Nessun utente disponibile
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
           {/* Struttura Section */}
           <section className="form-section">
