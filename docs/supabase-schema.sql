@@ -211,6 +211,12 @@ CREATE POLICY "Users can update accessible projects"
     accessible_users @> jsonb_build_array(auth.uid()::text)
   );
 
+-- Admins can update all projects
+CREATE POLICY "Admins can update all projects"
+  ON public.projects
+  FOR UPDATE
+  USING (public.is_admin());
+
 -- Users can delete projects they own
 CREATE POLICY "Users can delete own projects"
   ON public.projects
@@ -224,6 +230,12 @@ CREATE POLICY "Users can delete accessible projects"
   USING (
     accessible_users @> jsonb_build_array(auth.uid()::text)
   );
+
+-- Admins can delete all projects
+CREATE POLICY "Admins can delete all projects"
+  ON public.projects
+  FOR DELETE
+  USING (public.is_admin());
 
 -- ============================================
 -- MAPPING ENTRIES POLICIES
