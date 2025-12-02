@@ -5,7 +5,7 @@
 // Uses cache-first strategy for documents and images
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 99; // Increment this on every deploy!
+const CACHE_VERSION = 3; // Increment this on every deploy!
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
