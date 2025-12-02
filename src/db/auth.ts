@@ -266,32 +266,53 @@ export async function logout(): Promise<void> {
  * Get all users (admin only)
  */
 export async function getAllUsers(): Promise<User[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+  console.log('📥 Fetching all users from Supabase...');
 
-      if (error) {
-        console.error('❌ Fetch users error:', error.message);
-        return [];
-      }
-
-      return profiles.map((p: any) => ({
-        id: p.id,
-        email: p.email,
-        username: p.username || p.email.split('@')[0],
-        role: p.role,
-        createdAt: new Date(p.created_at).getTime()
-      }));
-    } catch (err) {
-      console.error('❌ Get users exception:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Supabase not configured, falling back to local users');
+    return await db.users.toArray();
   }
 
-  // Fall back to IndexedDB
-  return await db.users.toArray();
+  try {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Fetch users error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+
+      // Return empty array on error (don't fallback to IndexedDB)
+      // IndexedDB only has the current user, not all users
+      return [];
+    }
+
+    if (!profiles || profiles.length === 0) {
+      console.warn('⚠️  No profiles found in database');
+      return [];
+    }
+
+    console.log(`✅ Fetched ${profiles.length} users from Supabase`);
+
+    return profiles.map((p: any) => ({
+      id: p.id,
+      email: p.email,
+      username: p.username || p.email.split('@')[0],
+      role: p.role,
+      createdAt: new Date(p.created_at).getTime()
+    }));
+  } catch (err) {
+    console.error('❌ Get users exception:', err);
+
+    // Return empty array on exception (don't fallback to IndexedDB)
+    return [];
+  }
 }
 
 /**

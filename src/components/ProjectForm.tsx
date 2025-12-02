@@ -66,16 +66,34 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   useEffect(() => {
     const loadUsers = async () => {
       if (currentUser.role === 'admin') {
+        console.log('👑 Current user is admin, loading all users for sharing...');
+        console.log('👤 Current user details:', {
+          id: currentUser.id,
+          email: currentUser.email,
+          role: currentUser.role
+        });
+
         setIsLoadingUsers(true);
         try {
           const users = await getAllUsers();
           setAllUsers(users);
-          console.log('Loaded users for sharing:', users.length);
+          console.log(`✅ Loaded ${users.length} users for sharing`);
+
+          if (users.length === 0) {
+            console.warn('⚠️  No users loaded! Check:');
+            console.warn('   1. Supabase RLS policies allow admin to view profiles');
+            console.warn('   2. Admin user has role="admin" in profiles table');
+            console.warn('   3. There are other users in the profiles table');
+            console.warn('   See browser console for detailed error messages');
+          }
         } catch (err) {
-          console.error('Failed to load users:', err);
+          console.error('❌ Failed to load users:', err);
+          setError('Failed to load users. Check console for details.');
         } finally {
           setIsLoadingUsers(false);
         }
+      } else {
+        console.log('👤 Current user is not admin, skipping user list load');
       }
     };
 
