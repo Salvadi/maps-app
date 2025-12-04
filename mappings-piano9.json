@@ -1,0 +1,1058 @@
+[
+  {
+    "floor": "9",
+    "room": "937",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817987-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817987-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817987-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817987-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "938",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "939",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "940",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "941",
+    "intervention": "1",
+    "crossings": []
+  },
+  {
+    "floor": "9",
+    "room": "942",
+    "intervention": "1",
+    "crossings": []
+  },
+  {
+    "floor": "9",
+    "room": "943",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "944",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "945",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "946",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "947",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "948",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "949",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "950",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "951",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "952",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "953",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "954",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,5mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "955",
+    "intervention": "1",
+    "crossings": []
+  },
+  {
+    "floor": "9",
+    "room": "956",
+    "intervention": "1",
+    "crossings": []
+  },
+  {
+    "floor": "9",
+    "room": "957",
+    "intervention": "1",
+    "crossings": []
+  },
+  {
+    "floor": "9",
+    "room": "958",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,4mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "959",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "960",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "961",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; 0,3mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "962",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "963",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "964",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "quantita": 1,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835535259",
+        "attraversamento": "Cavi/Corrugati"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-3",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "965",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,6mq; mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "966",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,7mq; mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  },
+  {
+    "floor": "9",
+    "room": "967",
+    "intervention": "1",
+    "crossings": [
+      {
+        "id": "1764854817988-0",
+        "notes": "",
+        "diametro": "32mm; 40mm",
+        "quantita": 2,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835575358",
+        "attraversamento": "Tubo combustibile"
+      },
+      {
+        "id": "1764854817988-1",
+        "notes": "",
+        "diametro": "4x 16mm; 4x 40mm",
+        "quantita": 8,
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "tipologicoId": "1764835054458",
+        "attraversamento": "Tubo multistrato"
+      },
+      {
+        "id": "1764854817988-2",
+        "notes": "asole in sovrapposizione",
+        "quantita": 2,
+        "supporto": "Parete",
+        "dimensioni": "0,7mq; mq",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Asola"
+      }
+    ]
+  }
+]
