@@ -23,8 +23,99 @@
   display: flex;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
   flex-wrap: wrap;
+}
+
+/* Filter Controls */
+.filter-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.sort-controls,
+.order-controls,
+.view-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-right: var(--spacing-xs);
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.filter-btn:hover {
+  background-color: var(--color-bg-input);
+  color: var(--color-text-primary);
+  border-color: var(--color-text-secondary);
+}
+
+.filter-btn.active {
+  background-color: var(--color-text-primary);
+  color: var(--color-bg-secondary);
+  border-color: var(--color-text-primary);
+}
+
+.filter-btn .icon-inline {
+  width: 16px;
+  height: 16px;
+}
+
+.order-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.order-btn:hover {
+  background-color: var(--color-bg-input);
+  border-color: var(--color-text-secondary);
+}
+
+.order-btn .icon {
+  width: 18px;
+  height: 18px;
 }
 
 .export-btn {
@@ -246,6 +337,112 @@
   height: 24px;
 }
 
+/* Hierarchical View */
+.hierarchical-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.hierarchy-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.hierarchy-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.hierarchy-header:hover {
+  background-color: var(--color-bg-input);
+  border-color: var(--color-text-secondary);
+}
+
+.floor-header {
+  background-color: var(--color-bg-secondary);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.room-header {
+  background-color: var(--color-bg-primary);
+  font-size: 0.9375rem;
+}
+
+.hierarchy-header .chevron {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.hierarchy-header .folder-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.hierarchy-title {
+  flex: 1;
+  color: var(--color-text-primary);
+}
+
+.hierarchy-count {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.hierarchy-children {
+  margin-left: 24px;
+  margin-top: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.intervention-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.intervention-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
+.intervention-header .folder-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.intervention-mappings {
+  margin-left: 24px;
+  margin-top: var(--spacing-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .mapping-view-page {
@@ -265,6 +462,28 @@
   .export-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .filter-controls {
+    padding: var(--spacing-sm);
+  }
+
+  .button-group {
+    width: 100%;
+  }
+
+  .filter-btn,
+  .order-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .hierarchy-children {
+    margin-left: 12px;
+  }
+
+  .intervention-mappings {
+    margin-left: 12px;
   }
 
   .photo-gallery {
