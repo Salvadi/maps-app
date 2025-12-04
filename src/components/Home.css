@@ -473,24 +473,24 @@
   }
 
   .projects-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-sm);
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs);
   }
 
   .project-card {
-    padding: var(--spacing-sm);
+    padding: var(--spacing-xs);
     gap: var(--spacing-xs);
   }
 
   .project-icon {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    min-height: 48px;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
   }
 
   .project-name {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     line-height: 1.2;
   }
 
@@ -526,22 +526,55 @@
   }
 }
 
-/* Schermi molto piccoli - single column layout */
+/* Schermi molto piccoli */
 @media (max-width: 360px) {
   .home-title {
     font-size: 1.5rem;
   }
 
   .projects-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-sm);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
   }
 
   .project-card {
     max-width: 100%;
+    padding: 6px;
+  }
+
+  .project-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .project-name {
+    font-size: 0.75rem;
   }
 
   .action-toolbar {
     flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .action-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .action-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .action-map {
+    width: 40px;
+    height: 40px;
+  }
+
+  .action-map .action-icon {
+    width: 24px;
+    height: 24px;
   }
 }
