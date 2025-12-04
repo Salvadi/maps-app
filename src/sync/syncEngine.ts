@@ -129,6 +129,26 @@ export async function processSyncQueue(): Promise<SyncResult> {
   return result;
 }
 
+async function processSyncItem(item: SyncQueueItem): Promise<void> {
+  switch (item.entityType) {
+    case 'project':
+      await syncProject(item);
+      break;
+
+    case 'mapping_entry':
+      await syncMappingEntry(item);
+      break;
+
+    case 'photo':
+      await syncPhoto(item);
+      break;
+
+    default:
+      throw new Error(`Unknown entity type: ${item.entityType}`);
+  }
+}
+
+
 /**
  * Process a single sync queue item
  */
