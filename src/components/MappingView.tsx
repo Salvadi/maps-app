@@ -103,7 +103,7 @@ const MappingView: React.FC<MappingViewProps> = ({
   }, [project.id]);
 
   // Generate photo filename prefix based on project settings
-  const generatePhotoPrefix = (floor: string, roomOrIntervention: string): string => {
+  const generatePhotoPrefix = (floor: string, room?: string, intervention?: string): string => {
     const parts: string[] = [];
 
     // Always include Piano if project has multiple floors
@@ -111,14 +111,14 @@ const MappingView: React.FC<MappingViewProps> = ({
       parts.push(`P${floor}`);
     }
 
-    // Include Stanza if room numbering is enabled
-    if (project.useRoomNumbering) {
-      parts.push(`S${roomOrIntervention}`);
+    // Include Stanza if room numbering is enabled and room is provided
+    if (project.useRoomNumbering && room) {
+      parts.push(`S${room}`);
     }
 
-    // Include Intervento if intervention numbering is enabled
-    if (project.useInterventionNumbering) {
-      parts.push(`Int${roomOrIntervention}`);
+    // Include Intervento if intervention numbering is enabled and intervention is provided
+    if (project.useInterventionNumbering && intervention) {
+      parts.push(`Int${intervention}`);
     }
 
     return parts.length > 0 ? parts.join('_') + '_' : '';
@@ -147,18 +147,18 @@ const MappingView: React.FC<MappingViewProps> = ({
 
           // Conditional column: Stanza (only if room numbering enabled)
           if (project.useRoomNumbering) {
-            row['Stanza'] = mapping.roomOrIntervention;
+            row['Stanza'] = mapping.room || '-';
           }
 
           // Conditional column: Intervento N. (only if intervention numbering enabled)
           if (project.useInterventionNumbering) {
-            row['Intervento N.'] = mapping.roomOrIntervention;
+            row['Intervento N.'] = mapping.intervention || '-';
           }
 
           // N. foto - generate photo numbers with zero padding
           const photoNumbers = photos.map((_, idx) => {
             const photoNum = (idx + 1).toString().padStart(2, '0');
-            const prefix = generatePhotoPrefix(mapping.floor, mapping.roomOrIntervention);
+            const prefix = generatePhotoPrefix(mapping.floor, mapping.room, mapping.intervention);
             return `${prefix}${photoNum}`;
           }).join(', ');
           row['N. foto'] = photoNumbers || '-';
@@ -234,18 +234,18 @@ const MappingView: React.FC<MappingViewProps> = ({
 
           // Conditional column: Stanza (only if room numbering enabled)
           if (project.useRoomNumbering) {
-            row['Stanza'] = mapping.roomOrIntervention;
+            row['Stanza'] = mapping.room || '-';
           }
 
           // Conditional column: Intervento N. (only if intervention numbering enabled)
           if (project.useInterventionNumbering) {
-            row['Intervento N.'] = mapping.roomOrIntervention;
+            row['Intervento N.'] = mapping.intervention || '-';
           }
 
           // N. foto - generate photo numbers with zero padding
           const photoNumbers = photos.map((_, idx) => {
             const photoNum = (idx + 1).toString().padStart(2, '0');
-            const prefix = generatePhotoPrefix(mapping.floor, mapping.roomOrIntervention);
+            const prefix = generatePhotoPrefix(mapping.floor, mapping.room, mapping.intervention);
             return `${prefix}${photoNum}`;
           }).join(', ');
           row['N. foto'] = photoNumbers || '-';
@@ -289,7 +289,7 @@ const MappingView: React.FC<MappingViewProps> = ({
       // Add photos with correct naming convention
       for (const mapping of mappings) {
         const photos = mappingPhotos[mapping.id] || [];
-        const prefix = generatePhotoPrefix(mapping.floor, mapping.roomOrIntervention);
+        const prefix = generatePhotoPrefix(mapping.floor, mapping.room, mapping.intervention);
 
         for (let i = 0; i < photos.length; i++) {
           const photo = photos[i];
@@ -421,7 +421,9 @@ const MappingView: React.FC<MappingViewProps> = ({
                   <div className="mapping-header">
                     <div>
                       <h3 className="mapping-title">
-                        Floor {mapping.floor} - {mapping.roomOrIntervention}
+                        Floor {mapping.floor}
+                        {mapping.room && ` - Stanza ${mapping.room}`}
+                        {mapping.intervention && ` - Int. ${mapping.intervention}`}
                       </h3>
                       <p className="mapping-meta">
                         {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
@@ -480,7 +482,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                             <div key={photo.id} className="photo-item">
                               <img
                                 src={URL.createObjectURL(photo.blob)}
-                                alt={`${mapping.floor} ${mapping.roomOrIntervention} ${idx + 1}`}
+                                alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} Photo ${idx + 1}`}
                                 loading="lazy"
                               />
                             </div>

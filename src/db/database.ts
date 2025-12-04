@@ -57,7 +57,8 @@ export interface MappingEntry {
   id: string; // UUID
   projectId: string;
   floor: string;
-  roomOrIntervention: string;
+  room?: string;
+  intervention?: string;
   photos: PhotoMetadata[];
   crossings: Crossing[];
   timestamp: number;

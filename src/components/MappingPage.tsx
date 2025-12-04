@@ -118,10 +118,8 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   };
 
   const [floor, setFloor] = useState<string>(getLastUsedFloor());
-  const [roomNumber, setRoomNumber] = useState<string>(editingEntry?.roomOrIntervention || '');
-  const [interventionNumber, setInterventionNumber] = useState<number>(
-    editingEntry ? parseInt(editingEntry.roomOrIntervention) || 1 : 1
-  );
+  const [roomNumber, setRoomNumber] = useState<string>(editingEntry?.room || '');
+  const [interventionNumber, setInterventionNumber] = useState<string>(editingEntry?.intervention || '');
   const [sigillature, setSigillature] = useState<Crossing[]>(
     editingEntry && editingEntry.crossings.length > 0
       ? editingEntry.crossings
@@ -227,10 +225,10 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         try {
           const existingMappings = await getMappingEntriesForProject(project.id);
           const maxNumber = existingMappings.reduce((max, mapping) => {
-            const num = parseInt(mapping.roomOrIntervention);
+            const num = parseInt(mapping.intervention || '0');
             return !isNaN(num) && num > max ? num : max;
           }, 0);
-          setInterventionNumber(maxNumber + 1);
+          setInterventionNumber((maxNumber + 1).toString());
         } catch (error) {
           console.error('Failed to calculate intervention number:', error);
         }
@@ -357,21 +355,14 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         console.log(`Compresse ${photoFiles.length} foto`);
       }
 
-      // Determine room/intervention value
-      let roomOrIntervention = '';
-      if (project.useInterventionNumbering) {
-        roomOrIntervention = interventionNumber.toString();
-      } else if (project.useRoomNumbering) {
-        roomOrIntervention = roomNumber;
-      }
-
       if (editingEntry) {
         // Update existing entry
         await updateMappingEntry(
           editingEntry.id,
           {
             floor,
-            roomOrIntervention,
+            room: project.useRoomNumbering ? roomNumber : undefined,
+            intervention: project.useInterventionNumbering ? interventionNumber : undefined,
             crossings: sigillature.map((s, index) => ({
               ...s,
               id: s.id || `${Date.now()}-${index}`,
@@ -391,7 +382,8 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           {
             projectId: project.id,
             floor,
-            roomOrIntervention,
+            room: project.useRoomNumbering ? roomNumber : undefined,
+            intervention: project.useInterventionNumbering ? interventionNumber : undefined,
             crossings: sigillature.map((s, index) => ({
               ...s,
               id: `${Date.now()}-${index}`,
@@ -409,7 +401,8 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         setPhotoPreviews([]);
         setRoomNumber('');
         if (project.useInterventionNumbering) {
-          setInterventionNumber(prev => prev + 1);
+          const nextNum = parseInt(interventionNumber) + 1;
+          setInterventionNumber(nextNum.toString());
         }
         setSigillature([{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
 
@@ -563,11 +556,11 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             <div className="form-field">
               <label className="field-label">Intervento n.</label>
               <input
-                type="number"
+                type="text"
                 value={interventionNumber}
-                onChange={(e) => setInterventionNumber(parseInt(e.target.value) || 1)}
+                onChange={(e) => setInterventionNumber(e.target.value)}
                 className="mapping-input"
-                min="1"
+                placeholder="Es: 1, 2, A1..."
               />
             </div>
           )}
