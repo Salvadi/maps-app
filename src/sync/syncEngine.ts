@@ -153,7 +153,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
  * Process a single sync queue item
  */
 async function syncProject(item: SyncQueueItem): Promise<void> {
-  const project = item.payload as Project;
+  let project = item.payload as Project;
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
