@@ -152,66 +152,69 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
  * Sync a project to Supabase
  */
 async function syncProject(item: SyncQueueItem): Promise<void> {
-  let project = item.payload as Project;
+title: project.title,
+client: project.client,
+address: project.address,
+notes: project.notes,
+floors: project.floors,
+plans: project.plans,
+use_room_numbering: project.useRoomNumbering,
+use_intervention_numbering: project.useInterventionNumbering,
+typologies: project.typologies,
+owner_id: project.ownerId,
+accessible_users: project.accessibleUsers,
+archived: project.archived,
+created_at: new Date(project.createdAt).toISOString(),
+updated_at: new Date(project.updatedAt).toISOString(),
+synced: 1
+};
 
-  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    // Check for conflicts before syncing
-    const { hasConflict, remote } = await checkForConflicts('project', project.id);
 
-    if (hasConflict && remote) {
-      console.log(`⚠️  Conflict detected for project ${project.id}`);
+const { error } = await supabase.from('projects').insert(supabaseProject);
+if (error) throw new Error(error.message);
+}
 
-      // Resolve conflict using last-modified-wins strategy
-      project = await resolveProjectConflict(project, remote, 'last-modified-wins');
 
-      // Update local database with resolved version
-      await db.projects.put(project);
-      console.log(`✅ Conflict resolved for project ${project.id}`);
-    }
+if (item.operation === 'UPDATE') {
+const supabaseProject = {
+title: project.title,
+client: project.client,
+address: project.address,
+notes: project.notes,
+floors: project.floors,
+plans: project.plans,
+use_room_numbering: project.useRoomNumbering,
+use_intervention_numbering: project.useInterventionNumbering,
+typologies: project.typologies,
+accessible_users: project.accessibleUsers,
+archived: project.archived,
+updated_at: new Date(project.updatedAt).toISOString(),
+synced: 1
+};
 
-    // Convert IndexedDB format to Supabase format
-    const supabaseProject = {
-      id: project.id,
-      title: project.title,
-      client: project.client,
-      address: project.address,
-      notes: project.notes,
-      floors: project.floors,
-      plans: project.plans,
-      use_room_numbering: project.useRoomNumbering,
-      use_intervention_numbering: project.useInterventionNumbering,
-      typologies: project.typologies,
-      owner_id: project.ownerId,
-      accessible_users: project.accessibleUsers,
-      archived: project.archived,
-      created_at: new Date(project.createdAt).toISOString(),
-      updated_at: new Date(project.updatedAt).toISOString(),
-      synced: 1
-    };
 
-    // Upsert (insert or update)
-    const { error } = await supabase
-      .from('projects')
-      .upsert(supabaseProject, {
-        onConflict: 'id'
-      });
+const { error } = await supabase
+.from('projects')
+.update(supabaseProject)
+.eq('id', project.id);
 
-    if (error) {
-      throw new Error(`Supabase project upsert failed: ${error.message}`);
-    }
 
-    // Mark local project as synced
-    await db.projects.update(project.id, { synced: 1 });
-  } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', project.id);
+if (error) throw new Error(error.message);
+}
 
-    if (error) {
-      throw new Error(`Supabase project delete failed: ${error.message}`);
-    }
-  }
+
+if (item.operation === 'DELETE') {
+const { error } = await supabase
+.from('projects')
+.delete()
+.eq('id', project.id);
+
+
+if (error) throw new Error(error.message);
+}
+
+
+await db.projects.update(project.id, { synced: 1 });
 }
 
 /**
