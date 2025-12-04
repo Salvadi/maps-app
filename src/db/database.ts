@@ -17,6 +17,8 @@ export interface Project {
   archived: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
+  version?: number; // For conflict detection (optional for backward compatibility)
+  lastModified?: number; // For conflict detection (optional for backward compatibility)
   synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
 }
 

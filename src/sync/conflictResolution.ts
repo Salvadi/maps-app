@@ -162,6 +162,8 @@ function convertRemoteToLocalProject(remote: any): Project {
     archived: remote.archived || 0,
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
+    version: remote.version || 1, // Add version for conflict detection
+    lastModified: remote.last_modified || new Date(remote.updated_at).getTime(), // Add lastModified
     synced: 1
   };
 }
@@ -239,7 +241,9 @@ function mergeProjects(local: Project, remote: any): Project {
     plans: mergedPlans,
     typologies: mergedTypologies,
     accessibleUsers: mergedUsers,
-    updatedAt: Date.now() // Update to current time
+    updatedAt: Date.now(), // Update to current time
+    version: Math.max(local.version || 1, remote.version || 1) + 1, // Increment version after merge
+    lastModified: Date.now() // Update to current time
   };
 }
 

@@ -153,7 +153,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
  * Process a single sync queue item
  */
 async function syncProject(item: SyncQueueItem): Promise<void> {
-  const project = item.payload as Project;
+  let project = item.payload as Project;
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
@@ -178,6 +178,8 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       archived: project.archived,
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
+      version: project.version || 1, // Add version for conflict detection
+      last_modified: project.lastModified || project.updatedAt, // Add lastModified
       synced: 1
     };
 
@@ -192,6 +194,20 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
   // UPDATE
   // =========================
   if (item.operation === 'UPDATE') {
+    // Check for conflicts before updating
+    const { hasConflict, remote } = await checkForConflicts('project', project.id);
+
+    if (hasConflict && remote) {
+      console.log(`⚠️  Conflict detected for project ${project.id}`);
+
+      // Resolve conflict using last-modified-wins strategy
+      project = await resolveProjectConflict(project, remote, 'last-modified-wins');
+
+      // Update local database with resolved version
+      await db.projects.put(project);
+      console.log(`✅ Conflict resolved for project ${project.id}`);
+    }
+
     const supabaseProject = {
       title: project.title,
       client: project.client,
@@ -205,6 +221,8 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       accessible_users: project.accessibleUsers,
       archived: project.archived,
       updated_at: new Date(project.updatedAt).toISOString(),
+      version: project.version || 1, // Add version for conflict detection
+      last_modified: project.lastModified || project.updatedAt, // Add lastModified
       synced: 1
     };
 
@@ -509,6 +527,8 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
         archived: supabaseProject.archived || 0,
         createdAt: new Date(supabaseProject.created_at).getTime(),
         updatedAt: new Date(supabaseProject.updated_at).getTime(),
+        version: supabaseProject.version || 1, // Add version for conflict detection
+        lastModified: supabaseProject.last_modified || new Date(supabaseProject.updated_at).getTime(), // Add lastModified
         synced: 1
       };
 

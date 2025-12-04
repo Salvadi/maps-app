@@ -19,11 +19,14 @@ A mobile-first Progressive Web App for construction and installation mapping wit
 - **ZIP Export** - Export Excel file + photos organized by floor/room
 - **Smart Navigation** - Context-aware navigation between views
 
-### 🔜 Phase 3: Supabase Sync (Future)
+### ✅ Phase 3: Supabase Sync (Implemented)
 - Real-time sync with Supabase backend
 - Background sync when connection returns
-- Conflict resolution
+- Bidirectional sync (upload and download)
 - Multi-device support
+- Row Level Security (RLS) policies
+- Admin role-based access control
+- ✅ Conflict resolution (projects & mapping_entries, see [CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md))
 
 ---
 
@@ -386,14 +389,41 @@ npm run build
 
 ---
 
-## 🔮 Future Enhancements (Phase 3+)
+## 📚 Documentation
 
-### Phase 3: Supabase Integration
-- [ ] Supabase authentication (replace mock auth)
-- [ ] Real-time sync with Postgres
-- [ ] Background sync when online
-- [ ] Conflict resolution strategy
-- [ ] Row Level Security (RLS)
+### Supabase Setup & RLS Policies
+
+For detailed information about Supabase setup and RLS policies:
+
+- **[SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md)** - Complete guide to setting up Supabase backend
+- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - In-depth analysis of RLS policies, potential bugs, and security considerations
+- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - Action items checklist before deploying RLS policy updates
+- **[CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md)** - How conflict resolution works for projects and mapping entries
+- **[migration-update-projects-rls-policies.sql](./docs/migration-update-projects-rls-policies.sql)** - SQL migration script for updated policies
+- **[migration-add-projects-conflict-resolution.sql](./docs/migration-add-projects-conflict-resolution.sql)** - SQL migration for conflict resolution fields
+
+**⚠️ Important**: If you're updating RLS policies, please read the analysis document first to understand breaking changes and recommendations.
+
+## 🔮 Future Enhancements (Phase 4+)
+
+### Phase 3: Completed ✅
+- [x] Supabase authentication
+- [x] Real-time sync with Postgres
+- [x] Background sync when online
+- [x] Row Level Security (RLS)
+- [x] Complete conflict resolution strategy (projects & mapping_entries)
+
+### Behavior & Design Decisions
+
+- **✅ Conflict resolution implemented**: Projects and mapping entries use "last-modified-wins" strategy (see [CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md))
+- **✅ Delete permissions by design**: Only project owners and admins can delete projects. Shared users have view/edit access but cannot delete (security feature)
+- **✅ Shared project access**: Users cannot remove themselves from shared projects (prevents accidental loss of access)
+
+### Setup Requirements
+
+- **⚠️ Migration required**: Apply `migration-add-projects-conflict-resolution.sql` in Supabase for full conflict resolution support
+
+See [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for planned improvements.
 
 ### Phase 4: Advanced Features
 - [ ] Floor plan upload and annotation
