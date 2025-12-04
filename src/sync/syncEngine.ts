@@ -132,89 +132,84 @@ export async function processSyncQueue(): Promise<SyncResult> {
 /**
  * Process a single sync queue item
  */
-async function processSyncItem(item: SyncQueueItem): Promise<void> {
-  switch (item.entityType) {
-    case 'project':
-      await syncProject(item);
-      break;
-    case 'mapping_entry':
-      await syncMappingEntry(item);
-      break;
-    case 'photo':
-      await syncPhoto(item);
-      break;
-    default:
-      throw new Error(`Unknown entity type: ${item.entityType}`);
-  }
-}
-
-/**
- * Sync a project to Supabase
- */
 async function syncProject(item: SyncQueueItem): Promise<void> {
-title: project.title,
-client: project.client,
-address: project.address,
-notes: project.notes,
-floors: project.floors,
-plans: project.plans,
-use_room_numbering: project.useRoomNumbering,
-use_intervention_numbering: project.useInterventionNumbering,
-typologies: project.typologies,
-owner_id: project.ownerId,
-accessible_users: project.accessibleUsers,
-archived: project.archived,
-created_at: new Date(project.createdAt).toISOString(),
-updated_at: new Date(project.updatedAt).toISOString(),
-synced: 1
-};
+  const project = item.payload as Project;
 
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
 
-const { error } = await supabase.from('projects').insert(supabaseProject);
-if (error) throw new Error(error.message);
-}
+  // =========================
+  // CREATE
+  // =========================
+  if (item.operation === 'CREATE') {
+    const supabaseProject = {
+      id: project.id,
+      title: project.title,
+      client: project.client,
+      address: project.address,
+      notes: project.notes,
+      floors: project.floors,
+      plans: project.plans,
+      use_room_numbering: project.useRoomNumbering,
+      use_intervention_numbering: project.useInterventionNumbering,
+      typologies: project.typologies,
+      owner_id: project.ownerId,
+      accessible_users: project.accessibleUsers,
+      archived: project.archived,
+      created_at: new Date(project.createdAt).toISOString(),
+      updated_at: new Date(project.updatedAt).toISOString(),
+      synced: 1
+    };
 
+    const { error } = await supabase
+      .from('projects')
+      .insert(supabaseProject);
 
-if (item.operation === 'UPDATE') {
-const supabaseProject = {
-title: project.title,
-client: project.client,
-address: project.address,
-notes: project.notes,
-floors: project.floors,
-plans: project.plans,
-use_room_numbering: project.useRoomNumbering,
-use_intervention_numbering: project.useInterventionNumbering,
-typologies: project.typologies,
-accessible_users: project.accessibleUsers,
-archived: project.archived,
-updated_at: new Date(project.updatedAt).toISOString(),
-synced: 1
-};
+    if (error) throw new Error(error.message);
+  }
 
+  // =========================
+  // UPDATE
+  // =========================
+  if (item.operation === 'UPDATE') {
+    const supabaseProject = {
+      title: project.title,
+      client: project.client,
+      address: project.address,
+      notes: project.notes,
+      floors: project.floors,
+      plans: project.plans,
+      use_room_numbering: project.useRoomNumbering,
+      use_intervention_numbering: project.useInterventionNumbering,
+      typologies: project.typologies,
+      accessible_users: project.accessibleUsers,
+      archived: project.archived,
+      updated_at: new Date(project.updatedAt).toISOString(),
+      synced: 1
+    };
 
-const { error } = await supabase
-.from('projects')
-.update(supabaseProject)
-.eq('id', project.id);
+    const { error } = await supabase
+      .from('projects')
+      .update(supabaseProject)
+      .eq('id', project.id);
 
+    if (error) throw new Error(error.message);
+  }
 
-if (error) throw new Error(error.message);
-}
+  // =========================
+  // DELETE
+  // =========================
+  if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', project.id);
 
+    if (error) throw new Error(error.message);
+  }
 
-if (item.operation === 'DELETE') {
-const { error } = await supabase
-.from('projects')
-.delete()
-.eq('id', project.id);
-
-
-if (error) throw new Error(error.message);
-}
-
-
-await db.projects.update(project.id, { synced: 1 });
+  // Mark local as synced
+  await db.projects.update(project.id, { synced: 1 });
 }
 
 /**
