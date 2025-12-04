@@ -12,32 +12,28 @@
 
 **Problema**: Le nuove policy rimuovono la possibilità per gli utenti con accesso condiviso di eliminare progetti.
 
-**Decisione richiesta**:
-- [ ] **Opzione A**: Mantenere il nuovo comportamento (solo owner/admin possono eliminare)
+**Decisione**: ✅ **PRESA** (2025-12-04)
+
+- [x] **Opzione A - SCELTA**: Mantenere il nuovo comportamento (solo owner/admin possono eliminare)
   - ✅ Pro: Maggiore sicurezza, solo proprietari controllano eliminazione
-  - ❌ Con: Breaking change, utenti condivisi perdono questa funzionalità
-  - **Se scelta**:
-    - [ ] Aggiornare UI per disabilitare pulsante "Delete" per utenti condivisi
-    - [ ] Aggiornare documentazione utente
-    - [ ] Comunicare agli utenti il cambio di comportamento
+  - ✅ Decisione: Gli utenti condivisi NON possono eliminare progetti
+  - **Comportamento finale**:
+    - ✅ Owner: può eliminare progetti propri
+    - ✅ Admin: può eliminare qualsiasi progetto
+    - ❌ Utenti condivisi: NON possono eliminare (solo view/edit)
 
-- [ ] **Opzione B**: Ripristinare la vecchia policy (utenti condivisi possono eliminare)
-  - ✅ Pro: Mantiene comportamento esistente, no breaking changes
-  - ❌ Con: Meno controllo per i proprietari
-  - **Se scelta**:
-    - [ ] Aggiungere policy al file migration:
-      ```sql
-      CREATE POLICY "Users delete accessible projects"
-      ON public.projects
-      FOR DELETE
-      USING (
-        accessible_users @> jsonb_build_array(auth.uid()::text)
-      );
-      ```
+**Azioni completate**:
+- [x] Decisione presa: mantenere nuovo comportamento
+- [x] Documentato in RLS_POLICIES_ANALYSIS.md
+- [x] Policy SQL pronta in migration-update-projects-rls-policies.sql
 
-**Assegnato a**: _________
-**Deadline**: Prima del deploy delle nuove policy
-**Status**: ⏳ In attesa di decisione
+**Rimanente**:
+- [ ] (Opzionale) Aggiornare UI per disabilitare pulsante "Delete" per utenti condivisi se presente
+- [ ] (Opzionale) Comunicare agli utenti il comportamento se necessario
+
+**Assegnato a**: Completato
+**Deadline**: ✅ Completato 2025-12-04
+**Status**: ✅ Decisione presa e documentata
 
 ---
 
@@ -275,15 +271,15 @@ const { data } = await supabase
 
 Prima di fare il deploy delle nuove policy in produzione, verificare:
 
-- [ ] ✅ Decisione presa su DELETE per utenti condivisi (Item #1)
-- [ ] ✅ Conflict resolution implementato (Item #2)
-- [ ] ✅ Testing completo eseguito (Item #4)
-- [ ] ✅ Documentazione aggiornata (Item #5)
-- [ ] ✅ Migration SQL testato in staging
-- [ ] ✅ Backup del database creato
-- [ ] ✅ Piano di rollback preparato
-- [ ] ✅ Team informato dei cambiamenti
-- [ ] ✅ Utenti informati se breaking changes
+- [x] ✅ Decisione presa su DELETE per utenti condivisi (Item #1) - **Mantenere nuovo comportamento**
+- [x] ✅ Conflict resolution implementato (Item #2) - **Implementato**
+- [ ] ⏳ Testing completo eseguito (Item #4)
+- [x] ✅ Documentazione aggiornata (Item #5) - **Completato**
+- [ ] ⏳ Migration SQL testato in staging
+- [ ] ⏳ Backup del database creato
+- [ ] ⏳ Piano di rollback preparato
+- [ ] ⏳ Team informato dei cambiamenti
+- [ ] ⏳ Utenti informati se breaking changes (opzionale, behavior intenzionale)
 
 ---
 
@@ -291,7 +287,7 @@ Prima di fare il deploy delle nuove policy in produzione, verificare:
 
 | Item | Priorità | Status | Assegnato | Deadline | Story Points |
 |------|----------|--------|-----------|----------|--------------|
-| #1 Decisione DELETE | 🔴 CRITICA | ⏳ In attesa | ___ | Pre-deploy | - |
+| #1 Decisione DELETE | 🔴 CRITICA | ✅ Deciso | User | 2025-12-04 | - |
 | #2 Conflict Resolution | 🔴 CRITICA | ✅ Implementato | Claude | 2025-12-04 | 8 → 2 |
 | #3 Validazione ownerId | ⚠️ ALTA | ⏳ Non iniziato | ___ | Sprint corrente | 2 |
 | #4 Testing | ⚠️ ALTA | ⏳ Non iniziato | ___ | Pre-deploy | 5 |
@@ -301,7 +297,7 @@ Prima di fare il deploy delle nuove policy in produzione, verificare:
 | #8 Audit Log | ℹ️ BASSA | 💡 Nice to have | ___ | Backlog | 5 |
 
 **Totale Story Points (Priorità Alta)**: 17 → **9 rimanenti**
-**Completato oggi**: 8 story points (conflict resolution + docs)
+**Completato oggi**: 8 story points (conflict resolution + docs) + decisione DELETE
 **Tempo stimato rimanente**: 1 sprint
 
 ---

@@ -413,11 +413,14 @@ For detailed information about Supabase setup and RLS policies:
 - [x] Row Level Security (RLS)
 - [x] Complete conflict resolution strategy (projects & mapping_entries)
 
-### Known Issues & Limitations
+### Behavior & Design Decisions
 
 - **✅ Conflict resolution implemented**: Projects and mapping entries use "last-modified-wins" strategy (see [CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md))
-- **⚠️ Shared users cannot delete projects**: Only owners and admins can delete (by design, see RLS_POLICIES_ANALYSIS.md)
-- **⚠️ Users cannot remove themselves from shared projects**: Policy prevents self-removal from accessible_users list
+- **✅ Delete permissions by design**: Only project owners and admins can delete projects. Shared users have view/edit access but cannot delete (security feature)
+- **✅ Shared project access**: Users cannot remove themselves from shared projects (prevents accidental loss of access)
+
+### Setup Requirements
+
 - **⚠️ Migration required**: Apply `migration-add-projects-conflict-resolution.sql` in Supabase for full conflict resolution support
 
 See [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for planned improvements.
