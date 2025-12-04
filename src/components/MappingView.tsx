@@ -62,6 +62,61 @@ const DeleteIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const SortAscIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 4H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 12H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 16H7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M17 8L21 4L17 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M21 4V20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const SortDescIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 4H7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 8H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 12H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 16H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M17 16L21 20L17 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M21 4V20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const FolderIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22 19C22 19.5304 21.7893 20.0391 21.4142 20.4142C21.0391 20.7893 20.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9L11 6H19C19.5304 6 20.0391 6.21071 20.4142 6.58579C20.7893 6.96086 21 7.46957 21 8V19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 9L12 15L18 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ChevronRightIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 18L15 12L9 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+type SortBy = 'name' | 'date' | 'floor' | 'room';
+type SortOrder = 'asc' | 'desc';
+type ViewMode = 'flat' | 'hierarchical';
+
+interface HierarchicalGroup {
+  floor: string;
+  rooms: {
+    room: string;
+    interventions: {
+      intervention: string;
+      mappings: MappingEntry[];
+    }[];
+  }[];
+}
+
 const MappingView: React.FC<MappingViewProps> = ({
   project,
   currentUser,
@@ -76,6 +131,13 @@ const MappingView: React.FC<MappingViewProps> = ({
   const [selectedMapping, setSelectedMapping] = useState<string | null>(null);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
   const [isExporting, setIsExporting] = useState(false);
+
+  // Sorting and filtering states
+  const [sortBy, setSortBy] = useState<SortBy>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [viewMode, setViewMode] = useState<ViewMode>('flat');
+  const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
+  const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
 
   // Load mappings
   useEffect(() => {
@@ -101,6 +163,169 @@ const MappingView: React.FC<MappingViewProps> = ({
 
     loadMappings();
   }, [project.id]);
+
+  // Sort mappings
+  const sortMappings = (mappingsToSort: MappingEntry[]): MappingEntry[] => {
+    const sorted = [...mappingsToSort];
+
+    sorted.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'name': {
+          // Name = floor + room + intervention
+          const nameA = `${a.floor}-${a.room || ''}-${a.intervention || ''}`;
+          const nameB = `${b.floor}-${b.room || ''}-${b.intervention || ''}`;
+          comparison = nameA.localeCompare(nameB);
+          break;
+        }
+        case 'date':
+          comparison = a.timestamp - b.timestamp;
+          break;
+        case 'floor': {
+          // Sort by floor number (assuming floor is numeric or alphanumeric)
+          const floorA = parseInt(a.floor) || a.floor;
+          const floorB = parseInt(b.floor) || b.floor;
+          if (typeof floorA === 'number' && typeof floorB === 'number') {
+            comparison = floorA - floorB;
+          } else {
+            comparison = String(floorA).localeCompare(String(floorB));
+          }
+          // Secondary sort by room and intervention
+          if (comparison === 0) {
+            const roomA = a.room || '';
+            const roomB = b.room || '';
+            comparison = roomA.localeCompare(roomB);
+            if (comparison === 0) {
+              const intA = a.intervention || '';
+              const intB = b.intervention || '';
+              comparison = intA.localeCompare(intB);
+            }
+          }
+          break;
+        }
+        case 'room': {
+          const roomA = a.room || '';
+          const roomB = b.room || '';
+          comparison = roomA.localeCompare(roomB);
+          // Secondary sort by floor and intervention
+          if (comparison === 0) {
+            comparison = a.floor.localeCompare(b.floor);
+            if (comparison === 0) {
+              const intA = a.intervention || '';
+              const intB = b.intervention || '';
+              comparison = intA.localeCompare(intB);
+            }
+          }
+          break;
+        }
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  };
+
+  // Group mappings hierarchically by floor → room → intervention
+  const groupMappingsHierarchically = (mappingsToGroup: MappingEntry[]): HierarchicalGroup[] => {
+    const floorMap = new Map<string, Map<string, Map<string, MappingEntry[]>>>();
+
+    // Group by floor, room, intervention
+    for (const mapping of mappingsToGroup) {
+      const floor = mapping.floor;
+      const room = mapping.room || '-';
+      const intervention = mapping.intervention || '-';
+
+      if (!floorMap.has(floor)) {
+        floorMap.set(floor, new Map());
+      }
+      const roomMap = floorMap.get(floor)!;
+
+      if (!roomMap.has(room)) {
+        roomMap.set(room, new Map());
+      }
+      const interventionMap = roomMap.get(room)!;
+
+      if (!interventionMap.has(intervention)) {
+        interventionMap.set(intervention, []);
+      }
+      interventionMap.get(intervention)!.push(mapping);
+    }
+
+    // Convert to array structure
+    const groups: HierarchicalGroup[] = [];
+
+    // Sort floors
+    const floors = Array.from(floorMap.keys()).sort((a, b) => {
+      const floorA = parseInt(a) || a;
+      const floorB = parseInt(b) || b;
+      if (typeof floorA === 'number' && typeof floorB === 'number') {
+        return sortOrder === 'asc' ? floorA - floorB : floorB - floorA;
+      }
+      return sortOrder === 'asc' ? String(floorA).localeCompare(String(floorB)) : String(floorB).localeCompare(String(floorA));
+    });
+
+    for (const floor of floors) {
+      const roomMap = floorMap.get(floor)!;
+      const rooms = Array.from(roomMap.keys()).sort((a, b) => {
+        const comparison = a.localeCompare(b);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+
+      const roomGroups = rooms.map(room => {
+        const interventionMap = roomMap.get(room)!;
+        const interventions = Array.from(interventionMap.keys()).sort((a, b) => {
+          const comparison = a.localeCompare(b);
+          return sortOrder === 'asc' ? comparison : -comparison;
+        });
+
+        return {
+          room,
+          interventions: interventions.map(intervention => ({
+            intervention,
+            mappings: interventionMap.get(intervention)!,
+          })),
+        };
+      });
+
+      groups.push({
+        floor,
+        rooms: roomGroups,
+      });
+    }
+
+    return groups;
+  };
+
+  const sortedMappings = sortMappings(mappings);
+  const hierarchicalGroups = groupMappingsHierarchically(sortedMappings);
+
+  // Toggle floor expansion
+  const toggleFloor = (floor: string) => {
+    setExpandedFloors(prev => {
+      const next = new Set(prev);
+      if (next.has(floor)) {
+        next.delete(floor);
+      } else {
+        next.add(floor);
+      }
+      return next;
+    });
+  };
+
+  // Toggle room expansion
+  const toggleRoom = (floorRoom: string) => {
+    setExpandedRooms(prev => {
+      const next = new Set(prev);
+      if (next.has(floorRoom)) {
+        next.delete(floorRoom);
+      } else {
+        next.add(floorRoom);
+      }
+      return next;
+    });
+  };
 
   // Generate photo filename prefix based on project settings
   const generatePhotoPrefix = (floor: string, room?: string, intervention?: string): string => {
@@ -392,6 +617,74 @@ const MappingView: React.FC<MappingViewProps> = ({
           </button>
         </div>
 
+        {/* Sorting and View Mode Controls */}
+        {mappings.length > 0 && (
+          <div className="filter-controls">
+            <div className="sort-controls">
+              <label className="control-label">Ordina per:</label>
+              <div className="button-group">
+                <button
+                  className={`filter-btn ${sortBy === 'name' ? 'active' : ''}`}
+                  onClick={() => setSortBy('name')}
+                >
+                  Nome
+                </button>
+                <button
+                  className={`filter-btn ${sortBy === 'date' ? 'active' : ''}`}
+                  onClick={() => setSortBy('date')}
+                >
+                  Data
+                </button>
+                <button
+                  className={`filter-btn ${sortBy === 'floor' ? 'active' : ''}`}
+                  onClick={() => setSortBy('floor')}
+                >
+                  Piano
+                </button>
+                {project.useRoomNumbering && (
+                  <button
+                    className={`filter-btn ${sortBy === 'room' ? 'active' : ''}`}
+                    onClick={() => setSortBy('room')}
+                  >
+                    Stanza
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="order-controls">
+              <button
+                className="order-btn"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                title={sortOrder === 'asc' ? 'Ordine crescente' : 'Ordine decrescente'}
+              >
+                {sortOrder === 'asc' ? <SortAscIcon className="icon" /> : <SortDescIcon className="icon" />}
+                {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+              </button>
+            </div>
+
+            <div className="view-controls">
+              <label className="control-label">Vista:</label>
+              <div className="button-group">
+                <button
+                  className={`filter-btn ${viewMode === 'flat' ? 'active' : ''}`}
+                  onClick={() => setViewMode('flat')}
+                >
+                  Lista
+                </button>
+                <button
+                  className={`filter-btn ${viewMode === 'hierarchical' ? 'active' : ''}`}
+                  onClick={() => setViewMode('hierarchical')}
+                  title="Raggruppa per piano → stanza → intervento"
+                >
+                  <FolderIcon className="icon-inline" />
+                  Cartelle
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Mappings List */}
         {mappings.length === 0 ? (
           <div style={{
@@ -406,9 +699,9 @@ const MappingView: React.FC<MappingViewProps> = ({
             <p>Nessuna mappatura trovata</p>
             <p style={{ fontSize: '0.875rem' }}>Premi il pulsante + per aggiungere la prima mappatura</p>
           </div>
-        ) : (
+        ) : viewMode === 'flat' ? (
           <div className="mappings-list">
-            {mappings.map((mapping) => {
+            {sortedMappings.map((mapping) => {
               const photos = mappingPhotos[mapping.id] || [];
               const isExpanded = selectedMapping === mapping.id;
 
@@ -421,7 +714,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                   <div className="mapping-header">
                     <div>
                       <h3 className="mapping-title">
-                        Floor {mapping.floor}
+                        Piano {mapping.floor}
                         {mapping.room && ` - Stanza ${mapping.room}`}
                         {mapping.intervention && ` - Int. ${mapping.intervention}`}
                       </h3>
@@ -482,13 +775,170 @@ const MappingView: React.FC<MappingViewProps> = ({
                             <div key={photo.id} className="photo-item">
                               <img
                                 src={URL.createObjectURL(photo.blob)}
-                                alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} Photo ${idx + 1}`}
+                                alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`}
                                 loading="lazy"
                               />
                             </div>
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="hierarchical-view">
+            {hierarchicalGroups.map((floorGroup) => {
+              const isFloorExpanded = expandedFloors.has(floorGroup.floor);
+              const floorMappingCount = floorGroup.rooms.reduce(
+                (sum, room) => sum + room.interventions.reduce((s, int) => s + int.mappings.length, 0),
+                0
+              );
+
+              return (
+                <div key={floorGroup.floor} className="hierarchy-group">
+                  <div
+                    className="hierarchy-header floor-header"
+                    onClick={() => toggleFloor(floorGroup.floor)}
+                  >
+                    {isFloorExpanded ? <ChevronDownIcon className="chevron" /> : <ChevronRightIcon className="chevron" />}
+                    <FolderIcon className="folder-icon" />
+                    <span className="hierarchy-title">Piano {floorGroup.floor}</span>
+                    <span className="hierarchy-count">({floorMappingCount})</span>
+                  </div>
+
+                  {isFloorExpanded && (
+                    <div className="hierarchy-children">
+                      {floorGroup.rooms.map((roomGroup) => {
+                        const floorRoomKey = `${floorGroup.floor}-${roomGroup.room}`;
+                        const isRoomExpanded = expandedRooms.has(floorRoomKey);
+                        const roomMappingCount = roomGroup.interventions.reduce(
+                          (sum, int) => sum + int.mappings.length,
+                          0
+                        );
+
+                        return (
+                          <div key={floorRoomKey} className="hierarchy-group">
+                            <div
+                              className="hierarchy-header room-header"
+                              onClick={() => toggleRoom(floorRoomKey)}
+                            >
+                              {isRoomExpanded ? <ChevronDownIcon className="chevron" /> : <ChevronRightIcon className="chevron" />}
+                              <FolderIcon className="folder-icon" />
+                              <span className="hierarchy-title">
+                                {roomGroup.room === '-' ? 'Nessuna stanza' : `Stanza ${roomGroup.room}`}
+                              </span>
+                              <span className="hierarchy-count">({roomMappingCount})</span>
+                            </div>
+
+                            {isRoomExpanded && (
+                              <div className="hierarchy-children">
+                                {roomGroup.interventions.map((interventionGroup) => (
+                                  <div key={`${floorRoomKey}-${interventionGroup.intervention}`} className="intervention-group">
+                                    <div className="intervention-header">
+                                      <FolderIcon className="folder-icon" />
+                                      <span className="hierarchy-title">
+                                        {interventionGroup.intervention === '-' ? 'Nessun intervento' : `Intervento ${interventionGroup.intervention}`}
+                                      </span>
+                                      <span className="hierarchy-count">({interventionGroup.mappings.length})</span>
+                                    </div>
+                                    <div className="intervention-mappings">
+                                      {interventionGroup.mappings.map((mapping) => {
+                                        const photos = mappingPhotos[mapping.id] || [];
+                                        const isExpanded = selectedMapping === mapping.id;
+
+                                        return (
+                                          <div
+                                            key={mapping.id}
+                                            className={`mapping-card ${isExpanded ? 'expanded' : ''}`}
+                                            onClick={() => setSelectedMapping(isExpanded ? null : mapping.id)}
+                                          >
+                                            <div className="mapping-header">
+                                              <div>
+                                                <h3 className="mapping-title">
+                                                  Piano {mapping.floor}
+                                                  {mapping.room && ` - Stanza ${mapping.room}`}
+                                                  {mapping.intervention && ` - Int. ${mapping.intervention}`}
+                                                </h3>
+                                                <p className="mapping-meta">
+                                                  {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
+                                                </p>
+                                              </div>
+                                              <div className="mapping-header-actions">
+                                                <button
+                                                  className="mapping-action-btn"
+                                                  onClick={(e) => handleEditMapping(mapping, e)}
+                                                  aria-label="Modifica mappatura"
+                                                >
+                                                  <EditIcon className="icon" />
+                                                </button>
+                                                <button
+                                                  className="mapping-action-btn delete"
+                                                  onClick={(e) => handleDeleteMapping(mapping.id, e)}
+                                                  aria-label="Elimina mappatura"
+                                                >
+                                                  <DeleteIcon className="icon" />
+                                                </button>
+                                                <div className="photo-count">
+                                                  <ImageIcon className="icon" />
+                                                  {photos.length}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {isExpanded && (
+                                              <div className="mapping-details" onClick={(e) => e.stopPropagation()}>
+                                                {/* Sigillature */}
+                                                {mapping.crossings.length > 0 && (
+                                                  <div className="crossings-section">
+                                                    <h4>Sigillature:</h4>
+                                                    <ul>
+                                                      {mapping.crossings.map((sig, idx) => (
+                                                        <li key={idx} style={{ marginBottom: '8px' }}>
+                                                          <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
+                                                          <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
+                                                          <strong>Attraversamento:</strong> {sig.attraversamento || 'N/A'}<br />
+                                                          {sig.tipologicoId && (
+                                                            <><strong>Tipologico:</strong> {sig.tipologicoId}<br /></>
+                                                          )}
+                                                          {sig.notes && (
+                                                            <><strong>Note:</strong> {sig.notes}<br /></>
+                                                          )}
+                                                        </li>
+                                                      ))}
+                                                    </ul>
+                                                  </div>
+                                                )}
+
+                                                {/* Photo Gallery */}
+                                                {photos.length > 0 && (
+                                                  <div className="photo-gallery">
+                                                    {photos.map((photo, idx) => (
+                                                      <div key={photo.id} className="photo-item">
+                                                        <img
+                                                          src={URL.createObjectURL(photo.blob)}
+                                                          alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`}
+                                                          loading="lazy"
+                                                        />
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
