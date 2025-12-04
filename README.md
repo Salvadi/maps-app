@@ -19,11 +19,14 @@ A mobile-first Progressive Web App for construction and installation mapping wit
 - **ZIP Export** - Export Excel file + photos organized by floor/room
 - **Smart Navigation** - Context-aware navigation between views
 
-### 🔜 Phase 3: Supabase Sync (Future)
+### ✅ Phase 3: Supabase Sync (Implemented)
 - Real-time sync with Supabase backend
 - Background sync when connection returns
-- Conflict resolution
+- Bidirectional sync (upload and download)
 - Multi-device support
+- Row Level Security (RLS) policies
+- Admin role-based access control
+- ⚠️ Conflict resolution (partial - only for mapping_entries, see docs)
 
 ---
 
@@ -386,14 +389,35 @@ npm run build
 
 ---
 
-## 🔮 Future Enhancements (Phase 3+)
+## 📚 Documentation
 
-### Phase 3: Supabase Integration
-- [ ] Supabase authentication (replace mock auth)
-- [ ] Real-time sync with Postgres
-- [ ] Background sync when online
-- [ ] Conflict resolution strategy
-- [ ] Row Level Security (RLS)
+### Supabase Setup & RLS Policies
+
+For detailed information about Supabase setup and RLS policies:
+
+- **[SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md)** - Complete guide to setting up Supabase backend
+- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - In-depth analysis of RLS policies, potential bugs, and security considerations
+- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - Action items checklist before deploying RLS policy updates
+- **[migration-update-projects-rls-policies.sql](./docs/migration-update-projects-rls-policies.sql)** - SQL migration script for updated policies
+
+**⚠️ Important**: If you're updating RLS policies, please read the analysis document first to understand breaking changes and recommendations.
+
+## 🔮 Future Enhancements (Phase 4+)
+
+### Phase 3: Completed ✅
+- [x] Supabase authentication
+- [x] Real-time sync with Postgres
+- [x] Background sync when online
+- [x] Row Level Security (RLS)
+- [ ] Complete conflict resolution strategy (only implemented for mapping_entries)
+
+### Known Issues & Limitations
+
+- **⚠️ No conflict resolution for projects**: If two users modify the same project offline, last sync wins (data loss possible)
+- **⚠️ Shared users cannot delete projects**: Only owners and admins can delete (by design, see RLS_POLICIES_ANALYSIS.md)
+- **⚠️ Users cannot remove themselves from shared projects**: Policy prevents self-removal from accessible_users list
+
+See [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for planned improvements.
 
 ### Phase 4: Advanced Features
 - [ ] Floor plan upload and annotation

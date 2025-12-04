@@ -201,6 +201,37 @@ Get these from: **Supabase Dashboard** → **Settings** → **API**
 - ✅ Users can only access their own data or shared projects
 - ✅ Admins can view all data
 
+## Updating RLS Policies
+
+### Projects Table Policies Update (2025-12-04)
+
+**⚠️ IMPORTANT**: If you need to update the RLS policies for the `projects` table, please review the following documents BEFORE applying any changes:
+
+1. **[RLS_POLICIES_ANALYSIS.md](./RLS_POLICIES_ANALYSIS.md)** - Detailed analysis of policy changes, potential bugs, and recommendations
+2. **[migration-update-projects-rls-policies.sql](./migration-update-projects-rls-policies.sql)** - SQL migration script with the new policies
+3. **[ACTION_ITEMS_RLS_POLICIES.md](./ACTION_ITEMS_RLS_POLICIES.md)** - Action items and checklist before deployment
+
+**Key Changes in New Policies**:
+- ✅ Consolidated SELECT policies for better performance
+- ✅ Added admin-specific INSERT, UPDATE, DELETE policies
+- 🔴 **BREAKING CHANGE**: Users with shared access can no longer DELETE projects (only owners and admins)
+- ⚠️ Users cannot remove themselves from `accessible_users`
+- ⚠️ Admins can create projects for other users and change `owner_id`
+
+**Before Applying the Migration**:
+1. Read the full analysis in `RLS_POLICIES_ANALYSIS.md`
+2. Make a decision on whether shared users should be able to delete projects
+3. Implement conflict resolution for projects (see ACTION_ITEMS)
+4. Test thoroughly in staging environment
+5. Create a database backup
+6. Prepare a rollback plan
+
+**To Apply the New Policies**:
+```sql
+-- In Supabase SQL Editor, run:
+-- File: migration-update-projects-rls-policies.sql
+```
+
 ## Next Steps
 
 Once setup is complete:
@@ -208,5 +239,6 @@ Once setup is complete:
 2. Test sharing projects with other users
 3. Verify sync works correctly
 4. Set up automated backups in Supabase Dashboard
+5. Review and apply RLS policy updates if needed (see section above)
 
 For more help, see the [Supabase Documentation](https://supabase.com/docs).
