@@ -218,8 +218,8 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr 1.2fr 2fr;
-  gap: var(--spacing-xs);
+  grid-template-columns: 60px 1.2fr 1.3fr 1.2fr 1.2fr 1.8fr;
+  gap: var(--spacing-sm);
   padding: var(--spacing-sm);
   background-color: var(--color-bg-input);
   border-radius: var(--radius-sm);
@@ -230,8 +230,8 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 60px 1fr 1.2fr 1fr 1fr 1.2fr 2fr auto;
-  gap: var(--spacing-xs);
+  grid-template-columns: 60px 1.2fr 1.3fr 1.2fr 1.2fr 1.8fr auto;
+  gap: var(--spacing-sm);
   align-items: center;
 }
 
@@ -252,6 +252,7 @@
 
 .table-cell {
   min-width: 0;
+  overflow: hidden;
 }
 
 .table-cell.actions {
@@ -422,6 +423,34 @@
 .unarchive-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Desktop - ottimizzazione tabella tipologici */
+@media (min-width: 769px) {
+  .project-form-container {
+    max-width: 1400px; /* Aumenta significativamente la larghezza per evitare sovrapposizioni */
+  }
+
+  .tipologici-table {
+    overflow-x: auto; /* Permette scroll orizzontale se necessario */
+  }
+
+  .table-header,
+  .table-row {
+    min-width: 1100px; /* Garantisce larghezza minima per evitare compressione eccessiva */
+  }
+
+  .table-select {
+    min-width: 140px; /* Aumenta larghezza minima per i select */
+  }
+
+  .table-cell {
+    min-width: 120px; /* Aumenta larghezza minima delle celle */
+  }
+
+  .table-cell-number {
+    min-width: 60px;
+  }
 }
 
 @media (max-width: 768px) {

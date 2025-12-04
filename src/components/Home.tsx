@@ -102,9 +102,9 @@ const FilterIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const getProjectIcon = (index: number) => {
-  const icons = [DocumentIcon, FolderIcon, CalendarIcon, EyeIcon];
-  return icons[index % icons.length];
+const getProjectIcon = () => {
+  // Usa sempre l'icona a forma di cartella per tutti i progetti
+  return FolderIcon;
 };
 
 type SortOption = 'alphabetical' | 'alphabetical-reverse' | 'date-created' | 'date-updated';
@@ -331,7 +331,7 @@ const Home: React.FC<HomeProps> = ({
         ) : (
           <div className="projects-grid">
           {filteredAndSortedProjects.map((project, index) => {
-            const IconComponent = getProjectIcon(index);
+            const IconComponent = getProjectIcon();
             const isActive = activeProject === project.id;
 
             return (
