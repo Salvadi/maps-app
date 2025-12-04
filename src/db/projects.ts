@@ -12,6 +12,8 @@ export async function createProject(
     archived: 0,
     createdAt: now(),
     updatedAt: now(),
+    version: 1, // Initial version for conflict detection
+    lastModified: now(), // For conflict detection
     synced: 0
   };
 
@@ -84,6 +86,8 @@ export async function updateProject(
     ...project,
     ...updates,
     updatedAt: now(),
+    version: (project.version || 0) + 1, // Increment version for conflict detection
+    lastModified: now(), // Update timestamp for conflict detection
     synced: 0
   };
 

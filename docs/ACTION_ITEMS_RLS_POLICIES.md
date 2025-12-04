@@ -43,69 +43,41 @@
 
 ### 2. Implementare Conflict Resolution per Projects
 
-**Problema**: Attualmente il `syncEngine` non gestisce conflitti per progetti. Se due utenti modificano lo stesso progetto offline, l'ultimo che sincronizza sovrascrive le modifiche dell'altro.
+**Problema**: ✅ **RISOLTO** (2025-12-04)
 
-**Azioni richieste**:
+La conflict resolution è stata implementata! Vedi [CONFLICT_RESOLUTION.md](./CONFLICT_RESOLUTION.md) per dettagli.
 
-#### 2.1 Database Schema Update
-- [ ] Aggiungere campi alla tabella `projects`:
-  ```sql
-  ALTER TABLE public.projects
-  ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1,
-  ADD COLUMN IF NOT EXISTS last_modified BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT * 1000;
-  ```
-- [ ] Creare indice per performance:
-  ```sql
-  CREATE INDEX IF NOT EXISTS idx_projects_last_modified
-  ON public.projects(last_modified DESC);
-  ```
+**Azioni rimanenti per completamento**:
 
-#### 2.2 TypeScript Types Update
-- [ ] Aggiornare `src/db/database.ts`:
-  ```typescript
-  export interface Project {
-    // ... campi esistenti
-    version: number;           // Aggiungere
-    lastModified: number;      // Aggiungere
-  }
-  ```
+#### 2.1 Database Schema Update ✅ COMPLETATO
+- [x] Aggiungere campi alla tabella `projects` (vedi migration SQL)
+- [x] Creare indici per performance
+- [x] File: `migration-add-projects-conflict-resolution.sql`
 
-#### 2.3 Conflict Resolution Logic
-- [ ] Modificare `src/sync/conflictResolution.ts`:
-  - [ ] Aggiungere funzione `resolveProjectConflict()`
-  - [ ] Implementare strategia "last-modified-wins" o "manual-merge"
+#### 2.2 TypeScript Types Update ✅ COMPLETATO
+- [x] Aggiornato `src/db/database.ts` con campi `version?` e `lastModified?` (opzionali)
+- [x] Campi opzionali per backward compatibility
 
-- [ ] Modificare `src/sync/syncEngine.ts` - funzione `syncProject()`:
-  ```typescript
-  if (item.operation === 'UPDATE') {
-    // Aggiungere check conflitti PRIMA dell'upsert
-    const { hasConflict, remote } = await checkForConflicts('project', project.id);
+#### 2.3 Conflict Resolution Logic ✅ COMPLETATO
+- [x] `resolveProjectConflict()` già esistente in `conflictResolution.ts`
+- [x] Modificato `syncEngine.ts` per usare check conflitti prima UPDATE
+- [x] Implementata strategia "last-modified-wins" (default)
+- [x] Supporto per strategie: local-wins, remote-wins, merge
 
-    if (hasConflict && remote) {
-      console.log(`⚠️  Conflict detected for project ${project.id}`);
-      project = await resolveProjectConflict(project, remote, 'last-modified-wins');
-      await db.projects.put(project);
-      console.log(`✅ Conflict resolved for project ${project.id}`);
-    }
+#### 2.4 Data Migration ✅ CREATO
+- [x] Script SQL completo in `migration-add-projects-conflict-resolution.sql`
+- [x] Include UPDATE per progetti esistenti
+- [x] Trigger automatico per last_modified
 
-    // ... poi procedere con update su Supabase
-  }
-  ```
-
-#### 2.4 Data Migration
-- [ ] Creare script per popolare i nuovi campi nei progetti esistenti:
-  ```sql
-  UPDATE public.projects
-  SET
-    version = 1,
-    last_modified = EXTRACT(EPOCH FROM updated_at)::BIGINT * 1000
-  WHERE version IS NULL OR last_modified IS NULL;
-  ```
+**Rimanente**:
+- [ ] **Applicare migration SQL in Supabase** ⚠️ IMPORTANTE
+- [ ] **Testare conflict resolution** (vedi CONFLICT_RESOLUTION.md)
+- [ ] Verificare backward compatibility con progetti esistenti
 
 **Assegnato a**: _________
 **Deadline**: Sprint corrente
-**Status**: ⏳ Non iniziato
-**Story Points**: 8
+**Status**: ✅ Implementato, ⏳ Testing pendente
+**Story Points**: 8 → 2 rimanenti (solo testing)
 
 ---
 
@@ -320,16 +292,17 @@ Prima di fare il deploy delle nuove policy in produzione, verificare:
 | Item | Priorità | Status | Assegnato | Deadline | Story Points |
 |------|----------|--------|-----------|----------|--------------|
 | #1 Decisione DELETE | 🔴 CRITICA | ⏳ In attesa | ___ | Pre-deploy | - |
-| #2 Conflict Resolution | 🔴 CRITICA | ⏳ Non iniziato | ___ | Sprint corrente | 8 |
+| #2 Conflict Resolution | 🔴 CRITICA | ✅ Implementato | Claude | 2025-12-04 | 8 → 2 |
 | #3 Validazione ownerId | ⚠️ ALTA | ⏳ Non iniziato | ___ | Sprint corrente | 2 |
 | #4 Testing | ⚠️ ALTA | ⏳ Non iniziato | ___ | Pre-deploy | 5 |
-| #5 Documentazione | ⚠️ ALTA | ⏳ Non iniziato | ___ | Pre-deploy | 2 |
+| #5 Documentazione | ⚠️ ALTA | ✅ Completato | Claude | 2025-12-04 | 2 |
 | #6 Leave Project | ℹ️ MEDIA | 💡 Idea | ___ | Backlog | 3 |
 | #7 Ottimizzazione Download | ℹ️ MEDIA | 📊 Monitoring | ___ | Se necessario | 3 |
 | #8 Audit Log | ℹ️ BASSA | 💡 Nice to have | ___ | Backlog | 5 |
 
-**Totale Story Points (Priorità Alta)**: 17
-**Tempo stimato**: 1-2 sprint
+**Totale Story Points (Priorità Alta)**: 17 → **9 rimanenti**
+**Completato oggi**: 8 story points (conflict resolution + docs)
+**Tempo stimato rimanente**: 1 sprint
 
 ---
 
