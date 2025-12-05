@@ -110,6 +110,50 @@ export interface AppMetadata {
   value: any;
 }
 
+// Planimetry types
+export type PlanimetryPointType = 'generic' | 'floor-single' | 'wall-single' | 'floor-multi' | 'wall-multi';
+export type PlanimetryLineColor = '#dc2626' | '#2563eb' | '#06b6d4' | '#16a34a' | '#f97316';
+
+export interface Planimetry {
+  id: string;
+  projectId: string;
+  floor: string;
+  planName: string;
+  imageName: string;
+  imageData: string; // Base64
+  rotation: number;
+  markerScale: number;
+  createdAt: number;
+  updatedAt: number;
+  synced: number; // 0 = false, 1 = true
+}
+
+export interface PlanimetryPoint {
+  id: string;
+  planimetryId: string;
+  mappingEntryId?: string; // Optional link to MappingEntry
+  number: number;
+  x: number;
+  y: number;
+  targetX?: number;
+  targetY?: number;
+  type: PlanimetryPointType;
+  description: string;
+  createdAt: number;
+  synced: number; // 0 = false, 1 = true
+}
+
+export interface PlanimetryLine {
+  id: string;
+  planimetryId: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  color: PlanimetryLineColor;
+  synced: number; // 0 = false, 1 = true
+}
+
 // Dexie database class
 export class MappingDatabase extends Dexie {
   // Typed table properties
@@ -119,6 +163,10 @@ export class MappingDatabase extends Dexie {
   syncQueue!: Table<SyncQueueItem, string>;
   users!: Table<User, string>;
   metadata!: Table<AppMetadata, string>;
+  // Planimetry tables
+  planimetries!: Table<Planimetry, string>;
+  planimetryPoints!: Table<PlanimetryPoint, string>;
+  planimetryLines!: Table<PlanimetryLine, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -148,6 +196,19 @@ export class MappingDatabase extends Dexie {
           project.archived = 0;
         }
       });
+    });
+
+    // Define schema v3 - add planimetry tables
+    this.version(3).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      planimetries: 'id, projectId, floor, synced, updatedAt',
+      planimetryPoints: 'id, planimetryId, mappingEntryId, synced',
+      planimetryLines: 'id, planimetryId, synced'
     });
   }
 }
