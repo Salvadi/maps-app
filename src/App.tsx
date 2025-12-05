@@ -8,7 +8,7 @@ import MappingView from './components/MappingView';
 import UpdateNotification from './components/UpdateNotification';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
-import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, SyncStats } from './sync/syncEngine';
+import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
 import './App.css';
 
 type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
@@ -239,6 +239,33 @@ const App: React.FC = () => {
     }
   };
 
+  const handleClearAndSync = async () => {
+    if (!isSupabaseConfigured()) {
+      alert('Supabase not configured. Cannot sync.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      '⚠️ Attenzione!\n\nQuesta operazione cancellerà tutti i dati locali e riscaricherà tutto da Supabase.\n\nVuoi continuare?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSyncStats(prev => ({ ...prev, isSyncing: true }));
+      const result = await clearAndSync();
+
+      // Reload the page to refresh all components with new data
+      window.location.reload();
+    } catch (error) {
+      console.error('❌ Clear and sync failed:', error);
+      alert('Clear and sync failed. Please try again.');
+      setSyncStats(prev => ({ ...prev, isSyncing: false }));
+    }
+  };
+
   const handleCreateProject = () => {
     setSelectedProject(null);
     setCurrentView('projectForm');
@@ -349,6 +376,7 @@ const App: React.FC = () => {
             onEnterMapping={handleEnterMapping}
             onLogout={handleLogout}
             onManualSync={handleManualSync}
+            onClearAndSync={handleClearAndSync}
             isSyncing={syncStats.isSyncing}
           />
         );
@@ -398,6 +426,7 @@ const App: React.FC = () => {
             onEnterMapping={handleEnterMapping}
             onLogout={handleLogout}
             onManualSync={handleManualSync}
+            onClearAndSync={handleClearAndSync}
             isSyncing={syncStats.isSyncing}
           />
         );

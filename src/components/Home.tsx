@@ -11,6 +11,7 @@ interface HomeProps {
   onEnterMapping: (project: Project) => void;
   onLogout: () => void;
   onManualSync: () => void;
+  onClearAndSync: () => void;
   isSyncing: boolean;
 }
 
@@ -118,6 +119,7 @@ const Home: React.FC<HomeProps> = ({
   onEnterMapping,
   onLogout,
   onManualSync,
+  onClearAndSync,
   isSyncing,
 }) => {
   const [activeProject, setActiveProject] = useState<string | null>(null);
@@ -126,6 +128,7 @@ const Home: React.FC<HomeProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('date-updated');
   const [showArchived, setShowArchived] = useState(false);
+  const [showSyncMenu, setShowSyncMenu] = useState(false);
 
   // Load projects from IndexedDB
   useEffect(() => {
@@ -205,6 +208,30 @@ const Home: React.FC<HomeProps> = ({
     setActiveProject(null);
   };
 
+  const handleSyncButtonClick = () => {
+    setShowSyncMenu(!showSyncMenu);
+  };
+
+  const handleSyncOptionClick = (action: () => void) => {
+    setShowSyncMenu(false);
+    action();
+  };
+
+  // Close sync menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showSyncMenu && !target.closest('.sync-menu-container')) {
+        setShowSyncMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSyncMenu]);
+
   if (isLoading) {
     return (
       <div className="home-page">
@@ -212,15 +239,35 @@ const Home: React.FC<HomeProps> = ({
           <div className="home-header">
             <h1 className="home-title">Home</h1>
             <div className="header-buttons">
-              <button
-                className={`sync-button ${isSyncing ? 'syncing' : ''}`}
-                onClick={onManualSync}
-                disabled={isSyncing}
-                aria-label="Sync"
-                title="Sync with Supabase"
-              >
-                <SyncIcon className="sync-icon" />
-              </button>
+              <div className="sync-menu-container">
+                <button
+                  className={`sync-button ${isSyncing ? 'syncing' : ''}`}
+                  onClick={handleSyncButtonClick}
+                  disabled={isSyncing}
+                  aria-label="Sync"
+                  title="Sync with Supabase"
+                >
+                  <SyncIcon className="sync-icon" />
+                </button>
+                {showSyncMenu && !isSyncing && (
+                  <div className="sync-menu">
+                    <button
+                      className="sync-menu-item"
+                      onClick={() => handleSyncOptionClick(onManualSync)}
+                    >
+                      <SyncIcon className="sync-menu-icon" />
+                      <span>Sync normale</span>
+                    </button>
+                    <button
+                      className="sync-menu-item sync-menu-item-danger"
+                      onClick={() => handleSyncOptionClick(onClearAndSync)}
+                    >
+                      <TrashIcon className="sync-menu-icon" />
+                      <span>Clear and sync</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 className="logout-button"
                 onClick={onLogout}
@@ -251,15 +298,35 @@ const Home: React.FC<HomeProps> = ({
         <div className="home-header">
           <h1 className="home-title">Home</h1>
           <div className="header-buttons">
-            <button
-              className={`sync-button ${isSyncing ? 'syncing' : ''}`}
-              onClick={onManualSync}
-              disabled={isSyncing}
-              aria-label="Sync"
-              title="Sync with Supabase"
-            >
-              <SyncIcon className="sync-icon" />
-            </button>
+            <div className="sync-menu-container">
+              <button
+                className={`sync-button ${isSyncing ? 'syncing' : ''}`}
+                onClick={handleSyncButtonClick}
+                disabled={isSyncing}
+                aria-label="Sync"
+                title="Sync with Supabase"
+              >
+                <SyncIcon className="sync-icon" />
+              </button>
+              {showSyncMenu && !isSyncing && (
+                <div className="sync-menu">
+                  <button
+                    className="sync-menu-item"
+                    onClick={() => handleSyncOptionClick(onManualSync)}
+                  >
+                    <SyncIcon className="sync-menu-icon" />
+                    <span>Sync normale</span>
+                  </button>
+                  <button
+                    className="sync-menu-item sync-menu-item-danger"
+                    onClick={() => handleSyncOptionClick(onClearAndSync)}
+                  >
+                    <TrashIcon className="sync-menu-icon" />
+                    <span>Clear and sync</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               className="logout-button"
               onClick={onLogout}
