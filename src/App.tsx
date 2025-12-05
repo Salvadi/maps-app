@@ -6,12 +6,27 @@ import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import UpdateNotification from './components/UpdateNotification';
-import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry } from './db';
+import { PlanimetryEditor } from './planimetry';
+import {
+  initializeDatabase,
+  initializeMockUsers,
+  getCurrentUser,
+  deleteProject,
+  logout,
+  User,
+  Project,
+  MappingEntry,
+  createPlanimetry,
+  getPlanimetryByProjectAndFloor,
+  getFullPlanimetry,
+  savePlanimetryWithData,
+  Planimetry
+} from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
 import './App.css';
 
-type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView';
+type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView' | 'planimetry';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -21,6 +36,8 @@ const App: React.FC = () => {
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [editingMappingEntry, setEditingMappingEntry] = useState<MappingEntry | undefined>(undefined);
+  const [planimetryFloor, setPlanimetryFloor] = useState<string | null>(null);
+  const [currentPlanimetry, setCurrentPlanimetry] = useState<Planimetry | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
@@ -307,6 +324,88 @@ const App: React.FC = () => {
     }
   };
 
+  const handleOpenPlanimetry = async (floor: string) => {
+    if (!viewingProject) return;
+
+    try {
+      // Check if planimetry exists for this floor
+      let planimetry = await getPlanimetryByProjectAndFloor(viewingProject.id, floor);
+
+      if (!planimetry) {
+        // Create new planimetry for this floor
+        planimetry = await createPlanimetry(
+          viewingProject.id,
+          floor,
+          `Planimetria ${viewingProject.title} - Piano ${floor}`,
+          '',
+          ''
+        );
+      }
+
+      // Load full planimetry data
+      const fullData = await getFullPlanimetry(planimetry.id);
+      if (fullData) {
+        setCurrentPlanimetry(fullData.planimetry);
+      } else {
+        setCurrentPlanimetry(planimetry);
+      }
+
+      setPlanimetryFloor(floor);
+      setCurrentView('planimetry');
+    } catch (error) {
+      console.error('Failed to open planimetry:', error);
+      alert('Errore nell\'apertura della planimetria');
+    }
+  };
+
+  const handleClosePlanimetry = () => {
+    setCurrentView('mappingView');
+    setPlanimetryFloor(null);
+    setCurrentPlanimetry(null);
+  };
+
+  const handleSavePlanimetry = async (data: {
+    imageData: string;
+    imageName: string;
+    points: any[];
+    lines: any[];
+    rotation: number;
+    markerScale: number;
+  }) => {
+    if (!currentPlanimetry) return;
+
+    try {
+      await savePlanimetryWithData(
+        currentPlanimetry.id,
+        data.imageData,
+        data.imageName,
+        data.points.map(p => ({
+          number: p.number,
+          x: p.x,
+          y: p.y,
+          targetX: p.targetX,
+          targetY: p.targetY,
+          type: p.type,
+          description: p.description,
+          mappingEntryId: p.mappingEntryId
+        })),
+        data.lines.map(l => ({
+          startX: l.startX,
+          startY: l.startY,
+          endX: l.endX,
+          endY: l.endY,
+          color: l.color
+        })),
+        data.rotation,
+        data.markerScale
+      );
+      console.log('Planimetry saved successfully');
+    } catch (error) {
+      console.error('Failed to save planimetry:', error);
+      throw error;
+    }
+  };
+
   const handleDeleteProject = async (projectId: string) => {
     try {
       await deleteProject(projectId);
@@ -411,10 +510,26 @@ const App: React.FC = () => {
             onBack={handleBackFromMappingView}
             onAddMapping={handleAddMappingFromView}
             onEditMapping={handleEditMappingFromView}
+            onOpenPlanimetry={handleOpenPlanimetry}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}
           />
         );
+      case 'planimetry':
+        return currentPlanimetry && viewingProject && planimetryFloor ? (
+          <PlanimetryEditor
+            projectId={viewingProject.id}
+            floor={planimetryFloor}
+            onClose={handleClosePlanimetry}
+            onSave={handleClosePlanimetry}
+            initialImageData={currentPlanimetry.imageData || undefined}
+            initialImageName={currentPlanimetry.imageName || undefined}
+            initialRotation={currentPlanimetry.rotation}
+            initialMarkerScale={currentPlanimetry.markerScale}
+            planName={currentPlanimetry.planName}
+            onSaveData={handleSavePlanimetry}
+          />
+        ) : null;
       default:
         return (
           <Home

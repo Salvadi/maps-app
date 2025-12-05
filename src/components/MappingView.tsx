@@ -20,9 +20,19 @@ interface MappingViewProps {
   onBack: () => void;
   onAddMapping: () => void;
   onEditMapping: (mappingEntry: MappingEntry) => void;
+  onOpenPlanimetry?: (floor: string) => void;
   onSync?: () => void;
   isSyncing?: boolean;
 }
+
+// Map Icon for Planimetry button
+const MapIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1 6V22L8 18L16 22L23 18V2L16 6L8 2L1 6Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 2V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M16 6V22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
 
 // Icon Components
 const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -123,6 +133,7 @@ const MappingView: React.FC<MappingViewProps> = ({
   onBack,
   onAddMapping,
   onEditMapping,
+  onOpenPlanimetry,
   onSync,
   isSyncing,
 }) => {
@@ -131,6 +142,7 @@ const MappingView: React.FC<MappingViewProps> = ({
   const [selectedMapping, setSelectedMapping] = useState<string | null>(null);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
   const [isExporting, setIsExporting] = useState(false);
+  const [showPlanimetryDropdown, setShowPlanimetryDropdown] = useState(false);
 
   // Sorting and filtering states
   const [sortBy, setSortBy] = useState<SortBy>('date');
@@ -597,7 +609,7 @@ const MappingView: React.FC<MappingViewProps> = ({
         isSyncing={isSyncing}
       />
       <div className="mapping-view-container">
-        {/* Export Buttons */}
+        {/* Export and Planimetry Buttons */}
         <div className="export-actions">
           <button
             className="export-btn"
@@ -615,6 +627,73 @@ const MappingView: React.FC<MappingViewProps> = ({
             <DownloadIcon className="icon" />
             Export ZIP (Photos + Excel)
           </button>
+
+          {/* Planimetry Button */}
+          {onOpenPlanimetry && project.floors && project.floors.length > 0 && (
+            <div className="planimetry-dropdown-container" style={{ position: 'relative' }}>
+              <button
+                className="export-btn planimetry"
+                onClick={() => setShowPlanimetryDropdown(!showPlanimetryDropdown)}
+                style={{
+                  backgroundColor: '#059669',
+                  borderColor: '#059669'
+                }}
+              >
+                <MapIcon className="icon" />
+                Planimetria
+                <span style={{ marginLeft: '4px', display: 'inline-flex' }}>
+                  <ChevronDownIcon className="icon" />
+                </span>
+              </button>
+              {showPlanimetryDropdown && (
+                <div
+                  className="planimetry-dropdown"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '4px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    border: '1px solid #e5e7eb',
+                    minWidth: '150px',
+                    zIndex: 50,
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: '12px', color: '#6b7280' }}>
+                    Seleziona Piano
+                  </div>
+                  {project.floors.map((floor) => (
+                    <button
+                      key={floor}
+                      onClick={() => {
+                        setShowPlanimetryDropdown(false);
+                        onOpenPlanimetry(floor);
+                      }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '10px 12px',
+                        textAlign: 'left',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: '#374151',
+                        transition: 'background-color 0.15s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      Piano {floor}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sorting and View Mode Controls */}
