@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers } from '../db';
+import { createPlanimetry, getPlanimetriesByProject, updatePlanimetry, Planimetry } from '../db';
 import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import { MARCA_PRODOTTO_OPTIONS } from '../config/marcaProdotto';
+import * as pdfjsLib from 'pdfjs-dist';
 import './ProjectForm.css';
+
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface ProjectFormProps {
   project: Project | null;
@@ -55,12 +60,130 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Planimetry states
+  const [planimetries, setPlanimetries] = useState<Map<string, { imageName: string; imageData: string }>>(new Map());
+  const [selectedFloorForUpload, setSelectedFloorForUpload] = useState<string | null>(null);
+  const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const [pdfPages, setPdfPages] = useState<{ pageNum: number; imageData: string }[]>([]);
+  const [showPdfPageSelector, setShowPdfPageSelector] = useState(false);
+  const planimetryInputRef = useRef<HTMLInputElement>(null);
+
   // Admin-only: User sharing
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>(
     project?.accessibleUsers || [currentUser.id]
   );
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  // Load existing planimetries for this project
+  useEffect(() => {
+    const loadPlanimetries = async () => {
+      if (project) {
+        try {
+          const existingPlanimetries = await getPlanimetriesByProject(project.id);
+          const planMap = new Map<string, { imageName: string; imageData: string }>();
+          existingPlanimetries.forEach(p => {
+            if (p.imageData) {
+              planMap.set(p.floor, { imageName: p.imageName, imageData: p.imageData });
+            }
+          });
+          setPlanimetries(planMap);
+        } catch (err) {
+          console.error('Failed to load planimetries:', err);
+        }
+      }
+    };
+    loadPlanimetries();
+  }, [project]);
+
+  // Handle planimetry file upload (image or PDF)
+  const handlePlanimetryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !selectedFloorForUpload) return;
+
+    const file = e.target.files[0];
+    const isPdf = file.type === 'application/pdf';
+
+    if (isPdf) {
+      // Process PDF
+      setIsProcessingPdf(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages: { pageNum: number; imageData: string }[] = [];
+
+        for (let i = 1; i <= Math.min(pdf.numPages, 20); i++) { // Limit to 20 pages
+          const page = await pdf.getPage(i);
+          const scale = 2; // Higher scale for better quality
+          const viewport = page.getViewport({ scale });
+
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d')!;
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({ canvasContext: context, viewport, canvas }).promise;
+          const imageData = canvas.toDataURL('image/jpeg', 0.9);
+          pages.push({ pageNum: i, imageData });
+        }
+
+        setPdfPages(pages);
+        setShowPdfPageSelector(true);
+      } catch (err) {
+        console.error('Failed to process PDF:', err);
+        setError('Errore nel processare il PDF. Riprova.');
+      } finally {
+        setIsProcessingPdf(false);
+      }
+    } else {
+      // Process image directly
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result && typeof event.target.result === 'string') {
+          setPlanimetries(prev => {
+            const newMap = new Map(prev);
+            newMap.set(selectedFloorForUpload, {
+              imageName: file.name,
+              imageData: event.target!.result as string
+            });
+            return newMap;
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Reset input
+    if (planimetryInputRef.current) {
+      planimetryInputRef.current.value = '';
+    }
+    setSelectedFloorForUpload(null);
+  };
+
+  // Handle PDF page selection
+  const handleSelectPdfPage = (pageData: { pageNum: number; imageData: string }) => {
+    if (selectedFloorForUpload) {
+      setPlanimetries(prev => {
+        const newMap = new Map(prev);
+        newMap.set(selectedFloorForUpload, {
+          imageName: `planimetria_pagina_${pageData.pageNum}.jpg`,
+          imageData: pageData.imageData
+        });
+        return newMap;
+      });
+    }
+    setShowPdfPageSelector(false);
+    setPdfPages([]);
+    setSelectedFloorForUpload(null);
+  };
+
+  // Remove planimetry for a floor
+  const handleRemovePlanimetry = (floor: string) => {
+    setPlanimetries(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(floor);
+      return newMap;
+    });
+  };
 
   // Load all users if current user is admin
   useEffect(() => {
@@ -167,6 +290,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             .filter((f) => f !== '')
         : ['0'];
 
+      let projectId: string;
+
       if (project) {
         // Update existing project
         await updateProject(project.id, {
@@ -180,6 +305,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           typologies: showTipologici ? typologies : [],
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : project.accessibleUsers,
         });
+        projectId = project.id;
         console.log('Project updated:', project.id);
       } else {
         // Create new project
@@ -196,7 +322,35 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           ownerId: currentUser.id,
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : [currentUser.id],
         });
+        projectId = newProject.id;
         console.log('Project created:', newProject.id);
+      }
+
+      // Save planimetries for each floor
+      const planimetryEntries = Array.from(planimetries.entries());
+      for (const [floor, data] of planimetryEntries) {
+        // Check if planimetry exists for this floor
+        const existingPlanimetry = await getPlanimetriesByProject(projectId);
+        const existing = existingPlanimetry.find(p => p.floor === floor);
+
+        if (existing) {
+          // Update existing planimetry
+          await updatePlanimetry(existing.id, {
+            imageName: data.imageName,
+            imageData: data.imageData
+          });
+          console.log(`Planimetry updated for floor ${floor}`);
+        } else {
+          // Create new planimetry
+          await createPlanimetry(
+            projectId,
+            floor,
+            `Planimetria ${title} - Piano ${floor}`,
+            data.imageName,
+            data.imageData
+          );
+          console.log(`Planimetry created for floor ${floor}`);
+        }
       }
 
       onSave();
@@ -376,9 +530,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           {/* Struttura Section */}
           <section className="form-section">
             <label className="section-label">Struttura</label>
-            <button type="button" className="upload-button">
-              Carica pianta
-            </button>
             <div className="floors-input-group">
               <div className="switch-container">
                 <div
@@ -401,7 +552,98 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                 />
               )}
             </div>
+
+            {/* Planimetry per floor */}
+            <div className="planimetry-section">
+              <label className="subsection-label">Planimetrie per Piano</label>
+              <input
+                type="file"
+                ref={planimetryInputRef}
+                accept="image/*,application/pdf"
+                onChange={handlePlanimetryUpload}
+                style={{ display: 'none' }}
+              />
+              <div className="planimetry-list">
+                {(floorsEnabled
+                  ? floorsInput.split(',').map(f => f.trim()).filter(f => f !== '')
+                  : ['0']
+                ).map(floor => (
+                  <div key={floor} className="planimetry-floor-item">
+                    <span className="floor-label">Piano {floor}</span>
+                    {planimetries.has(floor) ? (
+                      <div className="planimetry-preview">
+                        <img
+                          src={planimetries.get(floor)!.imageData}
+                          alt={`Planimetria piano ${floor}`}
+                          className="planimetry-thumbnail"
+                        />
+                        <span className="planimetry-name">{planimetries.get(floor)!.imageName}</span>
+                        <button
+                          type="button"
+                          className="planimetry-remove-btn"
+                          onClick={() => handleRemovePlanimetry(floor)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="planimetry-upload-btn"
+                        onClick={() => {
+                          setSelectedFloorForUpload(floor);
+                          planimetryInputRef.current?.click();
+                        }}
+                        disabled={isProcessingPdf}
+                      >
+                        {isProcessingPdf && selectedFloorForUpload === floor
+                          ? 'Elaborazione...'
+                          : 'Carica Planimetria'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
+
+          {/* PDF Page Selector Modal */}
+          {showPdfPageSelector && (
+            <div className="pdf-modal-overlay" onClick={() => {
+              setShowPdfPageSelector(false);
+              setPdfPages([]);
+              setSelectedFloorForUpload(null);
+            }}>
+              <div className="pdf-modal" onClick={e => e.stopPropagation()}>
+                <div className="pdf-modal-header">
+                  <h3>Seleziona pagina PDF</h3>
+                  <button
+                    type="button"
+                    className="pdf-modal-close"
+                    onClick={() => {
+                      setShowPdfPageSelector(false);
+                      setPdfPages([]);
+                      setSelectedFloorForUpload(null);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="pdf-pages-grid">
+                  {pdfPages.map(page => (
+                    <div
+                      key={page.pageNum}
+                      className="pdf-page-item"
+                      onClick={() => handleSelectPdfPage(page)}
+                    >
+                      <img src={page.imageData} alt={`Pagina ${page.pageNum}`} />
+                      <span>Pagina {page.pageNum}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Numerazione interventi Section */}
           <section className="form-section">

@@ -30,6 +30,7 @@ interface TopbarProps {
   onDecreaseMarkerSize: () => void;
   planName?: string;
   floor?: string;
+  readOnly?: boolean;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -53,7 +54,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onIncreaseMarkerSize,
   onDecreaseMarkerSize,
   planName,
-  floor
+  floor,
+  readOnly = false
 }) => {
   const availableTypes: PointType[] = ['generic', 'floor-single', 'wall-single', 'floor-multi', 'wall-multi'];
 
@@ -87,14 +89,16 @@ export const Topbar: React.FC<TopbarProps> = ({
 
         <div className="w-px h-6 bg-slate-700 mx-2 hidden sm:block"></div>
 
-        <button
-            onClick={onSave}
-            disabled={!hasImage}
-            className="flex items-center gap-2 px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 transition-colors text-sm disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          <span className="hidden md:inline">Salva</span>
-        </button>
+        {!readOnly && (
+          <button
+              onClick={onSave}
+              disabled={!hasImage}
+              className="flex items-center gap-2 px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 transition-colors text-sm disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden md:inline">Salva</span>
+          </button>
+        )}
 
         <button
              onClick={onExportImage}
@@ -105,6 +109,10 @@ export const Topbar: React.FC<TopbarProps> = ({
              <ImageDown className="w-4 h-4" />
              <span className="hidden md:inline">Esporta</span>
         </button>
+
+        {readOnly && (
+          <span className="text-xs text-yellow-400 ml-2 hidden sm:inline">Solo Visualizzazione</span>
+        )}
       </div>
 
       {/* Center: Tools (Only visible if image loaded) */}
@@ -117,32 +125,36 @@ export const Topbar: React.FC<TopbarProps> = ({
             >
                 <Hand className="w-5 h-5" />
             </button>
-            <button
-                onClick={() => setMode('add')}
-                className={`p-2 rounded ${mode === 'add' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                title="Aggiungi Punti"
-            >
-                <PlusCircle className="w-5 h-5" />
-            </button>
-            <button
-                onClick={() => setMode('line')}
-                className={`p-2 rounded ${mode === 'line' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                title="Disegna Linea"
-            >
-                <PenTool className="w-5 h-5" />
-            </button>
-            <button
-                onClick={() => setMode('move')}
-                className={`p-2 rounded ${mode === 'move' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                title="Muovi Punti"
-            >
-                <MousePointer2 className="w-5 h-5" />
-            </button>
+            {!readOnly && (
+              <>
+                <button
+                    onClick={() => setMode('add')}
+                    className={`p-2 rounded ${mode === 'add' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                    title="Aggiungi Punti"
+                >
+                    <PlusCircle className="w-5 h-5" />
+                </button>
+                <button
+                    onClick={() => setMode('line')}
+                    className={`p-2 rounded ${mode === 'line' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                    title="Disegna Linea"
+                >
+                    <PenTool className="w-5 h-5" />
+                </button>
+                <button
+                    onClick={() => setMode('move')}
+                    className={`p-2 rounded ${mode === 'move' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                    title="Muovi Punti"
+                >
+                    <MousePointer2 className="w-5 h-5" />
+                </button>
 
-            <div className="w-px h-5 bg-slate-600 mx-1"></div>
+                <div className="w-px h-5 bg-slate-600 mx-1"></div>
+              </>
+            )}
 
             {/* Type Selector (Add Mode) */}
-            {mode === 'add' && (
+            {!readOnly && mode === 'add' && (
                 <div className="flex items-center gap-1 px-1 border-r border-slate-600 mr-1 pr-2">
                     {availableTypes.map(type => (
                         <button
@@ -158,7 +170,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             )}
 
              {/* Color Selector (Line Mode) */}
-             {mode === 'line' && (
+             {!readOnly && mode === 'line' && (
                 <div className="flex items-center gap-1 px-1 border-r border-slate-600 mr-1 pr-2">
                     {colors.map(c => (
                         <button

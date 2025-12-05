@@ -93,4 +93,6 @@ export interface PlanimetryEditorProps {
   floor: string;
   onClose: () => void;
   onSave?: () => void;
+  mappingEntryId?: string; // For linking new points to a mapping entry
+  readOnly?: boolean; // When true, only viewing is allowed (no editing)
 }

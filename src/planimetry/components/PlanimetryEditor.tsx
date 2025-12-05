@@ -36,7 +36,9 @@ export const PlanimetryEditor: React.FC<PlanimetryEditorInternalProps> = ({
   initialRotation = 0,
   initialMarkerScale = 1,
   planName = '',
-  onSaveData
+  onSaveData,
+  mappingEntryId,
+  readOnly = false
 }) => {
   // State: Data
   const [points, setPoints] = useState<MapPoint[]>(initialPoints);
@@ -192,6 +194,7 @@ export const PlanimetryEditor: React.FC<PlanimetryEditorInternalProps> = ({
               type: activePointType,
               description: '',
               createdAt: Date.now(),
+              mappingEntryId: mappingEntryId, // Link to mapping entry if provided
           };
 
           if (dist > 1.0) {
@@ -362,7 +365,7 @@ export const PlanimetryEditor: React.FC<PlanimetryEditorInternalProps> = ({
 
       <Topbar
         mode={mode}
-        setMode={setMode}
+        setMode={readOnly ? () => {} : setMode}
         scale={scale}
         onZoomIn={() => setScale(s => Math.min(s + 0.2, 5))}
         onZoomOut={() => setScale(s => Math.max(s - 0.2, 0.1))}
@@ -383,6 +386,7 @@ export const PlanimetryEditor: React.FC<PlanimetryEditorInternalProps> = ({
         onDecreaseMarkerSize={() => setMarkerScale(s => Math.max(s - 0.2, 0.5))}
         planName={planName}
         floor={floor}
+        readOnly={readOnly}
       />
 
       <div className="flex flex-1 relative overflow-hidden">
@@ -540,6 +544,7 @@ export const PlanimetryEditor: React.FC<PlanimetryEditorInternalProps> = ({
             imageName={imageName}
             planName={planName || 'Planimetria'}
             floor={floor}
+            readOnly={readOnly}
           />
       </div>
     </div>

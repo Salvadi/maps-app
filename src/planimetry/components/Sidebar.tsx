@@ -14,6 +14,7 @@ interface SidebarProps {
   imageName: string | null;
   planName: string;
   floor: string;
+  readOnly?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -26,7 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedPointId,
   imageName,
   planName,
-  floor
+  floor,
+  readOnly = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const selectedPoint = points.find(p => p.id === selectedPointId);
@@ -71,13 +73,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {selectedPoint && (
             <div className="p-4 bg-blue-50 border-b border-blue-100 flex-shrink-0">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-blue-900 text-sm">Modifica Punto #{selectedPoint.number}</span>
-                    <button
-                        onClick={() => onDeletePoint(selectedPoint.id)}
-                        className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 px-2 py-1 rounded hover:bg-red-100 transition-colors"
-                    >
-                        <Trash2 className="w-3 h-3" /> Elimina
-                    </button>
+                    <span className="font-bold text-blue-900 text-sm">
+                      {readOnly ? `Punto #${selectedPoint.number}` : `Modifica Punto #${selectedPoint.number}`}
+                    </span>
+                    {!readOnly && (
+                      <button
+                          onClick={() => onDeletePoint(selectedPoint.id)}
+                          className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                      >
+                          <Trash2 className="w-3 h-3" /> Elimina
+                      </button>
+                    )}
                 </div>
 
                 {/* Type Selector */}
@@ -87,13 +93,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {availableTypes.map(type => (
                         <button
                           key={type}
-                          onClick={() => onUpdatePoint(selectedPoint.id, { type })}
+                          onClick={() => !readOnly && onUpdatePoint(selectedPoint.id, { type })}
                           title={getPointTypeLabel(type)}
+                          disabled={readOnly}
                           className={`
                             p-1.5 rounded border transition-colors
                             ${selectedPoint.type === type
                               ? 'bg-blue-600 text-white border-blue-700 shadow-inner'
-                              : 'bg-white text-slate-600 border-gray-200 hover:bg-blue-100'}
+                              : readOnly
+                                ? 'bg-gray-100 text-slate-400 border-gray-200 cursor-not-allowed'
+                                : 'bg-white text-slate-600 border-gray-200 hover:bg-blue-100'}
                           `}
                         >
                            <div className="w-4 h-4">
@@ -107,12 +116,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="space-y-2">
                     <div>
                         <label className="block text-xs font-medium text-blue-800 mb-1">Descrizione</label>
-                        <textarea
-                            value={selectedPoint.description || ''}
-                            onChange={(e) => onUpdatePoint(selectedPoint.id, { description: e.target.value })}
-                            placeholder="Inserisci note sul punto..."
-                            className="w-full text-sm p-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none resize-none h-16 bg-white"
-                        />
+                        {readOnly ? (
+                          <div className="w-full text-sm p-2 border border-blue-200 rounded bg-gray-50 min-h-[64px] text-slate-700">
+                            {selectedPoint.description || <span className="text-slate-400 italic">Nessuna descrizione</span>}
+                          </div>
+                        ) : (
+                          <textarea
+                              value={selectedPoint.description || ''}
+                              onChange={(e) => onUpdatePoint(selectedPoint.id, { description: e.target.value })}
+                              placeholder="Inserisci note sul punto..."
+                              className="w-full text-sm p-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none resize-none h-16 bg-white"
+                          />
+                        )}
                     </div>
                 </div>
             </div>

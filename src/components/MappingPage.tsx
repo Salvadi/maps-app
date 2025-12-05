@@ -23,6 +23,7 @@ interface MappingPageProps {
   editingEntry?: MappingEntry;
   onSync?: () => void;
   isSyncing?: boolean;
+  onOpenPlanimetry?: (floor: string, mappingEntryId?: string) => void;
 }
 
 // Camera Icon Component
@@ -101,7 +102,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
   );
 };
 
-const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing }) => {
+const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing, onOpenPlanimetry }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
@@ -469,6 +470,17 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
               Sfoglia
             </button>
           </div>
+
+          {/* Add Point to Planimetry Button */}
+          {onOpenPlanimetry && (
+            <button
+              type="button"
+              className="add-point-btn"
+              onClick={() => onOpenPlanimetry(floor, editingEntry?.id)}
+            >
+              Aggiungi Punto su Planimetria
+            </button>
+          )}
 
           {photoPreviews.length > 0 && (
             <div style={{

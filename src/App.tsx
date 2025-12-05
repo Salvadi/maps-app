@@ -38,6 +38,8 @@ const App: React.FC = () => {
   const [editingMappingEntry, setEditingMappingEntry] = useState<MappingEntry | undefined>(undefined);
   const [planimetryFloor, setPlanimetryFloor] = useState<string | null>(null);
   const [currentPlanimetry, setCurrentPlanimetry] = useState<Planimetry | null>(null);
+  const [planimetryReturnView, setPlanimetryReturnView] = useState<'mapping' | 'mappingView'>('mappingView');
+  const [currentMappingEntryId, setCurrentMappingEntryId] = useState<string | undefined>(undefined);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
@@ -351,6 +353,50 @@ const App: React.FC = () => {
       }
 
       setPlanimetryFloor(floor);
+      setPlanimetryReturnView('mappingView');
+      setCurrentMappingEntryId(undefined);
+      setCurrentView('planimetry');
+    } catch (error) {
+      console.error('Failed to open planimetry:', error);
+      alert('Errore nell\'apertura della planimetria');
+    }
+  };
+
+  const handleOpenPlanimetryFromMapping = async (floor: string, mappingEntryId?: string) => {
+    if (!currentMappingProject) return;
+
+    try {
+      // Check if planimetry exists for this floor
+      let planimetry = await getPlanimetryByProjectAndFloor(currentMappingProject.id, floor);
+
+      if (!planimetry) {
+        // Create new planimetry for this floor
+        planimetry = await createPlanimetry(
+          currentMappingProject.id,
+          floor,
+          `Planimetria ${currentMappingProject.title} - Piano ${floor}`,
+          '',
+          ''
+        );
+      }
+
+      // Check if planimetry has an image
+      if (!planimetry.imageData) {
+        alert('Nessuna planimetria caricata per questo piano. Carica una planimetria nella sezione "Dati Cantiere".');
+        return;
+      }
+
+      // Load full planimetry data
+      const fullData = await getFullPlanimetry(planimetry.id);
+      if (fullData) {
+        setCurrentPlanimetry(fullData.planimetry);
+      } else {
+        setCurrentPlanimetry(planimetry);
+      }
+
+      setPlanimetryFloor(floor);
+      setPlanimetryReturnView('mapping');
+      setCurrentMappingEntryId(mappingEntryId);
       setCurrentView('planimetry');
     } catch (error) {
       console.error('Failed to open planimetry:', error);
@@ -359,9 +405,10 @@ const App: React.FC = () => {
   };
 
   const handleClosePlanimetry = () => {
-    setCurrentView('mappingView');
+    setCurrentView(planimetryReturnView);
     setPlanimetryFloor(null);
     setCurrentPlanimetry(null);
+    setCurrentMappingEntryId(undefined);
   };
 
   const handleSavePlanimetry = async (data: {
@@ -500,6 +547,7 @@ const App: React.FC = () => {
             editingEntry={editingMappingEntry}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}
+            onOpenPlanimetry={handleOpenPlanimetryFromMapping}
           />
         );
       case 'mappingView':
@@ -516,9 +564,10 @@ const App: React.FC = () => {
           />
         );
       case 'planimetry':
-        return currentPlanimetry && viewingProject && planimetryFloor ? (
+        const planimetryProject = planimetryReturnView === 'mapping' ? currentMappingProject : viewingProject;
+        return currentPlanimetry && planimetryProject && planimetryFloor ? (
           <PlanimetryEditor
-            projectId={viewingProject.id}
+            projectId={planimetryProject.id}
             floor={planimetryFloor}
             onClose={handleClosePlanimetry}
             onSave={handleClosePlanimetry}
@@ -528,6 +577,8 @@ const App: React.FC = () => {
             initialMarkerScale={currentPlanimetry.markerScale}
             planName={currentPlanimetry.planName}
             onSaveData={handleSavePlanimetry}
+            mappingEntryId={currentMappingEntryId}
+            readOnly={planimetryReturnView === 'mappingView'}
           />
         ) : null;
       default:

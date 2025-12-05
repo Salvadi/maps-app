@@ -74,6 +74,34 @@
   box-shadow: 0 2px 8px var(--color-shadow);
 }
 
+/* Add Point to Planimetry Button */
+.add-point-btn {
+  width: 100%;
+  padding: var(--spacing-md);
+  background-color: #EEF2FF;
+  border: 2px dashed #667eea;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #4338CA;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.add-point-btn:hover {
+  background-color: #C7D2FE;
+  border-color: #4338CA;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+}
+
+.add-point-btn:active {
+  transform: scale(0.98);
+}
+
 .image-preview {
   width: 100%;
   max-height: 300px;
