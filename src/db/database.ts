@@ -210,6 +210,19 @@ export class MappingDatabase extends Dexie {
       planimetryPoints: 'id, planimetryId, mappingEntryId, synced',
       planimetryLines: 'id, planimetryId, synced'
     });
+
+    // Define schema v4 - add compound index for planimetries lookup
+    this.version(4).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      planimetries: 'id, projectId, floor, [projectId+floor], synced, updatedAt',
+      planimetryPoints: 'id, planimetryId, mappingEntryId, synced',
+      planimetryLines: 'id, planimetryId, synced'
+    });
   }
 }
 
