@@ -903,3 +903,54 @@ export async function manualSync(): Promise<{
 
   return { uploadResult, downloadResult };
 }
+
+/**
+ * Clear all local data and re-sync from Supabase
+ * This is useful to resolve data discrepancies between local and remote
+ */
+export async function clearAndSync(): Promise<{
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number }
+}> {
+  console.log('🗑️ Clear and sync triggered - clearing all local data...');
+
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase not configured. Cannot sync.');
+  }
+
+  // Check if user is authenticated
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('User not authenticated. Please log in to sync data.');
+  }
+
+  try {
+    // Clear all data from IndexedDB
+    await db.projects.clear();
+    await db.mappingEntries.clear();
+    await db.photos.clear();
+    await db.syncQueue.clear();
+    // Don't clear users table - keep authentication data
+
+    // Reset metadata but keep currentUser
+    const currentUserMeta = await db.metadata.get('currentUser');
+    await db.metadata.clear();
+    if (currentUserMeta) {
+      await db.metadata.put(currentUserMeta);
+    }
+    await db.metadata.put({ key: 'lastSyncTime', value: 0 });
+
+    console.log('✅ Local data cleared successfully');
+
+    // Download fresh data from Supabase
+    console.log('⬇️ Downloading fresh data from Supabase...');
+    const downloadResult = await syncFromSupabase();
+
+    console.log(`✅ Clear and sync complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
+
+    return { downloadResult };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Clear and sync failed:', errorMessage);
+    throw err;
+  }
+}
