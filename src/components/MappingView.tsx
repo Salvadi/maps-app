@@ -11,6 +11,7 @@ import {
   getMappingEntriesForProject,
   getPhotosForMapping,
   deleteMappingEntry,
+  getAllUsers,
 } from '../db';
 import './MappingView.css';
 
@@ -130,16 +131,53 @@ const MappingView: React.FC<MappingViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMapping, setSelectedMapping] = useState<string | null>(null);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
+  const [users, setUsers] = useState<User[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Sorting and filtering states
-  const [sortBy, setSortBy] = useState<SortBy>('date');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [viewMode, setViewMode] = useState<ViewMode>('flat');
-  const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
-  const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
+  // Sorting and filtering states - persist in localStorage
+  const [sortBy, setSortBy] = useState<SortBy>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_sortBy`);
+    return (saved as SortBy) || 'date';
+  });
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_sortOrder`);
+    return (saved as SortOrder) || 'desc';
+  });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_viewMode`);
+    return (saved as ViewMode) || 'flat';
+  });
+  const [expandedFloors, setExpandedFloors] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_expandedFloors`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+  const [expandedRooms, setExpandedRooms] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_expandedRooms`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
 
-  // Load mappings
+  // Save filter preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem(`mappingView_${project.id}_sortBy`, sortBy);
+  }, [sortBy, project.id]);
+
+  useEffect(() => {
+    localStorage.setItem(`mappingView_${project.id}_sortOrder`, sortOrder);
+  }, [sortOrder, project.id]);
+
+  useEffect(() => {
+    localStorage.setItem(`mappingView_${project.id}_viewMode`, viewMode);
+  }, [viewMode, project.id]);
+
+  useEffect(() => {
+    localStorage.setItem(`mappingView_${project.id}_expandedFloors`, JSON.stringify(Array.from(expandedFloors)));
+  }, [expandedFloors, project.id]);
+
+  useEffect(() => {
+    localStorage.setItem(`mappingView_${project.id}_expandedRooms`, JSON.stringify(Array.from(expandedRooms)));
+  }, [expandedRooms, project.id]);
+
+  // Load mappings and users
   useEffect(() => {
     const loadMappings = async () => {
       try {
@@ -154,6 +192,10 @@ const MappingView: React.FC<MappingViewProps> = ({
           photosMap[entry.id] = photos;
         }
         setMappingPhotos(photosMap);
+
+        // Load all users for username lookup
+        const allUsers = await getAllUsers();
+        setUsers(allUsers);
       } catch (error) {
         console.error('Failed to load mappings:', error);
       } finally {
@@ -327,6 +369,18 @@ const MappingView: React.FC<MappingViewProps> = ({
     });
   };
 
+  // Get tipologico number from ID
+  const getTipologicoNumber = (tipologicoId: string): string => {
+    const tipologico = project.typologies.find(t => t.id === tipologicoId);
+    return tipologico ? tipologico.number.toString() : tipologicoId;
+  };
+
+  // Get username from user ID
+  const getUsername = (userId: string): string => {
+    const user = users.find(u => u.id === userId);
+    return user ? user.username : userId;
+  };
+
   // Generate photo filename prefix based on project settings
   const generatePhotoPrefix = (floor: string, room?: string, intervention?: string): string => {
     const parts: string[] = [];
@@ -396,7 +450,8 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Quantità'] = crossing.quantita || '-';
             row['Diametro'] = crossing.diametro || '-';
             row['Dimensioni'] = crossing.dimensioni || '-';
-            row['Tipologico'] = crossing.tipologicoId || '-';
+            row['Tipologico'] = crossing.tipologicoId ? getTipologicoNumber(crossing.tipologicoId) : '-';
+            row['Note'] = crossing.notes || '-';
           } else {
             row['Supporto'] = '-';
             row['Tipo supporto'] = '-';
@@ -405,11 +460,14 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Diametro'] = '-';
             row['Dimensioni'] = '-';
             row['Tipologico'] = '-';
+            row['Note'] = '-';
           }
 
-          // Data and User
-          row['Data'] = new Date(mapping.timestamp).toLocaleString('it-IT');
-          row['User'] = mapping.createdBy;
+          // Data and User - split date and time
+          const date = new Date(mapping.timestamp);
+          row['Data'] = date.toLocaleDateString('it-IT');
+          row['Ora'] = date.toLocaleTimeString('it-IT');
+          row['User'] = getUsername(mapping.createdBy);
 
           data.push(row);
         }
@@ -423,6 +481,22 @@ const MappingView: React.FC<MappingViewProps> = ({
       ws['!cols'] = Array(colCount).fill({ wch: 15 });
 
       XLSX.utils.book_append_sheet(wb, ws, 'Mappings');
+
+      // Add Tipologici sheet
+      if (project.typologies && project.typologies.length > 0) {
+        const tipologiciData = project.typologies.map(tip => ({
+          'Numero': tip.number,
+          'Supporto': tip.supporto || '-',
+          'Tipo Supporto': tip.tipoSupporto || '-',
+          'Attraversamento': tip.attraversamento || '-',
+          'Marca Prodotto': tip.marcaProdottoUtilizzato || '-',
+          'Prodotti Selezionati': tip.prodottiSelezionati.join(', ') || '-',
+        }));
+        const wsTipologici = XLSX.utils.json_to_sheet(tipologiciData);
+        wsTipologici['!cols'] = Array(6).fill({ wch: 20 });
+        XLSX.utils.book_append_sheet(wb, wsTipologici, 'Tipologici');
+      }
+
       XLSX.writeFile(wb, `${project.title}_mappings.xlsx`);
 
       console.log('Excel exported successfully');
@@ -483,7 +557,8 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Quantità'] = crossing.quantita || '-';
             row['Diametro'] = crossing.diametro || '-';
             row['Dimensioni'] = crossing.dimensioni || '-';
-            row['Tipologico'] = crossing.tipologicoId || '-';
+            row['Tipologico'] = crossing.tipologicoId ? getTipologicoNumber(crossing.tipologicoId) : '-';
+            row['Note'] = crossing.notes || '-';
           } else {
             row['Supporto'] = '-';
             row['Tipo supporto'] = '-';
@@ -492,11 +567,14 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Diametro'] = '-';
             row['Dimensioni'] = '-';
             row['Tipologico'] = '-';
+            row['Note'] = '-';
           }
 
-          // Data and User
-          row['Data'] = new Date(mapping.timestamp).toLocaleString('it-IT');
-          row['User'] = mapping.createdBy;
+          // Data and User - split date and time
+          const date = new Date(mapping.timestamp);
+          row['Data'] = date.toLocaleDateString('it-IT');
+          row['Ora'] = date.toLocaleTimeString('it-IT');
+          row['User'] = getUsername(mapping.createdBy);
 
           data.push(row);
         }
@@ -508,19 +586,47 @@ const MappingView: React.FC<MappingViewProps> = ({
       const colCount = Object.keys(data[0] || {}).length;
       ws['!cols'] = Array(colCount).fill({ wch: 15 });
       XLSX.utils.book_append_sheet(wb, ws, 'Mappings');
+
+      // Add Tipologici sheet
+      if (project.typologies && project.typologies.length > 0) {
+        const tipologiciData = project.typologies.map(tip => ({
+          'Numero': tip.number,
+          'Supporto': tip.supporto || '-',
+          'Tipo Supporto': tip.tipoSupporto || '-',
+          'Attraversamento': tip.attraversamento || '-',
+          'Marca Prodotto': tip.marcaProdottoUtilizzato || '-',
+          'Prodotti Selezionati': tip.prodottiSelezionati.join(', ') || '-',
+        }));
+        const wsTipologici = XLSX.utils.json_to_sheet(tipologiciData);
+        wsTipologici['!cols'] = Array(6).fill({ wch: 20 });
+        XLSX.utils.book_append_sheet(wb, wsTipologici, 'Tipologici');
+      }
+
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       zip.file(`${project.title}_mappings.xlsx`, excelBuffer);
 
-      // Add photos with correct naming convention
+      // Add photos organized by Piano/Stanza hierarchy
       for (const mapping of mappings) {
         const photos = mappingPhotos[mapping.id] || [];
         const prefix = generatePhotoPrefix(mapping.floor, mapping.room, mapping.intervention);
+
+        // Build folder path: Piano X / Stanza Y
+        let folderPath = '';
+        if (project.floors && project.floors.length > 1) {
+          folderPath = `Piano ${mapping.floor}/`;
+          if (project.useRoomNumbering && mapping.room) {
+            folderPath += `Stanza ${mapping.room}/`;
+          }
+        } else if (project.useRoomNumbering && mapping.room) {
+          folderPath = `Stanza ${mapping.room}/`;
+        }
 
         for (let i = 0; i < photos.length; i++) {
           const photo = photos[i];
           const photoNum = (i + 1).toString().padStart(2, '0');
           const filename = `${prefix}${photoNum}.jpg`;
-          zip.file(filename, photo.blob);
+          const fullPath = folderPath + filename;
+          zip.file(fullPath, photo.blob);
         }
       }
 
@@ -757,7 +863,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                                 <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
                                 <strong>Attraversamento:</strong> {sig.attraversamento || 'N/A'}<br />
                                 {sig.tipologicoId && (
-                                  <><strong>Tipologico:</strong> {sig.tipologicoId}<br /></>
+                                  <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
                                 )}
                                 {sig.notes && (
                                   <><strong>Note:</strong> {sig.notes}<br /></>
@@ -901,7 +1007,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                           <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
                                                           <strong>Attraversamento:</strong> {sig.attraversamento || 'N/A'}<br />
                                                           {sig.tipologicoId && (
-                                                            <><strong>Tipologico:</strong> {sig.tipologicoId}<br /></>
+                                                            <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
                                                           )}
                                                           {sig.notes && (
                                                             <><strong>Note:</strong> {sig.notes}<br /></>
