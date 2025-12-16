@@ -333,6 +333,10 @@
   box-shadow: 0 6px 16px var(--color-shadow-hover);
 }
 
+.project-card.active .project-icon {
+  transform: scale(1.15);
+}
+
 .project-card.active .icon {
   color: var(--color-primary);
 }
