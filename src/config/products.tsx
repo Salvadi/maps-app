@@ -30,10 +30,7 @@ export const PRODUCTS_BY_BRAND: Record<string, string[]> = {
     'Global Building FireProtect',
   ],
   'Hilti': [
-    'Hilti CP 606',
-    'Hilti CP 617',
-    'Hilti CP 636',
-    'Hilti CFS-S SIL',
-    'Hilti FS-ONE',
+    'Hilti CFS-IS',
+    
   ],
 };
