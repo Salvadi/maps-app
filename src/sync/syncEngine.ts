@@ -397,16 +397,23 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
     // Mark local photo as uploaded
     await db.photos.update(photoMeta.id, { uploaded: true });
   } else if (item.operation === 'DELETE') {
+    // Use photoMeta from sync queue payload instead of querying database
+    // (photo was already deleted locally in removePhotoFromMapping)
+    const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
+
     // Delete from storage
-    const photo = await db.photos.get(photoMeta.id);
-    if (photo) {
-      const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
-      await supabase.storage
-        .from('photos')
-        .remove([fileName]);
+    const { error: storageError } = await supabase.storage
+      .from('photos')
+      .remove([fileName]);
+
+    if (storageError) {
+      console.warn(`Failed to delete photo from storage: ${storageError.message}`);
+      // Continue with metadata deletion even if storage deletion fails
+    } else {
+      console.log(`🗑️ Deleted photo from storage: ${fileName}`);
     }
 
-    // Delete metadata
+    // Delete metadata from database
     const { error } = await supabase
       .from('photos')
       .delete()
