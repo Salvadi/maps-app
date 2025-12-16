@@ -9,7 +9,8 @@ import {
   createMappingEntry,
   getMappingEntriesForProject,
   updateMappingEntry,
-  getPhotosForMapping
+  getPhotosForMapping,
+  addPhotosToMapping
 } from '../db';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
@@ -104,6 +105,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
 const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [initialPhotoCount, setInitialPhotoCount] = useState<number>(0);
 
   // Recupera l'ultimo piano usato da localStorage o dall'entry in modifica
   const getLastUsedFloor = () => {
@@ -209,6 +211,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
 
           setPhotoPreviews(previews);
           setPhotoFiles(files);
+          setInitialPhotoCount(files.length);
         } catch (error) {
           console.error('Failed to load existing photos:', error);
         }
@@ -337,10 +340,14 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     try {
       let compressedBlobs: Blob[] = [];
 
-      // Comprimi le foto solo se ce ne sono
-      if (photoFiles.length > 0) {
+      // Comprimi solo le nuove foto (se stiamo modificando) o tutte (se stiamo creando)
+      const photosToCompress = editingEntry
+        ? photoFiles.slice(initialPhotoCount)
+        : photoFiles;
+
+      if (photosToCompress.length > 0) {
         compressedBlobs = await Promise.all(
-          photoFiles.map(async (file) => {
+          photosToCompress.map(async (file) => {
             const options = {
               maxSizeMB: 1,
               maxWidthOrHeight: 1920,
@@ -352,7 +359,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           })
         );
 
-        console.log(`Compresse ${photoFiles.length} foto`);
+        console.log(`Compresse ${photosToCompress.length} foto`);
       }
 
       if (editingEntry) {
@@ -370,6 +377,12 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           },
           currentUser.id
         );
+
+        // Add new photos if any were added
+        if (compressedBlobs.length > 0) {
+          await addPhotosToMapping(editingEntry.id, compressedBlobs, currentUser.id);
+          console.log(`Aggiunte ${compressedBlobs.length} nuove foto alla mappatura`);
+        }
 
         console.log('Mappatura aggiornata:', editingEntry.id);
         alert('Mappatura aggiornata con successo!');
