@@ -258,8 +258,27 @@ export async function removePhotoFromMapping(
     throw new Error(`Mapping entry not found: ${mappingEntryId}`);
   }
 
-  // Delete photo blob
+  // Get photo before deleting (need metadata for sync queue)
+  const photo = await db.photos.get(photoId);
+
+  // Delete photo blob from local database
   await db.photos.delete(photoId);
+
+  // Add photo deletion to sync queue
+  if (photo) {
+    const syncItem: SyncQueueItem = {
+      id: generateId(),
+      operation: 'DELETE',
+      entityType: 'photo',
+      entityId: photoId,
+      payload: photo,
+      timestamp: now(),
+      retryCount: 0,
+      synced: 0
+    };
+    await db.syncQueue.add(syncItem);
+    console.log(`Added photo deletion to sync queue: ${photoId}`);
+  }
 
   // Update mapping entry
   const updatedPhotos = entry.photos.filter(p => p.id !== photoId);
