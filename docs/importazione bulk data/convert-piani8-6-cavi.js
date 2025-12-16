@@ -52,7 +52,7 @@ workbook.SheetNames.forEach((sheetName) => {
         quantita: 1,
         supporto: "Parete",
         tipoSupporto: "Cartongesso",
-        tipologicoId: "1764835535259",
+        tipologicoId: "1764835598379",
         attraversamento: "Cavi/Corrugati"
       });
     }
@@ -65,6 +65,7 @@ workbook.SheetNames.forEach((sheetName) => {
         quantita: 1,
         supporto: "Parete",
         tipoSupporto: "Cartongesso",
+        tipologicoId: "1764835598379",
         attraversamento: "Fascio di cavi"
       });
     }
