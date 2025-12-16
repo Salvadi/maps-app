@@ -9,7 +9,9 @@ import {
   createMappingEntry,
   getMappingEntriesForProject,
   updateMappingEntry,
-  getPhotosForMapping
+  getPhotosForMapping,
+  addPhotosToMapping,
+  removePhotoFromMapping
 } from '../db';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
@@ -104,6 +106,9 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
 const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing }) => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoIds, setPhotoIds] = useState<(string | null)[]>([]); // Track photo IDs (null for new photos)
+  const [initialPhotoCount, setInitialPhotoCount] = useState<number>(0);
+  const [photosToRemove, setPhotosToRemove] = useState<string[]>([]); // Track existing photos to remove
 
   // Recupera l'ultimo piano usato da localStorage o dall'entry in modifica
   const getLastUsedFloor = () => {
@@ -207,8 +212,13 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             new File([photo.blob], `photo-${idx}.jpg`, { type: photo.blob.type })
           );
 
+          // Track photo IDs for deletion
+          const ids = photos.map(photo => photo.id);
+
           setPhotoPreviews(previews);
           setPhotoFiles(files);
+          setPhotoIds(ids);
+          setInitialPhotoCount(files.length);
         } catch (error) {
           console.error('Failed to load existing photos:', error);
         }
@@ -247,6 +257,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       // Store original files
       setPhotoFiles(prev => [...prev, ...files]);
 
+      // Add null IDs for new photos (they don't have IDs yet)
+      setPhotoIds(prev => [...prev, ...files.map(() => null)]);
+
       // Generate previews
       const previews = await Promise.all(
         files.map(file => {
@@ -263,8 +276,18 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   };
 
   const handleRemovePhoto = (index: number) => {
+    // If this is an existing photo (has an ID), mark it for removal
+    const photoId = photoIds[index];
+    if (photoId) {
+      setPhotosToRemove(prev => [...prev, photoId]);
+      // Decrement initial count since we're removing an existing photo
+      setInitialPhotoCount(prev => prev - 1);
+    }
+
+    // Remove from UI arrays
     setPhotoFiles(prev => prev.filter((_, i) => i !== index));
     setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
+    setPhotoIds(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCameraClick = () => {
@@ -337,10 +360,14 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     try {
       let compressedBlobs: Blob[] = [];
 
-      // Comprimi le foto solo se ce ne sono
-      if (photoFiles.length > 0) {
+      // Comprimi solo le nuove foto (se stiamo modificando) o tutte (se stiamo creando)
+      const photosToCompress = editingEntry
+        ? photoFiles.slice(initialPhotoCount)
+        : photoFiles;
+
+      if (photosToCompress.length > 0) {
         compressedBlobs = await Promise.all(
-          photoFiles.map(async (file) => {
+          photosToCompress.map(async (file) => {
             const options = {
               maxSizeMB: 1,
               maxWidthOrHeight: 1920,
@@ -352,7 +379,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           })
         );
 
-        console.log(`Compresse ${photoFiles.length} foto`);
+        console.log(`Compresse ${photosToCompress.length} foto`);
       }
 
       if (editingEntry) {
@@ -370,6 +397,20 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           },
           currentUser.id
         );
+
+        // Remove photos that were marked for deletion
+        if (photosToRemove.length > 0) {
+          for (const photoId of photosToRemove) {
+            await removePhotoFromMapping(editingEntry.id, photoId, currentUser.id);
+          }
+          console.log(`Rimosse ${photosToRemove.length} foto dalla mappatura`);
+        }
+
+        // Add new photos if any were added
+        if (compressedBlobs.length > 0) {
+          await addPhotosToMapping(editingEntry.id, compressedBlobs, currentUser.id);
+          console.log(`Aggiunte ${compressedBlobs.length} nuove foto alla mappatura`);
+        }
 
         console.log('Mappatura aggiornata:', editingEntry.id);
         alert('Mappatura aggiornata con successo!');
@@ -399,6 +440,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         // Reset form
         setPhotoFiles([]);
         setPhotoPreviews([]);
+        setPhotoIds([]);
         setRoomNumber('');
         if (project.useInterventionNumbering) {
           const nextNum = parseInt(interventionNumber) + 1;
