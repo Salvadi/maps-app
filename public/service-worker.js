@@ -1,11 +1,11 @@
 /* eslint-disable no-restricted-globals */
 
 // Service Worker for offline-first PWA
-// Uses network-first strategy for JS/CSS (they have hashed names that change on deploy)
-// Uses cache-first strategy for documents and images
+// Uses network-first strategy for JS/CSS and HTML documents (ensures updates are detected quickly)
+// Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 12; // Increment this on every deploy!
+const CACHE_VERSION = 13; // Increment this on every deploy!
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
@@ -102,11 +102,48 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first strategy for documents, images and static files
+  // Network-first strategy for documents to ensure updates are picked up quickly
+  // Cache-first strategy for images and static files
   if (
     request.method === 'GET' &&
     (
-      request.destination === 'document' ||
+      request.destination === 'document'
+    )
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache successful responses
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(RUNTIME_CACHE)
+              .then((cache) => {
+                cache.put(request, responseToCache);
+              });
+          }
+          console.log('[Service Worker] Fetched document from network:', request.url);
+          return response;
+        })
+        .catch((error) => {
+          console.log('[Service Worker] Network failed for document, trying cache:', request.url);
+          // Fallback to cache if offline
+          return caches.match(request)
+            .then((cachedResponse) => {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // Return offline fallback page for navigation requests
+              return caches.match('/index.html');
+            });
+        })
+    );
+    return;
+  }
+
+  // Cache-first strategy for images and static files
+  if (
+    request.method === 'GET' &&
+    (
       request.destination === 'image' ||
       url.pathname.startsWith('/static/')
     )
@@ -134,12 +171,6 @@ self.addEventListener('fetch', (event) => {
             })
             .catch((error) => {
               console.error('[Service Worker] Fetch failed:', error);
-
-              // Return offline fallback page for navigation requests
-              if (request.destination === 'document') {
-                return caches.match('/index.html');
-              }
-
               throw error;
             });
         })
