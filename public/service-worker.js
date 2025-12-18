@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 14; // Increment this on every deploy! (v14: Added project sync toggle feature)
+const CACHE_VERSION = 15; // Increment this on every deploy! (v14: Added project sync toggle feature)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
