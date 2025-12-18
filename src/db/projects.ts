@@ -4,12 +4,13 @@ import { db, generateId, now, Project, SyncQueueItem } from './database';
  * Create a new project
  */
 export async function createProject(
-  projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'archived'>
+  projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'archived' | 'syncEnabled'>
 ): Promise<Project> {
   const project: Project = {
     ...projectData,
     id: generateId(),
     archived: 0,
+    syncEnabled: 0, // Default to metadata-only sync (no photos/mappings downloaded)
     createdAt: now(),
     updatedAt: now(),
     version: 1, // Initial version for conflict detection

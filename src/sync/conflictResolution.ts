@@ -1,4 +1,4 @@
-import { db, MappingEntry, Project } from '../db/database';
+import { db, MappingEntry, Project, ConflictHistory, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
  *
  * Handles conflicts when local and remote data diverge
  * Uses version numbers and timestamps for conflict detection
+ * Enhanced with conflict logging and improved merge strategies
  */
 
 export interface ConflictInfo<T> {
@@ -15,6 +16,37 @@ export interface ConflictInfo<T> {
 }
 
 export type ConflictResolutionStrategy = 'local-wins' | 'remote-wins' | 'last-modified-wins' | 'merge';
+
+/**
+ * Log a conflict to the conflict history table for user awareness and audit
+ */
+async function logConflict(
+  entityType: 'project' | 'mapping_entry',
+  entityId: string,
+  conflictType: 'version' | 'timestamp' | 'both',
+  localVersion: any,
+  remoteVersion: any,
+  resolvedVersion: any,
+  strategy: ConflictResolutionStrategy,
+  autoResolved: boolean = true
+): Promise<void> {
+  const conflictRecord: ConflictHistory = {
+    id: generateId(),
+    timestamp: Date.now(),
+    entityType,
+    entityId,
+    conflictType,
+    localVersion,
+    remoteVersion,
+    resolvedVersion,
+    strategy,
+    autoResolved,
+    userNotified: false
+  };
+
+  await db.conflictHistory.add(conflictRecord);
+  console.log(`📝 Conflict logged: ${entityType} ${entityId} - ${strategy}`);
+}
 
 /**
  * Detect if a conflict exists between local and remote versions
@@ -51,35 +83,52 @@ export async function resolveMappingEntryConflict(
 ): Promise<MappingEntry> {
   console.log(`🔀 Resolving conflict for mapping entry ${localEntry.id} using strategy: ${strategy}`);
 
+  // Detect conflict type
+  const versionConflict = localEntry.version !== remoteEntry.version;
+  const timestampConflict = localEntry.lastModified !== remoteEntry.last_modified;
+  const conflictType: 'version' | 'timestamp' | 'both' =
+    versionConflict && timestampConflict ? 'both' : versionConflict ? 'version' : 'timestamp';
+
+  let resolved: MappingEntry;
+
   switch (strategy) {
     case 'local-wins':
       console.log('✅ Conflict resolved: local wins');
-      return localEntry;
+      resolved = localEntry;
+      break;
 
     case 'remote-wins':
       console.log('✅ Conflict resolved: remote wins');
       // Convert remote format to local format
-      return convertRemoteToLocalMapping(remoteEntry);
+      resolved = convertRemoteToLocalMapping(remoteEntry);
+      break;
 
     case 'last-modified-wins':
       // Compare timestamps
       if (localEntry.lastModified > remoteEntry.last_modified) {
         console.log('✅ Conflict resolved: local is newer');
-        return localEntry;
+        resolved = localEntry;
       } else {
         console.log('✅ Conflict resolved: remote is newer');
-        return convertRemoteToLocalMapping(remoteEntry);
+        resolved = convertRemoteToLocalMapping(remoteEntry);
       }
+      break;
 
     case 'merge':
       // Merge strategy - keep newer fields
       console.log('✅ Conflict resolved: merging fields');
-      return mergeMappingEntries(localEntry, remoteEntry);
+      resolved = mergeMappingEntries(localEntry, remoteEntry);
+      break;
 
     default:
       // Default to last-modified-wins
       return resolveMappingEntryConflict(localEntry, remoteEntry, 'last-modified-wins');
   }
+
+  // Log conflict for audit and user notification
+  await logConflict('mapping_entry', localEntry.id, conflictType, localEntry, remoteEntry, resolved, strategy);
+
+  return resolved;
 }
 
 /**
@@ -92,14 +141,24 @@ export async function resolveProjectConflict(
 ): Promise<Project> {
   console.log(`🔀 Resolving conflict for project ${localProject.id} using strategy: ${strategy}`);
 
+  // Detect conflict type
+  const versionConflict = (localProject.version || 1) !== (remoteProject.version || 1);
+  const timestampConflict = localProject.updatedAt !== new Date(remoteProject.updated_at).getTime();
+  const conflictType: 'version' | 'timestamp' | 'both' =
+    versionConflict && timestampConflict ? 'both' : versionConflict ? 'version' : 'timestamp';
+
+  let resolved: Project;
+
   switch (strategy) {
     case 'local-wins':
       console.log('✅ Conflict resolved: local wins');
-      return localProject;
+      resolved = localProject;
+      break;
 
     case 'remote-wins':
       console.log('✅ Conflict resolved: remote wins');
-      return convertRemoteToLocalProject(remoteProject);
+      resolved = convertRemoteToLocalProject(remoteProject);
+      break;
 
     case 'last-modified-wins':
       const localTime = localProject.updatedAt;
@@ -107,19 +166,26 @@ export async function resolveProjectConflict(
 
       if (localTime > remoteTime) {
         console.log('✅ Conflict resolved: local is newer');
-        return localProject;
+        resolved = localProject;
       } else {
         console.log('✅ Conflict resolved: remote is newer');
-        return convertRemoteToLocalProject(remoteProject);
+        resolved = convertRemoteToLocalProject(remoteProject);
       }
+      break;
 
     case 'merge':
       console.log('✅ Conflict resolved: merging fields');
-      return mergeProjects(localProject, remoteProject);
+      resolved = mergeProjects(localProject, remoteProject);
+      break;
 
     default:
       return resolveProjectConflict(localProject, remoteProject, 'last-modified-wins');
   }
+
+  // Log conflict for audit and user notification
+  await logConflict('project', localProject.id, conflictType, localProject, remoteProject, resolved, strategy);
+
+  return resolved;
 }
 
 /**
@@ -161,6 +227,7 @@ function convertRemoteToLocalProject(remote: any): Project {
     ownerId: remote.owner_id,
     accessibleUsers: remote.accessible_users || [],
     archived: remote.archived || 0,
+    syncEnabled: remote.sync_enabled !== undefined ? remote.sync_enabled : 0, // Default to metadata-only
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
     version: remote.version || 1, // Add version for conflict detection
@@ -171,6 +238,7 @@ function convertRemoteToLocalProject(remote: any): Project {
 
 /**
  * Merge two mapping entries (field-level merge)
+ * Enhanced with better crossing comparison
  */
 function mergeMappingEntries(local: MappingEntry, remote: any): MappingEntry {
   // Start with the newer version as base
@@ -181,15 +249,37 @@ function mergeMappingEntries(local: MappingEntry, remote: any): MappingEntry {
   const remotePhotos = (remote.photos || []).filter((p: any) => !localPhotoIds.has(p.id));
   const mergedPhotos = [...local.photos, ...remotePhotos];
 
-  // Merge crossings (combine unique crossings)
+  // Merge crossings with improved comparison (all significant fields)
   const mergedCrossings = [...local.crossings];
   for (const remoteCrossing of remote.crossings || []) {
-    const exists = mergedCrossings.some(c =>
-      c.supporto === remoteCrossing.supporto &&
-      c.attraversamento === remoteCrossing.attraversamento
+    // Check if crossing exists with same core identity
+    const existingIndex = mergedCrossings.findIndex(c =>
+      c.id === remoteCrossing.id ||
+      (c.supporto === remoteCrossing.supporto &&
+       c.tipoSupporto === remoteCrossing.tipoSupporto &&
+       c.attraversamento === remoteCrossing.attraversamento)
     );
-    if (!exists) {
+
+    if (existingIndex === -1) {
+      // New crossing, add it
       mergedCrossings.push(remoteCrossing);
+    } else {
+      // Crossing exists, merge fields if they differ
+      const existing = mergedCrossings[existingIndex];
+      const hasChanges =
+        existing.quantita !== remoteCrossing.quantita ||
+        existing.diametro !== remoteCrossing.diametro ||
+        existing.dimensioni !== remoteCrossing.dimensioni ||
+        existing.notes !== remoteCrossing.notes ||
+        existing.tipologicoId !== remoteCrossing.tipologicoId;
+
+      if (hasChanges) {
+        // Keep the newer version's details based on parent entry timestamp
+        if (remote.last_modified > local.lastModified) {
+          mergedCrossings[existingIndex] = remoteCrossing;
+        }
+        // Otherwise keep local version (already in array)
+      }
     }
   }
 

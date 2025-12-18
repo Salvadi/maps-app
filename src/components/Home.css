@@ -652,4 +652,105 @@
     width: 24px;
     height: 24px;
   }
+
+  .project-sync-toggle {
+    top: 6px;
+    right: 6px;
+  }
+
+  .sync-checkbox-icon {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Project Sync Toggle Checkbox */
+.project-sync-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hide default checkbox */
+.sync-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Custom checkbox label */
+.sync-checkbox-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--color-border);
+}
+
+.sync-checkbox-label:hover {
+  background-color: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+}
+
+/* Sync icon styling */
+.sync-checkbox-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-secondary);
+  transition: all 0.3s ease;
+}
+
+/* When checkbox is checked */
+.sync-checkbox:checked + .sync-checkbox-label {
+  background-color: var(--color-primary, #007aff);
+  border-color: var(--color-primary, #007aff);
+}
+
+.sync-checkbox:checked + .sync-checkbox-label .sync-checkbox-icon {
+  color: white;
+}
+
+/* Enabled state (additional visual feedback) */
+.sync-checkbox-icon.enabled {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Focus state for accessibility */
+.sync-checkbox:focus + .sync-checkbox-label {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
+  outline: none;
+}
+
+/* Disabled map button style */
+.action-btn.action-map.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-btn.action-map.disabled:hover {
+  background-color: var(--color-bg-input);
+  transform: none;
+}
+
+.action-btn.action-map.disabled .action-icon {
+  color: var(--color-text-secondary);
 }

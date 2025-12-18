@@ -15,6 +15,7 @@ export interface Project {
   ownerId: string; // user UUID
   accessibleUsers: string[]; // array of user UUIDs
   archived: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
+  syncEnabled: number; // 0 = false (metadata only), 1 = true (full sync with photos and mappings)
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
   version?: number; // For conflict detection (optional for backward compatibility)
@@ -110,6 +111,20 @@ export interface AppMetadata {
   value: any;
 }
 
+export interface ConflictHistory {
+  id: string;
+  timestamp: number;
+  entityType: 'project' | 'mapping_entry';
+  entityId: string;
+  conflictType: 'version' | 'timestamp' | 'both';
+  localVersion: any;
+  remoteVersion: any;
+  resolvedVersion: any;
+  strategy: string; // ConflictResolutionStrategy
+  autoResolved: boolean;
+  userNotified: boolean;
+}
+
 // Dexie database class
 export class MappingDatabase extends Dexie {
   // Typed table properties
@@ -119,6 +134,7 @@ export class MappingDatabase extends Dexie {
   syncQueue!: Table<SyncQueueItem, string>;
   users!: Table<User, string>;
   metadata!: Table<AppMetadata, string>;
+  conflictHistory!: Table<ConflictHistory, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -146,6 +162,24 @@ export class MappingDatabase extends Dexie {
       return tx.table('projects').toCollection().modify(project => {
         if (project.archived === undefined) {
           project.archived = 0;
+        }
+      });
+    });
+
+    // Define schema v3 - add syncEnabled field to projects and conflictHistory table
+    this.version(3).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified'
+    }).upgrade(tx => {
+      // Set syncEnabled = 0 for all existing projects (default to metadata-only sync)
+      return tx.table('projects').toCollection().modify(project => {
+        if (project.syncEnabled === undefined) {
+          project.syncEnabled = 0;
         }
       });
     });
