@@ -227,7 +227,7 @@ function convertRemoteToLocalProject(remote: any): Project {
     ownerId: remote.owner_id,
     accessibleUsers: remote.accessible_users || [],
     archived: remote.archived || 0,
-    syncEnabled: remote.sync_enabled !== undefined ? remote.sync_enabled : 0, // Default to metadata-only
+    syncEnabled: 0, // Default to 0 for remote projects (per-device preference, not synced)
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
     version: remote.version || 1, // Add version for conflict detection

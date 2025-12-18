@@ -176,7 +176,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       owner_id: project.ownerId,
       accessible_users: project.accessibleUsers,
       archived: project.archived,
-      sync_enabled: project.syncEnabled || 0, // Include syncEnabled field
+      // NOTE: syncEnabled is NOT synced - it's a per-device preference
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
       version: project.version || 1, // Add version for conflict detection
@@ -221,7 +221,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       typologies: project.typologies,
       accessible_users: project.accessibleUsers,
       archived: project.archived,
-      sync_enabled: project.syncEnabled || 0, // Include syncEnabled field
+      // NOTE: syncEnabled is NOT synced - it's a per-device preference
       updated_at: new Date(project.updatedAt).toISOString(),
       version: project.version || 1, // Add version for conflict detection
       last_modified: project.lastModified || project.updatedAt, // Add lastModified
@@ -535,7 +535,7 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
         ownerId: supabaseProject.owner_id,
         accessibleUsers: supabaseProject.accessible_users || [],
         archived: supabaseProject.archived || 0,
-        syncEnabled: supabaseProject.sync_enabled !== undefined ? supabaseProject.sync_enabled : 0, // Default to metadata-only
+        syncEnabled: 0, // Always default to 0 for newly downloaded projects (per-device preference)
         createdAt: new Date(supabaseProject.created_at).getTime(),
         updatedAt: new Date(supabaseProject.updated_at).getTime(),
         version: supabaseProject.version || 1, // Add version for conflict detection
@@ -547,6 +547,9 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
       const existingProject = await db.projects.get(project.id);
 
       if (existingProject) {
+        // IMPORTANT: Preserve local syncEnabled preference when updating from remote
+        project.syncEnabled = existingProject.syncEnabled;
+
         // Check for conflicts and resolve using conflict resolution strategy
         const hasConflict =
           existingProject.updatedAt !== project.updatedAt ||
@@ -556,6 +559,8 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
           console.log(`⚠️  Conflict detected for project ${project.id} during download`);
           // Use conflict resolution to merge properly
           const resolved = await resolveProjectConflict(existingProject, supabaseProject, 'last-modified-wins');
+          // Preserve syncEnabled preference after conflict resolution
+          resolved.syncEnabled = existingProject.syncEnabled;
           await db.projects.put(resolved);
           console.log(`✅ Updated project from server with conflict resolution: ${project.title}`);
           downloadedCount++;
@@ -566,7 +571,7 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
           downloadedCount++;
         }
       } else {
-        // New project, just add it
+        // New project, just add it with syncEnabled = 0
         await db.projects.put(project);
         console.log(`✅ Downloaded new project: ${project.title}`);
         downloadedCount++;
