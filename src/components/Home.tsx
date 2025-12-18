@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Project, User, getAllProjects, getProjectsForUser } from '../db';
+import { Project, User, getAllProjects, getProjectsForUser, updateProject } from '../db';
 import './Home.css';
 
 interface HomeProps {
@@ -208,6 +208,40 @@ const Home: React.FC<HomeProps> = ({
     setActiveProject(null);
   };
 
+  const handleEnterMappingWithCheck = (project: Project) => {
+    if (project.syncEnabled === 0) {
+      // Show warning if sync is disabled
+      alert('⚠️ Impossibile aggiungere mappatura, prima sincronizza il progetto.\n\nAttiva la sincronizzazione completa cliccando sull\'icona di sync nell\'angolo della card del progetto.');
+      setActiveProject(null);
+      return;
+    }
+
+    // Proceed normally if sync is enabled
+    onEnterMapping(project);
+    setActiveProject(null);
+  };
+
+  const handleToggleProjectSync = async (project: Project, enabled: boolean, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card selection
+    try {
+      const updatedProject: Project = {
+        ...project,
+        syncEnabled: enabled ? 1 : 0,
+        updatedAt: Date.now()
+      };
+      await updateProject(project.id, updatedProject, currentUser.id);
+
+      // Refresh projects list
+      setProjects(prevProjects =>
+        prevProjects.map(p => p.id === project.id ? updatedProject : p)
+      );
+
+      console.log(`✅ Project ${project.title} sync ${enabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.error('Failed to toggle project sync:', error);
+    }
+  };
+
   const handleSyncButtonClick = () => {
     setShowSyncMenu(!showSyncMenu);
   };
@@ -407,6 +441,24 @@ const Home: React.FC<HomeProps> = ({
                   className={`project-card ${isActive ? 'active' : ''}`}
                   onClick={() => handleProjectClick(project.id)}
                 >
+                  {/* Sync toggle checkbox in top-right corner */}
+                  <div
+                    className="project-sync-toggle"
+                    onClick={(e) => e.stopPropagation()}
+                    title={project.syncEnabled === 1 ? "Sincronizzazione completa attiva" : "Solo metadati (click per attivare sync completa)"}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={project.syncEnabled === 1}
+                      onChange={(e) => handleToggleProjectSync(project, e.target.checked, e as any)}
+                      className="sync-checkbox"
+                      id={`sync-${project.id}`}
+                    />
+                    <label htmlFor={`sync-${project.id}`} className="sync-checkbox-label">
+                      <SyncIcon className={`sync-checkbox-icon ${project.syncEnabled === 1 ? 'enabled' : ''}`} />
+                    </label>
+                  </div>
+
                   <div className="project-icon">
                     <IconComponent className="icon" />
                   </div>
@@ -441,9 +493,10 @@ const Home: React.FC<HomeProps> = ({
                       <PencilIcon className="action-icon" />
                     </button>
                     <button
-                      className="action-btn action-map"
-                      onClick={() => handleAction(() => onEnterMapping(project))}
+                      className={`action-btn action-map ${project.syncEnabled === 0 ? 'disabled' : ''}`}
+                      onClick={() => handleEnterMappingWithCheck(project)}
                       aria-label="Enter mapping"
+                      title={project.syncEnabled === 0 ? "Attiva prima la sincronizzazione completa" : "Aggiungi mappatura"}
                     >
                       <MapIcon className="action-icon" />
                     </button>

@@ -176,6 +176,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       owner_id: project.ownerId,
       accessible_users: project.accessibleUsers,
       archived: project.archived,
+      sync_enabled: project.syncEnabled || 0, // Include syncEnabled field
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
       version: project.version || 1, // Add version for conflict detection
@@ -220,6 +221,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       typologies: project.typologies,
       accessible_users: project.accessibleUsers,
       archived: project.archived,
+      sync_enabled: project.syncEnabled || 0, // Include syncEnabled field
       updated_at: new Date(project.updatedAt).toISOString(),
       version: project.version || 1, // Add version for conflict detection
       last_modified: project.lastModified || project.updatedAt, // Add lastModified
@@ -544,8 +546,20 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
       const existingProject = await db.projects.get(project.id);
 
       if (existingProject) {
-        // Only update if remote is newer
-        if (project.updatedAt > existingProject.updatedAt) {
+        // Check for conflicts and resolve using conflict resolution strategy
+        const hasConflict =
+          existingProject.updatedAt !== project.updatedAt ||
+          (existingProject.version || 1) !== (project.version || 1);
+
+        if (hasConflict) {
+          console.log(`⚠️  Conflict detected for project ${project.id} during download`);
+          // Use conflict resolution to merge properly
+          const resolved = await resolveProjectConflict(existingProject, supabaseProject, 'last-modified-wins');
+          await db.projects.put(resolved);
+          console.log(`✅ Updated project from server with conflict resolution: ${project.title}`);
+          downloadedCount++;
+        } else if (project.updatedAt > existingProject.updatedAt) {
+          // No conflict, just newer remote version
           await db.projects.put(project);
           console.log(`✅ Updated project from server: ${project.title}`);
           downloadedCount++;
@@ -585,26 +599,30 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
 
   try {
 
-    // Get all project IDs that the user has access to (or all projects if admin)
+    // Get all project IDs that have syncEnabled = 1 (full sync)
     let userProjects;
     if (isAdmin) {
-      console.log('👑 Admin user: downloading mapping entries for all projects');
-      userProjects = await db.projects.toArray();
+      console.log('👑 Admin user: downloading mapping entries for all sync-enabled projects');
+      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
     } else {
-      userProjects = await db.projects
+      // Get user's projects that have sync enabled
+      const allUserProjects = await db.projects
         .where('ownerId')
         .equals(userId)
         .or('accessibleUsers')
         .equals(userId)
         .toArray();
+
+      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
     }
 
     if (userProjects.length === 0) {
-      console.log('✅ No projects found, skipping mapping entries download');
+      console.log('✅ No sync-enabled projects found, skipping mapping entries download');
       return 0;
     }
 
     const projectIds = userProjects.map(p => p.id);
+    console.log(`📥 Downloading mapping entries for ${projectIds.length} sync-enabled projects`);
 
     // Download mapping entries for these projects
     const { data: mappingEntries, error } = await supabase
@@ -645,8 +663,20 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
       const existingEntry = await db.mappingEntries.get(mappingEntry.id);
 
       if (existingEntry) {
-        // Only update if remote is newer
-        if (mappingEntry.lastModified > existingEntry.lastModified) {
+        // Check for conflicts and resolve using conflict resolution strategy
+        const hasConflict =
+          existingEntry.lastModified !== mappingEntry.lastModified ||
+          existingEntry.version !== mappingEntry.version;
+
+        if (hasConflict) {
+          console.log(`⚠️  Conflict detected for mapping entry ${mappingEntry.id} during download`);
+          // Use conflict resolution to merge properly
+          const resolved = await resolveMappingEntryConflict(existingEntry, supabaseEntry, 'last-modified-wins');
+          await db.mappingEntries.put(resolved);
+          console.log(`✅ Updated mapping entry from server with conflict resolution: ${mappingEntry.id}`);
+          downloadedCount++;
+        } else if (mappingEntry.lastModified > existingEntry.lastModified) {
+          // No conflict, just newer remote version
           await db.mappingEntries.put(mappingEntry);
           console.log(`✅ Updated mapping entry from server: ${mappingEntry.id}`);
           downloadedCount++;
@@ -686,26 +716,30 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 
   try {
 
-    // Get all projects for this user (or all projects if admin)
+    // Get all projects with syncEnabled = 1 (full sync including photos)
     let userProjects;
     if (isAdmin) {
-      console.log('👑 Admin user: downloading photos for all projects');
-      userProjects = await db.projects.toArray();
+      console.log('👑 Admin user: downloading photos for all sync-enabled projects');
+      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
     } else {
-      userProjects = await db.projects
+      // Get user's projects that have sync enabled
+      const allUserProjects = await db.projects
         .where('ownerId')
         .equals(userId)
         .or('accessibleUsers')
         .equals(userId)
         .toArray();
+
+      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
     }
 
     if (userProjects.length === 0) {
-      console.log('✅ No projects found, skipping photos download');
+      console.log('✅ No sync-enabled projects found, skipping photos download');
       return 0;
     }
 
     const projectIds = userProjects.map(p => p.id);
+    console.log(`📥 Downloading photos for ${projectIds.length} sync-enabled projects`);
 
     // Get all mapping entries for these projects
     const mappingEntries = await db.mappingEntries
@@ -869,15 +903,30 @@ export function startAutoSync(intervalMs: number = 60000): void {
     })
   ]);
 
-  // Then sync on interval (bidirectional)
+  // Then sync on interval (bidirectional with lock)
   syncInterval = setInterval(async () => {
     try {
-      // Upload local changes
-      await processSyncQueue();
-      // Download remote changes
-      await syncFromSupabase();
+      // Check if sync is already in progress
+      const isSyncingMeta = await db.metadata.get('isSyncing');
+      if (isSyncingMeta?.value === true) {
+        console.log('⏭️  Auto-sync skipped: sync already in progress');
+        return;
+      }
+
+      // Use atomic lock for auto-sync
+      await db.metadata.put({ key: 'isSyncing', value: true });
+      try {
+        // Upload local changes
+        await processSyncQueue();
+        // Download remote changes
+        await syncFromSupabase();
+      } finally {
+        await db.metadata.put({ key: 'isSyncing', value: false });
+      }
     } catch (err) {
       console.error('❌ Auto-sync failed:', err);
+      // Ensure lock is released on error
+      await db.metadata.put({ key: 'isSyncing', value: false });
     }
   }, intervalMs);
 }
@@ -892,7 +941,7 @@ export function stopAutoSync(): void {
 
 /**
  * Manual sync trigger (for UI button)
- * Performs bidirectional sync: upload local changes and download remote changes
+ * Performs bidirectional sync with atomic lock: upload local changes and download remote changes
  */
 export async function manualSync(): Promise<{
   uploadResult: SyncResult;
@@ -900,15 +949,33 @@ export async function manualSync(): Promise<{
 }> {
   console.log('🔄 Manual bidirectional sync triggered');
 
-  // Upload local changes
-  const uploadResult = await processSyncQueue();
+  // Check if sync is already in progress
+  const isSyncingMeta = await db.metadata.get('isSyncing');
+  if (isSyncingMeta?.value === true) {
+    console.warn('⚠️  Sync already in progress, skipping');
+    return {
+      uploadResult: { success: false, processedCount: 0, failedCount: 0, errors: [] },
+      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0 }
+    };
+  }
 
-  // Download remote changes
-  const downloadResult = await syncFromSupabase();
+  try {
+    // Set sync lock
+    await db.metadata.put({ key: 'isSyncing', value: true });
 
-  console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
+    // Upload local changes FIRST (to avoid conflicts with concurrent edits)
+    const uploadResult = await processSyncQueue();
 
-  return { uploadResult, downloadResult };
+    // Download remote changes AFTER upload completes
+    const downloadResult = await syncFromSupabase();
+
+    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
+
+    return { uploadResult, downloadResult };
+  } finally {
+    // Release sync lock (always runs even if error occurs)
+    await db.metadata.put({ key: 'isSyncing', value: false });
+  }
 }
 
 /**
