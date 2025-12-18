@@ -448,7 +448,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Tipo supporto'] = crossing.tipoSupporto || '-';
             // Show custom text for "Altro" if specified
             const attraversamentoText = crossing.attraversamento === 'Altro' && crossing.attraversamentoCustom
-              ? `Altro (${crossing.attraversamentoCustom})`
+              ? crossing.attraversamentoCustom
               : crossing.attraversamento || '-';
             row['Attraversamento'] = attraversamentoText;
             row['Quantità'] = crossing.quantita || '-';
@@ -491,7 +491,7 @@ const MappingView: React.FC<MappingViewProps> = ({
         const tipologiciData = project.typologies.map(tip => {
           // Show custom text for "Altro" if specified
           const attraversamentoText = tip.attraversamento === 'Altro' && tip.attraversamentoCustom
-            ? `Altro (${tip.attraversamentoCustom})`
+            ? tip.attraversamentoCustom
             : tip.attraversamento || '-';
 
           return {
@@ -566,7 +566,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             row['Tipo supporto'] = crossing.tipoSupporto || '-';
             // Show custom text for "Altro" if specified
             const attraversamentoText = crossing.attraversamento === 'Altro' && crossing.attraversamentoCustom
-              ? `Altro (${crossing.attraversamentoCustom})`
+              ? crossing.attraversamentoCustom
               : crossing.attraversamento || '-';
             row['Attraversamento'] = attraversamentoText;
             row['Quantità'] = crossing.quantita || '-';
@@ -607,7 +607,7 @@ const MappingView: React.FC<MappingViewProps> = ({
         const tipologiciData = project.typologies.map(tip => {
           // Show custom text for "Altro" if specified
           const attraversamentoText = tip.attraversamento === 'Altro' && tip.attraversamentoCustom
-            ? `Altro (${tip.attraversamentoCustom})`
+            ? tip.attraversamentoCustom
             : tip.attraversamento || '-';
 
           return {
@@ -885,7 +885,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                                 <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
                                 <strong>Attraversamento:</strong> {
                                   sig.attraversamento === 'Altro' && sig.attraversamentoCustom
-                                    ? `Altro (${sig.attraversamentoCustom})`
+                                    ? sig.attraversamentoCustom
                                     : sig.attraversamento || 'N/A'
                                 }<br />
                                 {sig.tipologicoId && (
@@ -1033,7 +1033,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                           <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
                                                           <strong>Attraversamento:</strong> {
                                   sig.attraversamento === 'Altro' && sig.attraversamentoCustom
-                                    ? `Altro (${sig.attraversamentoCustom})`
+                                    ? sig.attraversamentoCustom
                                     : sig.attraversamento || 'N/A'
                                 }<br />
                                                           {sig.tipologicoId && (
