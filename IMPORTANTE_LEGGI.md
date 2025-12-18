@@ -1,60 +1,52 @@
-# ⚠️ MIGRAZIONE DATABASE RICHIESTA
+# ✅ NESSUNA MIGRAZIONE RICHIESTA
 
-## Problema
-L'app sta fallendo perché il database Supabase non ha ancora la colonna `sync_enabled` nella tabella `projects`.
+## Aggiornamento Importante
 
-## Soluzione Rapida (5 minuti)
+Il campo `syncEnabled` è ora una **preferenza locale per dispositivo** e **NON viene più sincronizzato** con Supabase.
 
-### Passo 1: Apri Supabase Dashboard
-1. Vai su https://supabase.com/dashboard
-2. Seleziona il tuo progetto
-3. Clicca su **SQL Editor** nel menu laterale
+### Cosa significa?
 
-### Passo 2: Esegui la Migrazione
-1. Apri il file `SUPABASE_MIGRATION.sql` nella root del progetto
-2. Copia **TUTTO** il contenuto
-3. Incolla nell'SQL Editor di Supabase
-4. Clicca **Run** (o premi Cmd/Ctrl + Enter)
+- ✅ Ogni utente può scegliere su ogni dispositivo quali progetti sincronizzare
+- ✅ Le preferenze di un utente non influenzano quelle di altri utenti
+- ✅ Puoi avere sync attiva sul telefono e disattiva sul laptop
+- ✅ Nessuna migrazione database necessaria!
 
-### Passo 3: Verifica
-Dovresti vedere:
-- ✅ "Success" nel risultato dell'esecuzione
-- Una tabella che mostra i dati della colonna `sync_enabled`
-- Una lista di 5 progetti con il nuovo campo
+### Come funziona?
 
-## Cosa fa questa migrazione?
+1. **IndexedDB locale**: `syncEnabled` è salvato solo nel browser/dispositivo
+2. **Supabase**: Non contiene informazioni su quali progetti sono sincronizzati localmente
+3. **Indipendenza**: Ogni dispositivo mantiene le proprie preferenze
 
-Aggiunge il campo `sync_enabled` che permette di:
-- ✅ Scegliere quali progetti sincronizzare completamente
-- ✅ Alleggerire l'app al primo avvio (default: solo metadati)
-- ✅ Controllare il consumo dati e spazio storage
+### Se hai già eseguito la migrazione precedente
 
-## Alternative
+La colonna `sync_enabled` su Supabase (se presente) verrà semplicemente **ignorata**.
 
-Se preferisci usare la CLI di Supabase:
-
-```bash
-# Naviga nella cartella del progetto
-cd /home/user/maps-app
-
-# Esegui la migrazione
-supabase db push
+Puoi rimuoverla (opzionale):
+```sql
+ALTER TABLE projects DROP COLUMN IF EXISTS sync_enabled;
+DROP INDEX IF EXISTS idx_projects_sync_enabled;
 ```
 
-## Dopo la migrazione
-
-Una volta completata la migrazione:
-1. Ricarica l'app nel browser
-2. Il checkbox di sync apparirà su ogni progetto
-3. Click sul checkbox per attivare la sincronizzazione completa
-
-## Supporto
-
-Se hai problemi:
-1. Verifica di essere loggato nel progetto Supabase corretto
-2. Controlla che l'utente abbia permessi di modifica dello schema
-3. Consulta i log di Supabase per eventuali errori
+Ma non è necessario - l'app funzionerà comunque!
 
 ---
 
-**Nota**: Tutti i progetti esistenti avranno `sync_enabled = 0` di default (solo metadati).
+## 🎯 Funzionalità
+
+### Checkbox Sync sui Progetti
+- **Posizione**: Angolo in alto a destra di ogni card progetto
+- **Default**: Tutti i progetti hanno sync disabilitata (solo metadati)
+- **Azione**: Click per attivare sincronizzazione completa (mappings + foto)
+
+### Comportamento
+- **Sync OFF**: Scarica solo project form, piani, tipologie
+- **Sync ON**: Scarica tutto (mappings + foto)
+- **Mapping Form**: Disabilitato se sync è OFF con messaggio di warning
+
+---
+
+## 🚀 Deploy
+
+L'app è pronta! Non serve fare nulla su Supabase.
+
+Buon lavoro! 🎉
