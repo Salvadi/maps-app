@@ -446,7 +446,11 @@ const MappingView: React.FC<MappingViewProps> = ({
           if (crossing) {
             row['Supporto'] = crossing.supporto || '-';
             row['Tipo supporto'] = crossing.tipoSupporto || '-';
-            row['Attraversamento'] = crossing.attraversamento || '-';
+            // Show custom text for "Altro" if specified
+            const attraversamentoText = crossing.attraversamento === 'Altro' && crossing.attraversamentoCustom
+              ? crossing.attraversamentoCustom
+              : crossing.attraversamento || '-';
+            row['Attraversamento'] = attraversamentoText;
             row['Quantità'] = crossing.quantita || '-';
             row['Diametro'] = crossing.diametro || '-';
             row['Dimensioni'] = crossing.dimensioni || '-';
@@ -484,14 +488,21 @@ const MappingView: React.FC<MappingViewProps> = ({
 
       // Add Tipologici sheet
       if (project.typologies && project.typologies.length > 0) {
-        const tipologiciData = project.typologies.map(tip => ({
-          'Numero': tip.number,
-          'Supporto': tip.supporto || '-',
-          'Tipo Supporto': tip.tipoSupporto || '-',
-          'Attraversamento': tip.attraversamento || '-',
-          'Marca Prodotto': tip.marcaProdottoUtilizzato || '-',
-          'Prodotti Selezionati': tip.prodottiSelezionati.join(', ') || '-',
-        }));
+        const tipologiciData = project.typologies.map(tip => {
+          // Show custom text for "Altro" if specified
+          const attraversamentoText = tip.attraversamento === 'Altro' && tip.attraversamentoCustom
+            ? tip.attraversamentoCustom
+            : tip.attraversamento || '-';
+
+          return {
+            'Numero': tip.number,
+            'Supporto': tip.supporto || '-',
+            'Tipo Supporto': tip.tipoSupporto || '-',
+            'Attraversamento': attraversamentoText,
+            'Marca Prodotto': tip.marcaProdottoUtilizzato || '-',
+            'Prodotti Selezionati': tip.prodottiSelezionati.join(', ') || '-',
+          };
+        });
         const wsTipologici = XLSX.utils.json_to_sheet(tipologiciData);
         wsTipologici['!cols'] = Array(6).fill({ wch: 20 });
         XLSX.utils.book_append_sheet(wb, wsTipologici, 'Tipologici');
@@ -553,7 +564,11 @@ const MappingView: React.FC<MappingViewProps> = ({
           if (crossing) {
             row['Supporto'] = crossing.supporto || '-';
             row['Tipo supporto'] = crossing.tipoSupporto || '-';
-            row['Attraversamento'] = crossing.attraversamento || '-';
+            // Show custom text for "Altro" if specified
+            const attraversamentoText = crossing.attraversamento === 'Altro' && crossing.attraversamentoCustom
+              ? crossing.attraversamentoCustom
+              : crossing.attraversamento || '-';
+            row['Attraversamento'] = attraversamentoText;
             row['Quantità'] = crossing.quantita || '-';
             row['Diametro'] = crossing.diametro || '-';
             row['Dimensioni'] = crossing.dimensioni || '-';
@@ -589,14 +604,21 @@ const MappingView: React.FC<MappingViewProps> = ({
 
       // Add Tipologici sheet
       if (project.typologies && project.typologies.length > 0) {
-        const tipologiciData = project.typologies.map(tip => ({
-          'Numero': tip.number,
-          'Supporto': tip.supporto || '-',
-          'Tipo Supporto': tip.tipoSupporto || '-',
-          'Attraversamento': tip.attraversamento || '-',
-          'Marca Prodotto': tip.marcaProdottoUtilizzato || '-',
-          'Prodotti Selezionati': tip.prodottiSelezionati.join(', ') || '-',
-        }));
+        const tipologiciData = project.typologies.map(tip => {
+          // Show custom text for "Altro" if specified
+          const attraversamentoText = tip.attraversamento === 'Altro' && tip.attraversamentoCustom
+            ? tip.attraversamentoCustom
+            : tip.attraversamento || '-';
+
+          return {
+            'Numero': tip.number,
+            'Supporto': tip.supporto || '-',
+            'Tipo Supporto': tip.tipoSupporto || '-',
+            'Attraversamento': attraversamentoText,
+            'Marca Prodotto': tip.marcaProdottoUtilizzato || '-',
+            'Prodotti Selezionati': tip.prodottiSelezionati.join(', ') || '-',
+          };
+        });
         const wsTipologici = XLSX.utils.json_to_sheet(tipologiciData);
         wsTipologici['!cols'] = Array(6).fill({ wch: 20 });
         XLSX.utils.book_append_sheet(wb, wsTipologici, 'Tipologici');
@@ -861,7 +883,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                               <li key={idx} style={{ marginBottom: '8px' }}>
                                 <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
                                 <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
-                                <strong>Attraversamento:</strong> {sig.attraversamento || 'N/A'}<br />
+                                <strong>Attraversamento:</strong> {
+                                  sig.attraversamento === 'Altro' && sig.attraversamentoCustom
+                                    ? sig.attraversamentoCustom
+                                    : sig.attraversamento || 'N/A'
+                                }<br />
                                 {sig.tipologicoId && (
                                   <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
                                 )}
@@ -1005,7 +1031,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                         <li key={idx} style={{ marginBottom: '8px' }}>
                                                           <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
                                                           <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
-                                                          <strong>Attraversamento:</strong> {sig.attraversamento || 'N/A'}<br />
+                                                          <strong>Attraversamento:</strong> {
+                                  sig.attraversamento === 'Altro' && sig.attraversamentoCustom
+                                    ? sig.attraversamentoCustom
+                                    : sig.attraversamento || 'N/A'
+                                }<br />
                                                           {sig.tipologicoId && (
                                                             <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
                                                           )}

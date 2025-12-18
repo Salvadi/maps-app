@@ -508,6 +508,18 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
+                      {typology.attraversamento === 'Altro' && (
+                        <input
+                          type="text"
+                          value={typology.attraversamentoCustom || ''}
+                          onChange={(e) =>
+                            handleTypologyChange(typology.id, 'attraversamentoCustom', e.target.value)
+                          }
+                          className="table-input"
+                          placeholder="Specifica tipo..."
+                          style={{ marginTop: '4px' }}
+                        />
+                      )}
                     </div>
                     <div className="table-cell">
                       <select

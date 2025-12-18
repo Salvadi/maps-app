@@ -660,6 +660,22 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                       </select>
                     </div>
 
+                    {/* Custom text input for "Altro" */}
+                    {sig.attraversamento === 'Altro' && (
+                      <div className="crossing-field">
+                        <label className="crossing-label">Specifica tipo attraversamento</label>
+                        <input
+                          type="text"
+                          value={sig.attraversamentoCustom || ''}
+                          onChange={(e) =>
+                            handleSigillaturaChange(index, 'attraversamentoCustom', e.target.value)
+                          }
+                          className="crossing-input"
+                          placeholder="Es: Tubo in acciaio, Filo di rame, ecc..."
+                        />
+                      </div>
+                    )}
+
                     {/* Quantità - shown for all attraversamenti when not empty */}
                     {sig.attraversamento && (
                       <div className="crossing-field">
@@ -725,9 +741,27 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                           </div>
                           <select
                             value={sig.tipologicoId || ''}
-                            onChange={(e) =>
-                              handleSigillaturaChange(index, 'tipologicoId', e.target.value)
-                            }
+                            onChange={(e) => {
+                              const selectedTipId = e.target.value;
+                              const selectedTipologico = project?.typologies.find(t => t.id === selectedTipId);
+
+                              if (selectedTipologico) {
+                                // Auto-fill fields from tipologico
+                                const updatedSigillature = [...sigillature];
+                                updatedSigillature[index] = {
+                                  ...updatedSigillature[index],
+                                  tipologicoId: selectedTipId,
+                                  supporto: selectedTipologico.supporto,
+                                  tipoSupporto: selectedTipologico.tipoSupporto,
+                                  attraversamento: selectedTipologico.attraversamento,
+                                  attraversamentoCustom: selectedTipologico.attraversamentoCustom
+                                };
+                                setSigillature(updatedSigillature);
+                              } else {
+                                // Just update tipologicoId if cleared
+                                handleSigillaturaChange(index, 'tipologicoId', selectedTipId);
+                              }
+                            }}
                             className="crossing-select tipologico-select"
                           >
                             <option value=""></option>
