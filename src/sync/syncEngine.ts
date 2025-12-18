@@ -535,6 +535,7 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
         ownerId: supabaseProject.owner_id,
         accessibleUsers: supabaseProject.accessible_users || [],
         archived: supabaseProject.archived || 0,
+        syncEnabled: supabaseProject.sync_enabled !== undefined ? supabaseProject.sync_enabled : 0, // Default to metadata-only
         createdAt: new Date(supabaseProject.created_at).getTime(),
         updatedAt: new Date(supabaseProject.updated_at).getTime(),
         version: supabaseProject.version || 1, // Add version for conflict detection
