@@ -224,16 +224,14 @@ const Home: React.FC<HomeProps> = ({
   const handleToggleProjectSync = async (project: Project, enabled: boolean, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent card selection
     try {
-      const updatedProject: Project = {
-        ...project,
-        syncEnabled: enabled ? 1 : 0,
-        updatedAt: Date.now()
-      };
-      await updateProject(project.id, updatedProject, currentUser.id);
+      // Update only the syncEnabled field
+      await updateProject(project.id, {
+        syncEnabled: enabled ? 1 : 0
+      });
 
       // Refresh projects list
       setProjects(prevProjects =>
-        prevProjects.map(p => p.id === project.id ? updatedProject : p)
+        prevProjects.map(p => p.id === project.id ? { ...p, syncEnabled: enabled ? 1 : 0 } : p)
       );
 
       console.log(`✅ Project ${project.title} sync ${enabled ? 'enabled' : 'disabled'}`);
