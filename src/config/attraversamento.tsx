@@ -23,6 +23,7 @@ export const ATTRAVERSAMENTO_OPTIONS: MenuOption[] = [
   { value: 'Tubo areazione spiralato', label: 'Tubo areazione spiralato' },
 
   { value: 'Serranda', label: 'Serranda' },
+  { value: 'Serranda fuori asse', label: 'Serranda fuori asse' },
   { value: 'Canala areazione', label: 'Canala areazione' },
 
   { value: 'Asola', label: 'Asola' },
