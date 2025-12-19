@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 17; // Increment this on every deploy! (v17: Added tipologico autofill)
+const CACHE_VERSION = 18; // Increment this on every deploy! (v17: Added tipologico autofill)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
