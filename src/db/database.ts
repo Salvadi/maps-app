@@ -29,6 +29,7 @@ export interface Typology {
   supporto: string;
   tipoSupporto: string;
   attraversamento: string;
+  attraversamentoCustom?: string;
   marcaProdottoUtilizzato: string;
   prodottiSelezionati: string[];
 }
@@ -47,6 +48,7 @@ export interface Crossing {
   supporto: string;
   tipoSupporto: string;
   attraversamento: string;
+  attraversamentoCustom?: string;
   tipologicoId?: string;
   quantita?: number;
   diametro?: string;
