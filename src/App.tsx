@@ -70,6 +70,10 @@ const App: React.FC = () => {
           }
         }
 
+        // CRITICAL: Reset isSyncing flag on app startup to prevent stuck state
+        await db.metadata.put({ key: 'isSyncing', value: false });
+        console.log('🔓 Reset sync lock on startup');
+
         // Start auto-sync if Supabase is configured
         if (isSupabaseConfigured()) {
           startAutoSync(60000); // Sync every 60 seconds
