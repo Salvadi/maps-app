@@ -154,6 +154,21 @@
   color: #ff3b30;
 }
 
+.sync-menu-item-warning {
+  background-color: rgba(255, 149, 0, 0.1);
+  color: #ff9500;
+  font-weight: 600;
+}
+
+.sync-menu-item-warning:hover {
+  background-color: rgba(255, 149, 0, 0.2);
+  color: #ff9500;
+}
+
+.sync-menu-item-warning .sync-menu-icon {
+  color: #ff9500;
+}
+
 .sync-menu-icon {
   width: 18px;
   height: 18px;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Project, User, getAllProjects, getProjectsForUser, updateProject } from '../db';
+import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
 import './Home.css';
 
 interface HomeProps {
@@ -249,6 +249,18 @@ const Home: React.FC<HomeProps> = ({
     action();
   };
 
+  const handleResetSyncLock = async () => {
+    try {
+      await db.metadata.put({ key: 'isSyncing', value: false });
+      setShowSyncMenu(false);
+      // Force refresh of the page to update UI
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to reset sync lock:', error);
+      alert('❌ Errore durante il reset del lock di sincronizzazione');
+    }
+  };
+
   // Close sync menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -275,28 +287,39 @@ const Home: React.FC<HomeProps> = ({
                 <button
                   className={`sync-button ${isSyncing ? 'syncing' : ''}`}
                   onClick={handleSyncButtonClick}
-                  disabled={isSyncing}
                   aria-label="Sync"
-                  title="Sync with Supabase"
+                  title={isSyncing ? "Sincronizzazione in corso..." : "Sync with Supabase"}
                 >
                   <SyncIcon className="sync-icon" />
                 </button>
-                {showSyncMenu && !isSyncing && (
+                {showSyncMenu && (
                   <div className="sync-menu">
-                    <button
-                      className="sync-menu-item"
-                      onClick={() => handleSyncOptionClick(onManualSync)}
-                    >
-                      <SyncIcon className="sync-menu-icon" />
-                      <span>Sync normale</span>
-                    </button>
-                    <button
-                      className="sync-menu-item sync-menu-item-danger"
-                      onClick={() => handleSyncOptionClick(onClearAndSync)}
-                    >
-                      <TrashIcon className="sync-menu-icon" />
-                      <span>Clear and sync</span>
-                    </button>
+                    {!isSyncing ? (
+                      <>
+                        <button
+                          className="sync-menu-item"
+                          onClick={() => handleSyncOptionClick(onManualSync)}
+                        >
+                          <SyncIcon className="sync-menu-icon" />
+                          <span>Sync normale</span>
+                        </button>
+                        <button
+                          className="sync-menu-item sync-menu-item-danger"
+                          onClick={() => handleSyncOptionClick(onClearAndSync)}
+                        >
+                          <TrashIcon className="sync-menu-icon" />
+                          <span>Clear and sync</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="sync-menu-item sync-menu-item-warning"
+                        onClick={handleResetSyncLock}
+                      >
+                        <TrashIcon className="sync-menu-icon" />
+                        <span>🚨 Reset Sync Lock</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -334,28 +357,39 @@ const Home: React.FC<HomeProps> = ({
               <button
                 className={`sync-button ${isSyncing ? 'syncing' : ''}`}
                 onClick={handleSyncButtonClick}
-                disabled={isSyncing}
                 aria-label="Sync"
-                title="Sync with Supabase"
+                title={isSyncing ? "Sincronizzazione in corso..." : "Sync with Supabase"}
               >
                 <SyncIcon className="sync-icon" />
               </button>
-              {showSyncMenu && !isSyncing && (
+              {showSyncMenu && (
                 <div className="sync-menu">
-                  <button
-                    className="sync-menu-item"
-                    onClick={() => handleSyncOptionClick(onManualSync)}
-                  >
-                    <SyncIcon className="sync-menu-icon" />
-                    <span>Sync normale</span>
-                  </button>
-                  <button
-                    className="sync-menu-item sync-menu-item-danger"
-                    onClick={() => handleSyncOptionClick(onClearAndSync)}
-                  >
-                    <TrashIcon className="sync-menu-icon" />
-                    <span>Clear and sync</span>
-                  </button>
+                  {!isSyncing ? (
+                    <>
+                      <button
+                        className="sync-menu-item"
+                        onClick={() => handleSyncOptionClick(onManualSync)}
+                      >
+                        <SyncIcon className="sync-menu-icon" />
+                        <span>Sync normale</span>
+                      </button>
+                      <button
+                        className="sync-menu-item sync-menu-item-danger"
+                        onClick={() => handleSyncOptionClick(onClearAndSync)}
+                      >
+                        <TrashIcon className="sync-menu-icon" />
+                        <span>Clear and sync</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="sync-menu-item sync-menu-item-warning"
+                      onClick={handleResetSyncLock}
+                    >
+                      <TrashIcon className="sync-menu-icon" />
+                      <span>🚨 Reset Sync Lock</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

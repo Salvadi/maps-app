@@ -965,6 +965,12 @@ export async function manualSync(): Promise<{
     };
   }
 
+  // Safety timeout: force release lock after 5 minutes to prevent indefinite blocking
+  const timeoutId = setTimeout(async () => {
+    console.error('🚨 Sync timeout after 5 minutes - force releasing lock');
+    await db.metadata.put({ key: 'isSyncing', value: false });
+  }, 5 * 60 * 1000); // 5 minutes
+
   try {
     // Set sync lock
     await db.metadata.put({ key: 'isSyncing', value: true });
@@ -977,7 +983,12 @@ export async function manualSync(): Promise<{
 
     console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
 
+    clearTimeout(timeoutId); // Cancel timeout on success
     return { uploadResult, downloadResult };
+  } catch (error) {
+    console.error('❌ Manual sync failed:', error);
+    clearTimeout(timeoutId); // Cancel timeout on error
+    throw error;
   } finally {
     // Release sync lock (always runs even if error occurs)
     await db.metadata.put({ key: 'isSyncing', value: false });
