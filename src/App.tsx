@@ -6,7 +6,7 @@ import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import UpdateNotification from './components/UpdateNotification';
-import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry } from './db';
+import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry, db } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
 import './App.css';
