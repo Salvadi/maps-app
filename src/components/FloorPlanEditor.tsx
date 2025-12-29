@@ -8,6 +8,27 @@ import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanva
 import { exportCanvasToPDF, exportCanvasToPNG } from '../utils/exportUtils';
 import './FloorPlanEditor.css';
 
+// Icon Components
+const SortIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 4H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 12H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 16H7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M17 8L21 4M21 4L17 4M21 4V20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const SortDescIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 4H7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 8H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 12H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M3 16H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M21 16L17 20M17 20L21 20M17 20V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 export interface UnmappedEntry {
   id: string;
   labelText: string[];
@@ -66,6 +87,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [showToolbarMenu, setShowToolbarMenu] = useState(false);
   const [selectedUnmappedId, setSelectedUnmappedId] = useState<string | null>(null);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
 
   // Handle placing unmapped entry on canvas
   const handlePlaceUnmappedEntry = useCallback((newPoint: Omit<CanvasPoint, 'id'>) => {
@@ -276,6 +298,31 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       setActiveTool(entry.type);
     }
   }, [selectedUnmappedId, unmappedEntries]);
+
+  // Handle sort order toggle
+  const handleToggleSortOrder = useCallback(() => {
+    setSortOrder(current => {
+      if (current === 'none') return 'asc';
+      if (current === 'asc') return 'desc';
+      return 'none';
+    });
+  }, []);
+
+  // Sort unmapped entries based on current sort order
+  const sortedUnmappedEntries = useCallback(() => {
+    if (sortOrder === 'none') return unmappedEntries;
+
+    return [...unmappedEntries].sort((a, b) => {
+      const aText = a.labelText.join(' ').toLowerCase();
+      const bText = b.labelText.join(' ').toLowerCase();
+
+      if (sortOrder === 'asc') {
+        return aText.localeCompare(bText);
+      } else {
+        return bText.localeCompare(aText);
+      }
+    });
+  }, [unmappedEntries, sortOrder]);
 
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
@@ -619,6 +666,38 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   />
                   <span>Mostra solo non posizionati ({unmappedEntries.length})</span>
                 </label>
+                <button
+                  className="sort-button"
+                  onClick={handleToggleSortOrder}
+                  title={sortOrder === 'none' ? 'Ordina per nome' : sortOrder === 'asc' ? 'Ordinamento crescente (A-Z)' : 'Ordinamento decrescente (Z-A)'}
+                  style={{
+                    marginTop: '8px',
+                    padding: '6px 12px',
+                    background: sortOrder === 'none' ? 'var(--color-bg-secondary)' : 'var(--color-primary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    color: sortOrder === 'none' ? 'var(--color-text)' : '#fff',
+                    width: '100%'
+                  }}
+                >
+                  <span style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {sortOrder === 'asc' ? (
+                      <SortIcon />
+                    ) : sortOrder === 'desc' ? (
+                      <SortDescIcon />
+                    ) : (
+                      <SortIcon />
+                    )}
+                  </span>
+                  <span>
+                    {sortOrder === 'none' ? 'Ordina per nome' : sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                  </span>
+                </button>
               </div>
             )}
 
@@ -627,7 +706,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               <div className="unmapped-entries-section">
                 <h4 className="section-title">Non posizionati</h4>
                 <div className="unmapped-entries-list">
-                  {unmappedEntries.map(entry => (
+                  {sortedUnmappedEntries().map(entry => (
                     <div
                       key={entry.id}
                       className={`unmapped-entry-item ${selectedUnmappedId === entry.id ? 'selected' : ''}`}
@@ -710,7 +789,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             {/* Show only unmapped entries when filter is active */}
             {showOnlyUnmapped && unmappedEntries.length > 0 && (
               <div className="unmapped-entries-list">
-                {unmappedEntries.map(entry => (
+                {sortedUnmappedEntries().map(entry => (
                   <div
                     key={entry.id}
                     className={`unmapped-entry-item ${selectedUnmappedId === entry.id ? 'selected' : ''}`}
