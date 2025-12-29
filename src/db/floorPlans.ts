@@ -4,7 +4,7 @@
  */
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
-import { processFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
+import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
 
 // ============================================
 // FLOOR PLANS
@@ -23,12 +23,28 @@ export async function createFloorPlan(
     // Process the floor plan file (convert to PNG 2x, generate thumbnail)
     const { fullRes, thumbnail, width, height, originalFormat } = await processFloorPlan(file);
 
+    // Upload to Supabase Storage
+    let imageUrl: string | undefined;
+    let thumbnailUrl: string | undefined;
+
+    try {
+      const urls = await uploadFloorPlan(projectId, floor, fullRes, thumbnail, userId);
+      imageUrl = urls.fullResUrl;
+      thumbnailUrl = urls.thumbnailUrl;
+      console.log('Floor plan uploaded to Supabase Storage:', projectId, floor);
+    } catch (uploadError) {
+      console.warn('Failed to upload floor plan to Supabase Storage, saving locally only:', uploadError);
+      // Continue anyway - will be stored locally and synced later
+    }
+
     const floorPlan: FloorPlan = {
       id: generateId(),
       projectId,
       floor,
       imageBlob: fullRes,
       thumbnailBlob: thumbnail,
+      imageUrl,
+      thumbnailUrl,
       originalFilename: file.name,
       originalFormat,
       width,
@@ -36,22 +52,24 @@ export async function createFloorPlan(
       createdBy: userId,
       createdAt: now(),
       updatedAt: now(),
-      synced: 0, // Not synced yet
+      synced: imageUrl ? 1 : 0, // Mark as synced if uploaded successfully
     };
 
     await db.floorPlans.add(floorPlan);
 
-    // Add to sync queue
-    await db.syncQueue.add({
-      id: generateId(),
-      operation: 'CREATE',
-      entityType: 'floor_plan',
-      entityId: floorPlan.id,
-      payload: floorPlan,
-      timestamp: now(),
-      retryCount: 0,
-      synced: 0,
-    });
+    // Add to sync queue only if upload failed
+    if (!imageUrl) {
+      await db.syncQueue.add({
+        id: generateId(),
+        operation: 'CREATE',
+        entityType: 'floor_plan',
+        entityId: floorPlan.id,
+        payload: floorPlan,
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      });
+    }
 
     console.log('Floor plan created:', floorPlan.id);
     return floorPlan;

@@ -143,6 +143,18 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
       await syncPhoto(item);
       break;
 
+    case 'floor_plan':
+      await syncFloorPlan(item);
+      break;
+
+    case 'floor_plan_point':
+      await syncFloorPlanPoint(item);
+      break;
+
+    case 'standalone_map':
+      await syncStandaloneMap(item);
+      break;
+
     default:
       throw new Error(`Unknown entity type: ${item.entityType}`);
   }
@@ -423,6 +435,209 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
 
     if (error) {
       throw new Error(`Supabase photo delete failed: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Sync floor plan to Supabase
+ */
+async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
+  const floorPlan = item.payload as any; // FloorPlan type from database.ts
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    // Get the actual floor plan from IndexedDB (with blobs)
+    const localFloorPlan = await db.floorPlans.get(floorPlan.id);
+
+    if (!localFloorPlan) {
+      throw new Error(`Floor plan not found: ${floorPlan.id}`);
+    }
+
+    // Upload blobs to Supabase Storage if not already uploaded
+    let imageUrl = localFloorPlan.imageUrl;
+    let thumbnailUrl = localFloorPlan.thumbnailUrl;
+
+    if (!imageUrl && localFloorPlan.imageBlob) {
+      const { uploadFloorPlan } = await import('../utils/floorPlanUtils');
+      const urls = await uploadFloorPlan(
+        localFloorPlan.projectId,
+        localFloorPlan.floor,
+        localFloorPlan.imageBlob,
+        localFloorPlan.thumbnailBlob || localFloorPlan.imageBlob,
+        localFloorPlan.createdBy
+      );
+      imageUrl = urls.fullResUrl;
+      thumbnailUrl = urls.thumbnailUrl;
+
+      // Update local record with URLs
+      await db.floorPlans.update(floorPlan.id, { imageUrl, thumbnailUrl, synced: 1 });
+    }
+
+    // Create/update floor plan record in Supabase
+    const { error } = await supabase
+      .from('floor_plans')
+      .upsert({
+        id: localFloorPlan.id,
+        project_id: localFloorPlan.projectId,
+        floor: localFloorPlan.floor,
+        image_url: imageUrl,
+        thumbnail_url: thumbnailUrl,
+        original_filename: localFloorPlan.originalFilename,
+        original_format: localFloorPlan.originalFormat,
+        width: localFloorPlan.width,
+        height: localFloorPlan.height,
+        metadata: localFloorPlan.metadata || {},
+        created_by: localFloorPlan.createdBy,
+        created_at: new Date(localFloorPlan.createdAt).toISOString(),
+        updated_at: new Date(localFloorPlan.updatedAt).toISOString()
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      throw new Error(`Supabase floor plan upsert failed: ${error.message}`);
+    }
+  } else if (item.operation === 'DELETE') {
+    // Delete from Supabase
+    const { error } = await supabase
+      .from('floor_plans')
+      .delete()
+      .eq('id', floorPlan.id);
+
+    if (error) {
+      throw new Error(`Supabase floor plan delete failed: ${error.message}`);
+    }
+
+    // Delete from Storage if URLs exist
+    if (floorPlan.imageUrl || floorPlan.thumbnailUrl) {
+      const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
+      try {
+        await deleteFloorPlan(floorPlan.imageUrl, floorPlan.thumbnailUrl);
+      } catch (err) {
+        console.warn('Failed to delete floor plan from storage:', err);
+      }
+    }
+  }
+}
+
+/**
+ * Sync floor plan point to Supabase
+ */
+async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
+  const point = item.payload as any; // FloorPlanPoint type
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    const { error } = await supabase
+      .from('floor_plan_points')
+      .upsert({
+        id: point.id,
+        floor_plan_id: point.floorPlanId,
+        mapping_entry_id: point.mappingEntryId,
+        point_type: point.pointType,
+        point_x: point.pointX,
+        point_y: point.pointY,
+        label_x: point.labelX,
+        label_y: point.labelY,
+        perimeter_points: point.perimeterPoints,
+        custom_text: point.customText,
+        metadata: point.metadata || {},
+        created_by: point.createdBy,
+        created_at: new Date(point.createdAt).toISOString(),
+        updated_at: new Date(point.updatedAt).toISOString()
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      throw new Error(`Supabase floor plan point upsert failed: ${error.message}`);
+    }
+  } else if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('floor_plan_points')
+      .delete()
+      .eq('id', point.id);
+
+    if (error) {
+      throw new Error(`Supabase floor plan point delete failed: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Sync standalone map to Supabase
+ */
+async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
+  const map = item.payload as any; // StandaloneMap type
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    const localMap = await db.standaloneMaps.get(map.id);
+
+    if (!localMap) {
+      throw new Error(`Standalone map not found: ${map.id}`);
+    }
+
+    // Upload blobs to Supabase Storage if not already uploaded
+    let imageUrl = localMap.imageUrl;
+    let thumbnailUrl = localMap.thumbnailUrl;
+
+    if (!imageUrl && localMap.imageBlob) {
+      const { uploadStandaloneMap } = await import('../utils/floorPlanUtils');
+      const urls = await uploadStandaloneMap(
+        localMap.id,
+        localMap.imageBlob,
+        localMap.thumbnailBlob || localMap.imageBlob,
+        localMap.userId
+      );
+      imageUrl = urls.fullResUrl;
+      thumbnailUrl = urls.thumbnailUrl;
+
+      // Update local record with URLs
+      await db.standaloneMaps.update(map.id, { imageUrl, thumbnailUrl, synced: 1 });
+    }
+
+    // Create/update standalone map record in Supabase
+    const { error } = await supabase
+      .from('standalone_maps')
+      .upsert({
+        id: localMap.id,
+        user_id: localMap.userId,
+        name: localMap.name,
+        description: localMap.description,
+        image_url: imageUrl,
+        thumbnail_url: thumbnailUrl,
+        original_filename: localMap.originalFilename,
+        width: localMap.width,
+        height: localMap.height,
+        points: localMap.points,
+        grid_enabled: localMap.gridEnabled,
+        grid_config: localMap.gridConfig,
+        created_at: new Date(localMap.createdAt).toISOString(),
+        updated_at: new Date(localMap.updatedAt).toISOString()
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      throw new Error(`Supabase standalone map upsert failed: ${error.message}`);
+    }
+  } else if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('standalone_maps')
+      .delete()
+      .eq('id', map.id);
+
+    if (error) {
+      throw new Error(`Supabase standalone map delete failed: ${error.message}`);
+    }
+
+    // Delete from Storage if URLs exist
+    if (map.imageUrl || map.thumbnailUrl) {
+      const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
+      try {
+        await deleteFloorPlan(map.imageUrl, map.thumbnailUrl);
+      } catch (err) {
+        console.warn('Failed to delete standalone map from storage:', err);
+      }
     }
   }
 }
@@ -1019,6 +1234,9 @@ export async function clearAndSync(): Promise<{
     await db.projects.clear();
     await db.mappingEntries.clear();
     await db.photos.clear();
+    await db.floorPlans.clear();
+    await db.floorPlanPoints.clear();
+    await db.standaloneMaps.clear();
     await db.syncQueue.clear();
     // Don't clear users table - keep authentication data
 
