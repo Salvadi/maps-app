@@ -5,11 +5,8 @@
 import jsPDF from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set up PDF.js worker - use local worker from node_modules
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString();
+// Set up PDF.js worker - use CDN for better compatibility with Create React App
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 /**
  * Convert PDF file to image data URL
