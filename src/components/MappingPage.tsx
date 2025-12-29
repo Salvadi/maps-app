@@ -20,6 +20,7 @@ import {
   getFloorPlanPointByMappingEntry,
   createFloorPlanPoint,
   updateFloorPlanPoint,
+  updateFloorPlan,
   getFloorPlanBlobUrl
 } from '../db';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -359,6 +360,29 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         );
       }
 
+      // Save grid configuration to floor plan
+      await updateFloorPlan(currentFloorPlan.id, {
+        gridEnabled: gridConfig.enabled,
+        gridConfig: {
+          rows: gridConfig.rows,
+          cols: gridConfig.cols,
+          offsetX: gridConfig.offsetX,
+          offsetY: gridConfig.offsetY,
+        }
+      });
+
+      // Update local state
+      setCurrentFloorPlan({
+        ...currentFloorPlan,
+        gridEnabled: gridConfig.enabled,
+        gridConfig: {
+          rows: gridConfig.rows,
+          cols: gridConfig.cols,
+          offsetX: gridConfig.offsetX,
+          offsetY: gridConfig.offsetY,
+        }
+      });
+
       alert('Punto salvato sulla planimetria!');
       setShowFloorPlanEditor(false);
     } catch (error) {
@@ -371,7 +395,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     // Line 1: Photo name
     const photoName = generatePhotoPrefix(floor, roomNumber, interventionNumber) + '01';
 
-    // Line 2: Tipologici numbers
+    // Line 2: Tipologici numbers - get all unique tipologici, sorted by number
     const tipNumbers = sigillature
       .map(sig => {
         if (sig.tipologicoId) {
@@ -380,7 +404,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         }
         return null;
       })
-      .filter(n => n !== null)
+      .filter((n): n is number => n !== null)
+      .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+      .sort((a, b) => a - b) // Sort ascending
       .join(' - ');
 
     const tipLine = tipNumbers ? `tip. ${tipNumbers}` : '';
@@ -1037,6 +1063,13 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
               perimeterPoints: currentFloorPlanPoint.perimeterPoints,
               customText: currentFloorPlanPoint.customText,
             }] : []}
+            initialGridConfig={currentFloorPlan?.gridEnabled && currentFloorPlan?.gridConfig ? {
+              enabled: currentFloorPlan.gridEnabled,
+              rows: currentFloorPlan.gridConfig.rows,
+              cols: currentFloorPlan.gridConfig.cols,
+              offsetX: currentFloorPlan.gridConfig.offsetX,
+              offsetY: currentFloorPlan.gridConfig.offsetY,
+            } : undefined}
             mode="mapping"
             maxPoints={1}
             onSave={handleSaveFloorPlanPoint}

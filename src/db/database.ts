@@ -143,6 +143,13 @@ export interface FloorPlan {
   originalFormat: string;
   width: number;
   height: number;
+  gridEnabled?: boolean;
+  gridConfig?: {
+    rows: number;
+    cols: number;
+    offsetX: number;
+    offsetY: number;
+  };
   metadata?: Record<string, any>;
   createdBy: string;
   createdAt: number; // timestamp

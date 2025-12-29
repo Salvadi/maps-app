@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
 import NavigationBar from './NavigationBar';
 import FloorPlanEditor, { UnmappedEntry } from './FloorPlanEditor';
 import type { CanvasPoint, GridConfig } from './FloorPlanCanvas';
+import { exportCanvasToPDF } from '../utils/exportUtils';
 import {
   Project,
   MappingEntry,
@@ -715,7 +717,7 @@ const MappingView: React.FC<MappingViewProps> = ({
         const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
 
         // Wait for image to load using a Promise
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((resolve, reject) => {
           img.onload = () => {
             canvas.width = img.width;
             canvas.height = img.height;
@@ -947,13 +949,46 @@ const MappingView: React.FC<MappingViewProps> = ({
               ctx.setLineDash([]);
             });
 
-            // Convert canvas to blob and add to ZIP
-            canvas.toBlob((blob) => {
-              if (blob) {
-                zip.file(`Planimetrie/Piano_${plan.floor}_annotato.png`, blob);
+            // Convert canvas to PDF blob and add to ZIP
+            try {
+              const canvasWidth = canvas.width;
+              const canvasHeight = canvas.height;
+              const aspectRatio = canvasWidth / canvasHeight;
+
+              const pdf = new jsPDF({
+                orientation: aspectRatio > 1 ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: 'a4'
+              });
+
+              const pdfWidth = aspectRatio > 1 ? 297 : 210;
+              const pdfHeight = aspectRatio > 1 ? 210 : 297;
+              const imgData = canvas.toDataURL('image/png');
+              const imgAspectRatio = canvasWidth / canvasHeight;
+              const pdfAspectRatio = pdfWidth / pdfHeight;
+
+              let finalWidth = pdfWidth;
+              let finalHeight = pdfHeight;
+              let x = 0;
+              let y = 0;
+
+              if (imgAspectRatio > pdfAspectRatio) {
+                finalHeight = pdfWidth / imgAspectRatio;
+                y = (pdfHeight - finalHeight) / 2;
+              } else {
+                finalWidth = pdfHeight * imgAspectRatio;
+                x = (pdfWidth - finalWidth) / 2;
               }
+
+              pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+              const pdfBlob = pdf.output('blob');
+              zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBlob);
+
               resolve();
-            }, 'image/png');
+            } catch (error) {
+              console.error('Error creating PDF for ZIP:', error);
+              reject(error);
+            }
 
             URL.revokeObjectURL(imageUrl);
           };
@@ -1485,12 +1520,14 @@ const MappingView: React.FC<MappingViewProps> = ({
           ctx.setLineDash([]);
         });
 
-        // Export as PNG
-        canvas.toBlob((blob) => {
-          if (blob) {
-            saveAs(blob, `Piano_${plan.floor}_annotato.png`);
-          }
-        }, 'image/png');
+        // Export as PDF
+        try {
+          exportCanvasToPDF(canvas, `Piano_${plan.floor}_annotato.pdf`);
+          alert('✅ Planimetria esportata in PDF');
+        } catch (error) {
+          console.error('Export PDF error:', error);
+          alert('❌ Errore durante l\'esportazione PDF');
+        }
 
         // Clean up
         URL.revokeObjectURL(imageUrl);
