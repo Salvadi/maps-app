@@ -296,6 +296,66 @@ export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string): 
 }
 
 /**
+ * Upload standalone map to Supabase Storage
+ */
+export async function uploadStandaloneMap(
+  mapId: string,
+  fullRes: Blob,
+  thumbnail: Blob,
+  userId: string
+): Promise<{ fullResUrl: string; thumbnailUrl: string }> {
+  if (!supabase) {
+    throw new Error('Supabase not configured');
+  }
+
+  const timestamp = Date.now();
+  const fullResPath = `standalone/${userId}/${mapId}/fullres_${timestamp}.png`;
+  const thumbnailPath = `standalone/${userId}/${mapId}/thumb_${timestamp}.png`;
+
+  // Upload full resolution
+  const { error: fullResError } = await supabase.storage
+    .from('planimetrie')
+    .upload(fullResPath, fullRes, {
+      contentType: 'image/png',
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (fullResError) {
+    throw new Error(`Failed to upload full resolution image: ${fullResError.message}`);
+  }
+
+  // Upload thumbnail
+  const { error: thumbnailError } = await supabase.storage
+    .from('planimetrie')
+    .upload(thumbnailPath, thumbnail, {
+      contentType: 'image/png',
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (thumbnailError) {
+    // Clean up full res if thumbnail fails
+    await supabase.storage.from('planimetrie').remove([fullResPath]);
+    throw new Error(`Failed to upload thumbnail: ${thumbnailError.message}`);
+  }
+
+  // Get public URLs
+  const { data: fullResUrlData } = supabase.storage
+    .from('planimetrie')
+    .getPublicUrl(fullResPath);
+
+  const { data: thumbnailUrlData } = supabase.storage
+    .from('planimetrie')
+    .getPublicUrl(thumbnailPath);
+
+  return {
+    fullResUrl: fullResUrlData.publicUrl,
+    thumbnailUrl: thumbnailUrlData.publicUrl,
+  };
+}
+
+/**
  * Download floor plan image as blob
  */
 export async function downloadFloorPlanImage(imageUrl: string): Promise<Blob> {

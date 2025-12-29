@@ -4,7 +4,7 @@
  */
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
-import { processFloorPlan } from '../utils/floorPlanUtils';
+import { processFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
 
 // ============================================
 // FLOOR PLANS
@@ -323,13 +323,31 @@ export async function createStandaloneMap(
   try {
     const { fullRes, thumbnail, width, height } = await processFloorPlan(file);
 
+    const mapId = generateId();
+
+    // Upload to Supabase Storage
+    let imageUrl: string | undefined;
+    let thumbnailUrl: string | undefined;
+
+    try {
+      const urls = await uploadStandaloneMap(mapId, fullRes, thumbnail, userId);
+      imageUrl = urls.fullResUrl;
+      thumbnailUrl = urls.thumbnailUrl;
+      console.log('Standalone map uploaded to Supabase Storage:', mapId);
+    } catch (uploadError) {
+      console.warn('Failed to upload to Supabase Storage, saving locally only:', uploadError);
+      // Continue anyway - will be stored locally and synced later
+    }
+
     const map: StandaloneMap = {
-      id: generateId(),
+      id: mapId,
       userId,
       name,
       description,
       imageBlob: fullRes,
       thumbnailBlob: thumbnail,
+      imageUrl,
+      thumbnailUrl,
       originalFilename: file.name,
       width,
       height,
@@ -343,22 +361,24 @@ export async function createStandaloneMap(
       },
       createdAt: now(),
       updatedAt: now(),
-      synced: 0,
+      synced: imageUrl ? 1 : 0, // Mark as synced if uploaded successfully
     };
 
     await db.standaloneMaps.add(map);
 
-    // Add to sync queue
-    await db.syncQueue.add({
-      id: generateId(),
-      operation: 'CREATE',
-      entityType: 'standalone_map',
-      entityId: map.id,
-      payload: map,
-      timestamp: now(),
-      retryCount: 0,
-      synced: 0,
-    });
+    // Add to sync queue only if upload failed
+    if (!imageUrl) {
+      await db.syncQueue.add({
+        id: generateId(),
+        operation: 'CREATE',
+        entityType: 'standalone_map',
+        entityId: map.id,
+        payload: map,
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      });
+    }
 
     console.log('Standalone map created:', map.id);
     return map;
