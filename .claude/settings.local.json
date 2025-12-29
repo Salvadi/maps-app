@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\Users\\salva\\Downloads\\maps-app-master\\maps-app-master\\floor-plan-editor\\src\\components\" /b)",
+      "Bash(dir \"C:\\Users\\salva\\Downloads\\maps-app-master\\maps-app-master\\floor-plan-editor\\src\\utils\" /b)",
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(dir \"C:\\Users\\salva\\Downloads\\maps-app-master\\maps-app-master\\src\\components\" /b)",
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(find:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

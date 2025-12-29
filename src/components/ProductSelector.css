@@ -1,0 +1,100 @@
+.product-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.product-select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.product-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.product-select:focus {
+  border-color: var(--color-text-secondary);
+  background-color: var(--color-bg-secondary);
+}
+
+.product-tags-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-top: var(--spacing-xs);
+  margin-bottom: -4px;
+}
+
+.product-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  min-height: 40px;
+}
+
+.product-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px 8px;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 2px var(--color-shadow);
+}
+
+.product-tag-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.product-tag-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.product-tag-remove:hover {
+  background-color: var(--color-bg-input);
+  color: var(--color-text-primary);
+}
+
+.product-tag-remove:active {
+  transform: scale(0.9);
+}
+
+@media (max-width: 768px) {
+  .product-tag-text {
+    max-width: 150px;
+  }
+}

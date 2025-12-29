@@ -1,0 +1,107 @@
+.login-page {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background-color: var(--color-bg-primary);
+}
+
+.login-container {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: 0 4px 16px var(--color-shadow);
+}
+
+.login-title {
+  font-size: 2.5rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-xl);
+  margin-top: 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-input {
+  width: 100%;
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease;
+}
+
+.login-input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.login-input:focus {
+  border-color: var(--color-text-secondary);
+  background-color: var(--color-bg-secondary);
+}
+
+.login-button {
+  width: 100%;
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: var(--spacing-sm);
+}
+
+.login-button:hover {
+  background-color: var(--color-bg-secondary);
+  box-shadow: 0 2px 8px var(--color-shadow);
+}
+
+.login-button:active {
+  transform: scale(0.98);
+}
+
+.reset-link {
+  align-self: center;
+  padding: var(--spacing-sm);
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: var(--spacing-sm);
+}
+
+.reset-link:hover {
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    padding: var(--spacing-lg);
+  }
+
+  .login-title {
+    font-size: 2rem;
+  }
+}
