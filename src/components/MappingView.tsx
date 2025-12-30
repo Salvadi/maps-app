@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -193,6 +193,9 @@ const MappingView: React.FC<MappingViewProps> = ({
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
+  // Track previous syncing state to detect when sync completes
+  const prevIsSyncingRef = useRef<boolean>(false);
+
   // Save filter preferences to localStorage
   useEffect(() => {
     localStorage.setItem(`mappingView_${project.id}_sortBy`, sortBy);
@@ -254,6 +257,48 @@ const MappingView: React.FC<MappingViewProps> = ({
 
     loadMappings();
   }, [project.id]);
+
+  // Reload floor plans after sync completes
+  useEffect(() => {
+    const currentIsSyncing = isSyncing ?? false;
+
+    // Check if sync just completed (was true, now false)
+    if (prevIsSyncingRef.current === true && currentIsSyncing === false) {
+      // Sync just completed, reload floor plans and points
+      const reloadAfterSync = async () => {
+        try {
+          console.log('🔄 Sync completed, reloading floor plans...');
+          const plans = await getFloorPlansByProject(project.id);
+          setFloorPlans(plans);
+
+          // Reload points for each floor plan
+          const pointsMap: Record<string, FloorPlanPoint[]> = {};
+          for (const plan of plans) {
+            const points = await getFloorPlanPoints(plan.id);
+            pointsMap[plan.id] = points;
+          }
+          setFloorPlanPoints(pointsMap);
+
+          // Also reload mappings in case they changed
+          const entries = await getMappingEntriesForProject(project.id);
+          setMappings(entries);
+
+          console.log('✅ Floor plans and mappings reloaded after sync');
+        } catch (error) {
+          console.error('Failed to reload floor plans after sync:', error);
+        }
+      };
+
+      // Small delay to ensure sync has fully completed
+      const timer = setTimeout(reloadAfterSync, 500);
+
+      // Cleanup timeout on unmount
+      return () => clearTimeout(timer);
+    }
+
+    // Update ref for next render
+    prevIsSyncingRef.current = currentIsSyncing;
+  }, [isSyncing, project.id]);
 
   // Sort mappings
   const sortMappings = (mappingsToSort: MappingEntry[]): MappingEntry[] => {
