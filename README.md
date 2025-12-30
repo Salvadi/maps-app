@@ -391,18 +391,26 @@ npm run build
 
 ## 📚 Documentation
 
-### Supabase Setup & RLS Policies
+### Complete Documentation
 
-For detailed information about Supabase setup and RLS policies:
+For detailed technical documentation, see the [docs/](./docs/) folder:
 
 - **[SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md)** - Complete guide to setting up Supabase backend
-- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - In-depth analysis of RLS policies, potential bugs, and security considerations
-- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - Action items checklist before deploying RLS policy updates
-- **[CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md)** - How conflict resolution works for projects and mapping entries
-- **[migration-update-projects-rls-policies.sql](./docs/migration-update-projects-rls-policies.sql)** - SQL migration script for updated policies
-- **[migration-add-projects-conflict-resolution.sql](./docs/migration-add-projects-conflict-resolution.sql)** - SQL migration for conflict resolution fields
+- **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)** - Deployment guide for Vercel/Netlify
+- **[CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md)** - Multi-device conflict resolution system
+- **[UPDATE_SYSTEM.md](./docs/UPDATE_SYSTEM.md)** - Automatic update system with Service Worker
+- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - Security policies analysis
+- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - RLS policy checklist
 
-**⚠️ Important**: If you're updating RLS policies, please read the analysis document first to understand breaking changes and recommendations.
+### Database Schema & Migrations
+
+All SQL files are organized in the `/supabase/` directory:
+
+- **[schema.sql](./supabase/schema.sql)** - Complete database schema
+- **[storage-policies.sql](./supabase/storage-policies.sql)** - Storage bucket policies
+- **[migrations/](./supabase/migrations/)** - Database migrations (timestamped)
+
+**⚠️ Important**: Before applying migrations, review the documentation in `/docs/` to understand changes and requirements.
 
 ## 🔮 Future Enhancements (Phase 4+)
 
@@ -421,9 +429,9 @@ For detailed information about Supabase setup and RLS policies:
 
 ### Setup Requirements
 
-- **⚠️ Migration required**: Apply `migration-add-projects-conflict-resolution.sql` in Supabase for full conflict resolution support
-
-See [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for planned improvements.
+- **⚠️ Migration required**: Apply migrations from `/supabase/migrations/` in Supabase for full conflict resolution support
+- See [SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) for detailed setup instructions
+- Review [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for deployment checklist
 
 ### Phase 4: Advanced Features
 - [ ] Floor plan upload and annotation
