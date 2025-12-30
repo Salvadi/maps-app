@@ -281,6 +281,10 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   // Handle load map from dialog
   const handleLoadMap = useCallback(async (map: StandaloneMap) => {
     try {
+      if (!map.imageBlob) {
+        alert('Errore: immagine della mappa non disponibile');
+        return;
+      }
       const blobUrl = getFloorPlanBlobUrl(map.imageBlob);
       setImageUrl(blobUrl);
       setProjectName(map.name);
