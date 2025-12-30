@@ -1118,9 +1118,15 @@ export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: bo
           const remoteUpdated = new Date(supabaseFloorPlan.updated_at).getTime();
           const localUpdated = existingFloorPlan.updatedAt;
 
-          if (remoteUpdated <= localUpdated) {
+          // Skip only if up to date AND imageBlob exists
+          if (remoteUpdated <= localUpdated && existingFloorPlan.imageBlob) {
             console.log(`⏭️  Floor plan ${supabaseFloorPlan.id} is up to date, skipping`);
             continue;
+          }
+
+          // If imageBlob is missing, download it even if metadata is up to date
+          if (remoteUpdated <= localUpdated && !existingFloorPlan.imageBlob) {
+            console.log(`📥 Floor plan ${supabaseFloorPlan.id} metadata is up to date but imageBlob is missing, downloading image...`);
           }
         }
 
