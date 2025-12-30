@@ -8,34 +8,6 @@ import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanva
 import { exportCanvasToPDF, exportCanvasToPNG } from '../utils/exportUtils';
 import './FloorPlanEditor.css';
 
-// Icon Components
-const SortIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M3 4H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M3 12H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M3 16H7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M17 8L21 4M21 4L17 4M21 4V20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const SortDescIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M3 4H7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M3 8H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M3 12H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M3 16H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M21 16L17 20M17 20L21 20M17 20V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const ClockIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-  </svg>
-);
-
 export interface UnmappedEntry {
   id: string;
   labelText: string[];
@@ -306,26 +278,32 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     }
   }, [selectedUnmappedId, unmappedEntries]);
 
-  // Handle sort order toggle
-  const handleToggleSortOrder = useCallback(() => {
-    setSortOrder(current => {
-      if (current === 'none') return 'asc';
-      if (current === 'asc') return 'desc';
-      if (current === 'desc') return 'recent';
-      return 'none';
-    });
-  }, []);
+
+  // Filter unmapped entries to exclude already positioned points
+  const filteredUnmappedEntries = useCallback(() => {
+    // Get IDs of mapping entries that are already positioned
+    const positionedMappingIds = new Set(
+      points
+        .filter(p => p.mappingEntryId) // Only points with mapping entry ID
+        .map(p => p.mappingEntryId)
+    );
+
+    // Filter out unmapped entries that are already positioned
+    return unmappedEntries.filter(entry => !positionedMappingIds.has(entry.id));
+  }, [unmappedEntries, points]);
 
   // Sort unmapped entries based on current sort order
   const sortedUnmappedEntries = useCallback(() => {
-    if (sortOrder === 'none') return unmappedEntries;
+    const filtered = filteredUnmappedEntries();
+
+    if (sortOrder === 'none') return filtered;
 
     if (sortOrder === 'recent') {
       // Most recent first (reverse original order)
-      return [...unmappedEntries].reverse();
+      return [...filtered].reverse();
     }
 
-    return [...unmappedEntries].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const aText = a.labelText.join(' ').toLowerCase();
       const bText = b.labelText.join(' ').toLowerCase();
 
@@ -335,7 +313,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         return bText.localeCompare(aText);
       }
     });
-  }, [unmappedEntries, sortOrder]);
+  }, [filteredUnmappedEntries, sortOrder]);
 
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
@@ -677,50 +655,32 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                     checked={showOnlyUnmapped}
                     onChange={(e) => setShowOnlyUnmapped(e.target.checked)}
                   />
-                  <span>Mostra solo non posizionati ({unmappedEntries.length})</span>
+                  <span>Mostra solo non posizionati ({filteredUnmappedEntries().length})</span>
                 </label>
-                <button
-                  className="sort-button"
-                  onClick={handleToggleSortOrder}
-                  title={
-                    sortOrder === 'none' ? 'Ordina i punti' :
-                    sortOrder === 'asc' ? 'Ordinamento alfabetico crescente (A-Z)' :
-                    sortOrder === 'desc' ? 'Ordinamento alfabetico decrescente (Z-A)' :
-                    'Ordinamento per punti più recenti'
-                  }
-                  style={{
-                    marginTop: '8px',
-                    padding: '6px 12px',
-                    background: sortOrder === 'none' ? 'var(--color-bg-secondary)' : 'var(--color-primary)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '13px',
-                    color: sortOrder === 'none' ? 'var(--color-text)' : '#fff',
-                    width: '100%'
-                  }}
-                >
-                  <span style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {sortOrder === 'asc' ? (
-                      <SortIcon />
-                    ) : sortOrder === 'desc' ? (
-                      <SortDescIcon />
-                    ) : sortOrder === 'recent' ? (
-                      <ClockIcon />
-                    ) : (
-                      <SortIcon />
-                    )}
-                  </span>
-                  <span>
-                    {sortOrder === 'none' ? 'Ordina punti' :
-                     sortOrder === 'asc' ? 'Nome (A-Z)' :
-                     sortOrder === 'desc' ? 'Nome (Z-A)' :
-                     'Più recenti'}
-                  </span>
-                </button>
+                <div style={{ marginTop: '8px' }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>
+                    Ordina punti:
+                  </label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as 'none' | 'asc' | 'desc' | 'recent')}
+                    style={{
+                      width: '100%',
+                      padding: '6px 12px',
+                      background: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: 'var(--color-text)'
+                    }}
+                  >
+                    <option value="none">Nessun ordinamento</option>
+                    <option value="asc">Nome (A-Z)</option>
+                    <option value="desc">Nome (Z-A)</option>
+                    <option value="recent">Più recenti</option>
+                  </select>
+                </div>
               </div>
             )}
 
