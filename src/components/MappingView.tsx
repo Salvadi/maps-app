@@ -1119,13 +1119,21 @@ const MappingView: React.FC<MappingViewProps> = ({
             : 'Punto';
           const labelText = [firstLine];
 
-          // Add typology if exists
-          const crossingWithTypology = m.crossings.find(c => c.tipologicoId);
-          if (crossingWithTypology && crossingWithTypology.tipologicoId) {
-            const typology = project.typologies.find(t => t.id === crossingWithTypology.tipologicoId);
-            if (typology) {
-              labelText.push(`Tip. ${typology.number}`);
-            }
+          // Add all unique typologies, sorted
+          const tipNumbers = m.crossings
+            .map(c => {
+              if (c.tipologicoId) {
+                const tip = project.typologies.find(t => t.id === c.tipologicoId);
+                return tip ? tip.number : null;
+              }
+              return null;
+            })
+            .filter((n): n is number => n !== null)
+            .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+            .sort((a, b) => a - b); // Sort ascending
+
+          if (tipNumbers.length > 0) {
+            labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
           }
 
           // Default to parete, user can choose when placing
