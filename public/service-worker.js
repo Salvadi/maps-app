@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 19; // Increment this on every deploy! (v19: Added project sync emergency reset option)
+const CACHE_VERSION = 20; // Increment this on every deploy! (v20: Added Editor Planemetrie)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
