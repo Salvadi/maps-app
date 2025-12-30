@@ -1143,12 +1143,31 @@ export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: bo
             const imageUrl = new URL(supabaseFloorPlan.image_url);
             console.log(`   Parsed URL pathname: ${imageUrl.pathname}`);
 
-            const imagePath = imageUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
+            // Try to extract path - support both 'floor-plans' and 'planimetrie' bucket names
+            let imagePath: string | undefined;
+            let bucketName = 'floor-plans'; // default
+
+            if (imageUrl.pathname.includes('/storage/v1/object/public/floor-plans/')) {
+              imagePath = imageUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
+              bucketName = 'floor-plans';
+            } else if (imageUrl.pathname.includes('/storage/v1/object/public/planimetrie/')) {
+              imagePath = imageUrl.pathname.split('/storage/v1/object/public/planimetrie/')[1];
+              bucketName = 'planimetrie';
+            } else {
+              // Try to extract bucket name dynamically
+              const match = imageUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
+              if (match) {
+                bucketName = match[1];
+                imagePath = match[2];
+              }
+            }
+
             console.log(`   Extracted image path: ${imagePath}`);
+            console.log(`   Using bucket: ${bucketName}`);
 
             if (imagePath) {
               const { data: blob, error: downloadError } = await supabase.storage
-                .from('floor-plans')
+                .from(bucketName)
                 .download(imagePath);
 
               if (!downloadError && blob) {
@@ -1174,11 +1193,29 @@ export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: bo
           try {
             // Extract storage path from URL
             const thumbnailUrl = new URL(supabaseFloorPlan.thumbnail_url);
-            const thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
+
+            // Try to extract path - support both 'floor-plans' and 'planimetrie' bucket names
+            let thumbnailPath: string | undefined;
+            let bucketName = 'floor-plans'; // default
+
+            if (thumbnailUrl.pathname.includes('/storage/v1/object/public/floor-plans/')) {
+              thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
+              bucketName = 'floor-plans';
+            } else if (thumbnailUrl.pathname.includes('/storage/v1/object/public/planimetrie/')) {
+              thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/planimetrie/')[1];
+              bucketName = 'planimetrie';
+            } else {
+              // Try to extract bucket name dynamically
+              const match = thumbnailUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
+              if (match) {
+                bucketName = match[1];
+                thumbnailPath = match[2];
+              }
+            }
 
             if (thumbnailPath) {
               const { data: blob, error: downloadError } = await supabase.storage
-                .from('floor-plans')
+                .from(bucketName)
                 .download(thumbnailPath);
 
               if (!downloadError && blob) {
