@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 20; // Increment this on every deploy! (v20: Added Editor Planemetrie)
+const CACHE_VERSION = 21; // Increment this on every deploy! (v21: Fixed floor plans sync and logo cache)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
@@ -16,6 +16,9 @@ const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/favicon.ico',
+  '/logo192.png',
+  '/logo512.png',
 ];
 
 // Install event - cache app shell
