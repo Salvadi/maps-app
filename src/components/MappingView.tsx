@@ -284,28 +284,50 @@ const MappingView: React.FC<MappingViewProps> = ({
           }
           // Secondary sort by room and intervention
           if (comparison === 0) {
-            const roomA = a.room || '';
-            const roomB = b.room || '';
-            comparison = roomA.localeCompare(roomB);
+            const roomA = parseInt(a.room || '') || (a.room || '');
+            const roomB = parseInt(b.room || '') || (b.room || '');
+            if (typeof roomA === 'number' && typeof roomB === 'number') {
+              comparison = roomA - roomB;
+            } else {
+              comparison = String(roomA).localeCompare(String(roomB));
+            }
             if (comparison === 0) {
-              const intA = a.intervention || '';
-              const intB = b.intervention || '';
-              comparison = intA.localeCompare(intB);
+              const intA = parseInt(a.intervention || '') || (a.intervention || '');
+              const intB = parseInt(b.intervention || '') || (b.intervention || '');
+              if (typeof intA === 'number' && typeof intB === 'number') {
+                comparison = intA - intB;
+              } else {
+                comparison = String(intA).localeCompare(String(intB));
+              }
             }
           }
           break;
         }
         case 'room': {
-          const roomA = a.room || '';
-          const roomB = b.room || '';
-          comparison = roomA.localeCompare(roomB);
+          const roomA = parseInt(a.room || '') || (a.room || '');
+          const roomB = parseInt(b.room || '') || (b.room || '');
+          if (typeof roomA === 'number' && typeof roomB === 'number') {
+            comparison = roomA - roomB;
+          } else {
+            comparison = String(roomA).localeCompare(String(roomB));
+          }
           // Secondary sort by floor and intervention
           if (comparison === 0) {
-            comparison = a.floor.localeCompare(b.floor);
+            const floorA = parseInt(a.floor) || a.floor;
+            const floorB = parseInt(b.floor) || b.floor;
+            if (typeof floorA === 'number' && typeof floorB === 'number') {
+              comparison = floorA - floorB;
+            } else {
+              comparison = String(floorA).localeCompare(String(floorB));
+            }
             if (comparison === 0) {
-              const intA = a.intervention || '';
-              const intB = b.intervention || '';
-              comparison = intA.localeCompare(intB);
+              const intA = parseInt(a.intervention || '') || (a.intervention || '');
+              const intB = parseInt(b.intervention || '') || (b.intervention || '');
+              if (typeof intA === 'number' && typeof intB === 'number') {
+                comparison = intA - intB;
+              } else {
+                comparison = String(intA).localeCompare(String(intB));
+              }
             }
           }
           break;
@@ -360,15 +382,23 @@ const MappingView: React.FC<MappingViewProps> = ({
     for (const floor of floors) {
       const roomMap = floorMap.get(floor)!;
       const rooms = Array.from(roomMap.keys()).sort((a, b) => {
-        const comparison = a.localeCompare(b);
-        return sortOrder === 'asc' ? comparison : -comparison;
+        const roomA = parseInt(a) || a;
+        const roomB = parseInt(b) || b;
+        if (typeof roomA === 'number' && typeof roomB === 'number') {
+          return sortOrder === 'asc' ? roomA - roomB : roomB - roomA;
+        }
+        return sortOrder === 'asc' ? String(roomA).localeCompare(String(roomB)) : String(roomB).localeCompare(String(roomA));
       });
 
       const roomGroups = rooms.map(room => {
         const interventionMap = roomMap.get(room)!;
         const interventions = Array.from(interventionMap.keys()).sort((a, b) => {
-          const comparison = a.localeCompare(b);
-          return sortOrder === 'asc' ? comparison : -comparison;
+          const intA = parseInt(a) || a;
+          const intB = parseInt(b) || b;
+          if (typeof intA === 'number' && typeof intB === 'number') {
+            return sortOrder === 'asc' ? intA - intB : intB - intA;
+          }
+          return sortOrder === 'asc' ? String(intA).localeCompare(String(intB)) : String(intB).localeCompare(String(intA));
         });
 
         return {

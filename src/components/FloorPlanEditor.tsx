@@ -29,6 +29,13 @@ const SortDescIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const ClockIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
 export interface UnmappedEntry {
   id: string;
   labelText: string[];
@@ -87,7 +94,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [showToolbarMenu, setShowToolbarMenu] = useState(false);
   const [selectedUnmappedId, setSelectedUnmappedId] = useState<string | null>(null);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
-  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc' | 'recent'>('none');
 
   // Handle placing unmapped entry on canvas
   const handlePlaceUnmappedEntry = useCallback((newPoint: Omit<CanvasPoint, 'id'>) => {
@@ -304,6 +311,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     setSortOrder(current => {
       if (current === 'none') return 'asc';
       if (current === 'asc') return 'desc';
+      if (current === 'desc') return 'recent';
       return 'none';
     });
   }, []);
@@ -311,6 +319,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Sort unmapped entries based on current sort order
   const sortedUnmappedEntries = useCallback(() => {
     if (sortOrder === 'none') return unmappedEntries;
+
+    if (sortOrder === 'recent') {
+      // Most recent first (reverse original order)
+      return [...unmappedEntries].reverse();
+    }
 
     return [...unmappedEntries].sort((a, b) => {
       const aText = a.labelText.join(' ').toLowerCase();
@@ -669,7 +682,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 <button
                   className="sort-button"
                   onClick={handleToggleSortOrder}
-                  title={sortOrder === 'none' ? 'Ordina per nome' : sortOrder === 'asc' ? 'Ordinamento crescente (A-Z)' : 'Ordinamento decrescente (Z-A)'}
+                  title={
+                    sortOrder === 'none' ? 'Ordina i punti' :
+                    sortOrder === 'asc' ? 'Ordinamento alfabetico crescente (A-Z)' :
+                    sortOrder === 'desc' ? 'Ordinamento alfabetico decrescente (Z-A)' :
+                    'Ordinamento per punti più recenti'
+                  }
                   style={{
                     marginTop: '8px',
                     padding: '6px 12px',
@@ -690,12 +708,17 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                       <SortIcon />
                     ) : sortOrder === 'desc' ? (
                       <SortDescIcon />
+                    ) : sortOrder === 'recent' ? (
+                      <ClockIcon />
                     ) : (
                       <SortIcon />
                     )}
                   </span>
                   <span>
-                    {sortOrder === 'none' ? 'Ordina per nome' : sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                    {sortOrder === 'none' ? 'Ordina punti' :
+                     sortOrder === 'asc' ? 'Nome (A-Z)' :
+                     sortOrder === 'desc' ? 'Nome (Z-A)' :
+                     'Più recenti'}
                   </span>
                 </button>
               </div>
