@@ -738,6 +738,12 @@ const MappingView: React.FC<MappingViewProps> = ({
         // Only export if there are points
         if (points.length === 0) continue;
 
+        // Skip if no imageBlob available
+        if (!plan.imageBlob) {
+          console.warn(`⚠️  Skipping floor plan ${plan.id} - no image blob available`);
+          continue;
+        }
+
         // Generate annotated floor plan image
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -1086,6 +1092,17 @@ const MappingView: React.FC<MappingViewProps> = ({
     if (!plan) return;
 
     try {
+      // Check if imageBlob is available
+      if (!plan.imageBlob) {
+        // If no blob but we have an imageUrl, try to fetch it
+        if (plan.imageUrl) {
+          alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
+        } else {
+          alert('Errore: immagine della planimetria non disponibile. Prova a ricaricare la planimetria.');
+        }
+        return;
+      }
+
       // Get all points for this floor plan
       const points = floorPlanPoints[plan.id] || [];
 
@@ -1310,6 +1327,16 @@ const MappingView: React.FC<MappingViewProps> = ({
   // Export floor plan with points as image
   const handleExportFloorPlan = async (plan: FloorPlan) => {
     try {
+      // Check if imageBlob is available
+      if (!plan.imageBlob) {
+        if (plan.imageUrl) {
+          alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
+        } else {
+          alert('Errore: immagine della planimetria non disponibile.');
+        }
+        return;
+      }
+
       const points = floorPlanPoints[plan.id] || [];
 
       // Create canvas
