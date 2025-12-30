@@ -696,6 +696,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                                   type="button"
                                   className="btn-secondary"
                                   onClick={() => {
+                                    if (!floorPlan.imageBlob) {
+                                      alert('Immagine planimetria non disponibile. Prova a sincronizzare il progetto.');
+                                      return;
+                                    }
                                     const url = getFloorPlanBlobUrl(floorPlan.imageBlob);
                                     window.open(url, '_blank');
                                   }}

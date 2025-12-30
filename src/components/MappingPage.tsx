@@ -286,9 +286,15 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       setCurrentFloorPlan(floorPlan || null);
 
       if (floorPlan) {
-        // Create blob URL for display
-        const url = getFloorPlanBlobUrl(floorPlan.imageBlob);
-        setFloorPlanImageUrl(url);
+        // Check if imageBlob is available
+        if (floorPlan.imageBlob) {
+          // Create blob URL for display
+          const url = getFloorPlanBlobUrl(floorPlan.imageBlob);
+          setFloorPlanImageUrl(url);
+        } else {
+          console.warn('Floor plan found but imageBlob is missing');
+          setFloorPlanImageUrl(null);
+        }
       } else {
         setFloorPlanImageUrl(null);
       }
