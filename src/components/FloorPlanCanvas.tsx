@@ -358,11 +358,12 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const { x, y } = normalizedToCanvas(point.labelX, point.labelY);
     const isSelected = point.id === selectedPointId;
 
-    const padding = 8;
-    const fontSize = 14;
-    const lineHeight = 18;
-    const minWidth = 70;
-    const minHeight = 36;
+    // Scale with zoom to maintain proportion with floor plan
+    const padding = 8 * zoom;
+    const fontSize = 14 * zoom;
+    const lineHeight = 18 * zoom;
+    const minWidth = 70 * zoom;
+    const minHeight = 36 * zoom;
 
     ctx.font = `bold ${fontSize}px Arial`;
 
@@ -374,7 +375,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     // Draw label background
     ctx.fillStyle = isSelected ? '#FFF3CD' : '#FFFFFF';
     ctx.strokeStyle = isSelected ? '#FF0000' : '#333333';
-    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.lineWidth = (isSelected ? 2 : 1) * zoom;
 
     ctx.fillRect(x, y, labelWidth, labelHeight);
     ctx.strokeRect(x, y, labelWidth, labelHeight);
@@ -442,11 +443,12 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const isSelected = point.id === selectedPointId;
 
     // Calculate label dimensions - MUST match drawLabel exactly
-    const padding = 8;
-    const fontSize = 14;
-    const lineHeight = 18;
-    const minWidth = 70;
-    const minHeight = 36;
+    // Scale with zoom to maintain proportion with floor plan
+    const padding = 8 * zoom;
+    const fontSize = 14 * zoom;
+    const lineHeight = 18 * zoom;
+    const minWidth = 70 * zoom;
+    const minHeight = 36 * zoom;
     ctx.font = `bold ${fontSize}px Arial`;
     const maxWidth = Math.max(...point.labelText.map(line => ctx.measureText(line).width));
     const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
@@ -463,8 +465,8 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const labelCenterY = labelPos.y + labelHeight / 2;
 
     ctx.strokeStyle = isSelected ? '#FF0000' : '#666666';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1 * zoom;
+    ctx.setLineDash([3 * zoom, 3 * zoom]);
 
     // Special handling for perimetro type - find closest point on perimeter segments
     if (point.type === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
@@ -739,14 +741,15 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       const labelPos = normalizedToCanvas(point.labelX, point.labelY);
 
       // Calculate label dimensions using a temporary canvas context
+      // Scale with zoom to match drawLabel
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
       if (tempCtx) {
-        const padding = 8;
-        const fontSize = 14;
-        const lineHeight = 18;
-        const minWidth = 70;
-        const minHeight = 36;
+        const padding = 8 * zoom;
+        const fontSize = 14 * zoom;
+        const lineHeight = 18 * zoom;
+        const minWidth = 70 * zoom;
+        const minHeight = 36 * zoom;
         tempCtx.font = `bold ${fontSize}px Arial`;
         const maxWidth = Math.max(...point.labelText.map(line => tempCtx.measureText(line).width));
         const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
