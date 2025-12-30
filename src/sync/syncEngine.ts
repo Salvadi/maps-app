@@ -1048,20 +1048,285 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 }
 
 /**
+ * Download floor plans from Supabase and save to IndexedDB
+ */
+export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Download skipped: Supabase not configured');
+    return 0;
+  }
+
+  if (!navigator.onLine) {
+    console.warn('⚠️  Download skipped: No internet connection');
+    return 0;
+  }
+
+  console.log(`⬇️  Downloading floor plans from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+
+  try {
+    // Get all projects with syncEnabled = 1 (full sync)
+    let userProjects;
+    if (isAdmin) {
+      console.log('👑 Admin user: downloading floor plans for all sync-enabled projects');
+      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
+    } else {
+      // Get user's projects that have sync enabled
+      const allUserProjects = await db.projects
+        .where('ownerId')
+        .equals(userId)
+        .or('accessibleUsers')
+        .equals(userId)
+        .toArray();
+
+      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
+    }
+
+    if (userProjects.length === 0) {
+      console.log('✅ No sync-enabled projects found, skipping floor plans download');
+      return 0;
+    }
+
+    const projectIds = userProjects.map(p => p.id);
+    console.log(`📥 Downloading floor plans for ${projectIds.length} sync-enabled projects`);
+
+    // Download floor plans for these projects
+    const { data: floorPlans, error } = await supabase
+      .from('floor_plans')
+      .select('*')
+      .in('project_id', projectIds);
+
+    if (error) {
+      throw new Error(`Failed to download floor plans: ${error.message}`);
+    }
+
+    if (!floorPlans || floorPlans.length === 0) {
+      console.log('✅ No floor plans to download');
+      return 0;
+    }
+
+    console.log(`📥 Found ${floorPlans.length} floor plans to download`);
+
+    let downloadedCount = 0;
+
+    for (const supabaseFloorPlan of floorPlans) {
+      try {
+        // Check if floor plan already exists locally
+        const existingFloorPlan = await db.floorPlans.get(supabaseFloorPlan.id);
+
+        if (existingFloorPlan) {
+          // Check if remote version is newer
+          const remoteUpdated = new Date(supabaseFloorPlan.updated_at).getTime();
+          const localUpdated = existingFloorPlan.updatedAt;
+
+          if (remoteUpdated <= localUpdated) {
+            console.log(`⏭️  Floor plan ${supabaseFloorPlan.id} is up to date, skipping`);
+            continue;
+          }
+        }
+
+        // Download image blobs from Supabase Storage if URLs exist
+        let imageBlob = null;
+        let thumbnailBlob = null;
+
+        if (supabaseFloorPlan.image_url) {
+          try {
+            // Extract storage path from URL
+            const imageUrl = new URL(supabaseFloorPlan.image_url);
+            const imagePath = imageUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
+
+            if (imagePath) {
+              const { data: blob, error: downloadError } = await supabase.storage
+                .from('floor-plans')
+                .download(imagePath);
+
+              if (!downloadError && blob) {
+                imageBlob = blob;
+              } else {
+                console.warn(`⚠️  Failed to download floor plan image for ${supabaseFloorPlan.id}: ${downloadError?.message}`);
+              }
+            }
+          } catch (urlErr) {
+            console.warn(`⚠️  Failed to parse floor plan image URL: ${urlErr}`);
+          }
+        }
+
+        if (supabaseFloorPlan.thumbnail_url) {
+          try {
+            // Extract storage path from URL
+            const thumbnailUrl = new URL(supabaseFloorPlan.thumbnail_url);
+            const thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
+
+            if (thumbnailPath) {
+              const { data: blob, error: downloadError } = await supabase.storage
+                .from('floor-plans')
+                .download(thumbnailPath);
+
+              if (!downloadError && blob) {
+                thumbnailBlob = blob;
+              } else {
+                console.warn(`⚠️  Failed to download floor plan thumbnail for ${supabaseFloorPlan.id}: ${downloadError?.message}`);
+              }
+            }
+          } catch (urlErr) {
+            console.warn(`⚠️  Failed to parse floor plan thumbnail URL: ${urlErr}`);
+          }
+        }
+
+        // Convert Supabase format to IndexedDB format
+        const floorPlan = {
+          id: supabaseFloorPlan.id,
+          projectId: supabaseFloorPlan.project_id,
+          floor: supabaseFloorPlan.floor,
+          imageUrl: supabaseFloorPlan.image_url,
+          thumbnailUrl: supabaseFloorPlan.thumbnail_url,
+          imageBlob: imageBlob,
+          thumbnailBlob: thumbnailBlob,
+          originalFilename: supabaseFloorPlan.original_filename,
+          originalFormat: supabaseFloorPlan.original_format,
+          width: supabaseFloorPlan.width,
+          height: supabaseFloorPlan.height,
+          metadata: supabaseFloorPlan.metadata || {},
+          createdBy: supabaseFloorPlan.created_by,
+          createdAt: new Date(supabaseFloorPlan.created_at).getTime(),
+          updatedAt: new Date(supabaseFloorPlan.updated_at).getTime(),
+          synced: 1 as 0 | 1
+        };
+
+        await db.floorPlans.put(floorPlan);
+        console.log(`✅ Downloaded floor plan: ${supabaseFloorPlan.id} for project ${supabaseFloorPlan.project_id}, floor ${supabaseFloorPlan.floor}`);
+        downloadedCount++;
+      } catch (floorPlanErr) {
+        const errorMessage = floorPlanErr instanceof Error ? floorPlanErr.message : String(floorPlanErr);
+        console.error(`❌ Error downloading floor plan ${supabaseFloorPlan.id}:`, errorMessage);
+        // Continue with next floor plan even if one fails
+      }
+    }
+
+    console.log(`✅ Downloaded ${downloadedCount} floor plans from Supabase`);
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download floor plans:', errorMessage);
+    throw err;
+  }
+}
+
+/**
+ * Download floor plan points from Supabase and save to IndexedDB
+ */
+export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Download skipped: Supabase not configured');
+    return 0;
+  }
+
+  if (!navigator.onLine) {
+    console.warn('⚠️  Download skipped: No internet connection');
+    return 0;
+  }
+
+  console.log(`⬇️  Downloading floor plan points from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+
+  try {
+    // Get all floor plans that we have locally
+    const localFloorPlans = await db.floorPlans.toArray();
+
+    if (localFloorPlans.length === 0) {
+      console.log('✅ No floor plans found locally, skipping floor plan points download');
+      return 0;
+    }
+
+    const floorPlanIds = localFloorPlans.map(fp => fp.id);
+    console.log(`📥 Downloading floor plan points for ${floorPlanIds.length} floor plans`);
+
+    // Download floor plan points for these floor plans
+    const { data: floorPlanPoints, error } = await supabase
+      .from('floor_plan_points')
+      .select('*')
+      .in('floor_plan_id', floorPlanIds);
+
+    if (error) {
+      throw new Error(`Failed to download floor plan points: ${error.message}`);
+    }
+
+    if (!floorPlanPoints || floorPlanPoints.length === 0) {
+      console.log('✅ No floor plan points to download');
+      return 0;
+    }
+
+    console.log(`📥 Found ${floorPlanPoints.length} floor plan points to download`);
+
+    let downloadedCount = 0;
+
+    for (const supabasePoint of floorPlanPoints) {
+      try {
+        // Check if point already exists locally
+        const existingPoint = await db.floorPlanPoints.get(supabasePoint.id);
+
+        if (existingPoint) {
+          // Check if remote version is newer
+          const remoteUpdated = new Date(supabasePoint.updated_at).getTime();
+          const localUpdated = existingPoint.updatedAt;
+
+          if (remoteUpdated <= localUpdated) {
+            console.log(`⏭️  Floor plan point ${supabasePoint.id} is up to date, skipping`);
+            continue;
+          }
+        }
+
+        // Convert Supabase format to IndexedDB format
+        const point = {
+          id: supabasePoint.id,
+          floorPlanId: supabasePoint.floor_plan_id,
+          mappingEntryId: supabasePoint.mapping_entry_id,
+          pointType: supabasePoint.point_type,
+          pointX: supabasePoint.point_x,
+          pointY: supabasePoint.point_y,
+          labelX: supabasePoint.label_x,
+          labelY: supabasePoint.label_y,
+          perimeterPoints: supabasePoint.perimeter_points,
+          customText: supabasePoint.custom_text,
+          metadata: supabasePoint.metadata || {},
+          createdBy: supabasePoint.created_by,
+          createdAt: new Date(supabasePoint.created_at).getTime(),
+          updatedAt: new Date(supabasePoint.updated_at).getTime(),
+          synced: 1 as 0 | 1
+        };
+
+        await db.floorPlanPoints.put(point);
+        console.log(`✅ Downloaded floor plan point: ${supabasePoint.id} (${supabasePoint.point_type})`);
+        downloadedCount++;
+      } catch (pointErr) {
+        const errorMessage = pointErr instanceof Error ? pointErr.message : String(pointErr);
+        console.error(`❌ Error downloading floor plan point ${supabasePoint.id}:`, errorMessage);
+        // Continue with next point even if one fails
+      }
+    }
+
+    console.log(`✅ Downloaded ${downloadedCount} floor plan points from Supabase`);
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download floor plan points:', errorMessage);
+    throw err;
+  }
+}
+
+/**
  * Sync data FROM Supabase TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
-export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number }> {
+export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
   }
 
   // Check if user is authenticated
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
   }
 
   console.log('⬇️  Starting sync FROM Supabase...');
@@ -1090,10 +1355,12 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
     const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
     const photosCount = await downloadPhotosFromSupabase(session.user.id, isAdmin);
+    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
+    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos`);
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points`);
 
-    return { projectsCount, entriesCount, photosCount };
+    return { projectsCount, entriesCount, photosCount, floorPlansCount, floorPlanPointsCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Sync from Supabase failed:', errorMessage);
@@ -1166,7 +1433,7 @@ export function stopAutoSync(): void {
  */
 export async function manualSync(): Promise<{
   uploadResult: SyncResult;
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; floorPlansCount: number; floorPlanPointsCount: number }
 }> {
   console.log('🔄 Manual bidirectional sync triggered');
 
@@ -1176,7 +1443,7 @@ export async function manualSync(): Promise<{
     console.warn('⚠️  Sync already in progress, skipping');
     return {
       uploadResult: { success: false, processedCount: 0, failedCount: 0, errors: [] },
-      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0 }
+      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 }
     };
   }
 
@@ -1196,7 +1463,7 @@ export async function manualSync(): Promise<{
     // Download remote changes AFTER upload completes
     const downloadResult = await syncFromSupabase();
 
-    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
+    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 
     clearTimeout(timeoutId); // Cancel timeout on success
     return { uploadResult, downloadResult };
@@ -1215,7 +1482,7 @@ export async function manualSync(): Promise<{
  * This is useful to resolve data discrepancies between local and remote
  */
 export async function clearAndSync(): Promise<{
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; floorPlansCount: number; floorPlanPointsCount: number }
 }> {
   console.log('🗑️ Clear and sync triggered - clearing all local data...');
 
@@ -1254,7 +1521,7 @@ export async function clearAndSync(): Promise<{
     console.log('⬇️ Downloading fresh data from Supabase...');
     const downloadResult = await syncFromSupabase();
 
-    console.log(`✅ Clear and sync complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, and ${downloadResult.photosCount} photos`);
+    console.log(`✅ Clear and sync complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 
     return { downloadResult };
   } catch (err) {
