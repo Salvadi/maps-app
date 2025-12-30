@@ -44,7 +44,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   },
   mode = 'standalone',
   maxPoints,
-  unmappedEntries = [],
+  unmappedEntries: unmappedEntriesProp = [],
   onSave,
   onClose,
   onNewFile,
@@ -56,10 +56,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 }) => {
   const [points, setPoints] = useState<CanvasPoint[]>(initialPoints);
   const [gridConfig, setGridConfig] = useState<GridConfig>(initialGridConfig);
+  const [unmappedEntries, setUnmappedEntries] = useState<UnmappedEntry[]>(unmappedEntriesProp);
   const [activeTool, setActiveTool] = useState<Tool>('pan');
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [showLeftMenu, setShowLeftMenu] = useState(false);
-  const [showRightMenu, setShowRightMenu] = useState(mode === 'mapping' || (mode === 'view-edit' && unmappedEntries.length > 0)); // Auto-show in mapping mode or view-edit with unmapped
+  const [showRightMenu, setShowRightMenu] = useState(mode === 'mapping' || (mode === 'view-edit' && unmappedEntriesProp.length > 0)); // Auto-show in mapping mode or view-edit with unmapped
   const [zoomInTrigger, setZoomInTrigger] = useState(0);
   const [zoomOutTrigger, setZoomOutTrigger] = useState(0);
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
@@ -86,6 +87,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     setSelectedPointId(point.id);
     setSelectedUnmappedId(null);
     setActiveTool('pan');
+
+    // Remove entry from unmapped list
+    setUnmappedEntries(prev => prev.filter(e => e.id !== entry.id));
   }, [selectedUnmappedId, unmappedEntries]);
 
   // Handle adding new point
@@ -121,16 +125,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const handlePointMove = useCallback((pointId: string, newX: number, newY: number, isLabel: boolean) => {
     setPoints(prev => prev.map(p => {
       if (p.id === pointId) {
-        // In view-edit mode, only allow moving points if they are new (no mappingEntryId) and generico/perimetro
-        if (mode === 'view-edit' && !isLabel) {
-          // Allow moving only new generico/perimetro points
-          if (!p.mappingEntryId && (p.type === 'generico' || p.type === 'perimetro')) {
-            return { ...p, pointX: newX, pointY: newY };
-          }
-          // Silently ignore moves for existing points or parete/solaio
-          return p;
-        }
-
+        // Allow moving all points and labels in all modes (except view-only)
         if (isLabel) {
           return { ...p, labelX: newX, labelY: newY };
         } else {
@@ -162,18 +157,24 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const handleDeletePoint = useCallback(() => {
     if (selectedPointId) {
       const selectedPoint = points.find(p => p.id === selectedPointId);
+      if (!selectedPoint) return;
 
-      // In view-edit mode, only allow deleting new generico/perimetro points
+      // In view-edit mode, allow deleting all points
       if (mode === 'view-edit') {
-        if (!selectedPoint) return;
-
-        // Allow deletion only for new (no mappingEntryId) generico/perimetro points
-        if (!selectedPoint.mappingEntryId && (selectedPoint.type === 'generico' || selectedPoint.type === 'perimetro')) {
-          setPoints(prev => prev.filter(p => p.id !== selectedPointId));
-          setSelectedPointId(null);
-        } else {
-          alert('In modalità visualizzazione puoi eliminare solo i punti Generici o Perimetri che hai aggiunto.');
+        // If point has mappingEntryId, add it back to unmapped entries
+        if (selectedPoint.mappingEntryId) {
+          const newUnmappedEntry: UnmappedEntry = {
+            id: selectedPoint.mappingEntryId,
+            labelText: selectedPoint.labelText,
+            type: selectedPoint.type === 'parete' || selectedPoint.type === 'solaio'
+              ? selectedPoint.type
+              : 'parete', // Default to parete for generico/perimetro
+          };
+          setUnmappedEntries(prev => [...prev, newUnmappedEntry]);
         }
+
+        setPoints(prev => prev.filter(p => p.id !== selectedPointId));
+        setSelectedPointId(null);
         return;
       }
 
