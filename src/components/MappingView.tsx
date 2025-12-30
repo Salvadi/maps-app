@@ -791,13 +791,21 @@ const MappingView: React.FC<MappingViewProps> = ({
                   : 'Punto';
                 labelText = [firstLine];
 
-                // Second line: Tip. X
-                const crossingWithTypology = mappingEntry.crossings.find(c => c.tipologicoId);
-                if (crossingWithTypology && crossingWithTypology.tipologicoId) {
-                  const typology = project.typologies.find(t => t.id === crossingWithTypology.tipologicoId);
-                  if (typology) {
-                    labelText.push(`Tip. ${typology.number}`);
-                  }
+                // Second line: Tip. X - get all unique tipologici, sorted
+                const tipNumbers = mappingEntry.crossings
+                  .map(c => {
+                    if (c.tipologicoId) {
+                      const tip = project.typologies.find(t => t.id === c.tipologicoId);
+                      return tip ? tip.number : null;
+                    }
+                    return null;
+                  })
+                  .filter((n): n is number => n !== null)
+                  .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+                  .sort((a, b) => a - b); // Sort ascending
+
+                if (tipNumbers.length > 0) {
+                  labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
                 }
               }
 
@@ -1123,13 +1131,21 @@ const MappingView: React.FC<MappingViewProps> = ({
               : 'Punto';
             labelText = [firstLine];
 
-            // Second line: Tip. X
-            const crossingWithTypology = mappingEntry.crossings.find(c => c.tipologicoId);
-            if (crossingWithTypology && crossingWithTypology.tipologicoId) {
-              const typology = project.typologies.find(t => t.id === crossingWithTypology.tipologicoId);
-              if (typology) {
-                labelText.push(`Tip. ${typology.number}`);
-              }
+            // Second line: Tip. X - get all unique tipologici, sorted
+            const tipNumbers = mappingEntry.crossings
+              .map(c => {
+                if (c.tipologicoId) {
+                  const tip = project.typologies.find(t => t.id === c.tipologicoId);
+                  return tip ? tip.number : null;
+                }
+                return null;
+              })
+              .filter((n): n is number => n !== null)
+              .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+              .sort((a, b) => a - b); // Sort ascending
+
+            if (tipNumbers.length > 0) {
+              labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
             }
           }
 
@@ -1356,13 +1372,21 @@ const MappingView: React.FC<MappingViewProps> = ({
               : 'Punto';
             labelText = [firstLine];
 
-            // Second line: Tip. X
-            const crossingWithTypology = mappingEntry.crossings.find(c => c.tipologicoId);
-            if (crossingWithTypology && crossingWithTypology.tipologicoId) {
-              const typology = project.typologies.find(t => t.id === crossingWithTypology.tipologicoId);
-              if (typology) {
-                labelText.push(`Tip. ${typology.number}`);
-              }
+            // Second line: Tip. X - get all unique tipologici, sorted
+            const tipNumbers = mappingEntry.crossings
+              .map(c => {
+                if (c.tipologicoId) {
+                  const tip = project.typologies.find(t => t.id === c.tipologicoId);
+                  return tip ? tip.number : null;
+                }
+                return null;
+              })
+              .filter((n): n is number => n !== null)
+              .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+              .sort((a, b) => a - b); // Sort ascending
+
+            if (tipNumbers.length > 0) {
+              labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
             }
           }
 

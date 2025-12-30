@@ -1063,8 +1063,8 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
               perimeterPoints: currentFloorPlanPoint.perimeterPoints,
               customText: currentFloorPlanPoint.customText,
             }] : []}
-            initialGridConfig={currentFloorPlan?.gridEnabled && currentFloorPlan?.gridConfig ? {
-              enabled: currentFloorPlan.gridEnabled,
+            initialGridConfig={currentFloorPlan?.gridConfig ? {
+              enabled: currentFloorPlan.gridEnabled || false,
               rows: currentFloorPlan.gridConfig.rows,
               cols: currentFloorPlan.gridConfig.cols,
               offsetX: currentFloorPlan.gridConfig.offsetX,
