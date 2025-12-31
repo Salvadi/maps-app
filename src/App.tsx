@@ -30,6 +30,54 @@ const App: React.FC = () => {
     isSyncing: false
   });
 
+  // Handle browser back button for internal navigation
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { view?: View } | null;
+
+      if (state && state.view) {
+        // Navigate to the stored view
+        setCurrentView(state.view);
+
+        // Clear any temporary state based on the view
+        if (state.view === 'home') {
+          setSelectedProject(null);
+          setCurrentMappingProject(null);
+          setViewingProject(null);
+          setEditingMappingEntry(undefined);
+        } else if (state.view === 'mappingView') {
+          setCurrentMappingProject(null);
+          setEditingMappingEntry(undefined);
+        }
+      } else {
+        // If no state, prevent going back beyond the app
+        // Push current view to history to stay in the app
+        window.history.pushState({ view: currentView }, '', window.location.href);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Initialize history state on mount
+    if (!window.history.state) {
+      window.history.replaceState({ view: currentView }, '', window.location.href);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [currentView]);
+
+  // Update history state when view changes
+  useEffect(() => {
+    // Don't push initial state or if we're handling popstate
+    if (window.history.state && window.history.state.view === currentView) {
+      return;
+    }
+
+    window.history.pushState({ view: currentView }, '', window.location.href);
+  }, [currentView]);
+
   // Initialize database on mount
   useEffect(() => {
     const initialize = async () => {

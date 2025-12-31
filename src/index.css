@@ -38,9 +38,18 @@ body {
   line-height: 1.6;
 }
 
-html, body, #root {
+html, body {
   height: 100%;
   width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* Focus styles */
