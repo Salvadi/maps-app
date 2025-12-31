@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import imageCompression from 'browser-image-compression';
 import NavigationBar from './NavigationBar';
 import FloorPlanEditor from './FloorPlanEditor';
+import PhotoPreviewModal from './PhotoPreviewModal';
 import type { CanvasPoint, GridConfig } from './FloorPlanCanvas';
 import {
   Project,
@@ -119,6 +120,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [photoIds, setPhotoIds] = useState<(string | null)[]>([]); // Track photo IDs (null for new photos)
   const [initialPhotoCount, setInitialPhotoCount] = useState<number>(0);
   const [photosToRemove, setPhotosToRemove] = useState<string[]>([]); // Track existing photos to remove
+  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<{ url: string; alt: string } | null>(null);
 
   // Floor Plan state
   const [showFloorPlanEditor, setShowFloorPlanEditor] = useState(false);
@@ -724,17 +726,22 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                   <img
                     src={preview}
                     alt={`Anteprima ${index + 1}`}
+                    onClick={() => setSelectedPhotoPreview({ url: preview, alt: `Anteprima ${index + 1}` })}
                     style={{
                       width: '100%',
                       height: '120px',
                       objectFit: 'cover',
                       borderRadius: '8px',
-                      border: '1px solid var(--color-border)'
+                      border: '1px solid var(--color-border)',
+                      cursor: 'pointer'
                     }}
                   />
                   <button
                     type="button"
-                    onClick={() => handleRemovePhoto(index)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemovePhoto(index);
+                    }}
                     style={{
                       position: 'absolute',
                       top: '4px',
@@ -1082,6 +1089,15 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             onClose={() => setShowFloorPlanEditor(false)}
           />
         </div>
+      )}
+
+      {/* Photo Preview Modal */}
+      {selectedPhotoPreview && (
+        <PhotoPreviewModal
+          imageUrl={selectedPhotoPreview.url}
+          altText={selectedPhotoPreview.alt}
+          onClose={() => setSelectedPhotoPreview(null)}
+        />
       )}
     </div>
   );
