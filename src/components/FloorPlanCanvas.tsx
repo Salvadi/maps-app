@@ -817,6 +817,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
   // Handle touch events for mobile
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
+  const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
 
   const getTouchDistance = (touch1: React.Touch, touch2: React.Touch) => {
     const dx = touch1.clientX - touch2.clientX;
@@ -824,13 +825,23 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     return Math.sqrt(dx * dx + dy * dy);
   };
 
+  const getTouchCenter = (touch1: React.Touch, touch2: React.Touch) => {
+    return {
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2,
+    };
+  };
+
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     if (e.touches.length === 2) {
+      // Two-finger gesture: zoom with pinch + pan with movement
       const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      const center = getTouchCenter(e.touches[0], e.touches[1]);
       setLastTouchDistance(distance);
+      setLastTouchCenter(center);
     } else if (e.touches.length === 1) {
       const rect = canvas.getBoundingClientRect();
       const x = e.touches[0].clientX - rect.left;
@@ -860,15 +871,42 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.touches[0].clientX - rect.left;
-    const y = e.touches[0].clientY - rect.top;
 
-    if (e.touches.length === 2 && lastTouchDistance !== null) {
+    if (e.touches.length === 2 && lastTouchDistance !== null && lastTouchCenter !== null) {
+      // Two-finger gesture: pinch to zoom + two-finger pan
       const distance = getTouchDistance(e.touches[0], e.touches[1]);
-      const delta = distance / lastTouchDistance;
-      setZoom(prev => Math.max(0.1, Math.min(5, prev * delta)));
+      const center = getTouchCenter(e.touches[0], e.touches[1]);
+
+      // Calculate zoom delta from pinch
+      const zoomDelta = distance / lastTouchDistance;
+      const newZoom = Math.max(0.1, Math.min(5, zoom * zoomDelta));
+
+      // Calculate pan delta from center movement
+      const panDeltaX = center.x - lastTouchCenter.x;
+      const panDeltaY = center.y - lastTouchCenter.y;
+
+      // Apply zoom around the touch center point
+      const centerRelativeToCanvas = {
+        x: lastTouchCenter.x - rect.left,
+        y: lastTouchCenter.y - rect.top,
+      };
+
+      const dx = centerRelativeToCanvas.x - pan.x;
+      const dy = centerRelativeToCanvas.y - pan.y;
+
+      // Update pan to zoom around center point AND apply two-finger pan
+      setPan({
+        x: centerRelativeToCanvas.x - (dx * newZoom / zoom) + panDeltaX,
+        y: centerRelativeToCanvas.y - (dy * newZoom / zoom) + panDeltaY,
+      });
+
+      setZoom(newZoom);
       setLastTouchDistance(distance);
+      setLastTouchCenter(center);
     } else if (e.touches.length === 1 && isDragging) {
+      const x = e.touches[0].clientX - rect.left;
+      const y = e.touches[0].clientY - rect.top;
+
       if (activeTool === 'pan') {
         setPan({
           x: e.touches[0].clientX - dragStart.x,
@@ -896,6 +934,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     setIsDragging(false);
     setDraggedPoint(null);
     setLastTouchDistance(null);
+    setLastTouchCenter(null);
   };
 
   // Handle zoom triggers from parent
