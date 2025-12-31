@@ -5,6 +5,7 @@ import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import NavigationBar from './NavigationBar';
 import FloorPlanEditor, { UnmappedEntry } from './FloorPlanEditor';
+import PhotoPreviewModal from './PhotoPreviewModal';
 import type { CanvasPoint, GridConfig } from './FloorPlanCanvas';
 import { exportCanvasToPDF } from '../utils/exportUtils';
 import {
@@ -163,6 +164,7 @@ const MappingView: React.FC<MappingViewProps> = ({
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [floorPlanPoints, setFloorPlanPoints] = useState<Record<string, FloorPlanPoint[]>>({});
   const [selectedFloorPlan, setSelectedFloorPlan] = useState<string>('');
+  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<{ url: string; alt: string } | null>(null);
 
   // Floor Plan Editor state
   const [showFloorPlanEditor, setShowFloorPlanEditor] = useState(false);
@@ -1932,15 +1934,21 @@ const MappingView: React.FC<MappingViewProps> = ({
                       {/* Photo Gallery */}
                       {photos.length > 0 && (
                         <div className="photo-gallery">
-                          {photos.map((photo, idx) => (
-                            <div key={photo.id} className="photo-item">
-                              <img
-                                src={URL.createObjectURL(photo.blob)}
-                                alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`}
-                                loading="lazy"
-                              />
-                            </div>
-                          ))}
+                          {photos.map((photo, idx) => {
+                            const photoUrl = URL.createObjectURL(photo.blob);
+                            const photoAlt = `Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`;
+                            return (
+                              <div key={photo.id} className="photo-item">
+                                <img
+                                  src={photoUrl}
+                                  alt={photoAlt}
+                                  loading="lazy"
+                                  onClick={() => setSelectedPhotoPreview({ url: photoUrl, alt: photoAlt })}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -2080,15 +2088,21 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                 {/* Photo Gallery */}
                                                 {photos.length > 0 && (
                                                   <div className="photo-gallery">
-                                                    {photos.map((photo, idx) => (
-                                                      <div key={photo.id} className="photo-item">
-                                                        <img
-                                                          src={URL.createObjectURL(photo.blob)}
-                                                          alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`}
-                                                          loading="lazy"
-                                                        />
-                                                      </div>
-                                                    ))}
+                                                    {photos.map((photo, idx) => {
+                                                      const photoUrl = URL.createObjectURL(photo.blob);
+                                                      const photoAlt = `Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`;
+                                                      return (
+                                                        <div key={photo.id} className="photo-item">
+                                                          <img
+                                                            src={photoUrl}
+                                                            alt={photoAlt}
+                                                            loading="lazy"
+                                                            onClick={() => setSelectedPhotoPreview({ url: photoUrl, alt: photoAlt })}
+                                                            style={{ cursor: 'pointer' }}
+                                                          />
+                                                        </div>
+                                                      );
+                                                    })}
                                                   </div>
                                                 )}
                                               </div>
@@ -2137,6 +2151,15 @@ const MappingView: React.FC<MappingViewProps> = ({
             onClose={handleCloseFloorPlanEditor}
           />
         </div>
+      )}
+
+      {/* Photo Preview Modal */}
+      {selectedPhotoPreview && (
+        <PhotoPreviewModal
+          imageUrl={selectedPhotoPreview.url}
+          altText={selectedPhotoPreview.alt}
+          onClose={() => setSelectedPhotoPreview(null)}
+        />
       )}
     </div>
   );
