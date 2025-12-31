@@ -19,6 +19,30 @@ A mobile-first Progressive Web App for construction and installation mapping wit
 - **ZIP Export** - Export Excel file + photos organized by floor/room
 - **Smart Navigation** - Context-aware navigation between views
 
+### ✅ Phase 2.5: Floor Plan Editor
+- **Floor Plan Upload** - Support for images (PNG, JPG, WEBP) and PDF files
+- **PDF Conversion** - Automatic conversion of PDF files to high-resolution images
+- **Interactive Canvas** - Pan, zoom, and annotate floor plans with precision
+- **Point Annotation** - Place and label points for mapping entries (parete, solaio)
+- **Perimeter Drawing** - Draw custom perimeter areas on floor plans
+- **Generic Points** - Add custom text labels for notes and references
+- **Configurable Grid** - Optional grid overlay with adjustable rows, columns, and offset
+- **Label Management** - Move, edit, and organize labels on the canvas
+- **Unmapped Entries** - Visual list of mapping entries awaiting floor plan placement
+- **Sorting & Filtering** - Sort unmapped entries by type, number, or recent activity
+- **Multiple Modes**:
+  - **Standalone Mode** - Independent floor plan editor with save/load functionality
+  - **Project Integration** - Link floor plans to specific project floors
+  - **Mapping Mode** - Direct integration with mapping entries (one point per entry)
+  - **View/Edit Mode** - Review and adjust existing floor plan annotations
+- **Export Options**:
+  - Export annotated floor plans to PDF
+  - Export to PNG with all annotations
+  - Download original floor plan images
+- **Supabase Sync** - Automatic sync of floor plans and annotations to cloud storage
+- **Thumbnail Generation** - Auto-generated thumbnails for quick preview
+- **2x Resolution** - Floor plans stored at 2x resolution for crisp display on high-DPI screens
+
 ### ✅ Phase 3: Supabase Sync (Implemented)
 - Real-time sync with Supabase backend
 - Background sync when connection returns
@@ -106,24 +130,47 @@ A mobile-first Progressive Web App for construction and installation mapping wit
    - Click the **eye icon** on any project card to view mappings
    - Initially empty - no mappings yet
 
-5. **Add Mapping Entries**
+5. **Add Floor Plans** (Optional)
+   - From Project View, click **Upload Floor Plan**
+   - Select a floor from the dropdown
+   - Choose an image or PDF file (automatically converted)
+   - Floor plan is processed and saved at 2x resolution
+   - Thumbnail generated for quick preview
+
+6. **Annotate Floor Plans** (Optional)
+   - Click **View Floor Plan** on any floor
+   - Use the interactive editor to:
+     - Place points for mapping entries
+     - Draw perimeter areas
+     - Add custom text labels
+     - Configure grid overlay
+     - Zoom and pan for precise placement
+   - Export annotated plans to PDF/PNG
+   - Use **Standalone Editor** for independent floor plan projects
+
+7. **Add Mapping Entries**
    - From Home, click the **door icon** to enter mapping mode
    - OR from Mapping View, click the **+** button
    - Capture/upload photos (supports multiple photos)
    - Select floor and room/intervention
    - Add crossings (optional)
    - Click **Save**
+   - Link to floor plan position (if floor plan exists)
 
-6. **View Mapping Gallery**
+8. **View Mapping Gallery**
    - Click **eye icon** on a project
    - See all mapping entries with photo counts
+   - View floor plan with all positioned mapping entries
    - Click any mapping card to expand and view photos
    - Photos load from IndexedDB instantly
 
-7. **Export Data**
+9. **Export Data**
    - From Mapping View:
      - **Export Excel**: Downloads spreadsheet with mapping data
      - **Export ZIP**: Downloads ZIP with Excel + photos organized by floor/room
+   - From Floor Plan Editor:
+     - **Export PDF**: Annotated floor plan in PDF format
+     - **Export PNG**: High-resolution PNG image with annotations
 
 ### Offline Testing
 
@@ -267,17 +314,24 @@ maps-app/
 │   └── manifest.json           # PWA manifest
 ├── src/
 │   ├── components/
-│   │   ├── Login.tsx          # Login page
-│   │   ├── Home.tsx           # Project list
-│   │   ├── ProjectForm.tsx    # Create/edit projects
-│   │   ├── MappingPage.tsx    # Add mapping entries
-│   │   └── MappingView.tsx    # View mappings + export
+│   │   ├── Login.tsx                      # Login page
+│   │   ├── Home.tsx                       # Project list
+│   │   ├── ProjectForm.tsx                # Create/edit projects
+│   │   ├── MappingPage.tsx                # Add mapping entries
+│   │   ├── MappingView.tsx                # View mappings + export
+│   │   ├── FloorPlanEditor.tsx            # Main floor plan editor
+│   │   ├── FloorPlanCanvas.tsx            # Canvas rendering and interactions
+│   │   └── StandaloneFloorPlanEditor.tsx  # Standalone editor mode
 │   ├── db/
 │   │   ├── database.ts        # Dexie schema
 │   │   ├── projects.ts        # Project CRUD
 │   │   ├── mappings.ts        # Mapping CRUD
-│   │   ├── auth.ts            # Mock authentication
+│   │   ├── floorPlans.ts      # Floor plan CRUD
+│   │   ├── auth.ts            # Authentication
 │   │   └── index.ts           # Exports
+│   ├── utils/
+│   │   ├── floorPlanUtils.ts  # Floor plan processing
+│   │   └── exportUtils.ts     # PDF/PNG export utilities
 │   ├── App.tsx                # Main app component
 │   └── index.tsx              # Entry point + SW registration
 └── package.json
@@ -292,10 +346,16 @@ All data is stored in **IndexedDB** (browser local storage):
 - **Projects** - Title, client, address, floors, typologies
 - **Mapping Entries** - Floor, room, crossings, timestamps
 - **Photos** - Compressed blobs (1MB max)
-- **Sync Queue** - Pending changes for Phase 3 sync
-- **Users** - Mock user accounts
+- **Floor Plans** - Full resolution (2x) and thumbnails
+- **Floor Plan Points** - Annotations and labels on floor plans
+- **Standalone Maps** - Independent floor plan projects
+- **Sync Queue** - Pending changes for Supabase sync
+- **Users** - User accounts
 
-**Storage Estimate**: ~50 MB per 100 photos (compressed)
+**Storage Estimate**:
+- ~50 MB per 100 photos (compressed)
+- ~2-5 MB per floor plan (depending on size and resolution)
+- Thumbnails: ~100-200 KB each
 
 ---
 
@@ -391,18 +451,26 @@ npm run build
 
 ## 📚 Documentation
 
-### Supabase Setup & RLS Policies
+### Complete Documentation
 
-For detailed information about Supabase setup and RLS policies:
+For detailed technical documentation, see the [docs/](./docs/) folder:
 
 - **[SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md)** - Complete guide to setting up Supabase backend
-- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - In-depth analysis of RLS policies, potential bugs, and security considerations
-- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - Action items checklist before deploying RLS policy updates
-- **[CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md)** - How conflict resolution works for projects and mapping entries
-- **[migration-update-projects-rls-policies.sql](./docs/migration-update-projects-rls-policies.sql)** - SQL migration script for updated policies
-- **[migration-add-projects-conflict-resolution.sql](./docs/migration-add-projects-conflict-resolution.sql)** - SQL migration for conflict resolution fields
+- **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)** - Deployment guide for Vercel/Netlify
+- **[CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md)** - Multi-device conflict resolution system
+- **[UPDATE_SYSTEM.md](./docs/UPDATE_SYSTEM.md)** - Automatic update system with Service Worker
+- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - Security policies analysis
+- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - RLS policy checklist
 
-**⚠️ Important**: If you're updating RLS policies, please read the analysis document first to understand breaking changes and recommendations.
+### Database Schema & Migrations
+
+All SQL files are organized in the `/supabase/` directory:
+
+- **[schema.sql](./supabase/schema.sql)** - Complete database schema
+- **[storage-policies.sql](./supabase/storage-policies.sql)** - Storage bucket policies
+- **[migrations/](./supabase/migrations/)** - Database migrations (timestamped)
+
+**⚠️ Important**: Before applying migrations, review the documentation in `/docs/` to understand changes and requirements.
 
 ## 🔮 Future Enhancements (Phase 4+)
 
@@ -421,16 +489,20 @@ For detailed information about Supabase setup and RLS policies:
 
 ### Setup Requirements
 
-- **⚠️ Migration required**: Apply `migration-add-projects-conflict-resolution.sql` in Supabase for full conflict resolution support
-
-See [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for planned improvements.
+- **⚠️ Migration required**: Apply migrations from `/supabase/migrations/` in Supabase for full conflict resolution support
+- See [SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) for detailed setup instructions
+- Review [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for deployment checklist
 
 ### Phase 4: Advanced Features
-- [ ] Floor plan upload and annotation
+- [x] Floor plan upload and annotation ✅
+- [x] Interactive floor plan editor ✅
+- [x] PDF to image conversion ✅
+- [x] Perimeter and custom point support ✅
+- [ ] 3D floor plan visualization
 - [ ] Offline maps integration
-- [ ] Team collaboration
-- [ ] Real-time updates
+- [ ] Real-time collaborative editing
 - [ ] Push notifications
+- [ ] Advanced measurement tools
 
 ### Phase 5: Analytics & Reporting
 - [ ] Dashboard with statistics

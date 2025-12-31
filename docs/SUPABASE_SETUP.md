@@ -13,7 +13,7 @@ This guide will help you set up your Supabase project for the OPImaPPA applicati
 1. Go to your Supabase Dashboard
 2. Navigate to **SQL Editor**
 3. Create a new query
-4. Copy and paste the contents of `supabase-schema.sql`
+4. Copy and paste the contents of `/supabase/schema.sql`
 5. Click **Run** to execute the SQL
 
 This will create:
@@ -42,7 +42,7 @@ If the bucket doesn't exist, you can create it via the UI:
 
 1. Go to **SQL Editor**
 2. Create a new query
-3. Copy and paste the contents of `supabase-storage-policies.sql`
+3. Copy and paste the contents of `/supabase/storage-policies.sql`
 4. Click **Run** to execute the SQL
 
 This will create policies that allow:
@@ -179,7 +179,7 @@ WHERE email = 'your-admin@example.com';
 **Solution**:
 1. Go to Storage in Supabase Dashboard
 2. Create the `photos` bucket manually
-3. Or run the `INSERT INTO storage.buckets` command from `supabase-storage-policies.sql`
+3. Or run the `INSERT INTO storage.buckets` command from `/supabase/storage-policies.sql`
 
 ## Environment Variables
 
@@ -208,7 +208,7 @@ Get these from: **Supabase Dashboard** → **Settings** → **API**
 **⚠️ IMPORTANT**: If you need to update the RLS policies for the `projects` table, please review the following documents BEFORE applying any changes:
 
 1. **[RLS_POLICIES_ANALYSIS.md](./RLS_POLICIES_ANALYSIS.md)** - Detailed analysis of policy changes, potential bugs, and recommendations
-2. **[migration-update-projects-rls-policies.sql](./migration-update-projects-rls-policies.sql)** - SQL migration script with the new policies
+2. **[/supabase/migrations/20250104000001_update_projects_rls_policies.sql](../supabase/migrations/20250104000001_update_projects_rls_policies.sql)** - SQL migration script with the new policies
 3. **[ACTION_ITEMS_RLS_POLICIES.md](./ACTION_ITEMS_RLS_POLICIES.md)** - Action items and checklist before deployment
 
 **Key Changes in New Policies**:
@@ -229,7 +229,7 @@ Get these from: **Supabase Dashboard** → **Settings** → **API**
 **To Apply the New Policies**:
 ```sql
 -- In Supabase SQL Editor, run:
--- File: migration-update-projects-rls-policies.sql
+-- File: /supabase/migrations/20250104000001_update_projects_rls_policies.sql
 ```
 
 ## Next Steps
