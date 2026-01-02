@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ricostruisci Tipologici da Mapping Entries</title>
+  <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+    .info {
+      background: #d1ecf1;
+      border-left: 4px solid #17a2b8;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+      color: #0c5460;
+    }
+    .success {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+      color: #155724;
+    }
+    .warning {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+      color: #856404;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      margin: 10px 5px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .danger-btn {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    select {
+      padding: 12px;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 500px;
+    }
+    #output {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid #dee2e6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      text-align: left;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+    }
+    tr:hover {
+      background: #f8f9fa;
+    }
+    .step {
+      margin: 30px 0;
+      padding: 24px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      background: #fafbfc;
+    }
+    .step h3 {
+      margin: 0 0 16px 0;
+      color: #495057;
+      font-size: 20px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    textarea {
+      width: 100%;
+      min-height: 300px;
+      padding: 15px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Ricostruisci Tipologici</h1>
+    <p class="subtitle">Recupera i tipologici dai riferimenti nelle mapping entries</p>
+
+    <div class="info">
+      <strong>ℹ️ Come funziona:</strong><br>
+      Questo strumento analizza tutte le mapping entries del progetto selezionato,
+      estrae i riferimenti ai tipologici dai crossings, e ricostruisce l'elenco completo
+      dei tipologici con i loro ID originali.
+    </div>
+
+    <!-- Step 1: Select Project -->
+    <div class="step">
+      <h3>Step 1: Seleziona Progetto</h3>
+      <button onclick="loadProjects()">Carica Progetti</button>
+      <select id="projectSelect" style="display: none;" onchange="selectProject()">
+        <option value="">-- Seleziona un progetto --</option>
+      </select>
+    </div>
+
+    <!-- Step 2: Analyze -->
+    <div class="step" id="step2" style="display: none;">
+      <h3>Step 2: Analizza Mapping Entries</h3>
+      <button onclick="analyzeMappingEntries()">Analizza e Ricostruisci Tipologici</button>
+      <div id="stats" class="stats" style="display: none;"></div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div class="step" id="step3" style="display: none;">
+      <h3>Step 3: Tipologici Ricostruiti</h3>
+      <div id="typologiesTable"></div>
+      <button class="danger-btn" onclick="restoreTypologies()">Ripristina Tipologici nel Progetto</button>
+      <button onclick="downloadJSON()">Scarica JSON</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    let db = null;
+    let selectedProject = null;
+    let reconstructedTypologies = [];
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+      output.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function initDB() {
+      if (db) return true;
+
+      try {
+        db = new Dexie('MappingDatabase');
+
+        db.version(4).stores({
+          projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+          mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+          photos: 'id, mappingEntryId, uploaded',
+          syncQueue: 'id, synced, timestamp, entityType, entityId',
+          users: 'id, email, role',
+          metadata: 'key',
+          conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+          floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+          floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+          standaloneMaps: 'id, userId, name, synced'
+        });
+
+        await db.open();
+        log('Database connesso', 'success');
+        return true;
+      } catch (error) {
+        log(`Errore: ${error.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function loadProjects() {
+      if (!await initDB()) return;
+
+      try {
+        log('Caricamento progetti...');
+        const projects = await db.projects.toArray();
+
+        if (projects.length === 0) {
+          log('Nessun progetto trovato', 'warning');
+          return;
+        }
+
+        const select = document.getElementById('projectSelect');
+        select.innerHTML = '<option value="">-- Seleziona un progetto --</option>';
+
+        projects
+          .filter(p => p.archived !== 1)
+          .forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = `${project.title} (${project.id.substring(0, 8)}...)`;
+            select.appendChild(option);
+          });
+
+        select.style.display = 'block';
+        log(`Trovati ${projects.length} progetti`, 'success');
+
+      } catch (error) {
+        log(`Errore: ${error.message}`, 'error');
+      }
+    }
+
+    async function selectProject() {
+      const select = document.getElementById('projectSelect');
+      const projectId = select.value;
+
+      if (!projectId) return;
+
+      selectedProject = await db.projects.get(projectId);
+      log(`Selezionato: ${selectedProject.title}`, 'success');
+
+      document.getElementById('step2').style.display = 'block';
+    }
+
+    async function analyzeMappingEntries() {
+      if (!selectedProject) {
+        log('Nessun progetto selezionato', 'error');
+        return;
+      }
+
+      try {
+        log(`Analisi mapping entries per progetto: ${selectedProject.title}...`);
+
+        // Get all mapping entries for this project
+        const entries = await db.mappingEntries
+          .where('projectId')
+          .equals(selectedProject.id)
+          .toArray();
+
+        log(`Trovate ${entries.length} mapping entries`, 'info');
+
+        // Extract all crossings with tipologicoId
+        const tipologiciMap = new Map();
+        let totalCrossings = 0;
+        let crossingsWithTipologico = 0;
+
+        entries.forEach(entry => {
+          if (entry.crossings && Array.isArray(entry.crossings)) {
+            totalCrossings += entry.crossings.length;
+
+            entry.crossings.forEach(crossing => {
+              if (crossing.tipologicoId) {
+                crossingsWithTipologico++;
+
+                if (!tipologiciMap.has(crossing.tipologicoId)) {
+                  tipologiciMap.set(crossing.tipologicoId, {
+                    id: crossing.tipologicoId,
+                    supporto: crossing.supporto || '',
+                    tipoSupporto: crossing.tipoSupporto || '',
+                    attraversamento: crossing.attraversamento || '',
+                    attraversamentoCustom: crossing.attraversamentoCustom || '',
+                    usageCount: 0,
+                    examples: []
+                  });
+                }
+
+                const tipologico = tipologiciMap.get(crossing.tipologicoId);
+                tipologico.usageCount++;
+
+                // Keep first 3 examples
+                if (tipologico.examples.length < 3) {
+                  tipologico.examples.push({
+                    floor: entry.floor,
+                    room: entry.room,
+                    intervention: entry.intervention
+                  });
+                }
+              }
+            });
+          }
+        });
+
+        reconstructedTypologies = Array.from(tipologiciMap.values())
+          .sort((a, b) => b.usageCount - a.usageCount);
+
+        log(`Trovati ${reconstructedTypologies.length} tipologici unici`, 'success');
+        log(`${crossingsWithTipologico} crossings su ${totalCrossings} hanno un tipologico associato`, 'info');
+
+        // Show stats
+        const statsDiv = document.getElementById('stats');
+        statsDiv.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-number">${entries.length}</div>
+            <div class="stat-label">Mapping Entries</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalCrossings}</div>
+            <div class="stat-label">Crossings Totali</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${crossingsWithTipologico}</div>
+            <div class="stat-label">Con Tipologico</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${reconstructedTypologies.length}</div>
+            <div class="stat-label">Tipologici Unici</div>
+          </div>
+        `;
+        statsDiv.style.display = 'grid';
+
+        // Show results
+        displayTypologies();
+        document.getElementById('step3').style.display = 'block';
+
+      } catch (error) {
+        log(`Errore: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    function displayTypologies() {
+      const tableDiv = document.getElementById('typologiesTable');
+
+      if (reconstructedTypologies.length === 0) {
+        tableDiv.innerHTML = '<div class="warning">⚠️ Nessun tipologico trovato nelle mapping entries</div>';
+        return;
+      }
+
+      let html = '<table><thead><tr>';
+      html += '<th>ID</th>';
+      html += '<th>Supporto</th>';
+      html += '<th>Tipo Supporto</th>';
+      html += '<th>Attraversamento</th>';
+      html += '<th>Utilizzi</th>';
+      html += '<th>Esempi</th>';
+      html += '</tr></thead><tbody>';
+
+      reconstructedTypologies.forEach(tip => {
+        html += '<tr>';
+        html += `<td title="${tip.id}">${tip.id.substring(0, 8)}...</td>`;
+        html += `<td>${tip.supporto || '-'}</td>`;
+        html += `<td>${tip.tipoSupporto || '-'}</td>`;
+        html += `<td>${tip.attraversamento || '-'}${tip.attraversamentoCustom ? ' (' + tip.attraversamentoCustom + ')' : ''}</td>`;
+        html += `<td><strong>${tip.usageCount}</strong></td>`;
+        html += `<td>${tip.examples.map(e => `P:${e.floor}${e.room ? ', S:' + e.room : ''}${e.intervention ? ', I:' + e.intervention : ''}`).join('<br>')}</td>`;
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      tableDiv.innerHTML = html;
+    }
+
+    async function restoreTypologies() {
+      if (!selectedProject || reconstructedTypologies.length === 0) {
+        log('Nessun tipologico da ripristinare', 'error');
+        return;
+      }
+
+      if (!confirm(`Ripristinare ${reconstructedTypologies.length} tipologici nel progetto "${selectedProject.title}"?\n\nQuesta operazione aggiungerà i tipologici al progetto mantenendo gli ID originali.`)) {
+        log('Operazione annullata');
+        return;
+      }
+
+      try {
+        log('Ripristino tipologici...');
+
+        // Create typologies array with proper structure
+        const typologies = reconstructedTypologies.map((tip, index) => ({
+          id: tip.id,
+          number: index + 1, // Sequential numbering
+          supporto: tip.supporto,
+          tipoSupporto: tip.tipoSupporto,
+          attraversamento: tip.attraversamento,
+          attraversamentoCustom: tip.attraversamentoCustom || undefined,
+          marcaProdottoUtilizzato: '', // Will need to be filled manually
+          prodottiSelezionati: [] // Will need to be filled manually
+        }));
+
+        // Update project
+        await db.projects.update(selectedProject.id, {
+          typologies: typologies,
+          updatedAt: Date.now()
+        });
+
+        log(`✅ ${typologies.length} tipologici ripristinati con successo!`, 'success');
+        log('⚠️  NOTA: I campi "Marca Prodotto" e "Prodotti Selezionati" sono vuoti e devono essere compilati manualmente', 'warning');
+        log('Ricarica l\'applicazione per vedere i cambiamenti', 'info');
+
+        const tableDiv = document.getElementById('typologiesTable');
+        tableDiv.innerHTML = `<div class="success">
+          <h3>✅ Ripristino Completato!</h3>
+          <p><strong>Tipologici ripristinati:</strong> ${typologies.length}</p>
+          <p><strong>Progetto:</strong> ${selectedProject.title}</p>
+          <p style="margin-top: 15px;"><strong>⚠️ IMPORTANTE:</strong> I campi "Marca Prodotto" e "Prodotti Selezionati" sono vuoti. Dovrai compilarli manualmente nell'applicazione.</p>
+          <p style="margin-top: 10px;">Ricarica l'applicazione principale per vedere i tipologici ripristinati.</p>
+        </div>` + tableDiv.innerHTML;
+
+      } catch (error) {
+        log(`Errore: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    function downloadJSON() {
+      if (reconstructedTypologies.length === 0) {
+        log('Nessun tipologico da scaricare', 'error');
+        return;
+      }
+
+      const typologies = reconstructedTypologies.map((tip, index) => ({
+        id: tip.id,
+        number: index + 1,
+        supporto: tip.supporto,
+        tipoSupporto: tip.tipoSupporto,
+        attraversamento: tip.attraversamento,
+        attraversamentoCustom: tip.attraversamentoCustom || undefined,
+        marcaProdottoUtilizzato: '',
+        prodottiSelezionati: [],
+        _metadata: {
+          usageCount: tip.usageCount,
+          examples: tip.examples
+        }
+      }));
+
+      const json = JSON.stringify({
+        projectId: selectedProject.id,
+        projectTitle: selectedProject.title,
+        reconstructedAt: new Date().toISOString(),
+        typologies: typologies
+      }, null, 2);
+
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tipologici-${selectedProject.id.substring(0, 8)}-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      log('JSON scaricato', 'success');
+    }
+
+    // Initialize
+    log('Strumento di ricostruzione tipologici pronto. Clicca "Carica Progetti" per iniziare.');
+  </script>
+</body>
+</html>
