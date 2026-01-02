@@ -272,7 +272,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           floors: floorsArray,
           useRoomNumbering,
           useInterventionNumbering,
-          typologies: showTipologici ? typologies : [],
+          typologies: showTipologici ? typologies : (project.typologies || []),
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : project.accessibleUsers,
         });
         console.log('Project updated:', project.id);
