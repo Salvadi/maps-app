@@ -75,7 +75,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
           <button className="modal-close-btn" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
-          {project.typologies.map((tip) => (
+          {[...project.typologies].sort((a, b) => a.number - b.number).map((tip) => (
             <div key={tip.id} className="typology-card">
               <h3 className="typology-card-title">Tipologico {tip.number}</h3>
               <div className="typology-card-fields">
@@ -165,17 +165,20 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     );
   };
 
-  // Helper function to sort typologies with matching one first
+  // Helper function to sort typologies with matching one first, then by number
   const getSortedTypologies = (crossing: Crossing) => {
     if (!project?.typologies) return [];
 
-    const matchingTypology = findMatchingTypology(crossing);
-    if (!matchingTypology) return project.typologies;
+    // First, sort all typologies by number
+    const sortedByNumber = [...project.typologies].sort((a, b) => a.number - b.number);
 
-    // Put matching typology first
+    const matchingTypology = findMatchingTypology(crossing);
+    if (!matchingTypology) return sortedByNumber;
+
+    // Put matching typology first, keeping others sorted by number
     return [
       matchingTypology,
-      ...project.typologies.filter(t => t.id !== matchingTypology.id)
+      ...sortedByNumber.filter(t => t.id !== matchingTypology.id)
     ];
   };
 
@@ -776,7 +779,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
               className="mapping-select"
             >
               {project?.floors && project.floors.length > 0 ? (
-                project.floors.map((f) => (
+                [...project.floors].sort((a, b) => parseFloat(a) - parseFloat(b)).map((f) => (
                   <option key={f} value={f}>
                     {f}
                   </option>
@@ -974,9 +977,13 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
                             <option value=""></option>
                             {getSortedTypologies(sig).map((tip) => {
                               const isMatching = findMatchingTypology(sig)?.id === tip.id;
+                              const getLabel = (options: { value: string; label: string }[], value: string) => {
+                                const option = options.find(opt => opt.value === value);
+                                return option?.label || value;
+                              };
                               return (
                                 <option key={tip.id} value={tip.id}>
-                                  {isMatching ? '⭐ ' : ''}Tip. {tip.number} - {tip.supporto} {tip.tipoSupporto}
+                                  {isMatching ? '⭐ ' : ''}Tip. {tip.number} - {getLabel(ATTRAVERSAMENTO_OPTIONS, tip.attraversamento)} - {tip.marcaProdottoUtilizzato}
                                 </option>
                               );
                             })}

@@ -262,6 +262,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             .filter((f) => f !== '')
         : ['0'];
 
+      // Sort typologies by number before saving
+      const sortedTypologies = showTipologici
+        ? [...typologies].sort((a, b) => a.number - b.number)
+        : (project?.typologies || []);
+
       if (project) {
         // Update existing project
         await updateProject(project.id, {
@@ -272,7 +277,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           floors: floorsArray,
           useRoomNumbering,
           useInterventionNumbering,
-          typologies: showTipologici ? typologies : (project.typologies || []),
+          typologies: sortedTypologies,
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : project.accessibleUsers,
         });
         console.log('Project updated:', project.id);
@@ -287,7 +292,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           plans: [],
           useRoomNumbering,
           useInterventionNumbering,
-          typologies: showTipologici ? typologies : [],
+          typologies: showTipologici ? sortedTypologies : [],
           ownerId: currentUser.id,
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : [currentUser.id],
         });
@@ -551,7 +556,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   <div className="table-cell">Materiali</div>
                 </div>
 
-                {typologies.map((typology) => (
+                {[...typologies].sort((a, b) => a.number - b.number).map((typology) => (
                   <div key={typology.id} className="table-row">
                     <div className="table-row-mobile-first">
                       <div className="table-cell table-cell-number">
@@ -679,7 +684,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   {loadingFloorPlans ? (
                     <p className="form-note">Caricamento planimetrie...</p>
                   ) : (
-                    project.floors.map(floor => {
+                    [...project.floors].sort((a, b) => parseFloat(a) - parseFloat(b)).map(floor => {
                       const floorPlan = floorPlans.get(floor);
 
                       return (
