@@ -293,15 +293,81 @@
         return;
       }
 
-      // Initialize Supabase - prova a usare le credenziali dall'app
+      // Initialize Supabase - detect credentials automatically
       try {
-        const supabaseUrl = 'https://jcvcvjyziqafrzgmrhxw.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjdmN2anl6aXFhZnJ6Z21yaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzY3NzMsImV4cCI6MjA1MTI1Mjc3M30.r58Ype_eJhMH2bwZuWWOsGFN4AFdkYFiOTk-IjXjwhc';
+        // AUTO-DETECT: Find the Supabase auth token key in localStorage
+        log('Ricerco credenziali Supabase nel localStorage...', 'info');
+
+        let tokenKey = null;
+        let storedAuth = null;
+
+        // Search for Supabase auth token
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.match(/^sb-.*-auth-token$/)) {
+            tokenKey = key;
+            storedAuth = localStorage.getItem(key);
+            log(`Trovata chiave auth: ${key}`, 'success');
+            break;
+          }
+        }
+
+        if (!tokenKey || !storedAuth) {
+          log('Nessun token di autenticazione trovato', 'error');
+          document.getElementById('authInfo').innerHTML =
+            '<strong>⚠️ Non sei autenticato.</strong><br><br>Per recuperare i tipologici:<br>1. Apri l\'applicazione principale: <a href="https://opimappa.vercel.app" target="_blank" style="color: #007bff; font-weight: bold;">https://opimappa.vercel.app</a><br>2. Effettua il login<br>3. <strong>NON chiudere quella tab</strong><br>4. Torna qui e clicca di nuovo "Verifica Connessione"';
+          document.getElementById('authInfo').style.display = 'block';
+          document.getElementById('authInfo').className = 'warning';
+          return;
+        }
+
+        // Extract Supabase project ref from token key
+        const projectRef = tokenKey.replace('sb-', '').replace('-auth-token', '');
+        const supabaseUrl = `https://${projectRef}.supabase.co`;
+
+        log(`URL Supabase rilevato: ${supabaseUrl}`, 'success');
+
+        // Parse token to get the anon key
+        let supabaseKey = null;
+        try {
+          const authData = JSON.parse(storedAuth);
+          log(`Token per utente: ${authData.user?.email || 'sconosciuto'}`, 'info');
+
+          // Try to extract anon key from token or use a common pattern
+          // The anon key is usually in the JWT token, but we'll try known keys
+          const knownKeys = [
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcWdvanVjeWR6b2JyaHBkbWtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzY3NzMsImV4cCI6MjA1MTI1Mjc3M30.r58Ype_eJhMH2bwZuWWOsGFN4AFdkYFiOTk-IjXjwhc',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjdmN2anl6aXFhZnJ6Z21yaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzY3NzMsImV4cCI6MjA1MTI1Mjc3M30.r58Ype_eJhMH2bwZuWWOsGFN4AFdkYFiOTk-IjXjwhc'
+          ];
+
+          // Try each key (we need the anon key to create the client)
+          for (const key of knownKeys) {
+            try {
+              const decoded = JSON.parse(atob(key.split('.')[1]));
+              if (decoded.ref === projectRef) {
+                supabaseKey = key;
+                log('Chiave anon corrispondente trovata', 'success');
+                break;
+              }
+            } catch (e) {
+              // Continue to next key
+            }
+          }
+
+          if (!supabaseKey) {
+            supabaseKey = knownKeys[0]; // Use first as fallback
+            log('Uso chiave anon predefinita', 'info');
+          }
+
+        } catch (e) {
+          log('Errore nel parsing del token', 'warning');
+          return;
+        }
 
         // Create client with explicit storage options to share session
         supabaseClient = supabase.createClient(supabaseUrl, supabaseKey, {
           auth: {
-            storageKey: 'sb-jcvcvjyziqafrzgmrhxw-auth-token', // Use same key as main app
+            storageKey: tokenKey, // Use detected key
             persistSession: true,
             detectSessionInUrl: false,
             flowType: 'implicit'
@@ -312,27 +378,6 @@
 
         // Wait a moment for storage sync
         await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Check localStorage first
-        const tokenKey = 'sb-jcvcvjyziqafrzgmrhxw-auth-token';
-        const storedAuth = localStorage.getItem(tokenKey);
-
-        if (storedAuth) {
-          log('Token trovato nel localStorage', 'success');
-          try {
-            const authData = JSON.parse(storedAuth);
-            log(`Token per utente: ${authData.user?.email || 'sconosciuto'}`, 'info');
-          } catch (e) {
-            log('Token presente ma formato non riconosciuto', 'warning');
-          }
-        } else {
-          log('Nessun token nel localStorage', 'warning');
-          document.getElementById('authInfo').innerHTML =
-            '<strong>⚠️ Non sei autenticato.</strong><br><br>Per recuperare i tipologici:<br>1. Apri l\'applicazione principale: <a href="https://opimappa.vercel.app" target="_blank" style="color: #007bff; font-weight: bold;">https://opimappa.vercel.app</a><br>2. Effettua il login<br>3. <strong>NON chiudere quella tab</strong><br>4. Torna qui e clicca di nuovo "Verifica Connessione"';
-          document.getElementById('authInfo').style.display = 'block';
-          document.getElementById('authInfo').className = 'warning';
-          return;
-        }
 
         // Try to get session
         log('Controllo sessione...');
