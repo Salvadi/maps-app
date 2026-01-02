@@ -57,19 +57,18 @@ export async function createFloorPlan(
 
     await db.floorPlans.add(floorPlan);
 
-    // Add to sync queue only if upload failed
-    if (!imageUrl) {
-      await db.syncQueue.add({
-        id: generateId(),
-        operation: 'CREATE',
-        entityType: 'floor_plan',
-        entityId: floorPlan.id,
-        payload: floorPlan,
-        timestamp: now(),
-        retryCount: 0,
-        synced: 0,
-      });
-    }
+    // Always add to sync queue to ensure floor_plans table entry is created in Supabase
+    // Even if Storage upload succeeded, we still need to create the database record
+    await db.syncQueue.add({
+      id: generateId(),
+      operation: 'CREATE',
+      entityType: 'floor_plan',
+      entityId: floorPlan.id,
+      payload: floorPlan,
+      timestamp: now(),
+      retryCount: 0,
+      synced: 0, // Always set to 0 so it gets processed by sync engine
+    });
 
     console.log('Floor plan created:', floorPlan.id);
     return floorPlan;
@@ -384,19 +383,18 @@ export async function createStandaloneMap(
 
     await db.standaloneMaps.add(map);
 
-    // Add to sync queue only if upload failed
-    if (!imageUrl) {
-      await db.syncQueue.add({
-        id: generateId(),
-        operation: 'CREATE',
-        entityType: 'standalone_map',
-        entityId: map.id,
-        payload: map,
-        timestamp: now(),
-        retryCount: 0,
-        synced: 0,
-      });
-    }
+    // Always add to sync queue to ensure standalone_maps table entry is created in Supabase
+    // Even if Storage upload succeeded, we still need to create the database record
+    await db.syncQueue.add({
+      id: generateId(),
+      operation: 'CREATE',
+      entityType: 'standalone_map',
+      entityId: map.id,
+      payload: map,
+      timestamp: now(),
+      retryCount: 0,
+      synced: 0, // Always set to 0 so it gets processed by sync engine
+    });
 
     console.log('Standalone map created:', map.id);
     return map;

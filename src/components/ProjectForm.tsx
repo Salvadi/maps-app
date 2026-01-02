@@ -558,7 +558,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                         <input
                           type="number"
                           value={typology.number}
-                          readOnly
+                          onChange={(e) =>
+                            handleTypologyChange(typology.id, 'number', parseInt(e.target.value) || 1)
+                          }
                           className="table-input table-input-number"
                           min="1"
                           max="999"
