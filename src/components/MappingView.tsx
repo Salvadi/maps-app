@@ -239,9 +239,14 @@ const MappingView: React.FC<MappingViewProps> = ({
         const allUsers = await getAllUsers();
         setUsers(allUsers);
 
-        // Load floor plans for this project
+        // Load floor plans for this project and sort by floor number
         const plans = await getFloorPlansByProject(project.id);
-        setFloorPlans(plans);
+        const sortedPlans = plans.sort((a, b) => {
+          const floorA = parseFloat(a.floor);
+          const floorB = parseFloat(b.floor);
+          return floorA - floorB;
+        });
+        setFloorPlans(sortedPlans);
 
         // Load points for each floor plan
         const pointsMap: Record<string, FloorPlanPoint[]> = {};
@@ -271,7 +276,12 @@ const MappingView: React.FC<MappingViewProps> = ({
         try {
           console.log('🔄 Sync completed, reloading floor plans...');
           const plans = await getFloorPlansByProject(project.id);
-          setFloorPlans(plans);
+          const sortedPlans = plans.sort((a, b) => {
+            const floorA = parseFloat(a.floor);
+            const floorB = parseFloat(b.floor);
+            return floorA - floorB;
+          });
+          setFloorPlans(sortedPlans);
 
           // Reload points for each floor plan
           const pointsMap: Record<string, FloorPlanPoint[]> = {};
@@ -614,7 +624,7 @@ const MappingView: React.FC<MappingViewProps> = ({
 
       // Add Tipologici sheet
       if (project.typologies && project.typologies.length > 0) {
-        const tipologiciData = project.typologies.map(tip => {
+        const tipologiciData = [...project.typologies].sort((a, b) => a.number - b.number).map(tip => {
           // Show custom text for "Altro" if specified
           const attraversamentoText = tip.attraversamento === 'Altro' && tip.attraversamentoCustom
             ? tip.attraversamentoCustom
@@ -730,7 +740,7 @@ const MappingView: React.FC<MappingViewProps> = ({
 
       // Add Tipologici sheet
       if (project.typologies && project.typologies.length > 0) {
-        const tipologiciData = project.typologies.map(tip => {
+        const tipologiciData = [...project.typologies].sort((a, b) => a.number - b.number).map(tip => {
           // Show custom text for "Altro" if specified
           const attraversamentoText = tip.attraversamento === 'Altro' && tip.attraversamentoCustom
             ? tip.attraversamentoCustom
