@@ -6,58 +6,51 @@ A causa di un bug ora **CORRETTO**, nascondere i tipologici nel ProjectForm e si
 
 ## Soluzioni per il Recupero
 
-### ✅ METODO CONSIGLIATO: Script nella Console del Browser
+### ✅ METODO CONSIGLIATO: Interfaccia Web (Funziona ovunque!)
 
-Questo è il metodo più semplice e diretto.
+Questo è il metodo più semplice e funziona sia in produzione che in locale.
 
 #### Istruzioni:
 
-1. **Avvia l'applicazione** nel browser (assicurati che sia in esecuzione)
+1. **Apri l'applicazione principale** e **effettua il login**:
+   - Produzione: https://opimappa.vercel.app
+   - Locale: http://localhost:5173
 
-2. **Effettua il login** se non lo hai già fatto
+2. **Apri lo strumento di recupero** in una NUOVA scheda:
+   - Produzione: **https://opimappa.vercel.app/recover-typologies.html**
+   - Locale: **http://localhost:5173/recover-typologies.html**
 
-3. **Apri gli Strumenti per Sviluppatori**:
-   - Chrome/Edge: Premi `F12` o `Ctrl+Shift+I`
-   - Firefox: Premi `F12`
-   - Safari: `Cmd+Option+I`
+3. **Segui i 4 passaggi nell'interfaccia**:
+   - **Step 1**: Clicca "Verifica Connessione e Autenticazione"
+   - **Step 2**: Clicca "Carica Progetti da Supabase" - vedrai quanti progetti hanno tipologici
+   - **Step 3**: Seleziona un progetto e clicca "Mostra Tipologici" per vedere l'anteprima
+   - **Step 4**: Clicca "Ripristina Tipologici" per un singolo progetto o "Ripristina TUTTI" per tutti
 
-4. **Vai nella tab "Console"**
-
-5. **Copia il contenuto del file `recover-script.js`** e incollalo nella console, poi premi Invio
-
-6. Lo script mostrerà tutti i progetti con tipologici trovati su Supabase
-
-7. **Scegli come procedere**:
-
-   **Opzione A - Ripristina un singolo progetto:**
-   ```javascript
-   restoreProjectTypologies(0)  // 0 è l'indice del progetto nell'elenco
-   ```
-
-   **Opzione B - Ripristina TUTTI i progetti automaticamente:**
-   ```javascript
-   restoreAllTypologies()
-   ```
-
-8. **Ricarica la pagina** (premi `F5`) per vedere i tipologici ripristinati
+4. **Ricarica l'applicazione principale** (F5) per vedere i tipologici ripristinati
 
 ---
 
-### 🌐 METODO ALTERNATIVO: Interfaccia Web
+### 🔧 METODO ALTERNATIVO: Script Console (Solo per utenti avanzati)
 
-Se preferisci un'interfaccia grafica:
+⚠️ **Nota**: Questo metodo potrebbe non funzionare in produzione a causa delle limitazioni degli import dinamici.
 
-1. Avvia il server di sviluppo dell'applicazione
+#### Istruzioni:
 
-2. Apri nel browser: `http://localhost:5173/recover-typologies.html`
+1. **Apri l'applicazione** e **effettua il login**
 
-3. Segui le istruzioni nell'interfaccia:
-   - Clicca "Carica Progetti dal Server"
-   - Seleziona un progetto dall'elenco
-   - Visualizza i tipologici in anteprima
-   - Clicca "Ripristina Tipologici nel Database Locale"
+2. **Apri gli Strumenti per Sviluppatori** (F12)
 
-4. Ricarica l'applicazione
+3. **Vai nella tab "Console"**
+
+4. **Copia il contenuto del file `recover-script.js`** e incollalo nella console
+
+5. Segui le istruzioni visualizzate
+
+---
+
+## ⭐ Raccomandazione
+
+**Usa l'interfaccia web** (primo metodo). È più semplice, più affidabile e funziona sia in locale che in produzione su Vercel!
 
 ---
 

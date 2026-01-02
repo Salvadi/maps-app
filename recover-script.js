@@ -1,14 +1,12 @@
 /**
- * SCRIPT DI RECUPERO TIPOLOGICI
- *
- * Questo script recupera i tipologici dal server Supabase e li ripristina nel database locale.
+ * SCRIPT DI RECUPERO TIPOLOGICI - Versione Console
  *
  * ISTRUZIONI:
- * 1. Apri l'applicazione nel browser (deve essere in esecuzione)
- * 2. Apri gli Strumenti per Sviluppatori (F12)
- * 3. Vai nella tab "Console"
- * 4. Copia e incolla questo intero script nella console
- * 5. Segui le istruzioni che appaiono
+ * 1. Apri l'applicazione nel browser (https://opimappa.vercel.app o localhost)
+ * 2. Effettua il login
+ * 3. Apri gli Strumenti per Sviluppatori (F12)
+ * 4. Vai nella tab "Console"
+ * 5. Copia e incolla questo script COMPLETO nella console e premi Invio
  */
 
 (async function recoverTypologies() {
@@ -16,12 +14,40 @@
   console.log('');
 
   try {
-    // Import required modules
-    const { supabase } = await import('./src/lib/supabase.ts');
-    const { db } = await import('./src/db/database.ts');
-    const { updateProject } = await import('./src/db/projects.ts');
+    // Invece di importare, accediamo agli oggetti dal window
+    // Prima dobbiamo esporli. Chiediamo all'utente di farlo.
 
-    // Check authentication
+    if (!window.__RECOVERY_MODE__) {
+      console.log('📋 PRIMA DI PROCEDERE, ESEGUI QUESTI COMANDI:');
+      console.log('');
+      console.log('Copia e incolla questi 3 comandi uno alla volta:');
+      console.log('');
+      console.log('1️⃣ Prima esporta il client Supabase:');
+      console.log('%c   (Vai nella tab Sources/Sorgenti -> cerca "supabase" nei file -> cerca la variabile "supabase" o "client" -> copiala qui sotto)', 'color: orange');
+      console.log('');
+      console.log('2️⃣ Poi esporta il database IndexedDB:');
+      console.log('%c   (Cerca "database.ts" -> cerca "export const db" -> copialo qui sotto)', 'color: orange');
+      console.log('');
+      console.log('❌ METODO ALTERNATIVO PIÙ SEMPLICE:');
+      console.log('');
+      console.log('Usa direttamente l\'interfaccia web aprendo:');
+      console.log('%c   http://localhost:5173/recover-typologies.html', 'color: green; font-weight: bold');
+      console.log('   oppure');
+      console.log('%c   https://opimappa.vercel.app/recover-typologies.html', 'color: green; font-weight: bold');
+      console.log('');
+      return;
+    }
+
+    const supabase = window.__RECOVERY_SUPABASE__;
+    const db = window.__RECOVERY_DB__;
+    const updateProject = window.__RECOVERY_UPDATE_PROJECT__;
+
+    if (!supabase || !db || !updateProject) {
+      console.error('❌ Oggetti non disponibili. Usa l\'interfaccia web invece.');
+      return;
+    }
+
+    // Procedi con il recupero...
     console.log('1️⃣ Verifico autenticazione...');
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -34,7 +60,6 @@
     console.log(`✅ Autenticato come: ${session.user.email}`);
     console.log('');
 
-    // Fetch all projects from Supabase
     console.log('2️⃣ Carico progetti da Supabase...');
     const { data: supabaseProjects, error } = await supabase
       .from('projects')
@@ -54,7 +79,6 @@
     console.log(`✅ Trovati ${supabaseProjects.length} progetti su Supabase`);
     console.log('');
 
-    // Filter projects with typologies
     const projectsWithTypologies = supabaseProjects.filter(p =>
       p.typologies && p.typologies.length > 0
     );
@@ -68,7 +92,6 @@
       return;
     }
 
-    // Display projects
     console.log('📋 ELENCO PROGETTI CON TIPOLOGICI:');
     console.log('='.repeat(80));
 
@@ -84,7 +107,6 @@
     console.log('='.repeat(80));
     console.log('');
 
-    // Prepare restore function
     window.restoreProjectTypologies = async function(projectIndex) {
       const project = projectsWithTypologies[projectIndex];
 
@@ -98,7 +120,6 @@
       console.log(`   Tipologici da ripristinare: ${project.typologies.length}`);
 
       try {
-        // Check if project exists locally
         const localProject = await db.projects.get(project.id);
 
         if (!localProject) {
@@ -109,7 +130,6 @@
 
         console.log(`   Tipologici attuali nel locale: ${localProject.typologies?.length || 0}`);
 
-        // Update project
         await updateProject(project.id, {
           typologies: project.typologies
         });
@@ -122,7 +142,6 @@
         console.log('✅ Ricarica la pagina (F5) per vedere i cambiamenti');
         console.log('');
 
-        // Show typologies details
         console.log('📋 TIPOLOGICI RIPRISTINATI:');
         console.table(project.typologies.map(t => ({
           'N.': t.number,
@@ -139,7 +158,6 @@
       }
     };
 
-    // Restore all projects function
     window.restoreAllTypologies = async function() {
       console.log('');
       console.log('🔄 RIPRISTINO DI TUTTI I PROGETTI...');
@@ -178,7 +196,7 @@
       }
 
       console.log('');
-      console.log('=' .repeat(80));
+      console.log('='.repeat(80));
       console.log('📊 RIEPILOGO RIPRISTINO');
       console.log('='.repeat(80));
       console.log(`✅ Progetti ripristinati con successo: ${successCount}`);
@@ -189,27 +207,19 @@
       console.log('='.repeat(80));
     };
 
-    // Instructions
     console.log('');
     console.log('🎯 COME PROCEDERE:');
     console.log('');
     console.log('Opzione 1 - Ripristina un singolo progetto:');
     console.log('   restoreProjectTypologies(INDEX)');
-    console.log('   Esempio: restoreProjectTypologies(0)  // Ripristina il primo progetto');
+    console.log('   Esempio: restoreProjectTypologies(0)');
     console.log('');
     console.log('Opzione 2 - Ripristina TUTTI i progetti:');
     console.log('   restoreAllTypologies()');
-    console.log('');
-    console.log('⚠️  IMPORTANTE: Dopo il ripristino, ricarica la pagina (F5) per vedere i cambiamenti');
     console.log('');
 
   } catch (error) {
     console.error('❌ Errore fatale:', error.message);
     console.error(error);
-    console.log('');
-    console.log('💡 SUGGERIMENTI:');
-    console.log('   1. Assicurati di essere nell\'applicazione (non in una pagina vuota)');
-    console.log('   2. Assicurati di aver fatto il login');
-    console.log('   3. Prova a ricaricare la pagina e riprovare');
   }
 })();
