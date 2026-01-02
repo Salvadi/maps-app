@@ -295,30 +295,75 @@
 
       // Initialize Supabase - prova a usare le credenziali dall'app
       try {
-        // Prova a recuperare le credenziali da localStorage o dall'app
-        const supabaseUrl = localStorage.getItem('supabase.url') ||
-                           'https://jcvcvjyziqafrzgmrhxw.supabase.co';
-        const supabaseKey = localStorage.getItem('supabase.key') ||
-                           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjdmN2anl6aXFhZnJ6Z21yaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzY3NzMsImV4cCI6MjA1MTI1Mjc3M30.r58Ype_eJhMH2bwZuWWOsGFN4AFdkYFiOTk-IjXjwhc';
+        const supabaseUrl = 'https://jcvcvjyziqafrzgmrhxw.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjdmN2anl6aXFhZnJ6Z21yaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzY3NzMsImV4cCI6MjA1MTI1Mjc3M30.r58Ype_eJhMH2bwZuWWOsGFN4AFdkYFiOTk-IjXjwhc';
 
-        supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        // Create client with explicit storage options to share session
+        supabaseClient = supabase.createClient(supabaseUrl, supabaseKey, {
+          auth: {
+            storageKey: 'sb-jcvcvjyziqafrzgmrhxw-auth-token', // Use same key as main app
+            persistSession: true,
+            detectSessionInUrl: false,
+            flowType: 'implicit'
+          }
+        });
 
-        // Check authentication
+        log('Client Supabase inizializzato', 'success');
+
+        // Wait a moment for storage sync
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Try to get session
+        log('Controllo sessione...');
         const { data: { session }, error } = await supabaseClient.auth.getSession();
 
         if (error) {
-          log(`Errore autenticazione: ${error.message}`, 'error');
+          log(`Errore: ${error.message}`, 'error');
           document.getElementById('authInfo').innerHTML =
-            '<strong>❌ Non autenticato.</strong> Apri l\'applicazione principale, effettua il login, poi torna qui e riprova.';
+            '<strong>❌ Errore di autenticazione.</strong> Apri l\'applicazione principale, effettua il login, poi torna qui e riprova.';
           document.getElementById('authInfo').style.display = 'block';
+          document.getElementById('authInfo').className = 'error';
           return;
         }
 
         if (!session) {
-          log('Utente non autenticato', 'warning');
+          log('Sessione non trovata', 'warning');
+
+          // Check if there's a token in localStorage
+          const tokenKey = 'sb-jcvcvjyziqafrzgmrhxw-auth-token';
+          const storedAuth = localStorage.getItem(tokenKey);
+
+          if (storedAuth) {
+            log('Token trovato nel localStorage, provo a riconnettermi...', 'info');
+
+            // Try refreshing the session
+            const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
+
+            if (refreshError || !refreshData.session) {
+              log('Impossibile recuperare la sessione', 'error');
+              document.getElementById('authInfo').innerHTML =
+                '<strong>⚠️ Sessione scaduta.</strong> Apri l\'applicazione principale (<a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a>), effettua il login nuovamente, poi torna qui e riprova.';
+              document.getElementById('authInfo').style.display = 'block';
+              document.getElementById('authInfo').className = 'warning';
+              return;
+            }
+
+            log(`Sessione recuperata! Autenticato come: ${refreshData.session.user.email}`, 'success');
+            document.getElementById('authInfo').innerHTML =
+              `<strong>✅ Connesso come:</strong> ${refreshData.session.user.email}`;
+            document.getElementById('authInfo').className = 'success';
+            document.getElementById('authInfo').style.display = 'block';
+
+            // Show next step
+            document.getElementById('step2').style.display = 'block';
+            document.getElementById('connectBtn').disabled = true;
+            return;
+          }
+
           document.getElementById('authInfo').innerHTML =
-            '<strong>⚠️ Sessione non trovata.</strong> Apri l\'applicazione principale (<a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a>), effettua il login, poi torna qui e riprova.';
+            '<strong>⚠️ Sessione non trovata.</strong><br>1. Apri l\'applicazione principale in un\'altra tab: <a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a><br>2. Effettua il login<br>3. Torna qui e clicca di nuovo "Verifica Connessione"';
           document.getElementById('authInfo').style.display = 'block';
+          document.getElementById('authInfo').className = 'warning';
           return;
         }
 
