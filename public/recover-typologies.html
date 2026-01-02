@@ -313,57 +313,76 @@
         // Wait a moment for storage sync
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Try to get session
-        log('Controllo sessione...');
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        // Check localStorage first
+        const tokenKey = 'sb-jcvcvjyziqafrzgmrhxw-auth-token';
+        const storedAuth = localStorage.getItem(tokenKey);
 
-        if (error) {
-          log(`Errore: ${error.message}`, 'error');
+        if (storedAuth) {
+          log('Token trovato nel localStorage', 'success');
+          try {
+            const authData = JSON.parse(storedAuth);
+            log(`Token per utente: ${authData.user?.email || 'sconosciuto'}`, 'info');
+          } catch (e) {
+            log('Token presente ma formato non riconosciuto', 'warning');
+          }
+        } else {
+          log('Nessun token nel localStorage', 'warning');
           document.getElementById('authInfo').innerHTML =
-            '<strong>❌ Errore di autenticazione.</strong> Apri l\'applicazione principale, effettua il login, poi torna qui e riprova.';
+            '<strong>⚠️ Non sei autenticato.</strong><br><br>Per recuperare i tipologici:<br>1. Apri l\'applicazione principale: <a href="https://opimappa.vercel.app" target="_blank" style="color: #007bff; font-weight: bold;">https://opimappa.vercel.app</a><br>2. Effettua il login<br>3. <strong>NON chiudere quella tab</strong><br>4. Torna qui e clicca di nuovo "Verifica Connessione"';
           document.getElementById('authInfo').style.display = 'block';
-          document.getElementById('authInfo').className = 'error';
+          document.getElementById('authInfo').className = 'warning';
           return;
         }
 
-        if (!session) {
-          log('Sessione non trovata', 'warning');
+        // Try to get session
+        log('Controllo sessione...');
+        let session = null;
 
-          // Check if there's a token in localStorage
-          const tokenKey = 'sb-jcvcvjyziqafrzgmrhxw-auth-token';
-          const storedAuth = localStorage.getItem(tokenKey);
+        try {
+          const { data, error } = await supabaseClient.auth.getSession();
 
-          if (storedAuth) {
-            log('Token trovato nel localStorage, provo a riconnettermi...', 'info');
-
-            // Try refreshing the session
-            const { data: refreshData, error: refreshError } = await supabaseClient.auth.refreshSession();
-
-            if (refreshError || !refreshData.session) {
-              log('Impossibile recuperare la sessione', 'error');
-              document.getElementById('authInfo').innerHTML =
-                '<strong>⚠️ Sessione scaduta.</strong> Apri l\'applicazione principale (<a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a>), effettua il login nuovamente, poi torna qui e riprova.';
-              document.getElementById('authInfo').style.display = 'block';
-              document.getElementById('authInfo').className = 'warning';
-              return;
-            }
-
-            log(`Sessione recuperata! Autenticato come: ${refreshData.session.user.email}`, 'success');
-            document.getElementById('authInfo').innerHTML =
-              `<strong>✅ Connesso come:</strong> ${refreshData.session.user.email}`;
-            document.getElementById('authInfo').className = 'success';
-            document.getElementById('authInfo').style.display = 'block';
-
-            // Show next step
-            document.getElementById('step2').style.display = 'block';
-            document.getElementById('connectBtn').disabled = true;
-            return;
+          if (error) {
+            log(`Errore getSession: ${error.message}`, 'warning');
+          } else {
+            session = data.session;
           }
+        } catch (e) {
+          log(`Eccezione durante getSession: ${e.message}`, 'warning');
+        }
 
+        // If no session, try to restore from localStorage token
+        if (!session && storedAuth) {
+          log('Provo a ripristinare la sessione dal token...', 'info');
+
+          try {
+            const authData = JSON.parse(storedAuth);
+
+            if (authData.access_token && authData.refresh_token) {
+              // Set the session manually
+              const { data, error } = await supabaseClient.auth.setSession({
+                access_token: authData.access_token,
+                refresh_token: authData.refresh_token
+              });
+
+              if (error) {
+                log(`Errore setSession: ${error.message}`, 'error');
+              } else if (data.session) {
+                session = data.session;
+                log('Sessione ripristinata con successo!', 'success');
+              }
+            }
+          } catch (e) {
+            log(`Errore nel ripristino sessione: ${e.message}`, 'error');
+          }
+        }
+
+        // Final check
+        if (!session) {
+          log('Impossibile ottenere la sessione', 'error');
           document.getElementById('authInfo').innerHTML =
-            '<strong>⚠️ Sessione non trovata.</strong><br>1. Apri l\'applicazione principale in un\'altra tab: <a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a><br>2. Effettua il login<br>3. Torna qui e clicca di nuovo "Verifica Connessione"';
+            '<strong>⚠️ Sessione non disponibile.</strong><br><br>Possibili soluzioni:<br>1. Ricarica questa pagina (F5)<br>2. Assicurati di essere loggato su <a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a><br>3. Se il problema persiste, fai logout e login di nuovo sull\'app principale';
           document.getElementById('authInfo').style.display = 'block';
-          document.getElementById('authInfo').className = 'warning';
+          document.getElementById('authInfo').className = 'error';
           return;
         }
 
