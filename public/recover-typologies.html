@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recupero Tipologici</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+    .warning, .success, .error, .info {
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border-left: 4px solid;
+    }
+    .warning { background: #fff3cd; border-color: #ffc107; color: #856404; }
+    .success { background: #d4edda; border-color: #28a745; color: #155724; }
+    .error { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+    .info { background: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      margin: 10px 5px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .danger-btn {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .danger-btn:hover {
+      box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+    }
+    #output {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid #dee2e6;
+    }
+    .project-list {
+      margin: 20px 0;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .project-item {
+      background: #f8f9fa;
+      padding: 16px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 2px solid #dee2e6;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .project-item:hover {
+      background: #e9ecef;
+      border-color: #adb5bd;
+      transform: translateX(4px);
+    }
+    .project-item.selected {
+      background: linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%);
+      border-color: #667eea;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    }
+    .project-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .project-meta {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+    }
+    .step {
+      margin: 30px 0;
+      padding: 24px;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      background: #fafbfc;
+    }
+    .step h3 {
+      margin: 0 0 16px 0;
+      color: #495057;
+      font-size: 20px;
+    }
+    .step-number {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      text-align: left;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+    }
+    tr:hover {
+      background: #f8f9fa;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #667eea;
+      font-weight: 600;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Recupero Tipologici</h1>
+    <p class="subtitle">Ripristina i tipologici dal server Supabase al database locale</p>
+
+    <div class="warning">
+      <strong>⚠️ IMPORTANTE:</strong> Questo strumento recupera i tipologici salvati su Supabase.
+      I dati possono essere recuperati solo se erano stati sincronizzati prima della cancellazione.
+    </div>
+
+    <div class="info" id="authInfo" style="display: none;"></div>
+
+    <!-- Step 1: Connect -->
+    <div class="step">
+      <h3><span class="step-number">1</span>Verifica Connessione</h3>
+      <button id="connectBtn" onclick="checkConnection()">Verifica Connessione e Autenticazione</button>
+    </div>
+
+    <!-- Step 2: Load Projects -->
+    <div class="step" id="step2" style="display: none;">
+      <h3><span class="step-number">2</span>Carica Progetti</h3>
+      <button id="loadBtn" onclick="loadProjectsFromSupabase()">Carica Progetti da Supabase</button>
+      <div id="stats" class="stats" style="display: none;"></div>
+      <div id="projectList" class="project-list"></div>
+    </div>
+
+    <!-- Step 3: Preview -->
+    <div class="step" id="step3" style="display: none;">
+      <h3><span class="step-number">3</span>Anteprima Tipologici</h3>
+      <button id="previewBtn" onclick="previewTypologies()" disabled>Mostra Tipologici del Progetto Selezionato</button>
+      <div id="typologyPreview"></div>
+    </div>
+
+    <!-- Step 4: Restore -->
+    <div class="step" id="step4" style="display: none;">
+      <h3><span class="step-number">4</span>Ripristina</h3>
+      <button id="restoreBtn" class="danger-btn" onclick="restoreTypologies()" disabled>
+        Ripristina Tipologici nel Database Locale
+      </button>
+      <button id="restoreAllBtn" class="danger-btn" onclick="restoreAllTypologies()" disabled>
+        Ripristina TUTTI i Tipologici
+      </button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    let supabaseClient = null;
+    let db = null;
+    let selectedProject = null;
+    let supabaseProject = null;
+    let allProjects = [];
+    let projectsWithTypologies = [];
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+      output.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function initializeIndexedDB() {
+      try {
+        db = new Dexie('MappingDatabase');
+
+        // Define schema matching the app
+        db.version(4).stores({
+          projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+          mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+          photos: 'id, mappingEntryId, uploaded',
+          syncQueue: 'id, synced, timestamp, entityType, entityId',
+          users: 'id, email, role',
+          metadata: 'key',
+          conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+          floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+          floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+          standaloneMaps: 'id, userId, name, synced'
+        });
+
+        await db.open();
+        log('Database IndexedDB connesso', 'success');
+        return true;
+      } catch (error) {
+        log(`Errore connessione IndexedDB: ${error.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function checkConnection() {
+      log('Verifico connessione...');
+
+      // Initialize IndexedDB
+      const dbOk = await initializeIndexedDB();
+      if (!dbOk) {
+        log('Impossibile connettersi al database locale', 'error');
+        return;
+      }
+
+      // Initialize Supabase - prova a usare le credenziali dall'app
+      try {
+        // Prova a recuperare le credenziali da localStorage o dall'app
+        const supabaseUrl = localStorage.getItem('supabase.url') ||
+                           'https://jcvcvjyziqafrzgmrhxw.supabase.co';
+        const supabaseKey = localStorage.getItem('supabase.key') ||
+                           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjdmN2anl6aXFhZnJ6Z21yaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NzY3NzMsImV4cCI6MjA1MTI1Mjc3M30.r58Ype_eJhMH2bwZuWWOsGFN4AFdkYFiOTk-IjXjwhc';
+
+        supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Check authentication
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+        if (error) {
+          log(`Errore autenticazione: ${error.message}`, 'error');
+          document.getElementById('authInfo').innerHTML =
+            '<strong>❌ Non autenticato.</strong> Apri l\'applicazione principale, effettua il login, poi torna qui e riprova.';
+          document.getElementById('authInfo').style.display = 'block';
+          return;
+        }
+
+        if (!session) {
+          log('Utente non autenticato', 'warning');
+          document.getElementById('authInfo').innerHTML =
+            '<strong>⚠️ Sessione non trovata.</strong> Apri l\'applicazione principale (<a href="https://opimappa.vercel.app" target="_blank">https://opimappa.vercel.app</a>), effettua il login, poi torna qui e riprova.';
+          document.getElementById('authInfo').style.display = 'block';
+          return;
+        }
+
+        log(`Autenticato come: ${session.user.email}`, 'success');
+        document.getElementById('authInfo').innerHTML =
+          `<strong>✅ Connesso come:</strong> ${session.user.email}`;
+        document.getElementById('authInfo').className = 'success';
+        document.getElementById('authInfo').style.display = 'block';
+
+        // Show next step
+        document.getElementById('step2').style.display = 'block';
+        document.getElementById('connectBtn').disabled = true;
+
+      } catch (error) {
+        log(`Errore: ${error.message}`, 'error');
+      }
+    }
+
+    async function loadProjectsFromSupabase() {
+      try {
+        log('Caricamento progetti da Supabase...');
+        document.getElementById('loadBtn').disabled = true;
+        document.getElementById('loadBtn').textContent = 'Caricamento...';
+
+        const { data: projects, error } = await supabaseClient
+          .from('projects')
+          .select('*')
+          .order('updated_at', { ascending: false });
+
+        if (error) {
+          log(`Errore: ${error.message}`, 'error');
+          document.getElementById('loadBtn').disabled = false;
+          document.getElementById('loadBtn').textContent = 'Riprova';
+          return;
+        }
+
+        if (!projects || projects.length === 0) {
+          log('Nessun progetto trovato su Supabase', 'warning');
+          return;
+        }
+
+        allProjects = projects;
+        projectsWithTypologies = projects.filter(p => p.typologies && p.typologies.length > 0);
+
+        log(`Trovati ${projects.length} progetti totali`, 'success');
+        log(`Progetti con tipologici: ${projectsWithTypologies.length}`, 'success');
+
+        // Show stats
+        const statsDiv = document.getElementById('stats');
+        statsDiv.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-number">${projects.length}</div>
+            <div class="stat-label">Progetti Totali</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${projectsWithTypologies.length}</div>
+            <div class="stat-label">Con Tipologici</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${projectsWithTypologies.reduce((sum, p) => sum + p.typologies.length, 0)}</div>
+            <div class="stat-label">Tipologici Totali</div>
+          </div>
+        `;
+        statsDiv.style.display = 'grid';
+
+        // Display projects
+        const projectList = document.getElementById('projectList');
+        projectList.innerHTML = '';
+
+        if (projectsWithTypologies.length === 0) {
+          projectList.innerHTML = '<div class="warning">⚠️ Nessun progetto con tipologici trovato. I dati potrebbero non essere stati sincronizzati prima della cancellazione.</div>';
+          return;
+        }
+
+        projectsWithTypologies.forEach(project => {
+          const typologyCount = project.typologies.length;
+          const div = document.createElement('div');
+          div.className = 'project-item';
+          div.innerHTML = `
+            <div class="project-title">${project.title || 'Senza titolo'}</div>
+            <div class="project-meta">
+              <strong>ID:</strong> ${project.id}<br>
+              <strong>Tipologici:</strong> ${typologyCount}<br>
+              <strong>Ultimo aggiornamento:</strong> ${new Date(project.updated_at).toLocaleString('it-IT')}
+            </div>
+          `;
+          div.onclick = () => selectProject(project, div);
+          projectList.appendChild(div);
+        });
+
+        document.getElementById('step3').style.display = 'block';
+        document.getElementById('step4').style.display = 'block';
+
+      } catch (err) {
+        log(`Errore: ${err.message}`, 'error');
+        console.error(err);
+      }
+    }
+
+    function selectProject(project, element) {
+      document.querySelectorAll('.project-item').forEach(item => {
+        item.classList.remove('selected');
+      });
+
+      element.classList.add('selected');
+      selectedProject = project;
+      supabaseProject = project;
+
+      document.getElementById('previewBtn').disabled = false;
+      document.getElementById('restoreBtn').disabled = false;
+      document.getElementById('restoreAllBtn').disabled = false;
+
+      log(`Progetto selezionato: ${project.title}`, 'success');
+    }
+
+    function previewTypologies() {
+      if (!supabaseProject) {
+        log('Nessun progetto selezionato', 'error');
+        return;
+      }
+
+      const preview = document.getElementById('typologyPreview');
+      const typologies = supabaseProject.typologies || [];
+
+      if (typologies.length === 0) {
+        preview.innerHTML = '<div class="warning">⚠️ Questo progetto non ha tipologici.</div>';
+        return;
+      }
+
+      log(`Visualizzo ${typologies.length} tipologici`, 'success');
+
+      let html = `<div class="success"><strong>✅ Trovati ${typologies.length} tipologici per "${supabaseProject.title}"</strong></div>`;
+      html += '<div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">';
+      html += '<table><thead><tr><th>N.</th><th>Supporto</th><th>Tipo</th><th>Attraversamento</th><th>Marca</th><th>Prodotti</th></tr></thead><tbody>';
+
+      typologies.forEach(t => {
+        html += `<tr>
+          <td>${t.number}</td>
+          <td>${t.supporto || '-'}</td>
+          <td>${t.tipoSupporto || '-'}</td>
+          <td>${t.attraversamento || '-'}</td>
+          <td>${t.marcaProdottoUtilizzato || '-'}</td>
+          <td>${t.prodottiSelezionati?.length || 0}</td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      preview.innerHTML = html;
+    }
+
+    async function restoreTypologies() {
+      if (!supabaseProject) {
+        log('Nessun progetto selezionato', 'error');
+        return;
+      }
+
+      const typologies = supabaseProject.typologies || [];
+      if (typologies.length === 0) {
+        log('Nessun tipologico da ripristinare', 'error');
+        return;
+      }
+
+      if (!confirm(`Ripristinare ${typologies.length} tipologici per "${supabaseProject.title}"?\n\nQuesta operazione sovrascriverà i tipologici attuali.`)) {
+        log('Operazione annullata');
+        return;
+      }
+
+      try {
+        log(`Ripristino ${typologies.length} tipologici...`);
+
+        const localProject = await db.projects.get(supabaseProject.id);
+        if (!localProject) {
+          log(`Progetto non trovato nel database locale`, 'error');
+          log('Sincronizza il progetto dall\'applicazione prima', 'warning');
+          return;
+        }
+
+        log(`Tipologici attuali: ${localProject.typologies?.length || 0}`);
+
+        // Update project with typologies
+        await db.projects.update(supabaseProject.id, {
+          typologies: typologies,
+          updatedAt: Date.now()
+        });
+
+        log(`✅ SUCCESSO! Ripristinati ${typologies.length} tipologici!`, 'success');
+        log('Ricarica l\'applicazione per vedere i cambiamenti', 'success');
+
+        const preview = document.getElementById('typologyPreview');
+        preview.innerHTML = `<div class="success">
+          <h3 style="margin-bottom: 10px;">✅ Ripristino Completato!</h3>
+          <p><strong>Progetto:</strong> ${supabaseProject.title}</p>
+          <p><strong>Tipologici ripristinati:</strong> ${typologies.length}</p>
+          <p style="margin-top: 15px; font-weight: 600;">Ricarica l'applicazione principale per vedere i cambiamenti.</p>
+        </div>`;
+
+      } catch (err) {
+        log(`Errore: ${err.message}`, 'error');
+        console.error(err);
+      }
+    }
+
+    async function restoreAllTypologies() {
+      if (projectsWithTypologies.length === 0) {
+        log('Nessun progetto da ripristinare', 'error');
+        return;
+      }
+
+      const totalTypologies = projectsWithTypologies.reduce((sum, p) => sum + p.typologies.length, 0);
+
+      if (!confirm(`Ripristinare TUTTI i tipologici?\n\n- Progetti: ${projectsWithTypologies.length}\n- Tipologici totali: ${totalTypologies}\n\nQuesta operazione sovrascriverà i tipologici attuali in tutti i progetti.`)) {
+        log('Operazione annullata');
+        return;
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+      let totalRestored = 0;
+
+      for (const project of projectsWithTypologies) {
+        try {
+          log(`Ripristino: ${project.title}...`);
+
+          const localProject = await db.projects.get(project.id);
+          if (!localProject) {
+            log(`  ⚠️ Progetto non trovato localmente, skip`, 'warning');
+            errorCount++;
+            continue;
+          }
+
+          await db.projects.update(project.id, {
+            typologies: project.typologies,
+            updatedAt: Date.now()
+          });
+
+          totalRestored += project.typologies.length;
+          successCount++;
+          log(`  ✅ OK - ${project.typologies.length} tipologici`, 'success');
+
+        } catch (err) {
+          errorCount++;
+          log(`  ❌ Errore: ${err.message}`, 'error');
+        }
+      }
+
+      log('', 'info');
+      log('=== RIEPILOGO RIPRISTINO ===', 'success');
+      log(`Progetti ripristinati: ${successCount}`, 'success');
+      log(`Progetti con errori: ${errorCount}`, errorCount > 0 ? 'warning' : 'info');
+      log(`Tipologici totali ripristinati: ${totalRestored}`, 'success');
+      log('Ricarica l\'applicazione per vedere i cambiamenti', 'success');
+
+      const preview = document.getElementById('typologyPreview');
+      preview.innerHTML = `<div class="success">
+        <h3 style="margin-bottom: 15px;">✅ Ripristino Completato!</h3>
+        <p><strong>Progetti ripristinati:</strong> ${successCount}</p>
+        <p><strong>Tipologici totali:</strong> ${totalRestored}</p>
+        ${errorCount > 0 ? `<p><strong>Errori:</strong> ${errorCount} progetti non trovati localmente</p>` : ''}
+        <p style="margin-top: 20px; font-weight: 600;">Ricarica l'applicazione principale per vedere i cambiamenti.</p>
+      </div>`;
+    }
+
+    // Initialize
+    log('Strumento di recupero inizializzato. Clicca "Verifica Connessione" per iniziare.');
+  </script>
+</body>
+</html>
