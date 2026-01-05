@@ -1990,7 +1990,118 @@ const MappingView: React.FC<MappingViewProps> = ({
 
                   {isFloorExpanded && (
                     <div className="hierarchy-children">
-                      {floorGroup.rooms.map((roomGroup) => {
+                      {!project.useRoomNumbering && floorGroup.rooms.length === 1 && floorGroup.rooms[0].room === '-' ? (
+                        floorGroup.rooms[0].interventions.map((interventionGroup) => (
+                          <div key={`${floorGroup.floor}-${interventionGroup.intervention}`} className="intervention-group">
+                            <div className="intervention-header">
+                              <FolderIcon className="folder-icon" />
+                              <span className="hierarchy-title">
+                                {interventionGroup.intervention === '-' ? 'Nessun intervento' : `Intervento ${interventionGroup.intervention}`}
+                              </span>
+                              <span className="hierarchy-count">({interventionGroup.mappings.length})</span>
+                            </div>
+                            <div className="intervention-mappings">
+                              {interventionGroup.mappings.map((mapping) => {
+                                const photos = mappingPhotos[mapping.id] || [];
+                                const isExpanded = selectedMapping === mapping.id;
+
+                                return (
+                                  <div
+                                    key={mapping.id}
+                                    className={`mapping-card ${isExpanded ? 'expanded' : ''}`}
+                                    onClick={() => setSelectedMapping(isExpanded ? null : mapping.id)}
+                                  >
+                                    <div className="mapping-header">
+                                      <div>
+                                        <h3 className="mapping-title">
+                                          Piano {mapping.floor}
+                                          {mapping.room && ` - Stanza ${mapping.room}`}
+                                          {mapping.intervention && ` - foto n. ${mapping.intervention}`}
+                                        </h3>
+                                        <p className="mapping-meta">
+                                          {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
+                                        </p>
+                                      </div>
+                                      <div className="mapping-header-actions">
+                                        <button
+                                          className="mapping-action-btn"
+                                          onClick={(e) => handleEditMapping(mapping, e)}
+                                          aria-label="Modifica mappatura"
+                                        >
+                                          <EditIcon className="icon" />
+                                        </button>
+                                        <button
+                                          className="mapping-action-btn delete"
+                                          onClick={(e) => handleDeleteMapping(mapping.id, e)}
+                                          aria-label="Elimina mappatura"
+                                        >
+                                          <DeleteIcon className="icon" />
+                                        </button>
+                                        <div className="photo-count">
+                                          <ImageIcon className="icon" />
+                                          {photos.length}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                      <div className="mapping-details" onClick={(e) => e.stopPropagation()}>
+                                        {/* Sigillature */}
+                                        {mapping.crossings.length > 0 && (
+                                          <div className="crossings-section">
+                                            <h4>Sigillature:</h4>
+                                            <ul>
+                                              {mapping.crossings.map((sig, idx) => (
+                                                <li key={idx} style={{ marginBottom: '8px' }}>
+                                                  <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
+                                                  <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
+                                                  <strong>Attraversamento:</strong> {
+                                                    sig.attraversamento === 'Altro' && sig.attraversamentoCustom
+                                                      ? sig.attraversamentoCustom
+                                                      : sig.attraversamento || 'N/A'
+                                                  }<br />
+                                                  {sig.tipologicoId && (
+                                                    <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
+                                                  )}
+                                                  {sig.notes && (
+                                                    <><strong>Note:</strong> {sig.notes}<br /></>
+                                                  )}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+
+                                        {/* Photo Gallery */}
+                                        {photos.length > 0 && (
+                                          <div className="photo-gallery">
+                                            {photos.map((photo, idx) => {
+                                              const photoUrl = URL.createObjectURL(photo.blob);
+                                              const photoAlt = `Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`;
+                                              return (
+                                                <div key={photo.id} className="photo-item">
+                                                  <img
+                                                    src={photoUrl}
+                                                    alt={photoAlt}
+                                                    loading="lazy"
+                                                    onClick={() => setSelectedPhotoPreview({ url: photoUrl, alt: photoAlt })}
+                                                    style={{ cursor: 'pointer' }}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        floorGroup.rooms.map((roomGroup) => {
                         const floorRoomKey = `${floorGroup.floor}-${roomGroup.room}`;
                         const isRoomExpanded = expandedRooms.has(floorRoomKey);
                         const roomMappingCount = roomGroup.interventions.reduce(
@@ -2127,7 +2238,8 @@ const MappingView: React.FC<MappingViewProps> = ({
                             )}
                           </div>
                         );
-                      })}
+                      })
+                      )}
                     </div>
                   )}
                 </div>
