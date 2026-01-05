@@ -373,31 +373,31 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
 
     // Draw label background
-    ctx.fillStyle = isSelected ? '#FFF3CD' : '#FFFFFF';
+    ctx.fillStyle = isSelected ? '#FFF3CD' : '#FAFAF0';
     ctx.strokeStyle = isSelected ? '#FF0000' : '#333333';
     ctx.lineWidth = (isSelected ? 2 : 1) * zoom;
 
     ctx.fillRect(x, y, labelWidth, labelHeight);
     ctx.strokeRect(x, y, labelWidth, labelHeight);
 
-    // Draw label text (multiple lines with italic styling for "Int." and "Tip.")
+    // Draw label text (multiple lines with italic styling for "foto n." and "Tip.")
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'top';
     point.labelText.forEach((line, index) => {
       const yPos = y + padding + (index * lineHeight);
       let xPos = x + padding;
 
-      // Check if line starts with "Int." or "Tip." and render with italic
-      if (line.startsWith('Int. ')) {
-        // Draw "Int." in italic
+      // Check if line starts with "foto n." or "Tip." and render with italic
+      if (line.startsWith('foto n. ')) {
+        // Draw "foto n." in italic
         ctx.font = `italic ${fontSize}px Arial`;
-        const intText = 'Int. ';
+        const intText = 'foto n. ';
         ctx.fillText(intText, xPos, yPos);
         xPos += ctx.measureText(intText).width;
 
         // Draw rest in bold
         ctx.font = `bold ${fontSize}px Arial`;
-        ctx.fillText(line.substring(5), xPos, yPos);
+        ctx.fillText(line.substring(8), xPos, yPos);
       } else if (line.startsWith('Tip. ')) {
         // Draw "Tip." in italic
         ctx.font = `italic ${fontSize}px Arial`;

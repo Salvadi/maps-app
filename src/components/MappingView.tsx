@@ -866,7 +866,7 @@ const MappingView: React.FC<MappingViewProps> = ({
               const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
               let labelText = ['Punto'];
               if (mappingEntry) {
-                // First line: Int. P0_S3_I3
+                // First line: foto n. P0_S3_I3
                 const firstLineParts = [];
                 if (project.floors && project.floors.length > 1) {
                   firstLineParts.push(`P${mappingEntry.floor}`);
@@ -878,9 +878,9 @@ const MappingView: React.FC<MappingViewProps> = ({
                   firstLineParts.push(`I${mappingEntry.intervention}`);
                 }
 
-                // Build first line with "Int. " prefix
+                // Build first line with "foto n. " prefix
                 const firstLine = firstLineParts.length > 0
-                  ? `Int. ${firstLineParts.join('_')}`
+                  ? `foto n. ${firstLineParts.join('_')}`
                   : 'Punto';
                 labelText = [firstLine];
 
@@ -924,17 +924,17 @@ const MappingView: React.FC<MappingViewProps> = ({
                 const yPos = labelY + padding + (index * lineHeight);
                 let xPos = labelX + padding;
 
-                // Check if line starts with "Int." or "Tip." and render with italic
-                if (line.startsWith('Int. ')) {
-                  // Draw "Int." in italic
+                // Check if line starts with "foto n." or "Tip." and render with italic
+                if (line.startsWith('foto n. ')) {
+                  // Draw "foto n." in italic
                   ctx.font = `italic ${fontSize}px Arial`;
-                  const intText = 'Int. ';
+                  const intText = 'foto n. ';
                   ctx.fillText(intText, xPos, yPos);
                   xPos += ctx.measureText(intText).width;
 
                   // Draw rest in bold
                   ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line.substring(5), xPos, yPos);
+                  ctx.fillText(line.substring(8), xPos, yPos);
                 } else if (line.startsWith('Tip. ')) {
                   // Draw "Tip." in italic
                   ctx.font = `italic ${fontSize}px Arial`;
@@ -1189,7 +1189,7 @@ const MappingView: React.FC<MappingViewProps> = ({
           }
 
           const firstLine = firstLineParts.length > 0
-            ? `Int. ${firstLineParts.join('_')}`
+            ? `foto n. ${firstLineParts.join('_')}`
             : 'Punto';
           const labelText = [firstLine];
 
@@ -1225,7 +1225,7 @@ const MappingView: React.FC<MappingViewProps> = ({
           const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
           let labelText = ['Punto'];
           if (mappingEntry) {
-            // First line: Int. P0_S3_I3
+            // First line: foto n. P0_S3_I3
             const firstLineParts = [];
             if (project.floors && project.floors.length > 1) {
               firstLineParts.push(`P${mappingEntry.floor}`);
@@ -1237,9 +1237,9 @@ const MappingView: React.FC<MappingViewProps> = ({
               firstLineParts.push(`I${mappingEntry.intervention}`);
             }
 
-            // Build first line with "Int. " prefix
+            // Build first line with "foto n. " prefix
             const firstLine = firstLineParts.length > 0
-              ? `Int. ${firstLineParts.join('_')}`
+              ? `foto n. ${firstLineParts.join('_')}`
               : 'Punto';
             labelText = [firstLine];
 
@@ -1476,7 +1476,7 @@ const MappingView: React.FC<MappingViewProps> = ({
           const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
           let labelText = ['Punto'];
           if (mappingEntry) {
-            // First line: Int. P0_S3_I3
+            // First line: foto n. P0_S3_I3
             const firstLineParts = [];
             if (project.floors && project.floors.length > 1) {
               firstLineParts.push(`P${mappingEntry.floor}`);
@@ -1488,9 +1488,9 @@ const MappingView: React.FC<MappingViewProps> = ({
               firstLineParts.push(`I${mappingEntry.intervention}`);
             }
 
-            // Build first line with "Int. " prefix
+            // Build first line with "foto n. " prefix
             const firstLine = firstLineParts.length > 0
-              ? `Int. ${firstLineParts.join('_')}`
+              ? `foto n. ${firstLineParts.join('_')}`
               : 'Punto';
             labelText = [firstLine];
 
@@ -1535,17 +1535,17 @@ const MappingView: React.FC<MappingViewProps> = ({
             const yPos = labelY + padding + (index * lineHeight);
             let xPos = labelX + padding;
 
-            // Check if line starts with "Int." or "Tip." and render with italic
-            if (line.startsWith('Int. ')) {
-              // Draw "Int." in italic
+            // Check if line starts with "foto n." or "Tip." and render with italic
+            if (line.startsWith('foto n. ')) {
+              // Draw "foto n." in italic
               ctx.font = `italic ${fontSize}px Arial`;
-              const intText = 'Int. ';
+              const intText = 'foto n. ';
               ctx.fillText(intText, xPos, yPos);
               xPos += ctx.measureText(intText).width;
 
               // Draw rest in bold
               ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line.substring(5), xPos, yPos);
+              ctx.fillText(line.substring(8), xPos, yPos);
             } else if (line.startsWith('Tip. ')) {
               // Draw "Tip." in italic
               ctx.font = `italic ${fontSize}px Arial`;
@@ -1885,7 +1885,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                       <h3 className="mapping-title">
                         Piano {mapping.floor}
                         {mapping.room && ` - Stanza ${mapping.room}`}
-                        {mapping.intervention && ` - Int. ${mapping.intervention}`}
+                        {mapping.intervention && ` - foto n. ${mapping.intervention}`}
                       </h3>
                       <p className="mapping-meta">
                         {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
@@ -2039,7 +2039,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                 <h3 className="mapping-title">
                                                   Piano {mapping.floor}
                                                   {mapping.room && ` - Stanza ${mapping.room}`}
-                                                  {mapping.intervention && ` - Int. ${mapping.intervention}`}
+                                                  {mapping.intervention && ` - foto n. ${mapping.intervention}`}
                                                 </h3>
                                                 <p className="mapping-meta">
                                                   {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
