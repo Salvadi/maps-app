@@ -1990,6 +1990,95 @@ const MappingView: React.FC<MappingViewProps> = ({
 
                   {isFloorExpanded && (
                     <div className="hierarchy-children">
+                      {/* If useRoomNumbering is false, skip room level and show interventions directly */}
+                      {!project.useRoomNumbering && floorGroup.rooms.length === 1 && floorGroup.rooms[0].room === '-' ? (
+                        // Skip room level, show interventions directly under floor
+                        floorGroup.rooms[0].interventions.map((interventionGroup) => (
+                          <div key={`${floorGroup.floor}-${interventionGroup.intervention}`} className="intervention-group">
+                            <div className="intervention-header">
+                              <FolderIcon className="folder-icon" />
+                              <span className="hierarchy-title">
+                                {interventionGroup.intervention === '-' ? 'Nessun intervento' : `Intervento ${interventionGroup.intervention}`}
+                              </span>
+                              <span className="hierarchy-count">({interventionGroup.mappings.length})</span>
+                            </div>
+                            <div className="intervention-mappings">
+                              {interventionGroup.mappings.map((mapping) => {
+                                const photos = mappingPhotos[mapping.id] || [];
+                                const isExpanded = selectedMapping === mapping.id;
+
+                                return (
+                                  <div
+                                    key={mapping.id}
+                                    className={`mapping-card ${isExpanded ? 'expanded' : ''}`}
+                                    onClick={() => setSelectedMapping(isExpanded ? null : mapping.id)}
+                                  >
+                                    <div className="mapping-header">
+                                      <div>
+                                        <h3 className="mapping-title">
+                                          Piano {mapping.floor}
+                                          {mapping.room && ` - Stanza ${mapping.room}`}
+                                          {mapping.intervention && ` - foto n. ${mapping.intervention}`}
+                                        </h3>
+                                        <p className="mapping-meta">
+                                          {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
+                                        </p>
+                                      </div>
+                                      <div className="mapping-header-actions">
+                                        <button
+                                          className="mapping-action-btn"
+                                          onClick={(e) => handleEditMapping(mapping, e)}
+                                          aria-label="Modifica mappatura"
+                                        >
+                                          <EditIcon className="icon" />
+                                        </button>
+                                        <button
+                                          className="mapping-action-btn delete"
+                                          onClick={(e) => handleDeleteMapping(mapping.id, e)}
+                                          aria-label="Elimina mappatura"
+                                        >
+                                          <DeleteIcon className="icon" />
+                                        </button>
+                                        <div className="photo-count">
+                                          <ImageIcon className="icon" />
+                                          {photos.length}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                      <div className="mapping-photos">
+                                        {photos.length === 0 ? (
+                                          <p style={{
+                                            textAlign: 'center',
+                                            color: 'var(--color-text-secondary)',
+                                            padding: '16px'
+                                          }}>Nessuna foto</p>
+                                        ) : (
+                                          photos.map((photo) => (
+                                            <div
+                                              key={photo.id}
+                                              className="photo-thumbnail"
+                                              onClick={() => handlePhotoClick(photo)}
+                                            >
+                                              <img
+                                                src={photo.thumbnailBlob || photo.photoBlob}
+                                                alt={`Photo ${photo.id}`}
+                                                className="photo-img"
+                                              />
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        // Show room level normally
                       {floorGroup.rooms.map((roomGroup) => {
                         const floorRoomKey = `${floorGroup.floor}-${roomGroup.room}`;
                         const isRoomExpanded = expandedRooms.has(floorRoomKey);
@@ -2128,6 +2217,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                           </div>
                         );
                       })}
+                      )}
                     </div>
                   )}
                 </div>
