@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 22; // Increment this on every deploy! (v22: Fixed tipologici and plan editor improvements)
+const CACHE_VERSION = 23; // Increment this on every deploy! (v23: Fixed pdf export size and mappatura labels)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
