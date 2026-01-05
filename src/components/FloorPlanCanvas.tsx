@@ -373,7 +373,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
 
     // Draw label background
-    ctx.fillStyle = isSelected ? '#FFF3CD' : '#F5F5F5';
+    ctx.fillStyle = isSelected ? '#FFF3CD' : '#FAFAF0';
     ctx.strokeStyle = isSelected ? '#FF0000' : '#333333';
     ctx.lineWidth = (isSelected ? 2 : 1) * zoom;
 
