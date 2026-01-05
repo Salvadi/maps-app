@@ -2045,27 +2045,52 @@ const MappingView: React.FC<MappingViewProps> = ({
                                     </div>
 
                                     {isExpanded && (
-                                      <div className="mapping-photos">
-                                        {photos.length === 0 ? (
-                                          <p style={{
-                                            textAlign: 'center',
-                                            color: 'var(--color-text-secondary)',
-                                            padding: '16px'
-                                          }}>Nessuna foto</p>
-                                        ) : (
-                                          photos.map((photo) => (
-                                            <div
-                                              key={photo.id}
-                                              className="photo-thumbnail"
-                                              onClick={() => handlePhotoClick(photo)}
-                                            >
-                                              <img
-                                                src={photo.thumbnailBlob || photo.photoBlob}
-                                                alt={`Photo ${photo.id}`}
-                                                className="photo-img"
-                                              />
-                                            </div>
-                                          ))
+                                      <div className="mapping-details" onClick={(e) => e.stopPropagation()}>
+                                        {/* Sigillature */}
+                                        {mapping.crossings.length > 0 && (
+                                          <div className="crossings-section">
+                                            <h4>Sigillature:</h4>
+                                            <ul>
+                                              {mapping.crossings.map((sig, idx) => (
+                                                <li key={idx} style={{ marginBottom: '8px' }}>
+                                                  <strong>Supporto:</strong> {sig.supporto || 'N/A'}<br />
+                                                  <strong>Tipo Supporto:</strong> {sig.tipoSupporto || 'N/A'}<br />
+                                                  <strong>Attraversamento:</strong> {
+                                                    sig.attraversamento === 'Altro' && sig.attraversamentoCustom
+                                                      ? sig.attraversamentoCustom
+                                                      : sig.attraversamento || 'N/A'
+                                                  }<br />
+                                                  {sig.tipologicoId && (
+                                                    <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
+                                                  )}
+                                                  {sig.notes && (
+                                                    <><strong>Note:</strong> {sig.notes}<br /></>
+                                                  )}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+
+                                        {/* Photo Gallery */}
+                                        {photos.length > 0 && (
+                                          <div className="photo-gallery">
+                                            {photos.map((photo, idx) => {
+                                              const photoUrl = URL.createObjectURL(photo.blob);
+                                              const photoAlt = `Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`;
+                                              return (
+                                                <div key={photo.id} className="photo-item">
+                                                  <img
+                                                    src={photoUrl}
+                                                    alt={photoAlt}
+                                                    loading="lazy"
+                                                    onClick={() => setSelectedPhotoPreview({ url: photoUrl, alt: photoAlt })}
+                                                    style={{ cursor: 'pointer' }}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
                                         )}
                                       </div>
                                     )}
