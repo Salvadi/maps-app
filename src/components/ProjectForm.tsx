@@ -476,9 +476,28 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           {/* Struttura Section */}
           <section className="form-section">
             <label className="section-label">Struttura</label>
-            <button type="button" className="upload-button">
-              Carica pianta
-            </button>
+            {!floorsEnabled && project && (
+              <label className="upload-button" style={{ cursor: 'pointer' }}>
+                Carica pianta
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleFloorPlanUpload('0', file);
+                      e.target.value = ''; // Reset input
+                    }
+                  }}
+                />
+              </label>
+            )}
+            {!floorsEnabled && !project && (
+              <button type="button" className="upload-button" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+                Carica pianta
+              </button>
+            )}
             <div className="floors-input-group">
               <div className="switch-container">
                 <div
