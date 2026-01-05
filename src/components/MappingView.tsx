@@ -1990,9 +1990,7 @@ const MappingView: React.FC<MappingViewProps> = ({
 
                   {isFloorExpanded && (
                     <div className="hierarchy-children">
-                      {/* If useRoomNumbering is false, skip room level and show interventions directly */}
                       {!project.useRoomNumbering && floorGroup.rooms.length === 1 && floorGroup.rooms[0].room === '-' ? (
-                        // Skip room level, show interventions directly under floor
                         floorGroup.rooms[0].interventions.map((interventionGroup) => (
                           <div key={`${floorGroup.floor}-${interventionGroup.intervention}`} className="intervention-group">
                             <div className="intervention-header">
@@ -2078,8 +2076,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                           </div>
                         ))
                       ) : (
-                        // Show room level normally
-                      {floorGroup.rooms.map((roomGroup) => {
+                        floorGroup.rooms.map((roomGroup) => {
                         const floorRoomKey = `${floorGroup.floor}-${roomGroup.room}`;
                         const isRoomExpanded = expandedRooms.has(floorRoomKey);
                         const roomMappingCount = roomGroup.interventions.reduce(
@@ -2216,7 +2213,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                             )}
                           </div>
                         );
-                      })}
+                      })
                       )}
                     </div>
                   )}
