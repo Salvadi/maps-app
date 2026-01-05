@@ -43,8 +43,9 @@ export const convertPDFToImage = async (file: File): Promise<string> => {
       canvas: canvas
     } as any).promise;
 
-    // Convert to data URL
-    return canvas.toDataURL('image/png');
+    // Convert to data URL using JPEG for better compression
+    // Quality 0.95 ensures high quality while significantly reducing file size
+    return canvas.toDataURL('image/jpeg', 0.95);
   } catch (error) {
     console.error('Error converting PDF to image:', error);
     throw new Error('Errore durante la conversione del PDF');
@@ -84,8 +85,9 @@ export const exportCanvasToPDF = (canvas: HTMLCanvasElement, filename: string = 
       format: 'a4'
     });
 
-    // Convert canvas to image
-    const imgData = canvas.toDataURL('image/png');
+    // Convert canvas to image using JPEG for better compression
+    // Quality 0.92 provides excellent quality with much smaller file size
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
     // Calculate scaling to fit image in PDF while maintaining aspect ratio
     const imgAspectRatio = canvasWidth / canvasHeight;
@@ -107,7 +109,7 @@ export const exportCanvasToPDF = (canvas: HTMLCanvasElement, filename: string = 
     }
 
     // Add image to PDF
-    pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+    pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
 
     // Save PDF
     pdf.save(filename);
