@@ -143,6 +143,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [floor, setFloor] = useState<string>(getLastUsedFloor());
   const [roomNumber, setRoomNumber] = useState<string>(editingEntry?.room || '');
   const [interventionNumber, setInterventionNumber] = useState<string>(editingEntry?.intervention || '');
+  const [toComplete, setToComplete] = useState<boolean>(editingEntry?.toComplete || false);
   const [sigillature, setSigillature] = useState<Crossing[]>(
     editingEntry && editingEntry.crossings.length > 0
       ? editingEntry.crossings
@@ -583,6 +584,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             floor,
             room: project.useRoomNumbering ? roomNumber : undefined,
             intervention: project.useInterventionNumbering ? interventionNumber : undefined,
+            toComplete,
             crossings: sigillature.map((s, index) => ({
               ...s,
               id: s.id || `${Date.now()}-${index}`,
@@ -618,6 +620,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             floor,
             room: project.useRoomNumbering ? roomNumber : undefined,
             intervention: project.useInterventionNumbering ? interventionNumber : undefined,
+            toComplete,
             crossings: sigillature.map((s, index) => ({
               ...s,
               id: `${Date.now()}-${index}`,
@@ -635,6 +638,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         setPhotoPreviews([]);
         setPhotoIds([]);
         setRoomNumber('');
+        setToComplete(false);
         if (project.useInterventionNumbering) {
           const nextNum = parseInt(interventionNumber) + 1;
           setInterventionNumber(nextNum.toString());
@@ -816,6 +820,21 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
               />
             </div>
           )}
+
+          {/* Da Completare Switch */}
+          <div className="form-field">
+            <div className="switch-container">
+              <div
+                className={`switch ${toComplete ? 'active' : ''}`}
+                onClick={() => setToComplete(!toComplete)}
+              >
+                <div className="switch-thumb"></div>
+              </div>
+              <label className="switch-label" onClick={() => setToComplete(!toComplete)}>
+                Da Completare
+              </label>
+            </div>
+          </div>
 
           {/* Sigillature Section */}
           <div className="crossings-section">

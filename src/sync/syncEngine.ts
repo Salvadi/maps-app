@@ -292,6 +292,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       room: entry.room || null,
       intervention: entry.intervention || null,
       crossings: entry.crossings,
+      to_complete: entry.toComplete || false,
       timestamp: entry.timestamp,
       last_modified: entry.lastModified,
       version: entry.version,

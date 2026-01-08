@@ -41,7 +41,8 @@
 
 .sort-controls,
 .order-controls,
-.view-controls {
+.view-controls,
+.filter-status-controls {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -228,6 +229,14 @@
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 0 0 4px 0;
+}
+
+.to-complete-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 1rem;
+  vertical-align: middle;
+  cursor: help;
 }
 
 .mapping-meta {
