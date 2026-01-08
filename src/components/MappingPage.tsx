@@ -821,17 +821,19 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             </div>
           )}
 
-          {/* Da Completare Checkbox */}
+          {/* Da Completare Switch */}
           <div className="form-field">
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={toComplete}
-                onChange={(e) => setToComplete(e.target.checked)}
-                className="mapping-checkbox"
-              />
-              <span className="checkbox-label">Da Completare</span>
-            </label>
+            <div className="switch-container">
+              <div
+                className={`switch ${toComplete ? 'active' : ''}`}
+                onClick={() => setToComplete(!toComplete)}
+              >
+                <div className="switch-thumb"></div>
+              </div>
+              <label className="switch-label" onClick={() => setToComplete(!toComplete)}>
+                Da Completare
+              </label>
+            </div>
           </div>
 
           {/* Sigillature Section */}
