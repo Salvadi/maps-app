@@ -199,6 +199,7 @@ function convertRemoteToLocalMapping(remote: any): MappingEntry {
     room: remote.room || undefined,
     intervention: remote.intervention || undefined,
     crossings: remote.crossings || [],
+    toComplete: remote.to_complete || false,
     timestamp: remote.timestamp,
     lastModified: remote.last_modified,
     version: remote.version,

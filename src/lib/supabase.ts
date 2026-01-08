@@ -133,6 +133,7 @@ export interface Database {
           floor: string;
           room_or_intervention: string;
           crossings: any; // JSONB
+          to_complete: boolean;
           timestamp: number;
           last_modified: number;
           version: number;
@@ -149,6 +150,7 @@ export interface Database {
           floor: string;
           room_or_intervention: string;
           crossings?: any;
+          to_complete?: boolean;
           timestamp: number;
           last_modified: number;
           version?: number;
@@ -165,6 +167,7 @@ export interface Database {
           floor?: string;
           room_or_intervention?: string;
           crossings?: any;
+          to_complete?: boolean;
           timestamp?: number;
           last_modified?: number;
           version?: number;
