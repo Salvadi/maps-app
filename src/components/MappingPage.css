@@ -119,6 +119,28 @@
   background-color: var(--color-bg-secondary);
 }
 
+/* Checkbox Field */
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.mapping-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--color-primary, #3b82f6);
+}
+
+.checkbox-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
 /* Crossings Section */
 .crossings-section {
   display: flex;

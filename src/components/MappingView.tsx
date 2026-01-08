@@ -186,6 +186,10 @@ const MappingView: React.FC<MappingViewProps> = ({
     const saved = localStorage.getItem(`mappingView_${project.id}_viewMode`);
     return (saved as ViewMode) || 'flat';
   });
+  const [showOnlyToComplete, setShowOnlyToComplete] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_showOnlyToComplete`);
+    return saved === 'true';
+  });
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`mappingView_${project.id}_expandedFloors`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -210,6 +214,10 @@ const MappingView: React.FC<MappingViewProps> = ({
   useEffect(() => {
     localStorage.setItem(`mappingView_${project.id}_viewMode`, viewMode);
   }, [viewMode, project.id]);
+
+  useEffect(() => {
+    localStorage.setItem(`mappingView_${project.id}_showOnlyToComplete`, String(showOnlyToComplete));
+  }, [showOnlyToComplete, project.id]);
 
   useEffect(() => {
     localStorage.setItem(`mappingView_${project.id}_expandedFloors`, JSON.stringify(Array.from(expandedFloors)));
@@ -477,7 +485,13 @@ const MappingView: React.FC<MappingViewProps> = ({
   };
 
   const sortedMappings = sortMappings(mappings);
-  const hierarchicalGroups = groupMappingsHierarchically(sortedMappings);
+
+  // Apply "Da Completare" filter if enabled
+  const filteredMappings = showOnlyToComplete
+    ? sortedMappings.filter(mapping => mapping.toComplete === true)
+    : sortedMappings;
+
+  const hierarchicalGroups = groupMappingsHierarchically(filteredMappings);
 
   // Toggle floor expansion
   const toggleFloor = (floor: string) => {
@@ -1851,6 +1865,19 @@ const MappingView: React.FC<MappingViewProps> = ({
                 </button>
               </div>
             </div>
+
+            <div className="filter-status-controls">
+              <label className="control-label">Filtra:</label>
+              <div className="button-group">
+                <button
+                  className={`filter-btn ${showOnlyToComplete ? 'active' : ''}`}
+                  onClick={() => setShowOnlyToComplete(!showOnlyToComplete)}
+                  title="Mostra solo interventi da completare"
+                >
+                  {showOnlyToComplete ? '✓ ' : ''}Da Completare
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1868,9 +1895,22 @@ const MappingView: React.FC<MappingViewProps> = ({
             <p>Nessuna mappatura trovata</p>
             <p style={{ fontSize: '0.875rem' }}>Premi il pulsante + per aggiungere la prima mappatura</p>
           </div>
+        ) : filteredMappings.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            gap: '16px',
+            color: 'var(--color-text-secondary)'
+          }}>
+            <p>Nessun intervento da completare</p>
+            <p style={{ fontSize: '0.875rem' }}>Tutti gli interventi sono stati completati</p>
+          </div>
         ) : viewMode === 'flat' ? (
           <div className="mappings-list">
-            {sortedMappings.map((mapping) => {
+            {filteredMappings.map((mapping) => {
               const photos = mappingPhotos[mapping.id] || [];
               const isExpanded = selectedMapping === mapping.id;
 
@@ -1886,6 +1926,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                         Piano {mapping.floor}
                         {mapping.room && ` - Stanza ${mapping.room}`}
                         {mapping.intervention && ` - foto n. ${mapping.intervention}`}
+                        {mapping.toComplete && (
+                          <span className="to-complete-badge" title="Da Completare">
+                            ⚠️
+                          </span>
+                        )}
                       </h3>
                       <p className="mapping-meta">
                         {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
@@ -2017,6 +2062,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                                           Piano {mapping.floor}
                                           {mapping.room && ` - Stanza ${mapping.room}`}
                                           {mapping.intervention && ` - foto n. ${mapping.intervention}`}
+                                          {mapping.toComplete && (
+                                            <span className="to-complete-badge" title="Da Completare">
+                                              ⚠️
+                                            </span>
+                                          )}
                                         </h3>
                                         <p className="mapping-meta">
                                           {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
@@ -2151,6 +2201,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                   Piano {mapping.floor}
                                                   {mapping.room && ` - Stanza ${mapping.room}`}
                                                   {mapping.intervention && ` - foto n. ${mapping.intervention}`}
+                                                  {mapping.toComplete && (
+                                                    <span className="to-complete-badge" title="Da Completare">
+                                                      ⚠️
+                                                    </span>
+                                                  )}
                                                 </h3>
                                                 <p className="mapping-meta">
                                                   {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto

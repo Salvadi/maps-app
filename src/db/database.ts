@@ -64,6 +64,7 @@ export interface MappingEntry {
   intervention?: string;
   photos: PhotoMetadata[];
   crossings: Crossing[];
+  toComplete?: boolean; // Flag to mark if intervention is still to be completed
   timestamp: number;
   createdBy: string; // user UUID
   lastModified: number;
