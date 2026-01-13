@@ -15,8 +15,8 @@ const floorMapping = {
   'Piano 1': '1'
 };
 
-// Tipologico ID for both crossings (update if needed)
-const TIPOLOGICO_ID = '4'; // TODO: Update with correct tipologico ID
+// Tipologico ID for both crossings (Cavi/Corrugati - Hilti CFS-IS)
+const TIPOLOGICO_ID = '1764835598379';
 
 console.log('🚀 Inizio conversione Excel → JSON\n');
 
