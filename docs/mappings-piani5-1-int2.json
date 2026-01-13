@@ -1,0 +1,4152 @@
+[
+  {
+    "floor": "5",
+    "room": "437",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "438",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "439",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "440",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "441",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "442",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "443",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "444",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "445",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "446",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "447",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "448",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "449",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "450",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "451",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "452",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "453",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "454",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "455",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "456",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "457",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "458",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "459",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "460",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "461",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "462",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "463",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "464",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "465",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "466",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "5",
+    "room": "467",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "437",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "438",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "439",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "440",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "441",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "442",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "443",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "444",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "445",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "446",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "447",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "448",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "449",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "450",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "451",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "452",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "453",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "454",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "455",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "456",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "457",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "458",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "459",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "460",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "461",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "462",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "463",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "464",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "465",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "466",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "4",
+    "room": "467",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "337",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "338",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "339",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "340",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "341",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "342",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "343",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "344",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "345",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "346",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "347",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "348",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "349",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "350",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "351",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "352",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "353",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "354",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "355",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "356",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "357",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "358",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "359",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "360",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "361",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "362",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "363",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "364",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "365",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "366",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "3",
+    "room": "367",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103139-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103139-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "237",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "238",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "239",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "240",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "241",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "242",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "243",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "244",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "245",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "246",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "247",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "248",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "249",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "250",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "251",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "252",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "253",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "254",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "255",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "256",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "257",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "258",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "259",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "260",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "261",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "262",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "263",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "264",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "265",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "266",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "2",
+    "room": "267",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "137",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "138",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "139",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "140",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "141",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "142",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "143",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "144",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "145",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "146",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "147",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "148",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "149",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "150",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "151",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "152",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "153",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "154",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "155",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "156",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "157",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "158",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "159",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "160",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "161",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "162",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "163",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "164",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "165",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "166",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "167",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "168",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "169",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "170",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "171",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "172",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "173",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "174",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "175",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "176",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "177",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "floor": "1",
+    "room": "178",
+    "intervention": "2",
+    "crossings": [
+      {
+        "id": "1768293103140-0",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Cavi/Corrugati",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      },
+      {
+        "id": "1768293103140-1",
+        "supporto": "Parete",
+        "tipoSupporto": "Cartongesso",
+        "attraversamento": "Fascio di cavi",
+        "quantita": 1,
+        "tipologicoId": "4",
+        "notes": ""
+      }
+    ]
+  }
+]
