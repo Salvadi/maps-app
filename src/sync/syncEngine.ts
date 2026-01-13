@@ -976,15 +976,31 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 
     const mappingEntryIds = mappingEntries.map(e => e.id);
 
-    // Download photo metadata from Supabase
-    const { data: photoMetadata, error } = await supabase
-      .from('photos')
-      .select('*')
-      .in('mapping_entry_id', mappingEntryIds);
+    console.log(`📥 Downloading photos for ${mappingEntryIds.length} mapping entries`);
 
-    if (error) {
-      throw new Error(`Failed to download photo metadata: ${error.message}`);
+    // Split into batches to avoid URL length limits (PostgREST has a limit on query string length)
+    const BATCH_SIZE = 100;
+    const allPhotoMetadata = [];
+
+    for (let i = 0; i < mappingEntryIds.length; i += BATCH_SIZE) {
+      const batch = mappingEntryIds.slice(i, i + BATCH_SIZE);
+      console.log(`📥 Fetching photos batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(mappingEntryIds.length / BATCH_SIZE)} (${batch.length} entries)`);
+
+      const { data: batchData, error: batchError } = await supabase
+        .from('photos')
+        .select('*')
+        .in('mapping_entry_id', batch);
+
+      if (batchError) {
+        throw new Error(`Failed to download photo metadata (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${batchError.message}`);
+      }
+
+      if (batchData && batchData.length > 0) {
+        allPhotoMetadata.push(...batchData);
+      }
     }
+
+    const photoMetadata = allPhotoMetadata;
 
     if (!photoMetadata || photoMetadata.length === 0) {
       console.log('✅ No photos to download');
