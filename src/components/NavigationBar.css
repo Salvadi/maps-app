@@ -80,10 +80,14 @@
   flex-shrink: 0;
 }
 
+.nav-right-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .nav-copy-btn {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   padding: 8px 16px;
   background-color: var(--color-primary);
   color: white;
@@ -94,6 +98,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  height: 40px;
 }
 
 .nav-copy-btn:hover {
@@ -102,7 +107,7 @@
 }
 
 .nav-copy-btn:active {
-  transform: translateX(-50%) scale(0.98);
+  transform: scale(0.98);
 }
 
 @media (max-width: 768px) {
@@ -121,8 +126,18 @@
     height: 36px;
   }
 
+  .nav-copy-btn {
+    height: 36px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+  }
+
   .nav-icon {
     width: 18px;
     height: 18px;
+  }
+
+  .nav-right-buttons {
+    gap: 6px;
   }
 }

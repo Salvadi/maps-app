@@ -33,27 +33,29 @@ const NavigationBar: React.FC<NavigationBarProps> = ({ title, onBack, onSync, is
         <BackIcon className="nav-icon" />
       </button>
       <h1 className="nav-title">{title}</h1>
-      {onCopyPrevious && (
-        <button
-          className="nav-copy-btn"
-          onClick={onCopyPrevious}
-          aria-label="Copy Previous"
-        >
-          Copia prec.
-        </button>
-      )}
-      {onSync ? (
-        <button
-          className={`nav-sync-btn ${isSyncing ? 'syncing' : ''}`}
-          onClick={onSync}
-          disabled={isSyncing}
-          aria-label="Sync"
-        >
-          <SyncIcon className="nav-icon" />
-        </button>
-      ) : (
-        <div className="nav-spacer" />
-      )}
+      <div className="nav-right-buttons">
+        {onCopyPrevious && (
+          <button
+            className="nav-copy-btn"
+            onClick={onCopyPrevious}
+            aria-label="Copy Previous"
+          >
+            Copia prec.
+          </button>
+        )}
+        {onSync ? (
+          <button
+            className={`nav-sync-btn ${isSyncing ? 'syncing' : ''}`}
+            onClick={onSync}
+            disabled={isSyncing}
+            aria-label="Sync"
+          >
+            <SyncIcon className="nav-icon" />
+          </button>
+        ) : (
+          <div className="nav-spacer" />
+        )}
+      </div>
     </nav>
   );
 };
