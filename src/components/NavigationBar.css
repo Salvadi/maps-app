@@ -80,6 +80,36 @@
   flex-shrink: 0;
 }
 
+.nav-right-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.nav-copy-btn {
+  padding: 8px 16px;
+  background-color: #6B7280;
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  height: 40px;
+}
+
+.nav-copy-btn:hover {
+  background-color: var(--color-primary, #3B82F6);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.nav-copy-btn:active {
+  transform: scale(0.98);
+}
+
 @media (max-width: 768px) {
   .navigation-bar {
     padding: var(--spacing-sm) var(--spacing-md);
@@ -96,8 +126,18 @@
     height: 36px;
   }
 
+  .nav-copy-btn {
+    height: 36px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+  }
+
   .nav-icon {
     width: 18px;
     height: 18px;
+  }
+
+  .nav-right-buttons {
+    gap: 6px;
   }
 }
