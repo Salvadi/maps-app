@@ -134,7 +134,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
       return p;
     }));
-  }, [mode]);
+  }, []);
 
   // Handle point selection
   const handlePointSelect = useCallback((pointId: string | null) => {
