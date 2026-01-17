@@ -89,7 +89,7 @@
 
 .nav-copy-btn {
   padding: 8px 16px;
-  background-color: var(--color-primary);
+  background-color: #6B7280;
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -102,7 +102,7 @@
 }
 
 .nav-copy-btn:hover {
-  background-color: var(--color-primary-dark, #2563eb);
+  background-color: var(--color-primary, #3B82F6);
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 

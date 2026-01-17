@@ -304,8 +304,13 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         // Check for duplicates based on floor, room, and intervention
         const hasDuplicate = otherMappings.some(mapping => {
           const floorMatch = mapping.floor === floor;
-          const roomMatch = project.useRoomNumbering ? mapping.room === roomNumber : true;
-          const interventionMatch = project.useInterventionNumbering ? mapping.intervention === interventionNumber : true;
+          // Normalize empty values: treat undefined and "" as equivalent
+          const roomMatch = project.useRoomNumbering
+            ? (mapping.room || '') === (roomNumber || '')
+            : true;
+          const interventionMatch = project.useInterventionNumbering
+            ? (mapping.intervention || '') === (interventionNumber || '')
+            : true;
 
           return floorMatch && roomMatch && interventionMatch;
         });
@@ -315,7 +320,10 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           const interventionNumbers = otherMappings
             .filter(m => {
               const floorMatch = m.floor === floor;
-              const roomMatch = project.useRoomNumbering ? m.room === roomNumber : true;
+              // Normalize empty values: treat undefined and "" as equivalent
+              const roomMatch = project.useRoomNumbering
+                ? (m.room || '') === (roomNumber || '')
+                : true;
               return floorMatch && roomMatch;
             })
             .map(m => parseInt(m.intervention || '0'))
