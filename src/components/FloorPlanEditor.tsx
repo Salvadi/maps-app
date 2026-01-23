@@ -316,6 +316,27 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     });
   }, [filteredUnmappedEntries, sortOrder]);
 
+  // Sort positioned points based on current sort order
+  const sortedPoints = useCallback(() => {
+    if (sortOrder === 'none') return points;
+
+    if (sortOrder === 'recent') {
+      // Most recent first (reverse original order)
+      return [...points].reverse();
+    }
+
+    return [...points].sort((a, b) => {
+      const aText = a.labelText.join(' ').toLowerCase();
+      const bText = b.labelText.join(' ').toLowerCase();
+
+      if (sortOrder === 'asc') {
+        return aText.localeCompare(bText);
+      } else {
+        return bText.localeCompare(aText);
+      }
+    });
+  }, [points, sortOrder]);
+
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
 
@@ -723,7 +744,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   <p className="menu-empty">Nessun punto aggiunto</p>
                 ) : (
                   <div className="points-list">
-                    {points.map(point => (
+                    {sortedPoints().map(point => (
                       <div
                         key={point.id}
                         className={`point-item ${point.id === selectedPointId ? 'selected' : ''}`}
