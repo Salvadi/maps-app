@@ -17,6 +17,7 @@ export interface CanvasPoint {
   perimeterPoints?: Array<{ x: number; y: number }>; // For perimetro type
   customText?: string; // For generico type
   mappingEntryId?: string; // If linked to a mapping entry (for view-edit mode distinction)
+  labelBackgroundColor?: string; // Custom background color for label (hex format "#RRGGBB")
 }
 
 export interface GridConfig {
@@ -27,7 +28,7 @@ export interface GridConfig {
   offsetY: number;
 }
 
-export type Tool = 'pan' | 'move' | 'parete' | 'solaio' | 'perimetro' | 'generico' | 'zoom-in' | 'zoom-out';
+export type Tool = 'pan' | 'move' | 'parete' | 'solaio' | 'perimetro' | 'generico' | 'zoom-in' | 'zoom-out' | 'color-picker';
 
 interface FloorPlanCanvasProps {
   imageUrl: string; // URL or blob URL of floor plan image
@@ -373,8 +374,12 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
 
     // Draw label background
-    ctx.fillStyle = isSelected ? '#FFF3CD' : '#FAFAF0';
-    ctx.strokeStyle = isSelected ? '#FF0000' : '#333333';
+    const defaultBgColor = isSelected ? '#FFF3CD' : '#FAFAF0';
+    const bgColor = point.labelBackgroundColor || defaultBgColor;
+    const borderColor = isSelected ? '#FF0000' : '#333333';
+
+    ctx.fillStyle = bgColor;
+    ctx.strokeStyle = borderColor;
     ctx.lineWidth = (isSelected ? 2 : 1) * zoom;
 
     ctx.fillRect(x, y, labelWidth, labelHeight);
