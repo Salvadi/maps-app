@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 27; // Increment this on every deploy! (v27: Fix duplicate warning for empty fields, improve copy button visibility)
+const CACHE_VERSION = 28; // Increment this on every deploy! (v28: Planimetry labels update I to Int)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
