@@ -394,6 +394,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       return updated.slice(0, 8); // Mantieni solo i primi 8
     });
 
+    // Salva l'ultimo colore usato per il prossimo utilizzo del picker
+    setCurrentColor(color);
+
     // Chiudi modal e reset selezione
     setShowColorPicker(false);
     setSelectedPointIds(new Set());
