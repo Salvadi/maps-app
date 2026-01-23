@@ -854,6 +854,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                       <div
                         key={point.id}
                         className={`point-item ${point.id === selectedPointId ? 'selected' : ''}`}
+                        onClick={() => handlePointSelect(point.id)}
                       >
                         {/* Checkbox per multi-selezione */}
                         {(mode === 'standalone' || mode === 'view-edit') && (
@@ -875,13 +876,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                           />
                         )}
 
-                        <div onClick={() => handlePointSelect(point.id)}>
-                          <div className="point-type">
-                            <span className={`type-badge type-${point.type}`}>
-                              {point.type}
-                            </span>
-                          </div>
-                          <div className="point-label">
+                        <div className="point-type">
+                          <span className={`type-badge type-${point.type}`}>
+                            {point.type}
+                          </span>
+                        </div>
+                        <div className="point-label">
                           {/* Show editable inputs for points in standalone, view-edit modes, or generic/perimeter in other modes */}
                           {((mode === 'standalone' || mode === 'view-edit') ||
                             (mode !== 'view' && !point.mappingEntryId && (point.type === 'generico' || point.type === 'perimetro'))) &&
@@ -909,7 +909,6 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                               <div key={i} className="label-line">{line}</div>
                             ))
                           )}
-                        </div>
                         </div>
                       </div>
                     ))}
