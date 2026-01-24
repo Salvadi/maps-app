@@ -1295,6 +1295,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             perimeterPoints: point.perimeterPoints,
             mappingEntryId: point.mappingEntryId, // Include to distinguish existing points from new ones
             labelBackgroundColor: point.metadata?.labelBackgroundColor, // Carica anche colore custom
+            labelTextColor: point.metadata?.labelTextColor, // Carica anche colore testo custom
           };
         })
       );
@@ -1349,6 +1350,7 @@ const MappingView: React.FC<MappingViewProps> = ({
               ...currentPoint?.metadata,
               labelText: canvasPoint.labelText, // Salva labelText custom
               labelBackgroundColor: canvasPoint.labelBackgroundColor, // Salva anche colore custom
+              labelTextColor: canvasPoint.labelTextColor, // Salva anche colore testo custom
             },
           });
         } else {

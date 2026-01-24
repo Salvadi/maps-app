@@ -86,6 +86,21 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     localStorage.setItem('floorplan-recent-colors', JSON.stringify(recentColors));
   }, [recentColors]);
 
+  // Color picker mode (background or text)
+  const [colorMode, setColorMode] = useState<'background' | 'text'>('background');
+  const [currentTextColor, setCurrentTextColor] = useState({ r: 0, g: 0, b: 0 }); // default black
+
+  // Recent text colors - separate from background colors
+  const [recentTextColors, setRecentTextColors] = useState<string[]>(() => {
+    const saved = localStorage.getItem('floorplan-recent-text-colors');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save to localStorage when recentTextColors changes
+  useEffect(() => {
+    localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
+  }, [recentTextColors]);
+
   // Handle placing unmapped entry on canvas
   const handlePlaceUnmappedEntry = useCallback((newPoint: Omit<CanvasPoint, 'id'>) => {
     const entry = unmappedEntries.find(e => e.id === selectedUnmappedId);
@@ -373,34 +388,37 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   }, []);
 
   // Handle apply color
-  const handleApplyColor = useCallback((color: { r: number; g: number; b: number }) => {
+  const handleApplyColor = useCallback((color: { r: number; g: number; b: number }, mode: 'background' | 'text') => {
     const hexColor = `#${color.r.toString(16).padStart(2, '0')}${color.g.toString(16).padStart(2, '0')}${color.b.toString(16).padStart(2, '0')}`;
 
-    // Applica colore ai punti selezionati
+    // Applica colore ai punti selezionati in base al mode
     setPoints(prev => prev.map(p => {
       if (selectedPointIds.has(p.id)) {
-        return {
-          ...p,
-          labelBackgroundColor: hexColor
-        };
+        return mode === 'background'
+          ? { ...p, labelBackgroundColor: hexColor }
+          : { ...p, labelTextColor: hexColor };
       }
       return p;
     }));
 
-    // Aggiungi colore alla palette recenti (max 8, no duplicati, FIFO)
-    setRecentColors(prev => {
-      const filtered = prev.filter(c => c !== hexColor); // Rimuovi se già presente
-      const updated = [hexColor, ...filtered]; // Aggiungi in testa
-      return updated.slice(0, 8); // Mantieni solo i primi 8
-    });
+    // Aggiungi colore alla palette appropriata
+    if (mode === 'background') {
+      setRecentColors(prev => {
+        const filtered = prev.filter(c => c !== hexColor);
+        const updated = [hexColor, ...filtered];
+        return updated.slice(0, 8);
+      });
+      setCurrentColor(color);
+    } else {
+      setRecentTextColors(prev => {
+        const filtered = prev.filter(c => c !== hexColor);
+        const updated = [hexColor, ...filtered];
+        return updated.slice(0, 8);
+      });
+      setCurrentTextColor(color);
+    }
 
-    // Salva l'ultimo colore usato per il prossimo utilizzo del picker
-    setCurrentColor(color);
-
-    // Chiudi modal e reset selezione
-    setShowColorPicker(false);
-    setSelectedPointIds(new Set());
-    setActiveTool('pan');
+    // NON chiudere modal - permetti di cambiare tab e colorare anche l'altro elemento
   }, [selectedPointIds]);
 
   // Get selected point
@@ -948,13 +966,19 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       {/* Color Picker Modal */}
       <ColorPickerModal
         isOpen={showColorPicker}
-        initialColor={currentColor}
+        mode={colorMode}
+        initialBackgroundColor={currentColor}
+        initialTextColor={currentTextColor}
         selectedCount={selectedPointIds.size}
-        recentColors={recentColors}
+        recentBackgroundColors={recentColors}
+        recentTextColors={recentTextColors}
         onApply={handleApplyColor}
+        onModeChange={(mode) => setColorMode(mode)}
         onClose={() => {
           setShowColorPicker(false);
+          setSelectedPointIds(new Set());
           setActiveTool('pan');
+          setColorMode('background'); // Reset to background for next time
         }}
       />
     </div>

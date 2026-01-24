@@ -18,6 +18,7 @@ export interface CanvasPoint {
   customText?: string; // For generico type
   mappingEntryId?: string; // If linked to a mapping entry (for view-edit mode distinction)
   labelBackgroundColor?: string; // Custom background color for label (hex format "#RRGGBB")
+  labelTextColor?: string; // Custom text color for label (hex format "#RRGGBB")
 }
 
 export interface GridConfig {
@@ -386,7 +387,8 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     ctx.strokeRect(x, y, labelWidth, labelHeight);
 
     // Draw label text (multiple lines with italic styling for "foto n." and "Tip.")
-    ctx.fillStyle = '#000000';
+    const textColor = point.labelTextColor || '#000000'; // Use custom text color or default black
+    ctx.fillStyle = textColor;
     ctx.textBaseline = 'top';
     point.labelText.forEach((line, index) => {
       const yPos = y + padding + (index * lineHeight);

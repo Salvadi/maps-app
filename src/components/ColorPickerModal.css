@@ -283,6 +283,36 @@
   }
 }
 
+/* Tab toggle per modalità colore */
+.color-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-tab.active {
+  color: #2196f3;
+  border-bottom-color: #2196f3;
+}
+
+.mode-tab:hover {
+  background-color: #f5f5f5;
+}
+
 /* Responsive */
 @media (max-width: 480px) {
   .color-picker-container {

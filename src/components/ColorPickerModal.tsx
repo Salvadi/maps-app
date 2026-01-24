@@ -3,33 +3,48 @@ import './ColorPickerModal.css';
 
 interface ColorPickerModalProps {
   isOpen: boolean;
-  initialColor: { r: number; g: number; b: number };
+  mode: 'background' | 'text';
+  initialBackgroundColor: { r: number; g: number; b: number };
+  initialTextColor: { r: number; g: number; b: number };
   selectedCount: number;
-  recentColors: string[]; // Array di hex colors (es. ["#FF5733", "#33FF57"])
-  onApply: (color: { r: number; g: number; b: number }) => void;
+  recentBackgroundColors: string[];
+  recentTextColors: string[];
+  onApply: (color: { r: number; g: number; b: number }, mode: 'background' | 'text') => void;
   onClose: () => void;
+  onModeChange?: (mode: 'background' | 'text') => void;
 }
 
 const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   isOpen,
-  initialColor,
+  mode,
+  initialBackgroundColor,
+  initialTextColor,
   selectedCount,
-  recentColors,
+  recentBackgroundColors,
+  recentTextColors,
   onApply,
-  onClose
+  onClose,
+  onModeChange
 }) => {
-  const [color, setColor] = useState(initialColor);
+  // Separate state for background and text colors
+  const [backgroundColor, setBackgroundColor] = useState(initialBackgroundColor);
+  const [textColor, setTextColor] = useState(initialTextColor);
+
+  // Use the appropriate color based on mode
+  const activeColor = mode === 'background' ? backgroundColor : textColor;
+  const setActiveColor = mode === 'background' ? setBackgroundColor : setTextColor;
+
   const [hexInput, setHexInput] = useState('');
 
-  // Sincronizza hex con RGB
+  // Sincronizza hex con RGB del colore attivo
   useEffect(() => {
-    const hex = `#${color.r.toString(16).padStart(2, '0')}${color.g.toString(16).padStart(2, '0')}${color.b.toString(16).padStart(2, '0')}`;
+    const hex = `#${activeColor.r.toString(16).padStart(2, '0')}${activeColor.g.toString(16).padStart(2, '0')}${activeColor.b.toString(16).padStart(2, '0')}`;
     setHexInput(hex.toUpperCase());
-  }, [color]);
+  }, [activeColor]);
 
   // Handler cambio slider
   const handleSliderChange = (channel: 'r' | 'g' | 'b', value: number) => {
-    setColor(prev => ({ ...prev, [channel]: value }));
+    setActiveColor(prev => ({ ...prev, [channel]: value }));
   };
 
   // Handler cambio hex input
@@ -42,7 +57,7 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
       const r = parseInt(hex.substr(0, 2), 16);
       const g = parseInt(hex.substr(2, 2), 16);
       const b = parseInt(hex.substr(4, 2), 16);
-      setColor({ r, g, b });
+      setActiveColor({ r, g, b });
     }
   };
 
@@ -52,12 +67,16 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
-    setColor({ r, g, b });
+    setActiveColor({ r, g, b });
   };
 
   // Reset a colori default
   const handleReset = () => {
-    setColor({ r: 250, g: 250, b: 240 }); // beige default
+    if (mode === 'background') {
+      setBackgroundColor({ r: 250, g: 250, b: 240 }); // beige default
+    } else {
+      setTextColor({ r: 0, g: 0, b: 0 }); // black default
+    }
   };
 
   // Chiudi su Escape
@@ -82,7 +101,10 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const hexColor = `#${color.r.toString(16).padStart(2, '0')}${color.g.toString(16).padStart(2, '0')}${color.b.toString(16).padStart(2, '0')}`;
+  const backgroundHexColor = `#${backgroundColor.r.toString(16).padStart(2, '0')}${backgroundColor.g.toString(16).padStart(2, '0')}${backgroundColor.b.toString(16).padStart(2, '0')}`;
+  const textHexColor = `#${textColor.r.toString(16).padStart(2, '0')}${textColor.g.toString(16).padStart(2, '0')}${textColor.b.toString(16).padStart(2, '0')}`;
+
+  const recentColors = mode === 'background' ? recentBackgroundColors : recentTextColors;
 
   return (
     <div className="color-picker-overlay" onClick={onClose}>
@@ -97,16 +119,32 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
             {selectedCount} punt{selectedCount === 1 ? 'o' : 'i'} selezionat{selectedCount === 1 ? 'o' : 'i'}
           </p>
 
-          {/* Preview */}
+          {/* Tab toggle per scegliere sfondo o testo */}
+          <div className="color-mode-tabs">
+            <button
+              className={`mode-tab ${mode === 'background' ? 'active' : ''}`}
+              onClick={() => onModeChange?.('background')}
+            >
+              Sfondo
+            </button>
+            <button
+              className={`mode-tab ${mode === 'text' ? 'active' : ''}`}
+              onClick={() => onModeChange?.('text')}
+            >
+              Testo
+            </button>
+          </div>
+
+          {/* Preview - mostra entrambi i colori */}
           <div className="color-preview-box">
             <div
               className="color-preview-label"
               style={{
-                backgroundColor: hexColor,
+                backgroundColor: backgroundHexColor,
+                color: textHexColor,
                 border: '2px solid #333',
                 padding: '12px',
                 borderRadius: '4px',
-                color: '#000',
                 fontWeight: 'bold',
                 fontSize: '14px'
               }}
@@ -115,10 +153,12 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
             </div>
           </div>
 
-          {/* Recent Colors Palette */}
+          {/* Recent Colors Palette - separata per mode */}
           {recentColors.length > 0 && (
             <div className="recent-colors-section">
-              <label className="recent-colors-label">Colori recenti:</label>
+              <label className="recent-colors-label">
+                Colori recenti ({mode === 'background' ? 'Sfondo' : 'Testo'}):
+              </label>
               <div className="recent-colors-grid">
                 {recentColors.map((hexColor, index) => (
                   <button
@@ -137,13 +177,13 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
           <div className="color-sliders">
             <div className="slider-group">
               <label>
-                Rosso (R): <span className="slider-value">{color.r}</span>
+                Rosso (R): <span className="slider-value">{activeColor.r}</span>
               </label>
               <input
                 type="range"
                 min="0"
                 max="255"
-                value={color.r}
+                value={activeColor.r}
                 onChange={(e) => handleSliderChange('r', parseInt(e.target.value))}
                 className="color-slider slider-red"
               />
@@ -151,13 +191,13 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
 
             <div className="slider-group">
               <label>
-                Verde (G): <span className="slider-value">{color.g}</span>
+                Verde (G): <span className="slider-value">{activeColor.g}</span>
               </label>
               <input
                 type="range"
                 min="0"
                 max="255"
-                value={color.g}
+                value={activeColor.g}
                 onChange={(e) => handleSliderChange('g', parseInt(e.target.value))}
                 className="color-slider slider-green"
               />
@@ -165,13 +205,13 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
 
             <div className="slider-group">
               <label>
-                Blu (B): <span className="slider-value">{color.b}</span>
+                Blu (B): <span className="slider-value">{activeColor.b}</span>
               </label>
               <input
                 type="range"
                 min="0"
                 max="255"
-                value={color.b}
+                value={activeColor.b}
                 onChange={(e) => handleSliderChange('b', parseInt(e.target.value))}
                 className="color-slider slider-blue"
               />
@@ -199,7 +239,7 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
             <button className="btn-cancel" onClick={onClose}>
               Annulla
             </button>
-            <button className="btn-apply" onClick={() => onApply(color)}>
+            <button className="btn-apply" onClick={() => onApply(activeColor, mode)}>
               Applica
             </button>
           </div>
