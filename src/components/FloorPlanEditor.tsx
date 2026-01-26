@@ -3,9 +3,10 @@
  * Main editor component for floor plan annotation
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanvas';
 import { exportCanvasToPDF, exportCanvasToPNG } from '../utils/exportUtils';
+import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
 export interface UnmappedEntry {
@@ -68,6 +69,37 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [selectedUnmappedId, setSelectedUnmappedId] = useState<string | null>(null);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc' | 'recent'>('none');
+
+  // Multi-selection for color picker
+  const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [currentColor, setCurrentColor] = useState({ r: 250, g: 250, b: 240 }); // default beige
+
+  // Recent colors palette - load from localStorage
+  const [recentColors, setRecentColors] = useState<string[]>(() => {
+    const saved = localStorage.getItem('floorplan-recent-colors');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save to localStorage when recentColors changes
+  useEffect(() => {
+    localStorage.setItem('floorplan-recent-colors', JSON.stringify(recentColors));
+  }, [recentColors]);
+
+  // Color picker mode (background or text)
+  const [colorMode, setColorMode] = useState<'background' | 'text'>('background');
+  const [currentTextColor, setCurrentTextColor] = useState({ r: 0, g: 0, b: 0 }); // default black
+
+  // Recent text colors - separate from background colors
+  const [recentTextColors, setRecentTextColors] = useState<string[]>(() => {
+    const saved = localStorage.getItem('floorplan-recent-text-colors');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save to localStorage when recentTextColors changes
+  useEffect(() => {
+    localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
+  }, [recentTextColors]);
 
   // Handle placing unmapped entry on canvas
   const handlePlaceUnmappedEntry = useCallback((newPoint: Omit<CanvasPoint, 'id'>) => {
@@ -337,6 +369,58 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     });
   }, [points, sortOrder]);
 
+  // Handle point toggle for multi-selection
+  const handlePointToggle = useCallback((pointId: string) => {
+    setSelectedPointIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(pointId)) {
+        newSet.delete(pointId);
+      } else {
+        newSet.add(pointId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Handle clear selection
+  const handleClearSelection = useCallback(() => {
+    setSelectedPointIds(new Set());
+  }, []);
+
+  // Handle apply color
+  const handleApplyColor = useCallback((color: { r: number; g: number; b: number }, mode: 'background' | 'text') => {
+    const hexColor = `#${color.r.toString(16).padStart(2, '0')}${color.g.toString(16).padStart(2, '0')}${color.b.toString(16).padStart(2, '0')}`;
+
+    // Applica colore ai punti selezionati in base al mode
+    setPoints(prev => prev.map(p => {
+      if (selectedPointIds.has(p.id)) {
+        return mode === 'background'
+          ? { ...p, labelBackgroundColor: hexColor }
+          : { ...p, labelTextColor: hexColor };
+      }
+      return p;
+    }));
+
+    // Aggiungi colore alla palette appropriata
+    if (mode === 'background') {
+      setRecentColors(prev => {
+        const filtered = prev.filter(c => c !== hexColor);
+        const updated = [hexColor, ...filtered];
+        return updated.slice(0, 8);
+      });
+      setCurrentColor(color);
+    } else {
+      setRecentTextColors(prev => {
+        const filtered = prev.filter(c => c !== hexColor);
+        const updated = [hexColor, ...filtered];
+        return updated.slice(0, 8);
+      });
+      setCurrentTextColor(color);
+    }
+
+    // NON chiudere modal - permetti di cambiare tab e colorare anche l'altro elemento
+  }, [selectedPointIds]);
+
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
 
@@ -425,6 +509,32 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   Sposta
                 </button>
               </div>
+
+              {/* Color picker tool */}
+              {(mode === 'standalone' || mode === 'view-edit') && (
+                <>
+                  <div className="toolbar-divider"></div>
+                  <div className="toolbar-section">
+                    <span className="toolbar-label">Colori:</span>
+                    <button
+                      className={`tool-btn ${activeTool === 'color-picker' ? 'active' : ''}`}
+                      onClick={() => {
+                        if (selectedPointIds.size === 0) {
+                          alert('Seleziona almeno un punto dal menu di destra');
+                          return;
+                        }
+                        setActiveTool('color-picker');
+                        setShowColorPicker(true);
+                      }}
+                      disabled={selectedPointIds.size === 0}
+                      title={selectedPointIds.size === 0 ? 'Seleziona punti per colorare' : 'Colora etichette'}
+                    >
+                      <span className="tool-icon">🎨</span>
+                      Colora
+                    </button>
+                  </div>
+                </>
+              )}
 
               <div className="toolbar-divider"></div>
 
@@ -740,6 +850,20 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 {mode === 'view-edit' && unmappedEntries.length > 0 && points.length > 0 && (
                   <h4 className="section-title">Posizionati</h4>
                 )}
+
+                {/* Selection counter */}
+                {selectedPointIds.size > 0 && (
+                  <div className="selection-counter">
+                    {selectedPointIds.size} punt{selectedPointIds.size === 1 ? 'o' : 'i'} selezionat{selectedPointIds.size === 1 ? 'o' : 'i'}
+                    <button
+                      className="btn-clear-selection"
+                      onClick={handleClearSelection}
+                    >
+                      Deseleziona tutto
+                    </button>
+                  </div>
+                )}
+
                 {points.length === 0 && unmappedEntries.length === 0 ? (
                   <p className="menu-empty">Nessun punto aggiunto</p>
                 ) : (
@@ -750,6 +874,26 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                         className={`point-item ${point.id === selectedPointId ? 'selected' : ''}`}
                         onClick={() => handlePointSelect(point.id)}
                       >
+                        {/* Checkbox per multi-selezione */}
+                        {(mode === 'standalone' || mode === 'view-edit') && (
+                          <input
+                            type="checkbox"
+                            className="point-checkbox"
+                            checked={selectedPointIds.has(point.id)}
+                            onChange={() => handlePointToggle(point.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+
+                        {/* Badge colore custom indicator */}
+                        {point.labelBackgroundColor && (
+                          <div
+                            className="color-indicator"
+                            style={{ backgroundColor: point.labelBackgroundColor }}
+                            title="Colore personalizzato"
+                          />
+                        )}
+
                         <div className="point-type">
                           <span className={`type-badge type-${point.type}`}>
                             {point.type}
@@ -818,6 +962,25 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Color Picker Modal */}
+      <ColorPickerModal
+        isOpen={showColorPicker}
+        mode={colorMode}
+        initialBackgroundColor={currentColor}
+        initialTextColor={currentTextColor}
+        selectedCount={selectedPointIds.size}
+        recentBackgroundColors={recentColors}
+        recentTextColors={recentTextColors}
+        onApply={handleApplyColor}
+        onModeChange={(mode) => setColorMode(mode)}
+        onClose={() => {
+          setShowColorPicker(false);
+          setSelectedPointIds(new Set());
+          setActiveTool('pan');
+          setColorMode('background'); // Reset to background for next time
+        }}
+      />
     </div>
   );
 };

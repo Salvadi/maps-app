@@ -1219,11 +1219,20 @@ const MappingView: React.FC<MappingViewProps> = ({
           const photos = mappingPhotos[m.id] || [];
           const labelText = generateMappingLabel(m, photos.length);
 
-          // Default to parete, user can choose when placing
+          // Get type from first crossing's supporto field
+          let type: 'parete' | 'solaio' = 'parete'; // Default
+          if (m.crossings && m.crossings.length > 0) {
+            const supporto = m.crossings[0].supporto?.toLowerCase();
+            if (supporto === 'solaio') {
+              type = 'solaio';
+            }
+            // Se supporto è "parete" o altro, rimane 'parete' (default)
+          }
+
           return {
             id: m.id,
             labelText,
-            type: 'parete' as 'parete' | 'solaio',
+            type,
           };
         });
 
@@ -1245,9 +1254,11 @@ const MappingView: React.FC<MappingViewProps> = ({
             pointY: point.pointY,
             labelX: point.labelX,
             labelY: point.labelY,
-            labelText: labelText,
+            labelText: point.metadata?.labelText || labelText, // Usa labelText custom se esiste, altrimenti generato
             perimeterPoints: point.perimeterPoints,
             mappingEntryId: point.mappingEntryId, // Include to distinguish existing points from new ones
+            labelBackgroundColor: point.metadata?.labelBackgroundColor, // Carica anche colore custom
+            labelTextColor: point.metadata?.labelTextColor, // Carica anche colore testo custom
           };
         })
       );
@@ -1291,12 +1302,19 @@ const MappingView: React.FC<MappingViewProps> = ({
       for (const canvasPoint of points) {
         if (currentPointIds.has(canvasPoint.id)) {
           // Update existing point
+          const currentPoint = currentPoints.find(p => p.id === canvasPoint.id);
           await updateFloorPlanPoint(canvasPoint.id, {
             pointX: canvasPoint.pointX,
             pointY: canvasPoint.pointY,
             labelX: canvasPoint.labelX,
             labelY: canvasPoint.labelY,
             perimeterPoints: canvasPoint.perimeterPoints,
+            metadata: {
+              ...currentPoint?.metadata,
+              labelText: canvasPoint.labelText, // Salva labelText custom
+              labelBackgroundColor: canvasPoint.labelBackgroundColor, // Salva anche colore custom
+              labelTextColor: canvasPoint.labelTextColor, // Salva anche colore testo custom
+            },
           });
         } else {
           // Create new point
