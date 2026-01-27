@@ -225,6 +225,25 @@ export async function generateAnswer(
   userMessage += `DOMANDA: ${context.query}`;
 
   try {
+    // Google models (Gemma) don't support system prompts via Google AI Studio provider
+    // So we incorporate the system prompt into the user message for those models
+    const isGoogleModel = model.startsWith('google/');
+
+    let messages;
+    if (isGoogleModel) {
+      // Incorporate system prompt into user message for Google models
+      const combinedMessage = `ISTRUZIONI:\n${FIRE_SEAL_SYSTEM_PROMPT}\n\n---\n\n${userMessage}`;
+      messages = [
+        { role: 'user', content: combinedMessage }
+      ];
+    } else {
+      // Use standard system message for other models
+      messages = [
+        { role: 'system', content: FIRE_SEAL_SYSTEM_PROMPT },
+        { role: 'user', content: userMessage }
+      ];
+    }
+
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
@@ -235,10 +254,7 @@ export async function generateAnswer(
       },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: 'system', content: FIRE_SEAL_SYSTEM_PROMPT },
-          { role: 'user', content: userMessage }
-        ],
+        messages,
         temperature: 0.3, // Lower temperature for more precise/factual responses
         max_tokens: 1500,
         top_p: 0.9
@@ -344,6 +360,9 @@ export async function simpleChat(
 ): Promise<string> {
   const apiKey = getApiKey();
 
+  // Simple chat doesn't need system prompt handling, just user messages
+  const messages = [{ role: 'user', content: message }];
+
   const response = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
     headers: {
@@ -354,9 +373,7 @@ export async function simpleChat(
     },
     body: JSON.stringify({
       model,
-      messages: [
-        { role: 'user', content: message }
-      ],
+      messages,
       temperature: 0.7,
       max_tokens: 500
     })
