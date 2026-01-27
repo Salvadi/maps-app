@@ -434,10 +434,16 @@ function splitLongText(text: string, maxSize: number, overlap: number): string[]
     return [text];
   }
 
+  // Ensure overlap is less than maxSize to prevent infinite loop
+  const safeOverlap = Math.min(overlap, Math.floor(maxSize * 0.5));
+
   const chunks: string[] = [];
   let start = 0;
+  let iterations = 0;
+  const maxIterations = Math.ceil(text.length / (maxSize - safeOverlap)) + 10; // Safety limit
 
-  while (start < text.length) {
+  while (start < text.length && iterations < maxIterations) {
+    iterations++;
     let end = Math.min(start + maxSize, text.length);
 
     // Try to break at sentence or word boundary
@@ -448,11 +454,25 @@ function splitLongText(text: string, maxSize: number, overlap: number): string[]
       }
     }
 
-    chunks.push(text.substring(start, end).trim());
+    const chunk = text.substring(start, end).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
 
-    // Move start with overlap
-    start = end - overlap;
+    // Move start forward, ensuring progress
+    const nextStart = end - safeOverlap;
+    if (nextStart <= start) {
+      // Ensure we always move forward
+      start = end;
+    } else {
+      start = nextStart;
+    }
+
     if (start >= text.length) break;
+  }
+
+  if (iterations >= maxIterations) {
+    console.warn(`splitLongText: Reached max iterations (${maxIterations}), text length: ${text.length}`);
   }
 
   return chunks;
