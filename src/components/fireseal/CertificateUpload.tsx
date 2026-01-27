@@ -308,7 +308,6 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
     }
   };
 
-  const pendingCount = files.filter(f => f.status === 'pending').length;
   const completedCount = files.filter(f => f.status === 'complete').length;
   const errorCount = files.filter(f => f.status === 'error').length;
   const readyToProcess = files.filter(f => f.status === 'pending' && f.brand).length;
