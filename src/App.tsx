@@ -7,12 +7,13 @@ import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import StandaloneFloorPlanEditor from './components/StandaloneFloorPlanEditor';
 import UpdateNotification from './components/UpdateNotification';
+import { FireSealSearchPage, FireSealAdminPage } from './components/fireseal';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry, db } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
 import './App.css';
 
-type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView' | 'standaloneEditor';
+type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView' | 'standaloneEditor' | 'firesealSearch' | 'firesealAdmin';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -399,6 +400,18 @@ const App: React.FC = () => {
     setCurrentView('home');
   };
 
+  const handleOpenFireSealSearch = () => {
+    setCurrentView('firesealSearch');
+  };
+
+  const handleOpenFireSealAdmin = () => {
+    setCurrentView('firesealAdmin');
+  };
+
+  const handleBackFromFireSeal = () => {
+    setCurrentView('home');
+  };
+
   // Show loading state while initializing
   if (!isInitialized) {
     return (
@@ -436,6 +449,7 @@ const App: React.FC = () => {
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
             onOpenStandaloneEditor={handleOpenStandaloneEditor}
+            onOpenFireSealSearch={handleOpenFireSealSearch}
             onLogout={handleLogout}
             onManualSync={handleManualSync}
             onClearAndSync={handleClearAndSync}
@@ -484,6 +498,21 @@ const App: React.FC = () => {
             onBack={handleBackFromStandaloneEditor}
           />
         );
+      case 'firesealSearch':
+        return (
+          <FireSealSearchPage
+            onBack={handleBackFromFireSeal}
+            onAdminClick={currentUser.role === 'admin' ? handleOpenFireSealAdmin : undefined}
+            isAdmin={currentUser.role === 'admin'}
+          />
+        );
+      case 'firesealAdmin':
+        return (
+          <FireSealAdminPage
+            userId={currentUser.id}
+            onBack={handleBackFromFireSeal}
+          />
+        );
       default:
         return (
           <Home
@@ -494,6 +523,7 @@ const App: React.FC = () => {
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
             onOpenStandaloneEditor={handleOpenStandaloneEditor}
+            onOpenFireSealSearch={handleOpenFireSealSearch}
             onLogout={handleLogout}
             onManualSync={handleManualSync}
             onClearAndSync={handleClearAndSync}

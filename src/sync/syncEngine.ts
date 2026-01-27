@@ -1,6 +1,7 @@
-import { db, Project, MappingEntry, Photo, SyncQueueItem } from '../db/database';
+import { db, Project, MappingEntry, Photo, SyncQueueItem, Certificate } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
+import { uploadCertificate } from './certificateSyncEngine';
 
 /**
  * Sync Engine for Phase 3
@@ -153,6 +154,10 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
     case 'standalone_map':
       await syncStandaloneMap(item);
+      break;
+
+    case 'certificate':
+      await syncCertificate(item);
       break;
 
     default:
@@ -639,6 +644,51 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
       } catch (err) {
         console.warn('Failed to delete standalone map from storage:', err);
       }
+    }
+  }
+}
+
+/**
+ * Sync certificate to Supabase
+ */
+async function syncCertificate(item: SyncQueueItem): Promise<void> {
+  const certPayload = item.payload as Certificate;
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    // Get the full certificate from local DB (includes blob if available)
+    const localCert = await db.certificates.get(certPayload.id);
+
+    if (!localCert) {
+      console.warn(`Certificate not found locally: ${certPayload.id}, skipping sync`);
+      return;
+    }
+
+    // Use the certificate sync engine's upload function
+    await uploadCertificate(localCert);
+  } else if (item.operation === 'DELETE') {
+    // Delete from Supabase
+    const { error } = await supabase
+      .from('certificates')
+      .delete()
+      .eq('id', certPayload.id);
+
+    if (error) {
+      throw new Error(`Supabase certificate delete failed: ${error.message}`);
+    }
+
+    // Delete associated chunks
+    await supabase
+      .from('certificate_chunks')
+      .delete()
+      .eq('certificate_id', certPayload.id);
+
+    // Delete PDF from storage
+    try {
+      await supabase.storage
+        .from('certificates')
+        .remove([`certificates/${certPayload.id}`]);
+    } catch (err) {
+      console.warn('Failed to delete certificate PDF from storage:', err);
     }
   }
 }

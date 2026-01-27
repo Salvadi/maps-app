@@ -10,6 +10,7 @@ interface HomeProps {
   onViewProject: (project: Project) => void;
   onEnterMapping: (project: Project) => void;
   onOpenStandaloneEditor: () => void;
+  onOpenFireSealSearch: () => void;
   onLogout: () => void;
   onManualSync: () => void;
   onClearAndSync: () => void;
@@ -119,6 +120,13 @@ const BlueprintIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const FireSealIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 22C12 22 20 18 20 12V5L12 2L4 5V12C4 18 12 22 12 22Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 16C12 16 9 14 9 11.5C9 10 10.5 9 12 10.5C13.5 9 15 10 15 11.5C15 14 12 16 12 16Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const getProjectIcon = () => {
   // Usa sempre l'icona a forma di cartella per tutti i progetti
   return FolderIcon;
@@ -134,6 +142,7 @@ const Home: React.FC<HomeProps> = ({
   onViewProject,
   onEnterMapping,
   onOpenStandaloneEditor,
+  onOpenFireSealSearch,
   onLogout,
   onManualSync,
   onClearAndSync,
@@ -582,6 +591,16 @@ const Home: React.FC<HomeProps> = ({
               >
                 <BlueprintIcon className="fab-menu-icon" />
                 <span>Editor Planimetrie</span>
+              </button>
+              <button
+                className="fab-menu-item"
+                onClick={() => {
+                  setShowFabMenu(false);
+                  onOpenFireSealSearch();
+                }}
+              >
+                <FireSealIcon className="fab-menu-icon" />
+                <span>Ricerca Sigillatura</span>
               </button>
             </div>
           </>
