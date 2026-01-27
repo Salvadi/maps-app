@@ -3,8 +3,11 @@ import { ArrowLeft, Settings } from 'lucide-react';
 import { ChatInterface } from './ChatInterface';
 import { FilterPanel } from './FilterPanel';
 import { ResultsPanel } from './ResultsPanel';
+import { PDFViewerModal } from './PDFViewerModal';
 import { executeRAG, RAGResponse, checkRAGAvailability } from '../../lib/fireseal/ragPipeline';
 import { SearchFilters } from '../../lib/fireseal/vectorSearch';
+import { getCertificate } from '../../db/certificates';
+import { getCertificatePDFUrl } from '../../sync/certificateSyncEngine';
 import './FireSealStyles.css';
 
 interface FireSealSearchPageProps {
@@ -19,6 +22,12 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
   const [response, setResponse] = useState<RAGResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // PDF Viewer state
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [pdfSource, setPdfSource] = useState<Blob | string | null>(null);
+  const [pdfTitle, setPdfTitle] = useState<string>('');
+  const [pdfInitialPage, setPdfInitialPage] = useState(1);
 
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
@@ -65,9 +74,38 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
     }
   }, [query, response, handleSearch]);
 
-  const handleCitationClick = useCallback((certificateId: string, pageNumber: number) => {
-    // TODO: Open PDF viewer at specific page
-    console.log('Open certificate:', certificateId, 'page:', pageNumber);
+  const handleCitationClick = useCallback(async (certificateId: string, pageNumber: number) => {
+    try {
+      const certificate = await getCertificate(certificateId);
+      if (!certificate) {
+        console.error('Certificate not found:', certificateId);
+        return;
+      }
+
+      setPdfTitle(certificate.title);
+      setPdfInitialPage(pageNumber);
+
+      // Prefer local blob, fallback to signed URL
+      if (certificate.fileBlob) {
+        setPdfSource(certificate.fileBlob);
+      } else if (certificate.fileName) {
+        const signedUrl = await getCertificatePDFUrl(certificate.id, certificate.fileName);
+        setPdfSource(signedUrl);
+      } else {
+        console.error('No PDF source available for certificate:', certificateId);
+        return;
+      }
+
+      setPdfViewerOpen(true);
+    } catch (err) {
+      console.error('Error opening certificate PDF:', err);
+    }
+  }, []);
+
+  const handleClosePdfViewer = useCallback(() => {
+    setPdfViewerOpen(false);
+    setPdfSource(null);
+    setPdfTitle('');
   }, []);
 
   return (
@@ -109,6 +147,15 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
           onCitationClick={handleCitationClick}
         />
       </div>
+
+      {/* PDF Viewer Modal */}
+      <PDFViewerModal
+        isOpen={pdfViewerOpen}
+        onClose={handleClosePdfViewer}
+        pdfSource={pdfSource}
+        initialPage={pdfInitialPage}
+        title={pdfTitle}
+      />
     </div>
   );
 }

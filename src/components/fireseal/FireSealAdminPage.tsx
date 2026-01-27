@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { CertificateUpload } from './CertificateUpload';
 import { CertificateList } from './CertificateList';
 import { Certificate } from '../../db/database';
+import { getCertificatePDFUrl } from '../../sync/certificateSyncEngine';
 import './FireSealStyles.css';
 
 interface FireSealAdminPageProps {
@@ -17,13 +18,30 @@ export function FireSealAdminPage({ userId, onBack }: FireSealAdminPageProps) {
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
-  const handleViewPDF = useCallback((certificate: Certificate) => {
-    // TODO: Implement PDF viewer
-    if (certificate.fileUrl) {
-      window.open(certificate.fileUrl, '_blank');
-    } else if (certificate.fileBlob) {
-      const url = URL.createObjectURL(certificate.fileBlob);
-      window.open(url, '_blank');
+  const handleViewPDF = useCallback(async (certificate: Certificate) => {
+    try {
+      // Prefer local blob first
+      if (certificate.fileBlob) {
+        const url = URL.createObjectURL(certificate.fileBlob);
+        window.open(url, '_blank');
+        return;
+      }
+
+      // Get signed URL for remote PDF
+      if (certificate.fileName) {
+        const signedUrl = await getCertificatePDFUrl(
+          certificate.id,
+          certificate.fileName
+        );
+        window.open(signedUrl, '_blank');
+        return;
+      }
+
+      console.error('No PDF source available for certificate');
+      alert('Impossibile aprire il PDF. File non disponibile.');
+    } catch (err) {
+      console.error('Error opening PDF:', err);
+      alert('Impossibile aprire il PDF. Verifica la configurazione dello storage.');
     }
   }, []);
 

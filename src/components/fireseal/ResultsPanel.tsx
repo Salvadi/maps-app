@@ -84,11 +84,9 @@ interface CitationItemProps {
 }
 
 function CitationItem({ citation, onClick }: CitationItemProps) {
-  // Extract certificate ID from title if possible
   const handleClick = () => {
-    if (onClick) {
-      // Note: In a real implementation, we'd have the certificate ID in the citation
-      onClick(citation.certificateTitle, citation.pageNumber);
+    if (onClick && citation.certificateId) {
+      onClick(citation.certificateId, citation.pageNumber);
     }
   };
 
