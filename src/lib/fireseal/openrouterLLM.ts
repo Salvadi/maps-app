@@ -28,8 +28,15 @@ export const AVAILABLE_MODELS = {
 
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
-// Default to Gemma 3
-const DEFAULT_MODEL: ModelId = 'google/gemma-3-27b-it:free';
+// Default to Llama 3.1 (more stable than Gemma on OpenRouter)
+const DEFAULT_MODEL: ModelId = 'meta-llama/llama-3.1-8b-instruct:free';
+
+// Fallback order when a model fails
+const MODEL_FALLBACK_ORDER: ModelId[] = [
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
+  'google/gemma-3-27b-it:free'
+];
 
 // System prompt for fire seal expert
 const FIRE_SEAL_SYSTEM_PROMPT = `Sei un esperto tecnico specializzato in soluzioni di sigillatura antincendio.
@@ -185,7 +192,104 @@ function extractCitations(
 }
 
 /**
+ * Try to call a specific model via OpenRouter
+ */
+async function tryModel(
+  model: ModelId,
+  userMessage: string,
+  apiKey: string
+): Promise<{ success: true; data: any } | { success: false; error: string; shouldFallback: boolean }> {
+  // Google models (Gemma) don't support system prompts via Google AI Studio provider
+  // So we incorporate the system prompt into the user message for those models
+  const isGoogleModel = model.startsWith('google/');
+
+  let messages;
+  if (isGoogleModel) {
+    // Incorporate system prompt into user message for Google models
+    const combinedMessage = `ISTRUZIONI:\n${FIRE_SEAL_SYSTEM_PROMPT}\n\n---\n\n${userMessage}`;
+    messages = [{ role: 'user', content: combinedMessage }];
+  } else {
+    // Use standard system message for other models
+    messages = [
+      { role: 'system', content: FIRE_SEAL_SYSTEM_PROMPT },
+      { role: 'user', content: userMessage }
+    ];
+  }
+
+  try {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'OPImaPPA Fire Seal Search'
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.3,
+        max_tokens: 1500,
+        top_p: 0.9
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+
+      // Don't fallback for rate limits or payment issues
+      if (response.status === 429) {
+        return { success: false, error: 'Limite di richieste raggiunto. Riprova tra qualche minuto.', shouldFallback: false };
+      }
+      if (response.status === 402) {
+        return { success: false, error: 'Crediti OpenRouter esauriti. Verifica il tuo account.', shouldFallback: false };
+      }
+
+      // Fallback for server errors (500, 502, 503) or model-specific errors (400)
+      const shouldFallback = response.status >= 400 && response.status !== 429 && response.status !== 402;
+      return {
+        success: false,
+        error: `OpenRouter API error: ${response.status} - ${error.error?.message || response.statusText}`,
+        shouldFallback
+      };
+    }
+
+    const data = await response.json();
+
+    // Check for errors in the response body
+    if (data.error) {
+      console.error(`Model ${model} returned error:`, data.error);
+      return {
+        success: false,
+        error: data.error.message || JSON.stringify(data.error),
+        shouldFallback: true
+      };
+    }
+
+    // Validate response structure
+    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      console.error('OpenRouter unexpected response:', JSON.stringify(data, null, 2));
+      return {
+        success: false,
+        error: 'Risposta LLM non valida: formato inatteso',
+        shouldFallback: true
+      };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error(`Model ${model} failed with exception:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Errore di rete',
+      shouldFallback: true
+    };
+  }
+}
+
+/**
  * Generate answer using LLM with RAG context
+ * Automatically falls back to alternative models if the primary fails
  */
 export async function generateAnswer(
   context: LLMContext,
@@ -224,90 +328,50 @@ export async function generateAnswer(
 
   userMessage += `DOMANDA: ${context.query}`;
 
-  try {
-    // Google models (Gemma) don't support system prompts via Google AI Studio provider
-    // So we incorporate the system prompt into the user message for those models
-    const isGoogleModel = model.startsWith('google/');
-
-    let messages;
-    if (isGoogleModel) {
-      // Incorporate system prompt into user message for Google models
-      const combinedMessage = `ISTRUZIONI:\n${FIRE_SEAL_SYSTEM_PROMPT}\n\n---\n\n${userMessage}`;
-      messages = [
-        { role: 'user', content: combinedMessage }
-      ];
-    } else {
-      // Use standard system message for other models
-      messages = [
-        { role: 'system', content: FIRE_SEAL_SYSTEM_PROMPT },
-        { role: 'user', content: userMessage }
-      ];
+  // Build list of models to try: requested model first, then fallbacks
+  const modelsToTry: ModelId[] = [model];
+  for (const fallbackModel of MODEL_FALLBACK_ORDER) {
+    if (!modelsToTry.includes(fallbackModel)) {
+      modelsToTry.push(fallbackModel);
     }
-
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'OPImaPPA Fire Seal Search'
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.3, // Lower temperature for more precise/factual responses
-        max_tokens: 1500,
-        top_p: 0.9
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-
-      // Handle specific error cases
-      if (response.status === 429) {
-        throw new Error('Limite di richieste raggiunto. Riprova tra qualche minuto.');
-      }
-      if (response.status === 402) {
-        throw new Error('Crediti OpenRouter esauriti. Verifica il tuo account.');
-      }
-
-      throw new Error(
-        `OpenRouter API error: ${response.status} - ${error.error?.message || response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-
-    // Validate response structure
-    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      console.error('OpenRouter unexpected response:', JSON.stringify(data, null, 2));
-
-      // Check if there's an error in the response
-      if (data.error) {
-        throw new Error(`OpenRouter error: ${data.error.message || JSON.stringify(data.error)}`);
-      }
-
-      throw new Error('Risposta LLM non valida: formato inatteso');
-    }
-
-    const answer = data.choices[0]?.message?.content || 'Risposta non disponibile';
-
-    // Extract citations from the answer
-    const citations = extractCitations(answer, context.retrievedChunks);
-
-    return {
-      answer,
-      citations,
-      model,
-      tokensUsed: data.usage?.total_tokens
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Errore durante la generazione della risposta');
   }
+
+  let lastError = '';
+  let usedModel = model;
+
+  for (const currentModel of modelsToTry) {
+    if (currentModel !== model) {
+      console.log(`Trying fallback model: ${currentModel}`);
+    }
+
+    const result = await tryModel(currentModel, userMessage, apiKey);
+
+    if (result.success) {
+      const answer = result.data.choices[0]?.message?.content || 'Risposta non disponibile';
+      const citations = extractCitations(answer, context.retrievedChunks);
+
+      if (currentModel !== model) {
+        console.log(`Successfully used fallback model: ${currentModel}`);
+      }
+
+      return {
+        answer,
+        citations,
+        model: currentModel,
+        tokensUsed: result.data.usage?.total_tokens
+      };
+    }
+
+    lastError = result.error;
+    usedModel = currentModel;
+
+    // Don't try fallbacks if it's a non-fallbackable error
+    if (!result.shouldFallback) {
+      break;
+    }
+  }
+
+  throw new Error(`Tutti i modelli hanno fallito. Ultimo errore (${usedModel}): ${lastError}`);
 }
 
 /**
