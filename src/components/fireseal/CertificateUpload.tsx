@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Upload, FileText, AlertCircle, Check, Loader2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, Check, Loader2, X, Files } from 'lucide-react';
 import { createCertificate, updateCertificateStatus, updateCertificateMetadata } from '../../db/certificates';
 import { createChunksBatch, updateChunkEmbeddingsBatch } from '../../db/certificates';
 import { extractTextFromPDF, hasSelectorableText, getPDFPageCount } from '../../lib/fireseal/pdfProcessor';
@@ -13,64 +13,81 @@ interface CertificateUploadProps {
   onUploadComplete?: () => void;
 }
 
-type UploadStep = 'idle' | 'validating' | 'extracting' | 'chunking' | 'embedding' | 'syncing' | 'complete' | 'error';
+type FileStatus = 'pending' | 'validating' | 'extracting' | 'chunking' | 'embedding' | 'syncing' | 'complete' | 'error';
 
-interface UploadState {
-  step: UploadStep;
+interface FileUploadItem {
+  id: string;
+  file: File;
+  title: string;
+  brand: string;
+  status: FileStatus;
   progress: number;
   message: string;
   error?: string;
+  chunksCount?: number;
 }
 
 const BRANDS = ['Promat', 'AF Systems', 'Hilti', 'Global Building', 'Altro'];
 
 export function CertificateUpload({ userId, onUploadComplete }: CertificateUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedBrand, setSelectedBrand] = useState<string>('');
-  const [customTitle, setCustomTitle] = useState<string>('');
-  const [uploadState, setUploadState] = useState<UploadState>({
-    step: 'idle',
-    progress: 0,
-    message: ''
-  });
+  const [files, setFiles] = useState<FileUploadItem[]>([]);
+  const [defaultBrand, setDefaultBrand] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = useCallback((file: File) => {
-    if (file.type !== 'application/pdf') {
-      setUploadState({
-        step: 'error',
+  const generateId = () => `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  const handleFilesSelect = useCallback((newFiles: FileList | File[]) => {
+    const fileArray = Array.from(newFiles);
+    const validFiles: FileUploadItem[] = [];
+    const errors: string[] = [];
+
+    fileArray.forEach(file => {
+      if (file.type !== 'application/pdf') {
+        errors.push(`${file.name}: non è un PDF`);
+        return;
+      }
+
+      if (file.size > 50 * 1024 * 1024) {
+        errors.push(`${file.name}: supera 50MB`);
+        return;
+      }
+
+      // Check if already added
+      if (files.some(f => f.file.name === file.name && f.file.size === file.size)) {
+        errors.push(`${file.name}: già aggiunto`);
+        return;
+      }
+
+      validFiles.push({
+        id: generateId(),
+        file,
+        title: file.name.replace('.pdf', ''),
+        brand: defaultBrand,
+        status: 'pending',
         progress: 0,
-        message: 'Solo file PDF sono accettati',
-        error: 'Formato file non valido'
+        message: ''
       });
-      return;
+    });
+
+    if (errors.length > 0) {
+      console.warn('File validation errors:', errors);
     }
 
-    if (file.size > 50 * 1024 * 1024) { // 50MB limit
-      setUploadState({
-        step: 'error',
-        progress: 0,
-        message: 'Il file supera il limite di 50MB',
-        error: 'File troppo grande'
-      });
-      return;
+    if (validFiles.length > 0) {
+      setFiles(prev => [...prev, ...validFiles]);
     }
-
-    setSelectedFile(file);
-    setCustomTitle(file.name.replace('.pdf', ''));
-    setUploadState({ step: 'idle', progress: 0, message: '' });
-  }, []);
+  }, [files, defaultBrand]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
 
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileSelect(file);
+    if (e.dataTransfer.files.length > 0) {
+      handleFilesSelect(e.dataTransfer.files);
     }
-  }, [handleFileSelect]);
+  }, [handleFilesSelect]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -82,55 +99,75 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
     setIsDragOver(false);
   }, []);
 
-  const processUpload = async () => {
-    if (!selectedFile || !selectedBrand) return;
+  const removeFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const updateFileItem = (id: string, updates: Partial<FileUploadItem>) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
+  const updateFileBrand = (id: string, brand: string) => {
+    updateFileItem(id, { brand });
+  };
+
+  const updateFileTitle = (id: string, title: string) => {
+    updateFileItem(id, { title });
+  };
+
+  const applyDefaultBrandToAll = () => {
+    if (!defaultBrand) return;
+    setFiles(prev => prev.map(f => f.status === 'pending' ? { ...f, brand: defaultBrand } : f));
+  };
+
+  const processSingleFile = async (fileItem: FileUploadItem): Promise<boolean> => {
+    const { id, file, title, brand } = fileItem;
 
     try {
       // Step 1: Validate PDF
-      setUploadState({ step: 'validating', progress: 5, message: 'Validazione PDF...' });
+      updateFileItem(id, { status: 'validating', progress: 5, message: 'Validazione...' });
 
-      const hasText = await hasSelectorableText(selectedFile);
+      const hasText = await hasSelectorableText(file);
       if (!hasText) {
-        setUploadState({
-          step: 'error',
+        updateFileItem(id, {
+          status: 'error',
           progress: 0,
-          message: 'Il PDF sembra essere scannerizzato (immagini). Sono supportati solo PDF con testo selezionabile.',
-          error: 'PDF non supportato'
+          message: 'PDF scannerizzato (solo immagini)',
+          error: 'Non supportato'
         });
-        return;
+        return false;
       }
 
-      const pageCount = await getPDFPageCount(selectedFile);
+      const pageCount = await getPDFPageCount(file);
 
       // Step 2: Create certificate record
-      setUploadState({ step: 'extracting', progress: 10, message: 'Creazione record...' });
+      updateFileItem(id, { status: 'extracting', progress: 10, message: 'Creazione record...' });
 
       const certificate = await createCertificate(
-        customTitle || selectedFile.name,
-        selectedBrand,
-        selectedFile.name,
-        selectedFile,
+        title || file.name,
+        brand,
+        file.name,
+        file,
         userId
       );
 
       await updateCertificateStatus(certificate.id, 'processing');
 
       // Step 3: Extract text from PDF
-      setUploadState({ step: 'extracting', progress: 15, message: 'Estrazione testo...' });
+      updateFileItem(id, { status: 'extracting', progress: 15, message: 'Estrazione testo...' });
 
-      const pdfResult = await extractTextFromPDF(selectedFile, (progress) => {
-        const pct = 15 + (progress.percentage * 0.25); // 15-40%
-        setUploadState({
-          step: 'extracting',
+      const pdfResult = await extractTextFromPDF(file, (progress) => {
+        const pct = 15 + (progress.percentage * 0.25);
+        updateFileItem(id, {
           progress: pct,
-          message: `Estrazione pagina ${progress.currentPage}/${progress.totalPages}...`
+          message: `Pagina ${progress.currentPage}/${progress.totalPages}`
         });
       });
 
       // Step 4: Detect structure and extract metadata
-      setUploadState({ step: 'chunking', progress: 42, message: 'Analisi struttura...' });
+      updateFileItem(id, { status: 'chunking', progress: 42, message: 'Analisi struttura...' });
 
-      const structureResult = detectStructure(pdfResult.pages, selectedBrand);
+      const structureResult = detectStructure(pdfResult.pages, brand);
       const fullText = pdfResult.pages.map(p => p.text).join('\n');
       const metadata = extractFireSealMetadata(fullText);
 
@@ -148,17 +185,17 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
       );
 
       // Step 5: Chunk document
-      setUploadState({ step: 'chunking', progress: 45, message: 'Suddivisione in chunks...' });
+      updateFileItem(id, { status: 'chunking', progress: 45, message: 'Suddivisione chunks...' });
 
       const chunks = chunkDocument(pdfResult.pages, {
         strategy: structureResult.chunkingStrategy
       });
 
       const chunkStats = getChunkStats(chunks);
-      console.log('Chunk stats:', chunkStats);
+      console.log(`[${file.name}] Chunk stats:`, chunkStats);
 
       // Step 6: Save chunks to database
-      setUploadState({ step: 'chunking', progress: 50, message: `Salvataggio ${chunks.length} chunks...` });
+      updateFileItem(id, { status: 'chunking', progress: 50, message: `Salvataggio ${chunks.length} chunks...` });
 
       const savedChunks = await createChunksBatch(
         chunks.map(chunk => ({
@@ -172,23 +209,22 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
 
       // Step 7: Generate embeddings (if OpenAI configured)
       if (isOpenAIConfigured()) {
-        setUploadState({ step: 'embedding', progress: 55, message: 'Generazione embeddings...' });
+        updateFileItem(id, { status: 'embedding', progress: 55, message: 'Generazione embeddings...' });
 
         const texts = savedChunks.map(c => c.content);
         const costEstimate = estimateEmbeddingCost(texts);
-        console.log(`Estimated embedding cost: $${costEstimate.estimatedCostUSD} for ${costEstimate.estimatedTokens} tokens`);
+        console.log(`[${file.name}] Estimated cost: $${costEstimate.estimatedCostUSD}`);
 
         const { embeddings } = await generateEmbeddingsBatch(texts, (processed, total) => {
-          const pct = 55 + (processed / total) * 30; // 55-85%
-          setUploadState({
-            step: 'embedding',
+          const pct = 55 + (processed / total) * 30;
+          updateFileItem(id, {
             progress: pct,
-            message: `Embedding ${processed}/${total} chunks...`
+            message: `Embedding ${processed}/${total}`
           });
         });
 
         // Update chunks with embeddings
-        setUploadState({ step: 'embedding', progress: 87, message: 'Salvataggio embeddings...' });
+        updateFileItem(id, { status: 'embedding', progress: 87, message: 'Salvataggio embeddings...' });
 
         const embeddingUpdates = savedChunks.map((chunk, i) => ({
           id: chunk.id,
@@ -196,58 +232,92 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
         }));
 
         await updateChunkEmbeddingsBatch(embeddingUpdates);
-      } else {
-        console.warn('OpenAI not configured, skipping embedding generation');
       }
 
       // Step 8: Mark as completed
       await updateCertificateStatus(certificate.id, 'completed');
 
-      // Step 9: Sync to Supabase (if configured)
-      setUploadState({ step: 'syncing', progress: 90, message: 'Sincronizzazione...' });
+      // Step 9: Sync to Supabase
+      updateFileItem(id, { status: 'syncing', progress: 90, message: 'Sincronizzazione...' });
 
       try {
         await uploadCertificate(certificate);
         await uploadCertificateChunks(certificate.id);
       } catch (syncError) {
-        console.warn('Sync failed, will retry later:', syncError);
+        console.warn(`[${file.name}] Sync failed:`, syncError);
       }
 
       // Complete!
-      setUploadState({
-        step: 'complete',
+      updateFileItem(id, {
+        status: 'complete',
         progress: 100,
-        message: `Certificato "${customTitle}" caricato con successo! ${savedChunks.length} chunks creati.`
+        message: 'Completato',
+        chunksCount: savedChunks.length
       });
 
-      // Reset form after delay
-      setTimeout(() => {
-        setSelectedFile(null);
-        setSelectedBrand('');
-        setCustomTitle('');
-        setUploadState({ step: 'idle', progress: 0, message: '' });
-        onUploadComplete?.();
-      }, 3000);
+      return true;
 
     } catch (error) {
-      console.error('Upload error:', error);
-      setUploadState({
-        step: 'error',
+      console.error(`[${file.name}] Upload error:`, error);
+      updateFileItem(id, {
+        status: 'error',
         progress: 0,
-        message: error instanceof Error ? error.message : 'Errore durante il caricamento',
+        message: error instanceof Error ? error.message : 'Errore',
         error: 'Upload fallito'
       });
+      return false;
     }
   };
 
-  const isProcessing = ['validating', 'extracting', 'chunking', 'embedding', 'syncing'].includes(uploadState.step);
-  const canUpload = selectedFile && selectedBrand && !isProcessing;
+  const processAllFiles = async () => {
+    const pendingFiles = files.filter(f => f.status === 'pending' && f.brand);
+
+    if (pendingFiles.length === 0) return;
+
+    setIsProcessing(true);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process files sequentially to avoid overwhelming the embedding API
+    for (const fileItem of pendingFiles) {
+      const success = await processSingleFile(fileItem);
+      if (success) {
+        successCount++;
+      } else {
+        errorCount++;
+      }
+    }
+
+    setIsProcessing(false);
+
+    console.log(`Batch upload complete: ${successCount} success, ${errorCount} errors`);
+
+    if (successCount > 0) {
+      onUploadComplete?.();
+    }
+  };
+
+  const clearCompleted = () => {
+    setFiles(prev => prev.filter(f => f.status !== 'complete'));
+  };
+
+  const clearAll = () => {
+    if (!isProcessing) {
+      setFiles([]);
+    }
+  };
+
+  const pendingCount = files.filter(f => f.status === 'pending').length;
+  const completedCount = files.filter(f => f.status === 'complete').length;
+  const errorCount = files.filter(f => f.status === 'error').length;
+  const readyToProcess = files.filter(f => f.status === 'pending' && f.brand).length;
 
   return (
-    <div className="certificate-upload">
+    <div className="certificate-upload batch-mode">
       {/* Drop Zone */}
       <div
-        className={`upload-dropzone ${isDragOver ? 'drag-over' : ''} ${selectedFile ? 'has-file' : ''}`}
+        className={`upload-dropzone ${isDragOver ? 'drag-over' : ''} ${files.length > 0 ? 'has-files' : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -257,103 +327,186 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
           ref={fileInputRef}
           type="file"
           accept=".pdf"
-          onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+          multiple
+          onChange={(e) => e.target.files && handleFilesSelect(e.target.files)}
           style={{ display: 'none' }}
           disabled={isProcessing}
         />
 
-        {selectedFile ? (
-          <div className="selected-file">
-            <FileText size={32} />
-            <span className="file-name">{selectedFile.name}</span>
-            <span className="file-size">({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)</span>
-          </div>
-        ) : (
-          <div className="dropzone-content">
-            <Upload size={48} />
-            <p>Trascina qui un PDF o clicca per selezionare</p>
-            <span className="hint">Max 50MB - Solo PDF con testo selezionabile</span>
-          </div>
-        )}
+        <div className="dropzone-content">
+          <Files size={48} />
+          <p>Trascina qui i PDF o clicca per selezionare</p>
+          <span className="hint">Puoi selezionare più file insieme (max 50MB ciascuno)</span>
+        </div>
       </div>
 
-      {/* Form Fields */}
-      {selectedFile && (
-        <div className="upload-form">
-          <div className="form-group">
-            <label>Marca</label>
+      {/* Default Brand Selector */}
+      {files.length > 0 && (
+        <div className="batch-controls">
+          <div className="default-brand-control">
+            <label>Marca predefinita:</label>
             <select
-              value={selectedBrand}
-              onChange={(e) => setSelectedBrand(e.target.value)}
+              value={defaultBrand}
+              onChange={(e) => setDefaultBrand(e.target.value)}
               disabled={isProcessing}
             >
-              <option value="">Seleziona marca...</option>
+              <option value="">Seleziona...</option>
               {BRANDS.map(brand => (
                 <option key={brand} value={brand}>{brand}</option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={applyDefaultBrandToAll}
+              disabled={!defaultBrand || isProcessing}
+              className="apply-brand-btn"
+            >
+              Applica a tutti
+            </button>
           </div>
 
-          <div className="form-group">
-            <label>Titolo</label>
-            <input
-              type="text"
-              value={customTitle}
-              onChange={(e) => setCustomTitle(e.target.value)}
-              placeholder="Nome certificato"
-              disabled={isProcessing}
-            />
+          <div className="batch-stats">
+            <span>{files.length} file totali</span>
+            {completedCount > 0 && <span className="stat-complete">{completedCount} completati</span>}
+            {errorCount > 0 && <span className="stat-error">{errorCount} errori</span>}
           </div>
+        </div>
+      )}
 
+      {/* Files List */}
+      {files.length > 0 && (
+        <div className="files-list">
+          {files.map(fileItem => (
+            <div key={fileItem.id} className={`file-item status-${fileItem.status}`}>
+              <div className="file-item-header">
+                <FileText size={20} />
+                <div className="file-info">
+                  <input
+                    type="text"
+                    value={fileItem.title}
+                    onChange={(e) => updateFileTitle(fileItem.id, e.target.value)}
+                    disabled={fileItem.status !== 'pending' || isProcessing}
+                    className="file-title-input"
+                    placeholder="Titolo"
+                  />
+                  <span className="file-size">
+                    {(fileItem.file.size / (1024 * 1024)).toFixed(1)} MB
+                  </span>
+                </div>
+                <select
+                  value={fileItem.brand}
+                  onChange={(e) => updateFileBrand(fileItem.id, e.target.value)}
+                  disabled={fileItem.status !== 'pending' || isProcessing}
+                  className="file-brand-select"
+                >
+                  <option value="">Marca...</option>
+                  {BRANDS.map(brand => (
+                    <option key={brand} value={brand}>{brand}</option>
+                  ))}
+                </select>
+                {fileItem.status === 'pending' && !isProcessing && (
+                  <button
+                    type="button"
+                    onClick={() => removeFile(fileItem.id)}
+                    className="remove-file-btn"
+                    title="Rimuovi"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+                {fileItem.status === 'complete' && (
+                  <span className="status-icon complete">
+                    <Check size={18} />
+                  </span>
+                )}
+                {fileItem.status === 'error' && (
+                  <span className="status-icon error">
+                    <AlertCircle size={18} />
+                  </span>
+                )}
+                {!['pending', 'complete', 'error'].includes(fileItem.status) && (
+                  <span className="status-icon processing">
+                    <Loader2 size={18} className="spinner" />
+                  </span>
+                )}
+              </div>
+
+              {/* Progress bar for processing files */}
+              {!['pending', 'complete', 'error'].includes(fileItem.status) && (
+                <div className="file-progress">
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${fileItem.progress}%` }}
+                    />
+                  </div>
+                  <span className="progress-message">{fileItem.message}</span>
+                </div>
+              )}
+
+              {/* Status message for completed/error */}
+              {fileItem.status === 'complete' && (
+                <div className="file-status-message success">
+                  {fileItem.chunksCount} chunks creati
+                </div>
+              )}
+              {fileItem.status === 'error' && (
+                <div className="file-status-message error">
+                  {fileItem.message}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      {files.length > 0 && (
+        <div className="batch-actions">
           <button
-            className="upload-button"
-            onClick={processUpload}
-            disabled={!canUpload}
+            className="upload-button primary"
+            onClick={processAllFiles}
+            disabled={readyToProcess === 0 || isProcessing}
           >
             {isProcessing ? (
               <>
                 <Loader2 size={18} className="spinner" />
-                Elaborazione...
+                Elaborazione in corso...
               </>
             ) : (
               <>
                 <Upload size={18} />
-                Carica e Processa
+                Carica {readyToProcess} {readyToProcess === 1 ? 'certificato' : 'certificati'}
               </>
             )}
           </button>
+
+          {completedCount > 0 && !isProcessing && (
+            <button
+              type="button"
+              onClick={clearCompleted}
+              className="secondary-btn"
+            >
+              Rimuovi completati
+            </button>
+          )}
+
+          {!isProcessing && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="secondary-btn danger"
+            >
+              Rimuovi tutti
+            </button>
+          )}
         </div>
       )}
 
-      {/* Progress */}
-      {isProcessing && (
-        <div className="upload-progress">
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${uploadState.progress}%` }}
-            />
-          </div>
-          <p className="progress-message">{uploadState.message}</p>
-        </div>
-      )}
-
-      {/* Success */}
-      {uploadState.step === 'complete' && (
-        <div className="upload-success">
-          <Check size={24} />
-          <p>{uploadState.message}</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {uploadState.step === 'error' && (
-        <div className="upload-error">
-          <AlertCircle size={24} />
-          <p>{uploadState.message}</p>
-          <button onClick={() => setUploadState({ step: 'idle', progress: 0, message: '' })}>
-            Riprova
-          </button>
+      {/* Empty state message */}
+      {files.length === 0 && (
+        <div className="empty-hint">
+          <p>Seleziona uno o più certificati PDF da caricare</p>
         </div>
       )}
     </div>
