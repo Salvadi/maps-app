@@ -111,6 +111,7 @@ export async function executeRAG(ragQuery: RAGQuery): Promise<RAGResponse> {
 
   // Step 3: Convert to LLM format
   const retrievedChunks: RetrievedChunk[] = contextChunks.map(result => ({
+    certificateId: result.certificateId,
     content: result.content,
     certificateTitle: result.certificateTitle,
     certificateBrand: result.certificateBrand,
@@ -260,6 +261,7 @@ function extractCitationsFromResults(results: SearchResult[]): Citation[] {
     if (!seen.has(key)) {
       seen.add(key);
       citations.push({
+        certificateId: result.certificateId,
         certificateTitle: result.certificateTitle,
         brand: result.certificateBrand,
         pageNumber: result.pageNumber,

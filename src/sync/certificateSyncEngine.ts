@@ -45,11 +45,9 @@ export async function uploadCertificate(certificate: Certificate): Promise<void>
       throw new Error(`Errore upload PDF: ${uploadError.message}`);
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('certificates')
-      .getPublicUrl(filePath);
-
-    fileUrl = publicUrl;
+    // Store the path instead of public URL - we'll use signed URLs for access
+    // This works with both public and private buckets
+    fileUrl = filePath;
 
     // Update local record with URL
     await db.certificates.update(certificate.id, { fileUrl });
@@ -418,4 +416,71 @@ export async function getCertificateSyncStatus(): Promise<{
     totalCertificates,
     totalChunks
   };
+}
+
+/**
+ * Get a signed URL for accessing a certificate PDF
+ * Works with both public and private buckets
+ */
+export async function getCertificatePDFUrl(
+  certificateId: string,
+  fileName: string,
+  expiresIn: number = 3600 // 1 hour default
+): Promise<string> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase non configurato');
+  }
+
+  const filePath = `certificates/${certificateId}/${fileName}`;
+
+  // Try to create a signed URL (works for private buckets)
+  const { data, error } = await supabase.storage
+    .from('certificates')
+    .createSignedUrl(filePath, expiresIn);
+
+  if (error) {
+    console.error('Error creating signed URL:', error);
+
+    // If signed URL fails, try public URL as fallback
+    const { data: publicData } = supabase.storage
+      .from('certificates')
+      .getPublicUrl(filePath);
+
+    if (publicData?.publicUrl) {
+      return publicData.publicUrl;
+    }
+
+    throw new Error(`Cannot access certificate PDF: ${error.message}`);
+  }
+
+  return data.signedUrl;
+}
+
+/**
+ * Check if certificate storage bucket is accessible
+ */
+export async function checkCertificateBucketAccess(): Promise<{
+  accessible: boolean;
+  error?: string;
+}> {
+  if (!isSupabaseConfigured()) {
+    return { accessible: false, error: 'Supabase non configurato' };
+  }
+
+  try {
+    const { error } = await supabase.storage
+      .from('certificates')
+      .list('', { limit: 1 });
+
+    if (error) {
+      return { accessible: false, error: error.message };
+    }
+
+    return { accessible: true };
+  } catch (err) {
+    return {
+      accessible: false,
+      error: err instanceof Error ? err.message : 'Unknown error'
+    };
+  }
 }

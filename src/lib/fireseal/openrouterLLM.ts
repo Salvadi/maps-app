@@ -8,33 +8,22 @@
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free model options on OpenRouter
+// Note: Llama 3.1 and Mistral 7B free tiers were removed from OpenRouter (return 404)
 export const AVAILABLE_MODELS = {
   'google/gemma-3-27b-it:free': {
     name: 'Google Gemma 3 27B',
     contextWindow: 131072,
-    free: true
-  },
-  'meta-llama/llama-3.1-8b-instruct:free': {
-    name: 'Meta Llama 3.1 8B',
-    contextWindow: 8192,
-    free: true
-  },
-  'mistralai/mistral-7b-instruct:free': {
-    name: 'Mistral 7B Instruct',
-    contextWindow: 8192,
     free: true
   }
 } as const;
 
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
-// Default to Llama 3.1 (more stable than Gemma on OpenRouter)
-const DEFAULT_MODEL: ModelId = 'meta-llama/llama-3.1-8b-instruct:free';
+// Default to Gemma 3 (only working free model as of Jan 2025)
+const DEFAULT_MODEL: ModelId = 'google/gemma-3-27b-it:free';
 
-// Fallback order when a model fails
+// Fallback order when a model fails (currently only Gemma available)
 const MODEL_FALLBACK_ORDER: ModelId[] = [
-  'meta-llama/llama-3.1-8b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
   'google/gemma-3-27b-it:free'
 ];
 
@@ -60,6 +49,7 @@ FORMATO RISPOSTA:
 Usa il formato [Certificato: nome, Pag. X] per le citazioni.`;
 
 export interface RetrievedChunk {
+  certificateId: string;
   content: string;
   certificateTitle: string;
   certificateBrand: string;
@@ -82,6 +72,7 @@ export interface LLMContext {
 }
 
 export interface Citation {
+  certificateId: string;
   certificateTitle: string;
   brand: string;
   pageNumber: number;
@@ -161,11 +152,12 @@ function extractCitations(
     if (mentionedPages.has(chunk.pageNumber)) {
       // Avoid duplicate citations
       const exists = citations.some(
-        c => c.certificateTitle === chunk.certificateTitle && c.pageNumber === chunk.pageNumber
+        c => c.certificateId === chunk.certificateId && c.pageNumber === chunk.pageNumber
       );
 
       if (!exists) {
         citations.push({
+          certificateId: chunk.certificateId,
           certificateTitle: chunk.certificateTitle,
           brand: chunk.certificateBrand,
           pageNumber: chunk.pageNumber,
@@ -180,6 +172,7 @@ function extractCitations(
     const topChunks = chunks.slice(0, 3);
     for (const chunk of topChunks) {
       citations.push({
+        certificateId: chunk.certificateId,
         certificateTitle: chunk.certificateTitle,
         brand: chunk.certificateBrand,
         pageNumber: chunk.pageNumber,
