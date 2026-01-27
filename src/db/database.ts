@@ -214,6 +214,70 @@ export interface StandaloneMap {
   synced: 0 | 1;
 }
 
+// ============================================
+// FIRE SEAL CERTIFICATE INTERFACES
+// ============================================
+
+export type CertificateStructureType =
+  | 'promat_standard'
+  | 'af_systems_tabular'
+  | 'hilti_technical'
+  | 'global_building'
+  | 'generic';
+
+export interface CertificateMetadata {
+  reiValues?: string[];           // ['EI 60', 'EI 90', 'EI 120', 'EI 180', 'EI 240']
+  supportTypes?: string[];        // ['Parete', 'Solaio']
+  crossingTypes?: string[];       // Tipi attraversamento supportati
+  products?: string[];            // Prodotti menzionati
+  certificationNumber?: string;   // Numero certificato
+  certificationBody?: string;     // Ente certificatore
+  validFrom?: string;             // Data validità
+  validTo?: string;
+}
+
+export interface Certificate {
+  id: string;
+  title: string;
+  brand: string;  // Promat, AF Systems, Hilti, Global Building
+  fileName: string;
+  fileBlob?: Blob;
+  fileUrl?: string;
+  fileSize: number;
+  pageCount: number;
+  structureType: CertificateStructureType;
+  metadata: CertificateMetadata;
+  uploadedBy: string;
+  uploadedAt: number;
+  processedAt?: number;
+  processingStatus: 'pending' | 'processing' | 'completed' | 'error';
+  processingError?: string;
+  synced: 0 | 1;
+}
+
+export interface ChunkMetadata {
+  sectionTitle?: string;
+  tableData?: boolean;
+  reiContext?: string;
+  supportContext?: string;
+  crossingContext?: string;
+  productContext?: string[];
+}
+
+export interface CertificateChunk {
+  id: string;
+  certificateId: string;
+  pageNumber: number;
+  chunkIndex: number;
+  content: string;
+  contentHash: string;
+  embedding?: number[];  // 1536 dimensions for text-embedding-3-small
+  embeddingModel: string;
+  metadata: ChunkMetadata;
+  createdAt: number;
+  synced: 0 | 1;
+}
+
 // Dexie database class
 export class MappingDatabase extends Dexie {
   // Typed table properties
@@ -229,6 +293,10 @@ export class MappingDatabase extends Dexie {
   floorPlans!: Table<FloorPlan, string>;
   floorPlanPoints!: Table<FloorPlanPoint, string>;
   standaloneMaps!: Table<StandaloneMap, string>;
+
+  // FIRE SEAL CERTIFICATE TABLES
+  certificates!: Table<Certificate, string>;
+  certificateChunks!: Table<CertificateChunk, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -292,6 +360,23 @@ export class MappingDatabase extends Dexie {
       floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
       standaloneMaps: 'id, userId, name, synced'
     });
+
+    // Define schema v5 - add fire seal certificate tables
+    this.version(5).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      // NEW TABLES FOR FIRE SEAL CERTIFICATES
+      certificates: 'id, brand, structureType, uploadedBy, processingStatus, synced',
+      certificateChunks: 'id, certificateId, pageNumber, contentHash, synced, [certificateId+pageNumber]'
+    });
   }
 }
 
@@ -340,6 +425,8 @@ export async function clearDatabase(): Promise<void> {
   await db.floorPlans.clear();
   await db.floorPlanPoints.clear();
   await db.standaloneMaps.clear();
+  await db.certificates.clear();
+  await db.certificateChunks.clear();
   // Keep metadata
   console.log('Database cleared');
 }
@@ -354,7 +441,9 @@ export async function getDatabaseStats() {
     userCount,
     floorPlanCount,
     floorPlanPointCount,
-    standaloneMapCount
+    standaloneMapCount,
+    certificateCount,
+    certificateChunkCount
   ] = await Promise.all([
     db.projects.count(),
     db.mappingEntries.count(),
@@ -363,7 +452,9 @@ export async function getDatabaseStats() {
     db.users.count(),
     db.floorPlans.count(),
     db.floorPlanPoints.count(),
-    db.standaloneMaps.count()
+    db.standaloneMaps.count(),
+    db.certificates.count(),
+    db.certificateChunks.count()
   ]);
 
   // Calculate approximate storage size
@@ -380,6 +471,11 @@ export async function getDatabaseStats() {
     sum + sm.imageBlob.size + (sm.thumbnailBlob?.size || 0), 0
   );
 
+  const certificates = await db.certificates.toArray();
+  const totalCertificateSize = certificates.reduce((sum, cert) =>
+    sum + (cert.fileBlob?.size || 0), 0
+  );
+
   return {
     projects: projectCount,
     mappingEntries: mappingCount,
@@ -389,13 +485,17 @@ export async function getDatabaseStats() {
     floorPlans: floorPlanCount,
     floorPlanPoints: floorPlanPointCount,
     standaloneMaps: standaloneMapCount,
+    certificates: certificateCount,
+    certificateChunks: certificateChunkCount,
     photoStorageBytes: totalPhotoSize,
     photoStorageMB: (totalPhotoSize / (1024 * 1024)).toFixed(2),
     floorPlanStorageBytes: totalFloorPlanSize,
     floorPlanStorageMB: (totalFloorPlanSize / (1024 * 1024)).toFixed(2),
     standaloneMapStorageBytes: totalStandaloneMapSize,
     standaloneMapStorageMB: (totalStandaloneMapSize / (1024 * 1024)).toFixed(2),
-    totalStorageBytes: totalPhotoSize + totalFloorPlanSize + totalStandaloneMapSize,
-    totalStorageMB: ((totalPhotoSize + totalFloorPlanSize + totalStandaloneMapSize) / (1024 * 1024)).toFixed(2)
+    certificateStorageBytes: totalCertificateSize,
+    certificateStorageMB: (totalCertificateSize / (1024 * 1024)).toFixed(2),
+    totalStorageBytes: totalPhotoSize + totalFloorPlanSize + totalStandaloneMapSize + totalCertificateSize,
+    totalStorageMB: ((totalPhotoSize + totalFloorPlanSize + totalStandaloneMapSize + totalCertificateSize) / (1024 * 1024)).toFixed(2)
   };
 }
