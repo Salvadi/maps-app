@@ -86,7 +86,8 @@ export function PDFViewerModal({
 
         await page.render({
           canvasContext: context,
-          viewport
+          viewport,
+          canvas
         }).promise;
       } catch (err) {
         console.error('Error rendering page:', err);
