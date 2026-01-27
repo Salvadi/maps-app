@@ -7,7 +7,7 @@
  */
 
 import { CertificateStructureType } from '../../db/database';
-import { PageContent, TextItem, detectTables } from './pdfProcessor';
+import { PageContent, detectTables } from './pdfProcessor';
 
 export interface StructurePattern {
   type: CertificateStructureType;
@@ -449,8 +449,8 @@ export function extractFireSealMetadata(text: string): {
   let certificationNumber: string | undefined;
   const certPatterns = [
     /ETA[-\s]?(\d{2}\/\d{4})/i,
-    /DoP[-\s]?([A-Z0-9\-]+)/i,
-    /(?:Certificato|Certificate)\s*(?:n\.|N°|#)?\s*([A-Z0-9\-\/]+)/i,
+    /DoP[-\s]?([A-Z0-9-]+)/i,
+    /(?:Certificato|Certificate)\s*(?:n\.|N°|#)?\s*([A-Z0-9-/]+)/i,
   ];
 
   for (const pattern of certPatterns) {

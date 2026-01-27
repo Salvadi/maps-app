@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Trash2, Eye, RefreshCw, AlertCircle, Check, Clock, Loader2 } from 'lucide-react';
 import {
   getAllCertificates,
-  deleteCertificate,
   getChunkCount,
   getCertificateStats
 } from '../../db/certificates';

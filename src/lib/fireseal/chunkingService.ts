@@ -361,14 +361,15 @@ function chunkTextByParagraphs(
       // If paragraph itself is too long, split it
       if (currentChunk.length > maxSize) {
         const subChunks = splitLongText(currentChunk, maxSize, overlap);
-        subChunks.slice(0, -1).forEach(content => {
+        const allButLast = subChunks.slice(0, -1);
+        for (let i = 0; i < allButLast.length; i++) {
           chunks.push({
             pageNumber,
             chunkIndex: chunkIndex++,
-            content,
+            content: allButLast[i],
             metadata: {}
           });
-        });
+        }
         currentChunk = subChunks[subChunks.length - 1];
       }
     }
@@ -504,7 +505,6 @@ function addCrossPageOverlap(
   // For page-based chunking, add context from adjacent pages
   return chunks.map((chunk, index) => {
     const prevChunk = chunks[index - 1];
-    const nextChunk = chunks[index + 1];
 
     // If this is the first chunk of a page and there's a previous page
     if (chunk.chunkIndex === 0 && prevChunk && prevChunk.pageNumber !== chunk.pageNumber) {
