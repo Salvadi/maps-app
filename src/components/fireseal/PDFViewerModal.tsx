@@ -81,13 +81,23 @@ export function PDFViewerModal({
         const canvas = canvasRef.current!;
         const context = canvas.getContext('2d')!;
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // Support high-DPI/retina displays
+        const outputScale = window.devicePixelRatio || 1;
+
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+        const transform = outputScale !== 1
+          ? [outputScale, 0, 0, outputScale, 0, 0] as [number, number, number, number, number, number]
+          : undefined;
 
         await page.render({
           canvasContext: context,
           viewport,
-          canvas
+          canvas,
+          transform
         }).promise;
       } catch (err) {
         console.error('Error rendering page:', err);

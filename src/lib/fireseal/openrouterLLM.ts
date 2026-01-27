@@ -8,8 +8,12 @@
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free model options on OpenRouter
-// Note: Llama 3.1 and Mistral 7B free tiers were removed from OpenRouter (return 404)
 export const AVAILABLE_MODELS = {
+  'meta-llama/llama-3.3-70b-instruct:free': {
+    name: 'Meta Llama 3.3 70B',
+    contextWindow: 131072,
+    free: true
+  },
   'google/gemma-3-27b-it:free': {
     name: 'Google Gemma 3 27B',
     contextWindow: 131072,
@@ -19,11 +23,12 @@ export const AVAILABLE_MODELS = {
 
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
-// Default to Gemma 3 (only working free model as of Jan 2025)
-const DEFAULT_MODEL: ModelId = 'google/gemma-3-27b-it:free';
+// Default to Llama 3.3 70B (faster than Gemma)
+const DEFAULT_MODEL: ModelId = 'meta-llama/llama-3.3-70b-instruct:free';
 
-// Fallback order when a model fails (currently only Gemma available)
+// Fallback order when a model fails
 const MODEL_FALLBACK_ORDER: ModelId[] = [
+  'meta-llama/llama-3.3-70b-instruct:free',
   'google/gemma-3-27b-it:free'
 ];
 
