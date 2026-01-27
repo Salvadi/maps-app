@@ -1,7 +1,7 @@
 /**
  * OpenRouter LLM Service
  *
- * Integrates with OpenRouter API to use Google Gemma 2 for
+ * Integrates with OpenRouter API to use Google Gemma 3 for
  * generating responses based on certificate context.
  */
 
@@ -9,9 +9,9 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free model options on OpenRouter
 export const AVAILABLE_MODELS = {
-  'google/gemma-2-9b-it:free': {
-    name: 'Google Gemma 2 9B',
-    contextWindow: 8192,
+  'google/gemma-3-27b-it:free': {
+    name: 'Google Gemma 3 27B',
+    contextWindow: 131072,
     free: true
   },
   'meta-llama/llama-3.1-8b-instruct:free': {
@@ -28,8 +28,8 @@ export const AVAILABLE_MODELS = {
 
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
-// Default to Gemma 2
-const DEFAULT_MODEL: ModelId = 'google/gemma-2-9b-it:free';
+// Default to Gemma 3
+const DEFAULT_MODEL: ModelId = 'google/gemma-3-27b-it:free';
 
 // System prompt for fire seal expert
 const FIRE_SEAL_SYSTEM_PROMPT = `Sei un esperto tecnico specializzato in soluzioni di sigillatura antincendio.
