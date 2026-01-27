@@ -7,8 +7,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker (using CDN as in existing app)
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.449/build/pdf.worker.min.js';
+// Configure PDF.js worker (using local file to avoid CORS issues)
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 export interface PageContent {
   pageNumber: number;

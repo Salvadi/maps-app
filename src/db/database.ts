@@ -362,7 +362,7 @@ export class MappingDatabase extends Dexie {
     });
 
     // Define schema v5 - add fire seal certificate tables
-    this.version(5).stores({
+    this.version(6).stores({
       projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
       mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
       photos: 'id, mappingEntryId, uploaded',
@@ -374,7 +374,7 @@ export class MappingDatabase extends Dexie {
       floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
       standaloneMaps: 'id, userId, name, synced',
       // NEW TABLES FOR FIRE SEAL CERTIFICATES
-      certificates: 'id, brand, structureType, uploadedBy, processingStatus, synced',
+      certificates: 'id, brand, structureType, uploadedBy, processingStatus, synced, uploadedAt',
       certificateChunks: 'id, certificateId, pageNumber, contentHash, synced, [certificateId+pageNumber]'
     });
   }
