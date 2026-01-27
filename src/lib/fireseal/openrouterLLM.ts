@@ -262,6 +262,19 @@ export async function generateAnswer(
     }
 
     const data = await response.json();
+
+    // Validate response structure
+    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      console.error('OpenRouter unexpected response:', JSON.stringify(data, null, 2));
+
+      // Check if there's an error in the response
+      if (data.error) {
+        throw new Error(`OpenRouter error: ${data.error.message || JSON.stringify(data.error)}`);
+      }
+
+      throw new Error('Risposta LLM non valida: formato inatteso');
+    }
+
     const answer = data.choices[0]?.message?.content || 'Risposta non disponibile';
 
     // Extract citations from the answer
