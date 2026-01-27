@@ -1,12 +1,15 @@
 /**
- * OpenAI Embedding Service
+ * OpenRouter Embedding Service
  *
- * Generates vector embeddings using OpenAI's text-embedding-3-small model.
+ * Generates vector embeddings using OpenAI's text-embedding-3-small model
+ * through OpenRouter API. This allows using a single API key for both
+ * embeddings and LLM inference.
+ *
  * Used for semantic search over fire seal certificates.
  */
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/embeddings';
-const EMBEDDING_MODEL = 'text-embedding-3-small';
+const OPENROUTER_EMBEDDING_URL = 'https://openrouter.ai/api/v1/embeddings';
+const EMBEDDING_MODEL = 'openai/text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
 const MAX_TOKENS_PER_REQUEST = 8191;
 const BATCH_SIZE = 100; // Max items per batch request
@@ -22,23 +25,23 @@ export interface BatchEmbeddingResult {
 }
 
 /**
- * Get OpenAI API key from environment
+ * Get OpenRouter API key from environment
  */
 function getApiKey(): string {
-  const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+  const apiKey = process.env.REACT_APP_OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'OpenAI API key not configured. Please set REACT_APP_OPENAI_API_KEY in your environment.'
+      'OpenRouter API key not configured. Please set REACT_APP_OPENROUTER_API_KEY in your environment.'
     );
   }
   return apiKey;
 }
 
 /**
- * Check if OpenAI is configured
+ * Check if embedding service is configured (via OpenRouter)
  */
 export function isOpenAIConfigured(): boolean {
-  return !!process.env.REACT_APP_OPENAI_API_KEY;
+  return !!process.env.REACT_APP_OPENROUTER_API_KEY;
 }
 
 /**
@@ -51,23 +54,24 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
 
   const apiKey = getApiKey();
 
-  const response = await fetch(OPENAI_API_URL, {
+  const response = await fetch(OPENROUTER_EMBEDDING_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'OPImaPPA Fire Seal Search'
     },
     body: JSON.stringify({
       model: EMBEDDING_MODEL,
-      input: text.trim(),
-      encoding_format: 'float'
+      input: text.trim()
     })
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      `OpenAI API error: ${response.status} - ${error.error?.message || response.statusText}`
+      `OpenRouter Embedding API error: ${response.status} - ${error.error?.message || response.statusText}`
     );
   }
 
@@ -102,23 +106,24 @@ export async function generateEmbeddingsBatch(
 
     if (cleanedBatch.length === 0) continue;
 
-    const response = await fetch(OPENAI_API_URL, {
+    const response = await fetch(OPENROUTER_EMBEDDING_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'OPImaPPA Fire Seal Search'
       },
       body: JSON.stringify({
         model: EMBEDDING_MODEL,
-        input: cleanedBatch,
-        encoding_format: 'float'
+        input: cleanedBatch
       })
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(
-        `OpenAI API error: ${response.status} - ${error.error?.message || response.statusText}`
+        `OpenRouter Embedding API error: ${response.status} - ${error.error?.message || response.statusText}`
       );
     }
 
