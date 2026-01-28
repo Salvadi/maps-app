@@ -1,21 +1,26 @@
 /**
  * OpenRouter LLM Service
  *
- * Integrates with OpenRouter API to use Google Gemma 3 for
- * generating responses based on certificate context.
+ * Integrates with OpenRouter API for generating responses
+ * based on certificate context using free models.
  */
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free model options on OpenRouter
 export const AVAILABLE_MODELS = {
-  'meta-llama/llama-3.3-70b-instruct:free': {
-    name: 'Meta Llama 3.3 70B',
+  'google/gemini-2.0-flash-exp:free': {
+    name: 'Google Gemini 2.0 Flash',
+    contextWindow: 1048576,
+    free: true
+  },
+  'mistralai/mistral-small-3.1-24b-instruct:free': {
+    name: 'Mistral Small 3.1 24B',
     contextWindow: 131072,
     free: true
   },
-  'google/gemma-3-27b-it:free': {
-    name: 'Google Gemma 3 27B',
+  'nvidia/llama-3.1-nemotron-nano-8b-v1:free': {
+    name: 'Llama 3.1 Nemotron Nano 8B',
     contextWindow: 131072,
     free: true
   }
@@ -23,13 +28,14 @@ export const AVAILABLE_MODELS = {
 
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
-// Default to Llama 3.3 70B (faster than Gemma)
-const DEFAULT_MODEL: ModelId = 'meta-llama/llama-3.3-70b-instruct:free';
+// Default to Gemini 2.0 Flash (fastest and highest quality free model)
+const DEFAULT_MODEL: ModelId = 'google/gemini-2.0-flash-exp:free';
 
 // Fallback order when a model fails
 const MODEL_FALLBACK_ORDER: ModelId[] = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemma-3-27b-it:free'
+  'google/gemini-2.0-flash-exp:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'nvidia/llama-3.1-nemotron-nano-8b-v1:free'
 ];
 
 // System prompt for fire seal expert
