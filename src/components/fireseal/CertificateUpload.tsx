@@ -6,7 +6,7 @@ import { extractTextFromPDF, hasSelectorableText, getPDFPageCount } from '../../
 import { detectStructure, extractFireSealMetadata } from '../../lib/fireseal/structureDetector';
 import { chunkDocument, getChunkStats } from '../../lib/fireseal/chunkingService';
 import { generateEmbeddingsBatch, isOpenAIConfigured, estimateEmbeddingCost } from '../../lib/fireseal/openaiEmbedding';
-import { uploadCertificate, uploadCertificateChunks } from '../../sync/certificateSyncEngine';
+import { uploadCertificate, uploadCertificateChunks, checkDuplicateCertificate, deleteCertificateEverywhere, DuplicateCheckResult } from '../../sync/certificateSyncEngine';
 
 interface CertificateUploadProps {
   userId: string;
@@ -29,11 +29,24 @@ interface FileUploadItem {
 
 const BRANDS = ['Promat', 'AF Systems', 'Hilti', 'Global Building', 'Altro'];
 
+interface DuplicateDialogState {
+  isOpen: boolean;
+  fileItem: FileUploadItem | null;
+  duplicateResult: DuplicateCheckResult | null;
+  resolve: ((action: 'skip' | 'replace' | 'keep') => void) | null;
+}
+
 export function CertificateUpload({ userId, onUploadComplete }: CertificateUploadProps) {
   const [files, setFiles] = useState<FileUploadItem[]>([]);
   const [defaultBrand, setDefaultBrand] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [duplicateDialog, setDuplicateDialog] = useState<DuplicateDialogState>({
+    isOpen: false,
+    fileItem: null,
+    duplicateResult: null,
+    resolve: null
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generateId = () => `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -120,10 +133,60 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
     setFiles(prev => prev.map(f => f.status === 'pending' ? { ...f, brand: defaultBrand } : f));
   };
 
+  const showDuplicateDialog = (fileItem: FileUploadItem, duplicateResult: DuplicateCheckResult): Promise<'skip' | 'replace' | 'keep'> => {
+    return new Promise((resolve) => {
+      setDuplicateDialog({
+        isOpen: true,
+        fileItem,
+        duplicateResult,
+        resolve
+      });
+    });
+  };
+
+  const handleDuplicateAction = (action: 'skip' | 'replace' | 'keep') => {
+    if (duplicateDialog.resolve) {
+      duplicateDialog.resolve(action);
+    }
+    setDuplicateDialog({
+      isOpen: false,
+      fileItem: null,
+      duplicateResult: null,
+      resolve: null
+    });
+  };
+
   const processSingleFile = async (fileItem: FileUploadItem): Promise<boolean> => {
     const { id, file, title, brand } = fileItem;
 
     try {
+      // Step 0: Check for duplicates
+      updateFileItem(id, { status: 'validating', progress: 2, message: 'Controllo duplicati...' });
+
+      const duplicateCheck = await checkDuplicateCertificate(file.name, file);
+
+      if (duplicateCheck.isDuplicate) {
+        // Show dialog and wait for user decision
+        const action = await showDuplicateDialog(fileItem, duplicateCheck);
+
+        if (action === 'skip') {
+          updateFileItem(id, {
+            status: 'complete',
+            progress: 100,
+            message: 'Saltato (duplicato)'
+          });
+          return true; // Consider it "successful" since user chose to skip
+        }
+
+        if (action === 'replace' && duplicateCheck.existingCertificate) {
+          // Delete existing certificate before proceeding
+          updateFileItem(id, { status: 'validating', progress: 3, message: 'Rimozione versione precedente...' });
+          await deleteCertificateEverywhere(duplicateCheck.existingCertificate.id);
+        }
+
+        // action === 'keep' means proceed with upload (keep both)
+      }
+
       // Step 1: Validate PDF
       updateFileItem(id, { status: 'validating', progress: 5, message: 'Validazione...' });
 
@@ -506,6 +569,62 @@ export function CertificateUpload({ userId, onUploadComplete }: CertificateUploa
       {files.length === 0 && (
         <div className="empty-hint">
           <p>Seleziona uno o più certificati PDF da caricare</p>
+        </div>
+      )}
+
+      {/* Duplicate Confirmation Dialog */}
+      {duplicateDialog.isOpen && duplicateDialog.duplicateResult && (
+        <div className="modal-overlay">
+          <div className="duplicate-dialog">
+            <div className="dialog-header">
+              <AlertCircle size={24} className="warning-icon" />
+              <h3>Certificato Duplicato</h3>
+            </div>
+
+            <div className="dialog-content">
+              <p className="duplicate-message">
+                {duplicateDialog.duplicateResult.message}
+              </p>
+
+              {duplicateDialog.duplicateResult.existingCertificate && (
+                <div className="existing-cert-info">
+                  <p><strong>Certificato esistente:</strong></p>
+                  <ul>
+                    <li>Titolo: {duplicateDialog.duplicateResult.existingCertificate.title}</li>
+                    <li>Marca: {duplicateDialog.duplicateResult.existingCertificate.brand}</li>
+                    <li>Caricato: {new Date(duplicateDialog.duplicateResult.existingCertificate.uploadedAt).toLocaleDateString('it-IT')}</li>
+                  </ul>
+                </div>
+              )}
+
+              <p className="action-question">Cosa vuoi fare?</p>
+            </div>
+
+            <div className="dialog-actions">
+              <button
+                className="dialog-btn skip"
+                onClick={() => handleDuplicateAction('skip')}
+              >
+                Salta
+              </button>
+
+              {duplicateDialog.duplicateResult.recommendation !== 'skip' && (
+                <button
+                  className="dialog-btn replace"
+                  onClick={() => handleDuplicateAction('replace')}
+                >
+                  Sostituisci
+                </button>
+              )}
+
+              <button
+                className="dialog-btn keep"
+                onClick={() => handleDuplicateAction('keep')}
+              >
+                Tieni entrambi
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

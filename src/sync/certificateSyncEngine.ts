@@ -121,7 +121,10 @@ export async function uploadCertificateChunks(certificateId: string): Promise<nu
 
     const { error } = await supabase
       .from('certificate_chunks')
-      .upsert(supabaseChunks, { onConflict: 'id' });
+      .upsert(supabaseChunks, {
+        onConflict: 'content_hash',
+        ignoreDuplicates: true
+      });
 
     if (error) {
       console.error(`Error uploading chunk batch: ${error.message}`);
@@ -454,6 +457,137 @@ export async function getCertificatePDFUrl(
   }
 
   return data.signedUrl;
+}
+
+/**
+ * Check for duplicate certificates before upload
+ * Returns existing certificate info if found
+ */
+export interface DuplicateCheckResult {
+  isDuplicate: boolean;
+  existingCertificate?: Certificate;
+  matchType?: 'content' | 'name';
+  recommendation?: 'skip' | 'replace' | 'keep_both';
+  message?: string;
+}
+
+export async function checkDuplicateCertificate(
+  fileName: string,
+  fileBlob: Blob,
+  extractedMetadata?: {
+    certificationNumber?: string;
+    validFrom?: string;
+  }
+): Promise<DuplicateCheckResult> {
+  // Get all local certificates
+  const allCertificates = await db.certificates.toArray();
+
+  // 1. Check by file name (most common case)
+  const sameNameCerts = allCertificates.filter(
+    c => c.fileName.toLowerCase() === fileName.toLowerCase()
+  );
+
+  if (sameNameCerts.length > 0) {
+    const existing = sameNameCerts[0];
+
+    // Compare file sizes - if identical, likely same file
+    if (existing.fileSize === fileBlob.size) {
+      return {
+        isDuplicate: true,
+        existingCertificate: existing,
+        matchType: 'content',
+        recommendation: 'skip',
+        message: `Certificato "${existing.title}" già presente (stesso file)`
+      };
+    }
+
+    // Different size = possibly updated version
+    // Check dates if available (validFrom is the issue/validity date)
+    if (extractedMetadata?.validFrom && existing.metadata?.validFrom) {
+      const newDate = parseItalianDate(extractedMetadata.validFrom);
+      const existingDate = parseItalianDate(existing.metadata.validFrom);
+
+      if (newDate && existingDate) {
+        if (newDate > existingDate) {
+          return {
+            isDuplicate: true,
+            existingCertificate: existing,
+            matchType: 'name',
+            recommendation: 'replace',
+            message: `Trovata versione più recente di "${existing.title}" (${extractedMetadata.validFrom} vs ${existing.metadata.validFrom})`
+          };
+        } else if (newDate < existingDate) {
+          return {
+            isDuplicate: true,
+            existingCertificate: existing,
+            matchType: 'name',
+            recommendation: 'skip',
+            message: `"${existing.title}" ha già una versione più recente (${existing.metadata.validFrom})`
+          };
+        }
+      }
+    }
+
+    // Same name, different size, no date info - ask user
+    return {
+      isDuplicate: true,
+      existingCertificate: existing,
+      matchType: 'name',
+      recommendation: 'keep_both',
+      message: `Esiste già un certificato con nome simile: "${existing.title}". Dimensioni diverse (${formatFileSize(existing.fileSize)} vs ${formatFileSize(fileBlob.size)})`
+    };
+  }
+
+  // 2. Check by certification number if available
+  if (extractedMetadata?.certificationNumber) {
+    const sameCertNumber = allCertificates.find(
+      c => c.metadata?.certificationNumber === extractedMetadata.certificationNumber
+    );
+
+    if (sameCertNumber) {
+      return {
+        isDuplicate: true,
+        existingCertificate: sameCertNumber,
+        matchType: 'content',
+        recommendation: 'replace',
+        message: `Certificato con stesso numero (${extractedMetadata.certificationNumber}) già presente: "${sameCertNumber.title}"`
+      };
+    }
+  }
+
+  return { isDuplicate: false };
+}
+
+/**
+ * Parse Italian date format (DD/MM/YYYY or DD.MM.YYYY)
+ */
+function parseItalianDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+
+  // Try DD/MM/YYYY or DD.MM.YYYY
+  const match = dateStr.match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  if (match) {
+    const [, day, month, year] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+
+  // Try YYYY-MM-DD
+  const isoMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+
+  return null;
+}
+
+/**
+ * Format file size for display
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**
