@@ -112,8 +112,8 @@ export function isOpenRouterConfigured(): boolean {
 }
 
 // Max chunks to send to LLM (keep context small for faster responses)
-const MAX_LLM_CHUNKS = 5;
-const MAX_CHUNK_LENGTH = 400; // Truncate individual chunks
+const MAX_LLM_CHUNKS = 4;
+const MAX_CHUNK_LENGTH = 300; // Truncate individual chunks for faster LLM responses
 
 /**
  * Format retrieved chunks into context for LLM
@@ -239,7 +239,7 @@ async function tryModel(
         model,
         messages,
         temperature: 0.3,
-        max_tokens: 1500,
+        max_tokens: 800,
         top_p: 0.9
       })
     });
