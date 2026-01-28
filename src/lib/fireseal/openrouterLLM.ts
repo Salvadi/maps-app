@@ -9,8 +9,8 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free model options on OpenRouter
 export const AVAILABLE_MODELS = {
-  'google/gemini-2.0-flash-exp:free': {
-    name: 'Google Gemini 2.0 Flash',
+  'google/gemini-3-flash-preview:free': {
+    name: 'Google Gemini 3 Flash',
     contextWindow: 1048576,
     free: true
   },
@@ -29,11 +29,11 @@ export const AVAILABLE_MODELS = {
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
 // Default to Gemini 2.0 Flash (fastest and highest quality free model)
-const DEFAULT_MODEL: ModelId = 'google/gemini-2.0-flash-exp:free';
+const DEFAULT_MODEL: ModelId = 'google/gemini-3-flash-preview:free';
 
 // Fallback order when a model fails
 const MODEL_FALLBACK_ORDER: ModelId[] = [
-  'google/gemini-2.0-flash-exp:free',
+  'google/gemini-3-flash-preview:free',
   'mistralai/mistral-small-3.1-24b-instruct:free',
   'nvidia/llama-3.1-nemotron-nano-8b-v1:free'
 ];
@@ -253,10 +253,11 @@ async function tryModel(
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
 
-      // Don't fallback for rate limits or payment issues
+      // Rate limits: fallback to other models (different models have independent limits)
       if (response.status === 429) {
-        return { success: false, error: 'Limite di richieste raggiunto. Riprova tra qualche minuto.', shouldFallback: false };
+        return { success: false, error: 'Limite di richieste raggiunto. Riprova tra qualche minuto.', shouldFallback: true };
       }
+      // Payment issues: don't fallback (affects all models)
       if (response.status === 402) {
         return { success: false, error: 'Crediti OpenRouter esauriti. Verifica il tuo account.', shouldFallback: false };
       }
