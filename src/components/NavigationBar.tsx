@@ -7,6 +7,7 @@ interface NavigationBarProps {
   onSync?: () => void;
   isSyncing?: boolean;
   onCopyPrevious?: () => void;
+  rightButton?: React.ReactNode;
 }
 
 // Back Icon Component
@@ -26,7 +27,7 @@ const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const NavigationBar: React.FC<NavigationBarProps> = ({ title, onBack, onSync, isSyncing, onCopyPrevious }) => {
+const NavigationBar: React.FC<NavigationBarProps> = ({ title, onBack, onSync, isSyncing, onCopyPrevious, rightButton }) => {
   return (
     <nav className="navigation-bar">
       <button className="nav-back-btn" onClick={onBack} aria-label="Back">
@@ -43,6 +44,7 @@ const NavigationBar: React.FC<NavigationBarProps> = ({ title, onBack, onSync, is
             Copia prec.
           </button>
         )}
+        {rightButton}
         {onSync ? (
           <button
             className={`nav-sync-btn ${isSyncing ? 'syncing' : ''}`}

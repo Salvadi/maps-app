@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import NavigationBar from '../NavigationBar';
 import { CertificateUpload } from './CertificateUpload';
 import { CertificateList } from './CertificateList';
 import { Certificate } from '../../db/database';
-import { getCertificatePDFUrl } from '../../sync/certificateSyncEngine';
+import { getCertificatePDFUrl, syncCertificates } from '../../sync/certificateSyncEngine';
 import './FireSealStyles.css';
 
 interface FireSealAdminPageProps {
@@ -13,9 +13,22 @@ interface FireSealAdminPageProps {
 
 export function FireSealAdminPage({ userId, onBack }: FireSealAdminPageProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleUploadComplete = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  const handleSync = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      await syncCertificates();
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      console.error('Sync error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
   }, []);
 
   const handleViewPDF = useCallback(async (certificate: Certificate) => {
@@ -48,12 +61,12 @@ export function FireSealAdminPage({ userId, onBack }: FireSealAdminPageProps) {
   return (
     <div className="fireseal-admin-page">
       {/* Header */}
-      <header className="fireseal-header">
-        <button className="back-button" onClick={onBack}>
-          <ArrowLeft size={24} />
-        </button>
-        <h1>Gestione Certificati</h1>
-      </header>
+      <NavigationBar
+        title="Gestione Certificati"
+        onBack={onBack}
+        onSync={handleSync}
+        isSyncing={isSyncing}
+      />
 
       {/* Content */}
       <div className="admin-content">

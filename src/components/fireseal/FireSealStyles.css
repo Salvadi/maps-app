@@ -229,25 +229,46 @@
   color: #333;
 }
 
-.sync-button {
+.cert-list-sync-btn {
+  width: 48px;
+  height: 48px;
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
+  justify-content: center;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px var(--color-shadow);
 }
 
-.sync-button:hover:not(:disabled) {
-  background: #eee;
+.cert-list-sync-btn:hover:not(:disabled) {
+  background-color: var(--color-bg-secondary);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px var(--color-shadow-hover);
 }
 
-.sync-button:disabled {
-  opacity: 0.6;
+.cert-list-sync-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.cert-list-sync-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.cert-list-sync-btn.syncing .sync-icon {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {

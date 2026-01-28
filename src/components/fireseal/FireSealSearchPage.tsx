@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { ArrowLeft, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import NavigationBar from '../NavigationBar';
 import { ChatInterface } from './ChatInterface';
 import { FilterPanel } from './FilterPanel';
 import { ResultsPanel } from './ResultsPanel';
@@ -7,7 +8,7 @@ import { PDFViewerModal } from './PDFViewerModal';
 import { executeRAG, RAGResponse, checkRAGAvailability } from '../../lib/fireseal/ragPipeline';
 import { SearchFilters } from '../../lib/fireseal/vectorSearch';
 import { getCertificate } from '../../db/certificates';
-import { getCertificatePDFUrl } from '../../sync/certificateSyncEngine';
+import { getCertificatePDFUrl, syncCertificates } from '../../sync/certificateSyncEngine';
 import './FireSealStyles.css';
 
 interface FireSealSearchPageProps {
@@ -22,12 +23,24 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
   const [response, setResponse] = useState<RAGResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // PDF Viewer state
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfSource, setPdfSource] = useState<Blob | string | null>(null);
   const [pdfTitle, setPdfTitle] = useState<string>('');
   const [pdfInitialPage, setPdfInitialPage] = useState(1);
+
+  const handleSync = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      await syncCertificates();
+    } catch (err) {
+      console.error('Sync error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
 
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
@@ -111,18 +124,18 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
   return (
     <div className="fireseal-search-page">
       {/* Header */}
-      <header className="fireseal-header">
-        <button className="back-button" onClick={onBack}>
-          <ArrowLeft size={24} />
-        </button>
-        <h1>Ricerca Sigillatura</h1>
-        {isAdmin && onAdminClick && (
+      <NavigationBar
+        title="Ricerca Sigillatura"
+        onBack={onBack}
+        onSync={handleSync}
+        isSyncing={isSyncing}
+        rightButton={isAdmin && onAdminClick ? (
           <button className="admin-button" onClick={onAdminClick}>
             <Settings size={16} />
             Admin
           </button>
-        )}
-      </header>
+        ) : undefined}
+      />
 
       {/* Main Content */}
       <div className="fireseal-content">

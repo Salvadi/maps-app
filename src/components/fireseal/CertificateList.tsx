@@ -134,12 +134,12 @@ export function CertificateList({ onViewPDF, refreshTrigger }: CertificateListPr
         </div>
 
         <button
-          className="sync-button"
+          className={`cert-list-sync-btn ${syncing ? 'syncing' : ''}`}
           onClick={handleSync}
           disabled={syncing}
+          title={syncing ? 'Sincronizzazione...' : 'Sincronizza'}
         >
-          <RefreshCw size={16} className={syncing ? 'spinner' : ''} />
-          {syncing ? 'Sincronizzazione...' : 'Sincronizza'}
+          <RefreshCw size={20} className="sync-icon" />
         </button>
       </div>
 

@@ -408,8 +408,12 @@ const App: React.FC = () => {
     setCurrentView('firesealAdmin');
   };
 
-  const handleBackFromFireSeal = () => {
+  const handleBackFromFireSealSearch = () => {
     setCurrentView('home');
+  };
+
+  const handleBackFromFireSealAdmin = () => {
+    setCurrentView('firesealSearch');
   };
 
   // Show loading state while initializing
@@ -501,7 +505,7 @@ const App: React.FC = () => {
       case 'firesealSearch':
         return (
           <FireSealSearchPage
-            onBack={handleBackFromFireSeal}
+            onBack={handleBackFromFireSealSearch}
             onAdminClick={currentUser.role === 'admin' ? handleOpenFireSealAdmin : undefined}
             isAdmin={currentUser.role === 'admin'}
           />
@@ -510,7 +514,7 @@ const App: React.FC = () => {
         return (
           <FireSealAdminPage
             userId={currentUser.id}
-            onBack={handleBackFromFireSeal}
+            onBack={handleBackFromFireSealAdmin}
           />
         );
       default:
