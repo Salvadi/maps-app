@@ -111,14 +111,26 @@ export function isOpenRouterConfigured(): boolean {
   return !!process.env.REACT_APP_OPENROUTER_API_KEY;
 }
 
+// Max chunks to send to LLM (keep context small for faster responses)
+const MAX_LLM_CHUNKS = 5;
+const MAX_CHUNK_LENGTH = 400; // Truncate individual chunks
+
 /**
  * Format retrieved chunks into context for LLM
+ * Limits context size for faster LLM responses
  */
 function formatContext(chunks: RetrievedChunk[]): string {
-  return chunks
+  // Limit number of chunks sent to LLM
+  const limitedChunks = chunks.slice(0, MAX_LLM_CHUNKS);
+
+  return limitedChunks
     .map((chunk, i) => {
       const header = `[Fonte ${i + 1}: ${chunk.certificateTitle} (${chunk.certificateBrand}), Pag. ${chunk.pageNumber}]`;
-      return `${header}\n${chunk.content}`;
+      // Truncate long chunks
+      const content = chunk.content.length > MAX_CHUNK_LENGTH
+        ? chunk.content.substring(0, MAX_CHUNK_LENGTH) + '...'
+        : chunk.content;
+      return `${header}\n${content}`;
     })
     .join('\n\n---\n\n');
 }

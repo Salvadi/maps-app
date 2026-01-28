@@ -37,6 +37,9 @@ export function FireSealAdminPage({ userId, onBack }: FireSealAdminPageProps) {
       if (certificate.fileBlob) {
         const url = URL.createObjectURL(certificate.fileBlob);
         window.open(url, '_blank');
+        // Revoke URL after delay to prevent memory leak
+        // (give browser time to start loading the PDF)
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         return;
       }
 

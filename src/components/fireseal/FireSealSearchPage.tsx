@@ -42,13 +42,16 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
     }
   }, []);
 
-  const handleSearch = useCallback(async (searchQuery: string) => {
+  const handleSearch = useCallback(async (searchQuery: string, overrideFilters?: SearchFilters) => {
     if (!searchQuery.trim()) return;
 
     setQuery(searchQuery);
     setIsSearching(true);
     setError(null);
     setResponse(null);
+
+    // Use override filters if provided (for filter changes), otherwise use current state
+    const activeFilters = overrideFilters ?? filters;
 
     try {
       // Check availability first
@@ -62,11 +65,11 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
       // Execute RAG pipeline
       const result = await executeRAG({
         query: searchQuery,
-        filters,
+        filters: activeFilters,
         options: {
           topK: 10,
           minSimilarity: 0.5,
-          includeContext: true
+          includeContext: false // Disabled for faster responses
         }
       });
 
@@ -81,9 +84,9 @@ export function FireSealSearchPage({ onBack, onAdminClick, isAdmin }: FireSealSe
 
   const handleFilterChange = useCallback((newFilters: SearchFilters) => {
     setFilters(newFilters);
-    // Re-run search if we have a query
+    // Re-run search with new filters directly (avoid stale closure)
     if (query && response) {
-      handleSearch(query);
+      handleSearch(query, newFilters);
     }
   }, [query, response, handleSearch]);
 

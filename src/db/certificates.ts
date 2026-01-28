@@ -16,6 +16,7 @@ import {
   ChunkMetadata,
   SyncQueueItem
 } from './database';
+import { cosineSimilarity } from '../lib/fireseal/mathUtils';
 
 // ============================================
 // CERTIFICATE OPERATIONS
@@ -483,30 +484,8 @@ async function generateContentHash(content: string): Promise<string> {
   return hashHex.substring(0, 32); // Use first 32 chars
 }
 
-/**
- * Calculate cosine similarity between two vectors
- * Used for local search when offline
- */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) {
-    throw new Error('Vectors must have the same length');
-  }
-
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-  if (magnitude === 0) return 0;
-
-  return dotProduct / magnitude;
-}
+// cosineSimilarity is imported from ../lib/fireseal/mathUtils
+export { cosineSimilarity } from '../lib/fireseal/mathUtils';
 
 /**
  * Local vector search (for offline use)

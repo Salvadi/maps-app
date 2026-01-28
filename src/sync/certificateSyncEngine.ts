@@ -406,7 +406,8 @@ function convertRemoteChunk(remote: any): CertificateChunk {
   if (remote.embedding) {
     try {
       if (typeof remote.embedding === 'string') {
-        embedding = JSON.parse(remote.embedding.replace(/^\[/, '[').replace(/\]$/, ']'));
+        // Convert pgvector format {1.0,2.0,...} to JSON array format [1.0,2.0,...]
+        embedding = JSON.parse(remote.embedding.replace(/^\{/, '[').replace(/\}$/, ']'));
       } else if (Array.isArray(remote.embedding)) {
         embedding = remote.embedding;
       }

@@ -8,6 +8,8 @@
  * Used for semantic search over fire seal certificates.
  */
 
+import { cosineSimilarity } from './mathUtils';
+
 const OPENROUTER_EMBEDDING_URL = 'https://openrouter.ai/api/v1/embeddings';
 const EMBEDDING_MODEL = 'openai/text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
@@ -179,29 +181,8 @@ export function truncateToTokenLimit(text: string): string {
   return text.substring(0, maxChars - 3) + '...';
 }
 
-/**
- * Calculate cosine similarity between two embeddings
- */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) {
-    throw new Error('Embeddings must have the same dimension');
-  }
-
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-  if (magnitude === 0) return 0;
-
-  return dotProduct / magnitude;
-}
+// cosineSimilarity is imported from ./mathUtils
+export { cosineSimilarity } from './mathUtils';
 
 /**
  * Find top-K most similar embeddings

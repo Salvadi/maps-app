@@ -1,6 +1,20 @@
 /* Fire Seal Search Tool Styles */
 
 /* ================================
+   CSS VARIABLES
+   ================================ */
+:root {
+  --fireseal-accent: var(--fireseal-accent);
+  --fireseal-accent-light: var(--fireseal-accent-light);
+  --fireseal-accent-hover: #c96a2e;
+  --fireseal-bg: var(--fireseal-bg);
+  --fireseal-success: #4caf50;
+  --fireseal-success-light: #f0fff0;
+  --fireseal-error: #f44336;
+  --fireseal-error-light: #fff0f0;
+}
+
+/* ================================
    CERTIFICATE UPLOAD
    ================================ */
 .certificate-upload {
@@ -18,13 +32,13 @@
 }
 
 .upload-dropzone:hover {
-  border-color: #e07b39;
-  background: #fff5f0;
+  border-color: var(--fireseal-accent);
+  background: var(--fireseal-accent-light);
 }
 
 .upload-dropzone.drag-over {
-  border-color: #e07b39;
-  background: #fff5f0;
+  border-color: var(--fireseal-accent);
+  background: var(--fireseal-accent-light);
   transform: scale(1.02);
 }
 
@@ -62,7 +76,7 @@
 }
 
 .selected-file svg {
-  color: #e07b39;
+  color: var(--fireseal-accent);
 }
 
 .selected-file .file-name {
@@ -105,7 +119,7 @@
 .form-group select:focus,
 .form-group input:focus {
   outline: none;
-  border-color: #e07b39;
+  border-color: var(--fireseal-accent);
 }
 
 .upload-button {
@@ -114,7 +128,7 @@
   justify-content: center;
   gap: 8px;
   padding: 12px 24px;
-  background: #e07b39;
+  background: var(--fireseal-accent);
   color: white;
   border: none;
   border-radius: 8px;
@@ -147,7 +161,7 @@
 
 .progress-fill {
   height: 100%;
-  background: #e07b39;
+  background: var(--fireseal-accent);
   transition: width 0.3s ease;
 }
 
@@ -323,7 +337,7 @@
 
 .cert-icon {
   flex-shrink: 0;
-  color: #e07b39;
+  color: var(--fireseal-accent);
 }
 
 .cert-info {
@@ -447,7 +461,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f5f0e8;
+  background: var(--fireseal-bg);
 }
 
 .fireseal-header {
@@ -515,7 +529,7 @@
 
 .search-input-wrapper input:focus {
   outline: none;
-  border-color: #e07b39;
+  border-color: var(--fireseal-accent);
 }
 
 .search-button {
@@ -523,7 +537,7 @@
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  background: #e07b39;
+  background: var(--fireseal-accent);
   color: white;
   border: none;
   border-radius: 8px;
@@ -555,8 +569,8 @@
 }
 
 .suggested-query:hover {
-  border-color: #e07b39;
-  color: #e07b39;
+  border-color: var(--fireseal-accent);
+  color: var(--fireseal-accent);
 }
 
 /* ================================
@@ -688,7 +702,7 @@
 
 .citation-icon {
   flex-shrink: 0;
-  color: #e07b39;
+  color: var(--fireseal-accent);
 }
 
 .citation-info {
@@ -749,7 +763,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f5f0e8;
+  background: var(--fireseal-bg);
 }
 
 .admin-content {
@@ -881,7 +895,7 @@
 
 .file-item-header svg:first-child {
   flex-shrink: 0;
-  color: #e07b39;
+  color: var(--fireseal-accent);
 }
 
 .file-info {
@@ -908,7 +922,7 @@
 
 .file-title-input:focus {
   outline: none;
-  border-color: #e07b39;
+  border-color: var(--fireseal-accent);
   background: white;
 }
 
@@ -967,7 +981,7 @@
 }
 
 .status-icon.processing {
-  color: #e07b39;
+  color: var(--fireseal-accent);
 }
 
 .file-progress {
@@ -1390,8 +1404,8 @@
 }
 
 .dialog-btn.replace {
-  background: #e07b39;
-  border: 1px solid #e07b39;
+  background: var(--fireseal-accent);
+  border: 1px solid var(--fireseal-accent);
   color: white;
 }
 

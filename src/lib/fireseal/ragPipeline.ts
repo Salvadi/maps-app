@@ -70,10 +70,17 @@ export interface RAGMetadata {
 const DEFAULT_OPTIONS: RAGOptions = {
   topK: 10,
   minSimilarity: 0.5,
-  includeContext: true,
+  includeContext: false, // Disabled by default for faster responses
   contextWindowSize: 1,
   preferLocalSearch: false
 };
+
+// Cache for RAG availability check
+let ragAvailabilityCache: {
+  result: { available: boolean; reason?: string; details: any } | null;
+  timestamp: number;
+} = { result: null, timestamp: 0 };
+const RAG_AVAILABILITY_CACHE_TTL = 10000; // 10 seconds
 
 /**
  * Execute the complete RAG pipeline
@@ -169,6 +176,7 @@ export async function executeRAG(ragQuery: RAGQuery): Promise<RAGResponse> {
 
 /**
  * Expand search results with adjacent chunks for more context
+ * Uses parallel fetching for better performance
  */
 async function expandContext(
   results: SearchResult[],
@@ -177,10 +185,15 @@ async function expandContext(
   const expandedResults: SearchResult[] = [];
   const seenChunkIds = new Set<string>();
 
-  for (const result of results) {
-    // Get context chunks
-    const contextChunks = await getChunkContext(result.chunkId, windowSize);
+  // Fetch all context chunks in parallel
+  const contextResults = await Promise.all(
+    results.map(async (result) => ({
+      result,
+      contextChunks: await getChunkContext(result.chunkId, windowSize)
+    }))
+  );
 
+  for (const { result, contextChunks } of contextResults) {
     for (const chunk of contextChunks) {
       if (!seenChunkIds.has(chunk.id)) {
         seenChunkIds.add(chunk.id);
@@ -274,7 +287,7 @@ function extractCitationsFromResults(results: SearchResult[]): Citation[] {
 }
 
 /**
- * Check if RAG pipeline is available
+ * Check if RAG pipeline is available (with caching)
  */
 export async function checkRAGAvailability(): Promise<{
   available: boolean;
@@ -286,6 +299,12 @@ export async function checkRAGAvailability(): Promise<{
     online: boolean;
   };
 }> {
+  // Return cached result if still valid
+  if (ragAvailabilityCache.result &&
+      Date.now() - ragAvailabilityCache.timestamp < RAG_AVAILABILITY_CACHE_TTL) {
+    return ragAvailabilityCache.result;
+  }
+
   const embeddingConfigured = isOpenAIConfigured();
   const llmStatus = await checkLLMAvailability();
   const searchStatus = await isSearchAvailable();
@@ -297,34 +316,38 @@ export async function checkRAGAvailability(): Promise<{
     online: navigator.onLine
   };
 
+  let result: { available: boolean; reason?: string; details: typeof details };
+
   // Must have embedding for search
   if (!embeddingConfigured) {
-    return {
+    result = {
       available: false,
-      reason: 'OpenAI API non configurata. Aggiungi REACT_APP_OPENAI_API_KEY.',
+      reason: 'OpenRouter API non configurata. Aggiungi REACT_APP_OPENROUTER_API_KEY.',
       details
     };
   }
-
   // Must have search capability
-  if (!searchStatus.available) {
-    return {
+  else if (!searchStatus.available) {
+    result = {
       available: false,
       reason: searchStatus.reason || 'Ricerca non disponibile.',
       details
     };
   }
-
   // LLM is optional - can still do search-only
-  if (!llmStatus.available) {
-    return {
+  else if (!llmStatus.available) {
+    result = {
       available: true, // Partial availability
       reason: 'LLM non disponibile - solo ricerca senza generazione risposta.',
       details
     };
+  } else {
+    result = { available: true, details };
   }
 
-  return { available: true, details };
+  // Cache the result
+  ragAvailabilityCache = { result, timestamp: Date.now() };
+  return result;
 }
 
 /**

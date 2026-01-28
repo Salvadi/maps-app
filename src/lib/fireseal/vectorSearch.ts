@@ -43,6 +43,37 @@ export interface VectorSearchOptions {
 const DEFAULT_TOP_K = 10;
 const DEFAULT_MIN_SIMILARITY = 0.5;
 
+// Embedding cache to avoid redundant API calls
+const embeddingCache = new Map<string, { embedding: number[], timestamp: number }>();
+const EMBEDDING_CACHE_TTL = 120000; // 2 minutes
+
+/**
+ * Get cached embedding or generate new one
+ */
+async function getCachedEmbedding(query: string): Promise<number[]> {
+  const cached = embeddingCache.get(query);
+  if (cached && Date.now() - cached.timestamp < EMBEDDING_CACHE_TTL) {
+    console.log('📦 Using cached embedding for query');
+    return cached.embedding;
+  }
+
+  const { embedding } = await generateEmbedding(query);
+  embeddingCache.set(query, { embedding, timestamp: Date.now() });
+
+  // Clean old entries (keep cache small)
+  if (embeddingCache.size > 50) {
+    const now = Date.now();
+    const entries = Array.from(embeddingCache.entries());
+    for (const [key, value] of entries) {
+      if (now - value.timestamp > EMBEDDING_CACHE_TTL) {
+        embeddingCache.delete(key);
+      }
+    }
+  }
+
+  return embedding;
+}
+
 /**
  * Main search function - automatically chooses local or remote search
  */
@@ -60,12 +91,12 @@ export async function searchCertificates(
   // Check if we can do embedding
   if (!isOpenAIConfigured()) {
     throw new Error(
-      'OpenAI API non configurata. Impossibile generare embedding per la ricerca.'
+      'OpenRouter API non configurata. Impossibile generare embedding per la ricerca.'
     );
   }
 
-  // Generate query embedding
-  const { embedding: queryEmbedding } = await generateEmbedding(query);
+  // Generate query embedding (with caching)
+  const queryEmbedding = await getCachedEmbedding(query);
 
   // Decide search strategy
   const useLocalSearch = preferLocal || !navigator.onLine || !isSupabaseConfigured();
@@ -184,7 +215,7 @@ export async function isSearchAvailable(): Promise<{
   if (!isOpenAIConfigured()) {
     return {
       available: false,
-      reason: 'OpenAI API non configurata per generare embedding.'
+      reason: 'OpenRouter API non configurata per generare embedding.'
     };
   }
 

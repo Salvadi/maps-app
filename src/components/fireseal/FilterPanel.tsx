@@ -9,9 +9,10 @@ import {
 interface FilterPanelProps {
   filters: SearchFilters;
   onChange: (filters: SearchFilters) => void;
+  refreshTrigger?: number; // Optional trigger to reload filter options
 }
 
-export function FilterPanel({ filters, onChange }: FilterPanelProps) {
+export function FilterPanel({ filters, onChange, refreshTrigger = 0 }: FilterPanelProps) {
   const [brands, setBrands] = useState<string[]>([]);
   const [reiValues, setReiValues] = useState<string[]>([]);
   const [supportTypes, setSupportTypes] = useState<string[]>([]);
@@ -35,7 +36,7 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
       }
     }
     loadFilterOptions();
-  }, []);
+  }, [refreshTrigger]); // Reload when refreshTrigger changes
 
   const handleChange = (key: keyof SearchFilters, value: string) => {
     onChange({

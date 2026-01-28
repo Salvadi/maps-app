@@ -361,7 +361,7 @@ export class MappingDatabase extends Dexie {
       standaloneMaps: 'id, userId, name, synced'
     });
 
-    // Define schema v5 - add fire seal certificate tables
+    // Define schema v6 - add fire seal certificate tables
     this.version(6).stores({
       projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
       mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
