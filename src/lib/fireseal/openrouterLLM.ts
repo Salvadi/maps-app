@@ -9,33 +9,33 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free model options on OpenRouter
 export const AVAILABLE_MODELS = {
-  'google/gemini-3-flash-preview:free': {
-    name: 'Google Gemini 3 Flash',
-    contextWindow: 1048576,
-    free: true
-  },
-  'mistralai/mistral-small-3.1-24b-instruct:free': {
-    name: 'Mistral Small 3.1 24B',
+  'qwen/qwen3-next-80b-a3b-instruct:free': {
+    name: 'Qwen 3 Next 80B A3B',
     contextWindow: 131072,
     free: true
   },
-  'nvidia/llama-3.1-nemotron-nano-8b-v1:free': {
-    name: 'Llama 3.1 Nemotron Nano 8B',
+  'openai/gpt-oss-120b:free': {
+    name: 'OpenAI GPT-OSS 120B',
     contextWindow: 131072,
+    free: true
+  },
+  'liquid/lfm-2.5-1.2b-instruct:free': {
+    name: 'Liquid LFM 2.5 1.2B',
+    contextWindow: 32768,
     free: true
   }
 } as const;
 
 export type ModelId = keyof typeof AVAILABLE_MODELS;
 
-// Default to Gemini 2.0 Flash (fastest and highest quality free model)
-const DEFAULT_MODEL: ModelId = 'google/gemini-3-flash-preview:free';
+// Default to Qwen 3 Next (MoE, fast with good quality)
+const DEFAULT_MODEL: ModelId = 'qwen/qwen3-next-80b-a3b-instruct:free';
 
 // Fallback order when a model fails
 const MODEL_FALLBACK_ORDER: ModelId[] = [
-  'google/gemini-3-flash-preview:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free',
-  'nvidia/llama-3.1-nemotron-nano-8b-v1:free'
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'openai/gpt-oss-120b:free',
+  'liquid/lfm-2.5-1.2b-instruct:free'
 ];
 
 // System prompt for fire seal expert
