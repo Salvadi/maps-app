@@ -603,7 +603,7 @@ function parseItalianDate(dateStr: string): Date | null {
   if (!dateStr) return null;
 
   // Try DD/MM/YYYY or DD.MM.YYYY
-  const match = dateStr.match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  const match = dateStr.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{4})/);
   if (match) {
     const [, day, month, year] = match;
     return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
