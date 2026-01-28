@@ -59,10 +59,11 @@ export async function extractTextFromPDF(
   // Convert blob to ArrayBuffer
   const arrayBuffer = await pdfBlob.arrayBuffer();
 
-  // Load PDF document
+  // Load PDF document with standard fonts for better compatibility
   const loadingTask = pdfjsLib.getDocument({
     data: arrayBuffer,
-    useSystemFonts: true
+    useSystemFonts: true,
+    standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@4.0.379/standard_fonts/'
   });
 
   const pdf = await loadingTask.promise;

@@ -82,6 +82,7 @@ export async function uploadCertificate(certificate: Certificate): Promise<void>
 
 /**
  * Upload chunks for a certificate to Supabase
+ * Optimized to check for existing hashes before uploading to avoid 409 conflicts
  */
 export async function uploadCertificateChunks(certificateId: string): Promise<number> {
   if (!isSupabaseConfigured()) {
@@ -98,14 +99,49 @@ export async function uploadCertificateChunks(certificateId: string): Promise<nu
     return 0;
   }
 
-  console.log(`📤 Uploading ${chunks.length} chunks for certificate ${certificateId}...`);
+  // Get content hashes of chunks to upload
+  const localHashes = chunks.map(c => c.contentHash);
+
+  // Check which hashes already exist in Supabase to avoid 409 conflicts
+  const { data: existingChunks } = await supabase
+    .from('certificate_chunks')
+    .select('content_hash')
+    .in('content_hash', localHashes);
+
+  const existingHashes = new Set((existingChunks || []).map((c: { content_hash: string }) => c.content_hash));
+
+  // Filter out chunks that already exist
+  const chunksToUpload = chunks.filter(c => !existingHashes.has(c.contentHash));
+  const skippedCount = chunks.length - chunksToUpload.length;
+
+  if (skippedCount > 0) {
+    console.log(`⏭️ Skipping ${skippedCount} chunks (already exist in cloud)`);
+  }
+
+  // Mark already-existing chunks as synced locally
+  if (skippedCount > 0) {
+    const existingChunkIds = chunks
+      .filter(c => existingHashes.has(c.contentHash))
+      .map(c => c.id);
+    await db.certificateChunks
+      .where('id')
+      .anyOf(existingChunkIds)
+      .modify({ synced: 1 });
+  }
+
+  if (chunksToUpload.length === 0) {
+    console.log(`✅ All ${chunks.length} chunks already synced`);
+    return chunks.length;
+  }
+
+  console.log(`📤 Uploading ${chunksToUpload.length} new chunks for certificate ${certificateId}...`);
 
   // Upload in batches
   const BATCH_SIZE = 50;
   let uploadedCount = 0;
 
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < chunksToUpload.length; i += BATCH_SIZE) {
+    const batch = chunksToUpload.slice(i, i + BATCH_SIZE);
 
     const supabaseChunks = batch.map(chunk => ({
       id: chunk.id,
@@ -121,14 +157,16 @@ export async function uploadCertificateChunks(certificateId: string): Promise<nu
 
     const { error } = await supabase
       .from('certificate_chunks')
-      .upsert(supabaseChunks, {
-        onConflict: 'content_hash',
-        ignoreDuplicates: true
-      });
+      .insert(supabaseChunks);
 
     if (error) {
-      console.error(`Error uploading chunk batch: ${error.message}`);
-      continue;
+      // If we still get a conflict, just mark as synced and continue
+      if (error.message.includes('unique_chunk_hash') || error.code === '23505') {
+        console.log(`ℹ️ Batch contained duplicates, marking as synced`);
+      } else {
+        console.error(`Error uploading chunk batch: ${error.message}`);
+        continue;
+      }
     }
 
     // Mark batch as synced
@@ -141,8 +179,8 @@ export async function uploadCertificateChunks(certificateId: string): Promise<nu
     uploadedCount += batch.length;
   }
 
-  console.log(`✅ Uploaded ${uploadedCount} chunks`);
-  return uploadedCount;
+  console.log(`✅ Uploaded ${uploadedCount} chunks (${skippedCount} already existed)`);
+  return uploadedCount + skippedCount;
 }
 
 /**

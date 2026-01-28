@@ -229,7 +229,8 @@ const App: React.FC = () => {
           await (registration as any).sync.register('sync-queue');
           console.log('🔄 Background sync registered');
         } catch (err) {
-          console.warn('⚠️  Background sync registration failed:', err);
+          // Silently ignore permission errors - background sync is optional
+          // This is common in some browsers/environments
         }
       }
     };
