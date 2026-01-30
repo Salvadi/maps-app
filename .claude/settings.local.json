@@ -10,7 +10,12 @@
       "Bash(npm install:*)",
       "Bash(find:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(git status:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nImplementa sistema ricerca certificazioni antincendio \\(FPS\\)\n\nAggiunge motore di ricerca semantica per certificazioni PDF con:\n- Script ingestion locale \\(LlamaParse + OpenAI embedding + Qdrant\\)\n- Script rule extraction via Claude API\n- API serverless Vercel \\(/api/search, /api/report\\)\n- Pagina CertSearch integrata in maps-app \\(FAB menu\\)\n- Schema DB Supabase per certificates/chunks/rules\n- Documentazione PDR e tracker implementazione\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(npm run ingest:*)"
     ]
   }
 }

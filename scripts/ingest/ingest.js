@@ -296,11 +296,17 @@ async function processPDF(pdfPath) {
 
   console.log(`\n━━━ Processing: ${filename} ━━━`);
 
+  // Skip if already processed (has .parsed.md file)
+  const mdPath = pdfPath.replace('.pdf', '.parsed.md');
+  if (!process.argv.includes('--force') && fs.existsSync(mdPath)) {
+    console.log(`  SKIPPED: already processed (${path.basename(mdPath)} exists). Use --force to reprocess.`);
+    return;
+  }
+
   // 1. Parse
   const { markdown, pageCount } = await parsePDF(pdfPath);
 
   // Save intermediate markdown for debugging
-  const mdPath = pdfPath.replace('.pdf', '.parsed.md');
   fs.writeFileSync(mdPath, markdown, 'utf-8');
   console.log(`        → Saved parsed markdown: ${path.basename(mdPath)}`);
 
