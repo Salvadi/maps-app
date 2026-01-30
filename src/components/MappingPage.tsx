@@ -152,6 +152,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string>('');
 
   // Helper function to find matching typology based on crossing fields
   const findMatchingTypology = (crossing: Crossing) => {
@@ -283,6 +284,67 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floor, project?.id]);
+
+  // Check for duplicate entries
+  useEffect(() => {
+    const checkDuplicates = async () => {
+      if (!project || !floor) {
+        setDuplicateWarning('');
+        return;
+      }
+
+      try {
+        const existingMappings = await getMappingEntriesForProject(project.id);
+
+        // Filter out the current entry if we're editing
+        const otherMappings = editingEntry
+          ? existingMappings.filter(m => m.id !== editingEntry.id)
+          : existingMappings;
+
+        // Check for duplicates based on floor, room, and intervention
+        const hasDuplicate = otherMappings.some(mapping => {
+          const floorMatch = mapping.floor === floor;
+          // Normalize empty values: treat undefined and "" as equivalent
+          const roomMatch = project.useRoomNumbering
+            ? (mapping.room || '') === (roomNumber || '')
+            : true;
+          const interventionMatch = project.useInterventionNumbering
+            ? (mapping.intervention || '') === (interventionNumber || '')
+            : true;
+
+          return floorMatch && roomMatch && interventionMatch;
+        });
+
+        if (hasDuplicate && (project.useInterventionNumbering && interventionNumber)) {
+          // Find next available intervention number
+          const interventionNumbers = otherMappings
+            .filter(m => {
+              const floorMatch = m.floor === floor;
+              // Normalize empty values: treat undefined and "" as equivalent
+              const roomMatch = project.useRoomNumbering
+                ? (m.room || '') === (roomNumber || '')
+                : true;
+              return floorMatch && roomMatch;
+            })
+            .map(m => parseInt(m.intervention || '0'))
+            .filter(n => !isNaN(n));
+
+          const maxNumber = interventionNumbers.length > 0 ? Math.max(...interventionNumbers) : 0;
+          const suggestedNumber = maxNumber + 1;
+
+          setDuplicateWarning(`⚠️ Esiste già una mappatura con questa combinazione Piano/Stanza/Intervento. Numero intervento suggerito: ${suggestedNumber}`);
+        } else if (hasDuplicate) {
+          setDuplicateWarning('⚠️ Esiste già una mappatura con questa combinazione Piano/Stanza/Intervento.');
+        } else {
+          setDuplicateWarning('');
+        }
+      } catch (error) {
+        console.error('Error checking duplicates:', error);
+      }
+    };
+
+    checkDuplicates();
+  }, [floor, roomNumber, interventionNumber, project, editingEntry]);
 
   const loadFloorPlan = async () => {
     if (!project || !floor) return;
@@ -540,6 +602,40 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     localStorage.setItem('lastUsedFloor', newFloor);
   };
 
+  const handleCopyPrevious = async () => {
+    if (!project) return;
+
+    try {
+      const lastEntryJson = localStorage.getItem('lastMappingEntry');
+      if (!lastEntryJson) {
+        alert('Nessuna mappatura precedente trovata');
+        return;
+      }
+
+      const lastEntry = JSON.parse(lastEntryJson);
+
+      // Copy all fields except intervention number (which should be progressive)
+      setFloor(lastEntry.floor || floor);
+      setRoomNumber(lastEntry.room || '');
+      setSigillature(lastEntry.crossings || [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
+
+      // Calculate next intervention number
+      if (project.useInterventionNumbering) {
+        const existingMappings = await getMappingEntriesForProject(project.id);
+        const maxNumber = existingMappings.reduce((max, mapping) => {
+          const num = parseInt(mapping.intervention || '0');
+          return !isNaN(num) && num > max ? num : max;
+        }, 0);
+        setInterventionNumber((maxNumber + 1).toString());
+      }
+
+      alert('Campi copiati dalla mappatura precedente');
+    } catch (error) {
+      console.error('Error copying previous entry:', error);
+      alert('Errore nel caricamento della mappatura precedente');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -577,6 +673,10 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       }
 
       if (editingEntry) {
+        // Check if there are photos remaining after removals
+        const finalPhotoCount = photoFiles.length;
+        const shouldMarkToComplete = finalPhotoCount === 0;
+
         // Update existing entry
         await updateMappingEntry(
           editingEntry.id,
@@ -584,7 +684,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             floor,
             room: project.useRoomNumbering ? roomNumber : undefined,
             intervention: project.useInterventionNumbering ? interventionNumber : undefined,
-            toComplete,
+            toComplete: shouldMarkToComplete || toComplete,
             crossings: sigillature.map((s, index) => ({
               ...s,
               id: s.id || `${Date.now()}-${index}`,
@@ -613,6 +713,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         // Go back to view
         onBack();
       } else {
+        // Check if there are no photos - auto-flag as "da completare"
+        const shouldMarkToComplete = compressedBlobs.length === 0;
+
         // Create new entry
         const mappingEntry = await createMappingEntry(
           {
@@ -620,7 +723,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             floor,
             room: project.useRoomNumbering ? roomNumber : undefined,
             intervention: project.useInterventionNumbering ? interventionNumber : undefined,
-            toComplete,
+            toComplete: shouldMarkToComplete || toComplete,
             crossings: sigillature.map((s, index) => ({
               ...s,
               id: `${Date.now()}-${index}`,
@@ -629,6 +732,18 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           },
           compressedBlobs
         );
+
+        // Save to localStorage for "Copia prec." functionality
+        const lastEntryData = {
+          floor,
+          room: project.useRoomNumbering ? roomNumber : undefined,
+          intervention: project.useInterventionNumbering ? interventionNumber : undefined,
+          crossings: sigillature.map((s, index) => ({
+            ...s,
+            id: `${Date.now()}-${index}`,
+          })),
+        };
+        localStorage.setItem('lastMappingEntry', JSON.stringify(lastEntryData));
 
         console.log('Mappatura creata:', mappingEntry.id);
         alert('Mappatura salvata con successo!');
@@ -664,6 +779,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         onBack={onBack}
         onSync={onSync}
         isSyncing={isSyncing}
+        onCopyPrevious={!editingEntry ? handleCopyPrevious : undefined}
       />
       <div className="mapping-container">
         {error && (
@@ -676,6 +792,20 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             fontSize: '0.875rem'
           }}>
             {error}
+          </div>
+        )}
+
+        {duplicateWarning && (
+          <div style={{
+            padding: '12px',
+            marginBottom: '16px',
+            backgroundColor: '#FEF3C7',
+            color: '#92400E',
+            borderRadius: '8px',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}>
+            {duplicateWarning}
           </div>
         )}
 

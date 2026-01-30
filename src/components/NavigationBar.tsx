@@ -6,6 +6,7 @@ interface NavigationBarProps {
   onBack: () => void;
   onSync?: () => void;
   isSyncing?: boolean;
+  onCopyPrevious?: () => void;
 }
 
 // Back Icon Component
@@ -25,25 +26,36 @@ const SyncIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const NavigationBar: React.FC<NavigationBarProps> = ({ title, onBack, onSync, isSyncing }) => {
+const NavigationBar: React.FC<NavigationBarProps> = ({ title, onBack, onSync, isSyncing, onCopyPrevious }) => {
   return (
     <nav className="navigation-bar">
       <button className="nav-back-btn" onClick={onBack} aria-label="Back">
         <BackIcon className="nav-icon" />
       </button>
       <h1 className="nav-title">{title}</h1>
-      {onSync ? (
-        <button
-          className={`nav-sync-btn ${isSyncing ? 'syncing' : ''}`}
-          onClick={onSync}
-          disabled={isSyncing}
-          aria-label="Sync"
-        >
-          <SyncIcon className="nav-icon" />
-        </button>
-      ) : (
-        <div className="nav-spacer" />
-      )}
+      <div className="nav-right-buttons">
+        {onCopyPrevious && (
+          <button
+            className="nav-copy-btn"
+            onClick={onCopyPrevious}
+            aria-label="Copy Previous"
+          >
+            Copia prec.
+          </button>
+        )}
+        {onSync ? (
+          <button
+            className={`nav-sync-btn ${isSyncing ? 'syncing' : ''}`}
+            onClick={onSync}
+            disabled={isSyncing}
+            aria-label="Sync"
+          >
+            <SyncIcon className="nav-icon" />
+          </button>
+        ) : (
+          <div className="nav-spacer" />
+        )}
+      </div>
     </nav>
   );
 };

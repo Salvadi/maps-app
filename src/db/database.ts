@@ -197,6 +197,9 @@ export interface StandaloneMap {
     labelY: number;
     perimeterPoints?: Array<{ x: number; y: number }>;
     customText?: string;
+    labelBackgroundColor?: string; // Custom background color for label
+    labelTextColor?: string; // Custom text color for label
+    labelText?: string[]; // Custom label text (if modified by user)
   }>;
   gridEnabled: boolean;
   gridConfig: {

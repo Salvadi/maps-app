@@ -553,6 +553,64 @@ const MappingView: React.FC<MappingViewProps> = ({
     return parts.length > 0 ? parts.join('_') + '_' : '';
   };
 
+  // Generate mapping label for floor plan canvas
+  const generateMappingLabel = (
+    mappingEntry: MappingEntry,
+    photoCount: number
+  ): string[] => {
+    const labelText: string[] = [];
+    const firstLineParts: string[] = [];
+
+    // Piano (only if multiple floors)
+    if (project.floors && project.floors.length > 1) {
+      firstLineParts.push(`P${mappingEntry.floor}`);
+    }
+
+    // Stanza (if room numbering is enabled)
+    if (project.useRoomNumbering && mappingEntry.room) {
+      firstLineParts.push(`S${mappingEntry.room}`);
+    }
+
+    // Intervento (changed from "I" to "Int")
+    if (project.useInterventionNumbering && mappingEntry.intervention) {
+      firstLineParts.push(`Int${mappingEntry.intervention}`);
+    }
+
+    // Handle photo numbering - OPTION B: Range if multiple photos
+    if (firstLineParts.length > 0) {
+      let firstLine = firstLineParts.join('_');
+
+      // Add range if more than 1 photo
+      if (photoCount > 1) {
+        const lastPhotoNumber = photoCount.toString().padStart(2, '0');
+        firstLine += `_01-${lastPhotoNumber}`;
+      }
+
+      labelText.push(firstLine);
+    } else {
+      labelText.push('Punto');
+    }
+
+    // Second line: Tip. X - get all unique tipologici, sorted
+    const tipNumbers = mappingEntry.crossings
+      .map(c => {
+        if (c.tipologicoId) {
+          const tip = project.typologies.find(t => t.id === c.tipologicoId);
+          return tip ? tip.number : null;
+        }
+        return null;
+      })
+      .filter((n): n is number => n !== null)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort((a, b) => a - b);
+
+    if (tipNumbers.length > 0) {
+      labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
+    }
+
+    return labelText;
+  };
+
   // Export to XLSX
   const handleExportExcel = async () => {
     setIsExporting(true);
@@ -880,40 +938,8 @@ const MappingView: React.FC<MappingViewProps> = ({
               const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
               let labelText = ['Punto'];
               if (mappingEntry) {
-                // First line: foto n. P0_S3_I3
-                const firstLineParts = [];
-                if (project.floors && project.floors.length > 1) {
-                  firstLineParts.push(`P${mappingEntry.floor}`);
-                }
-                if (project.useRoomNumbering && mappingEntry.room) {
-                  firstLineParts.push(`S${mappingEntry.room}`);
-                }
-                if (project.useInterventionNumbering && mappingEntry.intervention) {
-                  firstLineParts.push(`I${mappingEntry.intervention}`);
-                }
-
-                // Build first line with "foto n. " prefix
-                const firstLine = firstLineParts.length > 0
-                  ? `foto n. ${firstLineParts.join('_')}`
-                  : 'Punto';
-                labelText = [firstLine];
-
-                // Second line: Tip. X - get all unique tipologici, sorted
-                const tipNumbers = mappingEntry.crossings
-                  .map(c => {
-                    if (c.tipologicoId) {
-                      const tip = project.typologies.find(t => t.id === c.tipologicoId);
-                      return tip ? tip.number : null;
-                    }
-                    return null;
-                  })
-                  .filter((n): n is number => n !== null)
-                  .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
-                  .sort((a, b) => a - b); // Sort ascending
-
-                if (tipNumbers.length > 0) {
-                  labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
-                }
+                const photos = mappingPhotos[mappingEntry.id] || [];
+                labelText = generateMappingLabel(mappingEntry, photos.length);
               }
 
               const padding = 8;
@@ -1190,45 +1216,23 @@ const MappingView: React.FC<MappingViewProps> = ({
           return true;
         })
         .map(m => {
-          // Build label text for unmapped entry
-          const firstLineParts = [];
-          if (project.floors && project.floors.length > 1) {
-            firstLineParts.push(`P${m.floor}`);
-          }
-          if (project.useRoomNumbering && m.room) {
-            firstLineParts.push(`S${m.room}`);
-          }
-          if (project.useInterventionNumbering && m.intervention) {
-            firstLineParts.push(`I${m.intervention}`);
-          }
+          const photos = mappingPhotos[m.id] || [];
+          const labelText = generateMappingLabel(m, photos.length);
 
-          const firstLine = firstLineParts.length > 0
-            ? `foto n. ${firstLineParts.join('_')}`
-            : 'Punto';
-          const labelText = [firstLine];
-
-          // Add all unique typologies, sorted
-          const tipNumbers = m.crossings
-            .map(c => {
-              if (c.tipologicoId) {
-                const tip = project.typologies.find(t => t.id === c.tipologicoId);
-                return tip ? tip.number : null;
-              }
-              return null;
-            })
-            .filter((n): n is number => n !== null)
-            .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
-            .sort((a, b) => a - b); // Sort ascending
-
-          if (tipNumbers.length > 0) {
-            labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
+          // Get type from first crossing's supporto field
+          let type: 'parete' | 'solaio' = 'parete'; // Default
+          if (m.crossings && m.crossings.length > 0) {
+            const supporto = m.crossings[0].supporto?.toLowerCase();
+            if (supporto === 'solaio') {
+              type = 'solaio';
+            }
+            // Se supporto è "parete" o altro, rimane 'parete' (default)
           }
 
-          // Default to parete, user can choose when placing
           return {
             id: m.id,
             labelText,
-            type: 'parete' as 'parete' | 'solaio',
+            type,
           };
         });
 
@@ -1239,40 +1243,8 @@ const MappingView: React.FC<MappingViewProps> = ({
           const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
           let labelText = ['Punto'];
           if (mappingEntry) {
-            // First line: foto n. P0_S3_I3
-            const firstLineParts = [];
-            if (project.floors && project.floors.length > 1) {
-              firstLineParts.push(`P${mappingEntry.floor}`);
-            }
-            if (project.useRoomNumbering && mappingEntry.room) {
-              firstLineParts.push(`S${mappingEntry.room}`);
-            }
-            if (project.useInterventionNumbering && mappingEntry.intervention) {
-              firstLineParts.push(`I${mappingEntry.intervention}`);
-            }
-
-            // Build first line with "foto n. " prefix
-            const firstLine = firstLineParts.length > 0
-              ? `foto n. ${firstLineParts.join('_')}`
-              : 'Punto';
-            labelText = [firstLine];
-
-            // Second line: Tip. X - get all unique tipologici, sorted
-            const tipNumbers = mappingEntry.crossings
-              .map(c => {
-                if (c.tipologicoId) {
-                  const tip = project.typologies.find(t => t.id === c.tipologicoId);
-                  return tip ? tip.number : null;
-                }
-                return null;
-              })
-              .filter((n): n is number => n !== null)
-              .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
-              .sort((a, b) => a - b); // Sort ascending
-
-            if (tipNumbers.length > 0) {
-              labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
-            }
+            const photos = mappingPhotos[mappingEntry.id] || [];
+            labelText = generateMappingLabel(mappingEntry, photos.length);
           }
 
           return {
@@ -1282,9 +1254,11 @@ const MappingView: React.FC<MappingViewProps> = ({
             pointY: point.pointY,
             labelX: point.labelX,
             labelY: point.labelY,
-            labelText: labelText,
+            labelText: point.metadata?.labelText || labelText, // Usa labelText custom se esiste, altrimenti generato
             perimeterPoints: point.perimeterPoints,
             mappingEntryId: point.mappingEntryId, // Include to distinguish existing points from new ones
+            labelBackgroundColor: point.metadata?.labelBackgroundColor, // Carica anche colore custom
+            labelTextColor: point.metadata?.labelTextColor, // Carica anche colore testo custom
           };
         })
       );
@@ -1328,12 +1302,19 @@ const MappingView: React.FC<MappingViewProps> = ({
       for (const canvasPoint of points) {
         if (currentPointIds.has(canvasPoint.id)) {
           // Update existing point
+          const currentPoint = currentPoints.find(p => p.id === canvasPoint.id);
           await updateFloorPlanPoint(canvasPoint.id, {
             pointX: canvasPoint.pointX,
             pointY: canvasPoint.pointY,
             labelX: canvasPoint.labelX,
             labelY: canvasPoint.labelY,
             perimeterPoints: canvasPoint.perimeterPoints,
+            metadata: {
+              ...currentPoint?.metadata,
+              labelText: canvasPoint.labelText, // Salva labelText custom
+              labelBackgroundColor: canvasPoint.labelBackgroundColor, // Salva anche colore custom
+              labelTextColor: canvasPoint.labelTextColor, // Salva anche colore testo custom
+            },
           });
         } else {
           // Create new point
@@ -1490,40 +1471,8 @@ const MappingView: React.FC<MappingViewProps> = ({
           const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
           let labelText = ['Punto'];
           if (mappingEntry) {
-            // First line: foto n. P0_S3_I3
-            const firstLineParts = [];
-            if (project.floors && project.floors.length > 1) {
-              firstLineParts.push(`P${mappingEntry.floor}`);
-            }
-            if (project.useRoomNumbering && mappingEntry.room) {
-              firstLineParts.push(`S${mappingEntry.room}`);
-            }
-            if (project.useInterventionNumbering && mappingEntry.intervention) {
-              firstLineParts.push(`I${mappingEntry.intervention}`);
-            }
-
-            // Build first line with "foto n. " prefix
-            const firstLine = firstLineParts.length > 0
-              ? `foto n. ${firstLineParts.join('_')}`
-              : 'Punto';
-            labelText = [firstLine];
-
-            // Second line: Tip. X - get all unique tipologici, sorted
-            const tipNumbers = mappingEntry.crossings
-              .map(c => {
-                if (c.tipologicoId) {
-                  const tip = project.typologies.find(t => t.id === c.tipologicoId);
-                  return tip ? tip.number : null;
-                }
-                return null;
-              })
-              .filter((n): n is number => n !== null)
-              .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
-              .sort((a, b) => a - b); // Sort ascending
-
-            if (tipNumbers.length > 0) {
-              labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
-            }
+            const photos = mappingPhotos[mappingEntry.id] || [];
+            labelText = generateMappingLabel(mappingEntry, photos.length);
           }
 
           // Draw label
