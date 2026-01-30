@@ -21,3 +21,8 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Ingestion script
+scripts/ingest/.env
+scripts/ingest/node_modules
+scripts/ingest/pdfs

@@ -10,6 +10,7 @@ interface HomeProps {
   onViewProject: (project: Project) => void;
   onEnterMapping: (project: Project) => void;
   onOpenStandaloneEditor: () => void;
+  onOpenCertSearch: () => void;
   onLogout: () => void;
   onManualSync: () => void;
   onClearAndSync: () => void;
@@ -134,6 +135,7 @@ const Home: React.FC<HomeProps> = ({
   onViewProject,
   onEnterMapping,
   onOpenStandaloneEditor,
+  onOpenCertSearch,
   onLogout,
   onManualSync,
   onClearAndSync,
@@ -582,6 +584,16 @@ const Home: React.FC<HomeProps> = ({
               >
                 <BlueprintIcon className="fab-menu-icon" />
                 <span>Editor Planimetrie</span>
+              </button>
+              <button
+                className="fab-menu-item"
+                onClick={() => {
+                  setShowFabMenu(false);
+                  onOpenCertSearch();
+                }}
+              >
+                <SearchIcon className="fab-menu-icon" />
+                <span>Ricerca Certificazioni</span>
               </button>
             </div>
           </>

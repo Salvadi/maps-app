@@ -6,13 +6,14 @@ import ProjectForm from './components/ProjectForm';
 import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import StandaloneFloorPlanEditor from './components/StandaloneFloorPlanEditor';
+import CertSearch from './components/CertSearch';
 import UpdateNotification from './components/UpdateNotification';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry, db } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
 import './App.css';
 
-type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView' | 'standaloneEditor';
+type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView' | 'standaloneEditor' | 'certSearch';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -399,6 +400,14 @@ const App: React.FC = () => {
     setCurrentView('home');
   };
 
+  const handleOpenCertSearch = () => {
+    setCurrentView('certSearch');
+  };
+
+  const handleBackFromCertSearch = () => {
+    setCurrentView('home');
+  };
+
   // Show loading state while initializing
   if (!isInitialized) {
     return (
@@ -436,10 +445,18 @@ const App: React.FC = () => {
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
             onOpenStandaloneEditor={handleOpenStandaloneEditor}
+            onOpenCertSearch={handleOpenCertSearch}
             onLogout={handleLogout}
             onManualSync={handleManualSync}
             onClearAndSync={handleClearAndSync}
             isSyncing={syncStats.isSyncing}
+          />
+        );
+      case 'certSearch':
+        return (
+          <CertSearch
+            currentUser={currentUser}
+            onBack={handleBackFromCertSearch}
           />
         );
       case 'projectForm':
@@ -494,6 +511,7 @@ const App: React.FC = () => {
             onViewProject={handleViewProject}
             onEnterMapping={handleEnterMapping}
             onOpenStandaloneEditor={handleOpenStandaloneEditor}
+            onOpenCertSearch={handleOpenCertSearch}
             onLogout={handleLogout}
             onManualSync={handleManualSync}
             onClearAndSync={handleClearAndSync}
