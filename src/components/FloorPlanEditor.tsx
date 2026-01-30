@@ -166,7 +166,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
       return p;
     }));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Handle point selection
   const handlePointSelect = useCallback((pointId: string | null) => {
