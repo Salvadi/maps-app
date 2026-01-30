@@ -128,62 +128,96 @@ async function generateAnswer(query, results) {
     .map((r, i) => `[${i + 1}] Certificato: ${r.payload.cert_name} | Sezione: ${r.payload.section}\n${r.payload.content}`)
     .join('\n\n---\n\n');
 
-  const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4',
-      messages: [
-        {
-          role: 'system',
-          content: `Sei un esperto di prevenzione incendi e certificazioni antincendio.
+  // Fallback models: Gemini → DeepSeek → Mistral Large (risparmio 90-97% vs Claude)
+  const models = [
+    'google/gemini-2.0-flash-001',      // $0.125/$0.50 per M tokens
+    'deepseek/deepseek-v3.2',           // $0.25/$0.38 per M tokens
+    'mistral/mistral-large-3-2512',     // $0.10/$0.10 per M tokens
+  ];
+
+  const systemPrompt = `Sei un esperto di prevenzione incendi e certificazioni antincendio.
 Rispondi alle domande tecniche basandoti ESCLUSIVAMENTE sui documenti forniti.
 Per ogni affermazione, cita la fonte tra parentesi quadre [n].
 Se i documenti non contengono la risposta, dillo esplicitamente.
 Rispondi in italiano. Sii preciso con i dati tecnici (diametri, classi EI, materiali).
-Formato risposta: testo con citazioni [1], [2], etc.`,
-        },
-        {
-          role: 'user',
-          content: `Domanda: ${query}\n\nDocumenti di riferimento:\n${context}`,
-        },
-      ],
-      max_tokens: 1024,
-      temperature: 0.1,
-    }),
-  });
+Formato risposta: testo con citazioni [1], [2], etc.`;
 
-  if (!llmRes.ok) {
-    // Fallback: return results without LLM answer
-    console.error('LLM error:', await llmRes.text());
-    return {
-      text: 'Risultati trovati (risposta AI non disponibile):',
-      citations: results.map((r, i) => ({
-        index: i + 1,
-        certName: r.payload.cert_name,
-        section: r.payload.section,
-      })),
-    };
+  const userPrompt = `Domanda: ${query}\n\nDocumenti di riferimento:\n${context}`;
+
+  // Try models in order until one succeeds
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+
+    try {
+      const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: 1024,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!llmRes.ok) {
+        const errorText = await llmRes.text();
+        console.warn(`Model ${model} failed (${llmRes.status}): ${errorText}`);
+
+        // Try next model if available
+        if (i < models.length - 1) {
+          console.log(`Falling back to ${models[i + 1]}...`);
+          continue;
+        }
+
+        // All models failed
+        throw new Error(`All LLM models failed. Last error: ${errorText}`);
+      }
+
+      const llmData = await llmRes.json();
+      const answerText = llmData.choices[0]?.message?.content || '';
+
+      // Extract citation indices from answer
+      const citationMatches = [...answerText.matchAll(/\[(\d+)\]/g)];
+      const citedIndices = [...new Set(citationMatches.map(m => parseInt(m[1])))];
+
+      const citations = citedIndices
+        .filter(idx => idx >= 1 && idx <= results.length)
+        .map(idx => ({
+          index: idx,
+          certName: results[idx - 1].payload.cert_name,
+          section: results[idx - 1].payload.section,
+          content: results[idx - 1].payload.content.substring(0, 200),
+        }));
+
+      console.log(`✓ Answer generated successfully using ${model}`);
+      return { text: answerText, citations };
+
+    } catch (error) {
+      console.error(`Error with model ${model}:`, error.message);
+
+      // Try next model if available
+      if (i < models.length - 1) {
+        console.log(`Falling back to ${models[i + 1]}...`);
+        continue;
+      }
+
+      // All models failed - return fallback
+      console.error('All LLM models failed, returning results without AI answer');
+      return {
+        text: 'Risultati trovati (risposta AI non disponibile):',
+        citations: results.map((r, idx) => ({
+          index: idx + 1,
+          certName: r.payload.cert_name,
+          section: r.payload.section,
+        })),
+      };
+    }
   }
-
-  const llmData = await llmRes.json();
-  const answerText = llmData.choices[0]?.message?.content || '';
-
-  // Extract citation indices from answer
-  const citationMatches = [...answerText.matchAll(/\[(\d+)\]/g)];
-  const citedIndices = [...new Set(citationMatches.map(m => parseInt(m[1])))];
-
-  const citations = citedIndices
-    .filter(i => i >= 1 && i <= results.length)
-    .map(i => ({
-      index: i,
-      certName: results[i - 1].payload.cert_name,
-      section: results[i - 1].payload.section,
-      content: results[i - 1].payload.content.substring(0, 200),
-    }));
-
-  return { text: answerText, citations };
 }

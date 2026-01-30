@@ -45,32 +45,72 @@ Genera il report in formato HTML con queste sezioni:
 
 Usa tag HTML semantici. Stile professionale. Includi tutti i dati tecnici esatti.`;
 
-    const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4',
-        messages: [
-          {
-            role: 'system',
-            content: 'Sei un generatore di report tecnici per prevenzione incendi. Produci HTML pulito e professionale.',
+    // Fallback models: Gemini Flash Lite → DeepSeek → Mistral Large (risparmio 90-99% vs Claude)
+    const models = [
+      'google/gemini-2.0-flash-lite-001',  // $0.075/$0.30 per M tokens (ottimo per HTML strutturato)
+      'deepseek/deepseek-v3.2',            // $0.25/$0.38 per M tokens
+      'mistral/mistral-large-3-2512',      // $0.10/$0.10 per M tokens
+    ];
+
+    const systemPrompt = 'Sei un generatore di report tecnici per prevenzione incendi. Produci HTML pulito e professionale.';
+
+    let htmlContent = '';
+
+    // Try models in order until one succeeds
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+
+      try {
+        const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
           },
-          { role: 'user', content: reportPrompt },
-        ],
-        max_tokens: 2048,
-        temperature: 0.1,
-      }),
-    });
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: reportPrompt },
+            ],
+            max_tokens: 2048,
+            temperature: 0.1,
+          }),
+        });
 
-    if (!llmRes.ok) {
-      throw new Error(`LLM error: ${llmRes.status}`);
+        if (!llmRes.ok) {
+          const errorText = await llmRes.text();
+          console.warn(`Model ${model} failed (${llmRes.status}): ${errorText}`);
+
+          // Try next model if available
+          if (i < models.length - 1) {
+            console.log(`Falling back to ${models[i + 1]}...`);
+            continue;
+          }
+
+          // All models failed
+          throw new Error(`All LLM models failed. Last error: ${errorText}`);
+        }
+
+        const llmData = await llmRes.json();
+        htmlContent = llmData.choices[0]?.message?.content || '';
+
+        console.log(`✓ Report generated successfully using ${model}`);
+        break; // Success, exit loop
+
+      } catch (error) {
+        console.error(`Error with model ${model}:`, error.message);
+
+        // Try next model if available
+        if (i < models.length - 1) {
+          console.log(`Falling back to ${models[i + 1]}...`);
+          continue;
+        }
+
+        // All models failed - throw error
+        throw new Error(`Report generation failed: ${error.message}`);
+      }
     }
-
-    const llmData = await llmRes.json();
-    const htmlContent = llmData.choices[0]?.message?.content || '';
 
     // Wrap in full HTML document
     const fullHtml = `<!DOCTYPE html>
