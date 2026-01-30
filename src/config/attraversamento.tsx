@@ -29,6 +29,7 @@ export const ATTRAVERSAMENTO_OPTIONS: MenuOption[] = [
   { value: 'Asola', label: 'Asola' },
 
   { value: 'Scatola di derivazione', label: 'Scatola di derivazione' },
+  { value: 'Fori Cassero', label: 'Fori Cassero' },
 
 
   { value: 'Altro', label: 'Altro' },
