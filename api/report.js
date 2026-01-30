@@ -60,7 +60,7 @@ Usa tag HTML semantici. Stile professionale. Includi tutti i dati tecnici esatti
           },
           { role: 'user', content: reportPrompt },
         ],
-        max_tokens: 4096,
+        max_tokens: 2048,
         temperature: 0.1,
       }),
     });
