@@ -131,6 +131,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   // Track auto-saved draft entry (when user adds point before saving)
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
 
+  // Form ref for triggering submit from navbar
+  const formRef = useRef<HTMLFormElement>(null);
+
   // Recupera l'ultimo piano usato da localStorage o dall'entry in modifica
   const getLastUsedFloor = () => {
     if (editingEntry) {
@@ -825,6 +828,12 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     }
   };
 
+  const handleSaveFromNavbar = () => {
+    if (formRef.current) {
+      formRef.current.requestSubmit();
+    }
+  };
+
   return (
     <div className="mapping-page">
       <NavigationBar
@@ -833,6 +842,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         onSync={onSync}
         isSyncing={isSyncing}
         onCopyPrevious={!editingEntry ? handleCopyPrevious : undefined}
+        onSave={handleSaveFromNavbar}
+        isSaving={isSubmitting}
+        saveButtonText={editingEntry ? 'Aggiorna' : 'Salva'}
       />
       <div className="mapping-container">
         {error && (
@@ -881,7 +893,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           style={{ display: 'none' }}
         />
 
-        <form onSubmit={handleSubmit} className="mapping-form">
+        <form ref={formRef} onSubmit={handleSubmit} className="mapping-form">
           {/* Image Input Section */}
           <div className="image-buttons">
             <button type="button" className="camera-btn" onClick={handleCameraClick}>
