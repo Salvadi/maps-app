@@ -128,6 +128,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [currentFloorPlanPoint, setCurrentFloorPlanPoint] = useState<FloorPlanPoint | null>(null);
   const [floorPlanImageUrl, setFloorPlanImageUrl] = useState<string | null>(null);
 
+  // Track auto-saved draft entry (when user adds point before saving)
+  const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
+
   // Recupera l'ultimo piano usato da localStorage o dall'entry in modifica
   const getLastUsedFloor = () => {
     if (editingEntry) {
@@ -372,11 +375,49 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   };
 
   const handleOpenFloorPlanEditor = async () => {
-    if (!currentFloorPlan) return;
+    if (!currentFloorPlan || !project) return;
 
-    // Load existing point if editing
-    if (editingEntry) {
-      const point = await getFloorPlanPointByMappingEntry(editingEntry.id);
+    // Get the current mapping entry (either editing or draft)
+    const currentEntry = editingEntry || savedDraftEntry;
+
+    // If no entry exists yet, create a draft entry
+    if (!currentEntry) {
+      try {
+        setIsSubmitting(true);
+
+        // Create draft entry with current form data
+        const draftEntry = await createMappingEntry(
+          {
+            projectId: project.id,
+            floor,
+            room: project.useRoomNumbering ? roomNumber : undefined,
+            intervention: project.useInterventionNumbering ? interventionNumber : undefined,
+            toComplete: true, // Mark as "to complete" since it's a draft
+            crossings: sigillature.map((s, index) => ({
+              ...s,
+              id: s.id || `${Date.now()}-${index}`,
+            })),
+            createdBy: currentUser.id,
+          },
+          [] // No photos yet
+        );
+
+        setSavedDraftEntry(draftEntry);
+        console.log('Bozza mappatura salvata automaticamente:', draftEntry.id);
+      } catch (error) {
+        console.error('Error saving draft mapping:', error);
+        alert('Errore nel salvataggio automatico. Riprova.');
+        setIsSubmitting(false);
+        return;
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+
+    // Load existing point if editing or draft exists
+    const entryToCheck = editingEntry || savedDraftEntry;
+    if (entryToCheck) {
+      const point = await getFloorPlanPointByMappingEntry(entryToCheck.id);
       setCurrentFloorPlanPoint(point || null);
     }
 
@@ -389,9 +430,12 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       return;
     }
 
-    if (!editingEntry) {
-      // Preview mode - just close the editor
-      alert('Punto salvato in anteprima! Salva prima la mappatura per salvare il punto sulla planimetria.');
+    // Get the current mapping entry (either editing or draft)
+    const currentEntry = editingEntry || savedDraftEntry;
+
+    if (!currentEntry) {
+      // This should never happen since we create a draft in handleOpenFloorPlanEditor
+      alert('Errore: nessuna mappatura trovata. Riprova.');
       setShowFloorPlanEditor(false);
       return;
     }
@@ -420,7 +464,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         // Create new point
         await createFloorPlanPoint(
           currentFloorPlan.id,
-          editingEntry.id,
+          currentEntry.id,
           point.type,
           point.pointX,
           point.pointY,
@@ -650,8 +694,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     try {
       let compressedBlobs: Blob[] = [];
 
-      // Comprimi solo le nuove foto (se stiamo modificando) o tutte (se stiamo creando)
-      const photosToCompress = editingEntry
+      // Comprimi solo le nuove foto (se stiamo modificando/aggiornando draft) o tutte (se stiamo creando)
+      const existingEntryForCompression = editingEntry || savedDraftEntry;
+      const photosToCompress = existingEntryForCompression
         ? photoFiles.slice(initialPhotoCount)
         : photoFiles;
 
@@ -672,14 +717,17 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         console.log(`Compresse ${photosToCompress.length} foto`);
       }
 
-      if (editingEntry) {
+      // Determine if we're updating an existing entry or a draft
+      const existingEntry = editingEntry || savedDraftEntry;
+
+      if (existingEntry) {
         // Check if there are photos remaining after removals
         const finalPhotoCount = photoFiles.length;
         const shouldMarkToComplete = finalPhotoCount === 0;
 
-        // Update existing entry
+        // Update existing entry (or draft)
         await updateMappingEntry(
-          editingEntry.id,
+          existingEntry.id,
           {
             floor,
             room: project.useRoomNumbering ? roomNumber : undefined,
@@ -696,19 +744,24 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         // Remove photos that were marked for deletion
         if (photosToRemove.length > 0) {
           for (const photoId of photosToRemove) {
-            await removePhotoFromMapping(editingEntry.id, photoId, currentUser.id);
+            await removePhotoFromMapping(existingEntry.id, photoId, currentUser.id);
           }
           console.log(`Rimosse ${photosToRemove.length} foto dalla mappatura`);
         }
 
         // Add new photos if any were added
         if (compressedBlobs.length > 0) {
-          await addPhotosToMapping(editingEntry.id, compressedBlobs, currentUser.id);
+          await addPhotosToMapping(existingEntry.id, compressedBlobs, currentUser.id);
           console.log(`Aggiunte ${compressedBlobs.length} nuove foto alla mappatura`);
         }
 
-        console.log('Mappatura aggiornata:', editingEntry.id);
+        console.log('Mappatura aggiornata:', existingEntry.id);
         alert('Mappatura aggiornata con successo!');
+
+        // Clear draft state if it was a draft
+        if (savedDraftEntry) {
+          setSavedDraftEntry(null);
+        }
 
         // Go back to view
         onBack();
