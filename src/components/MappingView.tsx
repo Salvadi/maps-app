@@ -26,6 +26,8 @@ import {
   createFloorPlanPoint,
   deleteFloorPlanPoint,
 } from '../db';
+import { SUPPORTO_OPTIONS } from '../config/supporto';
+import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import './MappingView.css';
 
 interface MappingViewProps {
@@ -189,6 +191,19 @@ const MappingView: React.FC<MappingViewProps> = ({
   const [showOnlyToComplete, setShowOnlyToComplete] = useState<boolean>(() => {
     const saved = localStorage.getItem(`mappingView_${project.id}_showOnlyToComplete`);
     return saved === 'true';
+  });
+  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`mappingView_${project.id}_filtersExpanded`);
+    return saved === null ? true : saved === 'true';
+  });
+  const [filterTipologico, setFilterTipologico] = useState<string>(() => {
+    return localStorage.getItem(`mappingView_${project.id}_filterTipologico`) || '';
+  });
+  const [filterSupporto, setFilterSupporto] = useState<string>(() => {
+    return localStorage.getItem(`mappingView_${project.id}_filterSupporto`) || '';
+  });
+  const [filterAttraversamento, setFilterAttraversamento] = useState<string>(() => {
+    return localStorage.getItem(`mappingView_${project.id}_filterAttraversamento`) || '';
   });
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`mappingView_${project.id}_expandedFloors`);
@@ -486,10 +501,31 @@ const MappingView: React.FC<MappingViewProps> = ({
 
   const sortedMappings = sortMappings(mappings);
 
+  // Apply advanced filters
+  let advancedFilteredMappings = sortedMappings;
+
+  if (filterTipologico) {
+    advancedFilteredMappings = advancedFilteredMappings.filter(m =>
+      m.crossings.some(c => c.tipologicoId === filterTipologico)
+    );
+  }
+
+  if (filterSupporto) {
+    advancedFilteredMappings = advancedFilteredMappings.filter(m =>
+      m.crossings.some(c => c.supporto === filterSupporto)
+    );
+  }
+
+  if (filterAttraversamento) {
+    advancedFilteredMappings = advancedFilteredMappings.filter(m =>
+      m.crossings.some(c => c.attraversamento === filterAttraversamento)
+    );
+  }
+
   // Apply "Da Completare" filter if enabled
   const filteredMappings = showOnlyToComplete
-    ? sortedMappings.filter(mapping => mapping.toComplete === true)
-    : sortedMappings;
+    ? advancedFilteredMappings.filter(mapping => mapping.toComplete === true)
+    : advancedFilteredMappings;
 
   const hierarchicalGroups = groupMappingsHierarchically(filteredMappings);
 
@@ -1751,82 +1787,160 @@ const MappingView: React.FC<MappingViewProps> = ({
 
         {/* Sorting and View Mode Controls */}
         {mappings.length > 0 && (
-          <div className="filter-controls">
-            <div className="sort-controls">
-              <label className="control-label">Ordina per:</label>
-              <div className="button-group">
-                <button
-                  className={`filter-btn ${sortBy === 'name' ? 'active' : ''}`}
-                  onClick={() => setSortBy('name')}
-                >
-                  Nome
-                </button>
-                <button
-                  className={`filter-btn ${sortBy === 'date' ? 'active' : ''}`}
-                  onClick={() => setSortBy('date')}
-                >
-                  Data
-                </button>
-                <button
-                  className={`filter-btn ${sortBy === 'floor' ? 'active' : ''}`}
-                  onClick={() => setSortBy('floor')}
-                >
-                  Piano
-                </button>
-                {project.useRoomNumbering && (
-                  <button
-                    className={`filter-btn ${sortBy === 'room' ? 'active' : ''}`}
-                    onClick={() => setSortBy('room')}
-                  >
-                    Stanza
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="order-controls">
-              <button
-                className="order-btn"
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                title={sortOrder === 'asc' ? 'Ordine crescente' : 'Ordine decrescente'}
-              >
-                {sortOrder === 'asc' ? <SortAscIcon className="icon" /> : <SortDescIcon className="icon" />}
-                {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+          <div className="filter-section">
+            <div className="filter-header" onClick={() => {
+              const newValue = !filtersExpanded;
+              setFiltersExpanded(newValue);
+              localStorage.setItem(`mappingView_${project.id}_filtersExpanded`, String(newValue));
+            }}>
+              <h3>Filtri e Ordinamento</h3>
+              <button className="collapse-toggle" onClick={(e) => e.stopPropagation()}>
+                {filtersExpanded ? '▲' : '▼'}
               </button>
             </div>
 
-            <div className="view-controls">
-              <label className="control-label">Vista:</label>
-              <div className="button-group">
-                <button
-                  className={`filter-btn ${viewMode === 'flat' ? 'active' : ''}`}
-                  onClick={() => setViewMode('flat')}
-                >
-                  Lista
-                </button>
-                <button
-                  className={`filter-btn ${viewMode === 'hierarchical' ? 'active' : ''}`}
-                  onClick={() => setViewMode('hierarchical')}
-                  title="Raggruppa per piano → stanza → intervento"
-                >
-                  <FolderIcon className="icon-inline" />
-                  Cartelle
-                </button>
-              </div>
-            </div>
+            {filtersExpanded && (
+              <div className="filter-controls">
+                <div className="sort-controls">
+                  <label className="control-label">Ordina per:</label>
+                  <div className="button-group">
+                    <button
+                      className={`filter-btn ${sortBy === 'name' ? 'active' : ''}`}
+                      onClick={() => setSortBy('name')}
+                    >
+                      Nome
+                    </button>
+                    <button
+                      className={`filter-btn ${sortBy === 'date' ? 'active' : ''}`}
+                      onClick={() => setSortBy('date')}
+                    >
+                      Data
+                    </button>
+                    <button
+                      className={`filter-btn ${sortBy === 'floor' ? 'active' : ''}`}
+                      onClick={() => setSortBy('floor')}
+                    >
+                      Piano
+                    </button>
+                    {project.useRoomNumbering && (
+                      <button
+                        className={`filter-btn ${sortBy === 'room' ? 'active' : ''}`}
+                        onClick={() => setSortBy('room')}
+                      >
+                        Stanza
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-            <div className="filter-status-controls">
-              <label className="control-label">Filtra:</label>
-              <div className="button-group">
-                <button
-                  className={`filter-btn ${showOnlyToComplete ? 'active' : ''}`}
-                  onClick={() => setShowOnlyToComplete(!showOnlyToComplete)}
-                  title="Mostra solo interventi da completare"
-                >
-                  {showOnlyToComplete ? '✓ ' : ''}Da Completare
-                </button>
+                <div className="order-controls">
+                  <button
+                    className="order-btn"
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    title={sortOrder === 'asc' ? 'Ordine crescente' : 'Ordine decrescente'}
+                  >
+                    {sortOrder === 'asc' ? <SortAscIcon className="icon" /> : <SortDescIcon className="icon" />}
+                    {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+                  </button>
+                </div>
+
+                <div className="view-controls">
+                  <label className="control-label">Vista:</label>
+                  <div className="button-group">
+                    <button
+                      className={`filter-btn ${viewMode === 'flat' ? 'active' : ''}`}
+                      onClick={() => setViewMode('flat')}
+                    >
+                      Lista
+                    </button>
+                    <button
+                      className={`filter-btn ${viewMode === 'hierarchical' ? 'active' : ''}`}
+                      onClick={() => setViewMode('hierarchical')}
+                      title="Raggruppa per piano → stanza → intervento"
+                    >
+                      <FolderIcon className="icon-inline" />
+                      Cartelle
+                    </button>
+                  </div>
+                </div>
+
+                <div className="filter-status-controls">
+                  <label className="control-label">Filtra:</label>
+                  <div className="button-group">
+                    <button
+                      className={`filter-btn ${showOnlyToComplete ? 'active' : ''}`}
+                      onClick={() => setShowOnlyToComplete(!showOnlyToComplete)}
+                      title="Mostra solo interventi da completare"
+                    >
+                      {showOnlyToComplete ? '✓ ' : ''}Da Completare
+                    </button>
+                  </div>
+                </div>
+
+                {/* Advanced Filters */}
+                <div className="advanced-filters">
+                  <label className="control-label">Filtri avanzati:</label>
+
+                  <select
+                    value={filterTipologico}
+                    onChange={(e) => {
+                      setFilterTipologico(e.target.value);
+                      localStorage.setItem(`mappingView_${project.id}_filterTipologico`, e.target.value);
+                    }}
+                    className="filter-select"
+                  >
+                    <option value="">Tutti i tipologici</option>
+                    {[...project.typologies].sort((a, b) => a.number - b.number).map(tip => (
+                      <option key={tip.id} value={tip.id}>Tip. {tip.number}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={filterSupporto}
+                    onChange={(e) => {
+                      setFilterSupporto(e.target.value);
+                      localStorage.setItem(`mappingView_${project.id}_filterSupporto`, e.target.value);
+                    }}
+                    className="filter-select"
+                  >
+                    <option value="">Tutti i supporti</option>
+                    {SUPPORTO_OPTIONS.filter(opt => opt.value).map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={filterAttraversamento}
+                    onChange={(e) => {
+                      setFilterAttraversamento(e.target.value);
+                      localStorage.setItem(`mappingView_${project.id}_filterAttraversamento`, e.target.value);
+                    }}
+                    className="filter-select"
+                  >
+                    <option value="">Tutti gli attraversamenti</option>
+                    {ATTRAVERSAMENTO_OPTIONS.filter(opt => opt.value).map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+
+                  {(filterTipologico || filterSupporto || filterAttraversamento) && (
+                    <button
+                      className="clear-filters-btn"
+                      onClick={() => {
+                        setFilterTipologico('');
+                        setFilterSupporto('');
+                        setFilterAttraversamento('');
+                        localStorage.removeItem(`mappingView_${project.id}_filterTipologico`);
+                        localStorage.removeItem(`mappingView_${project.id}_filterSupporto`);
+                        localStorage.removeItem(`mappingView_${project.id}_filterAttraversamento`);
+                      }}
+                    >
+                      Cancella filtri
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -1925,6 +2039,15 @@ const MappingView: React.FC<MappingViewProps> = ({
                                 }<br />
                                 {sig.tipologicoId && (
                                   <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
+                                )}
+                                {sig.quantita && (
+                                  <><strong>Quantità:</strong> {sig.quantita}<br /></>
+                                )}
+                                {sig.diametro && (
+                                  <><strong>Diametro:</strong> {sig.diametro}<br /></>
+                                )}
+                                {sig.dimensioni && (
+                                  <><strong>Dimensioni:</strong> {sig.dimensioni}<br /></>
                                 )}
                                 {sig.notes && (
                                   <><strong>Note:</strong> {sig.notes}<br /></>
@@ -2061,6 +2184,15 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                   }<br />
                                                   {sig.tipologicoId && (
                                                     <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
+                                                  )}
+                                                  {sig.quantita && (
+                                                    <><strong>Quantità:</strong> {sig.quantita}<br /></>
+                                                  )}
+                                                  {sig.diametro && (
+                                                    <><strong>Diametro:</strong> {sig.diametro}<br /></>
+                                                  )}
+                                                  {sig.dimensioni && (
+                                                    <><strong>Dimensioni:</strong> {sig.dimensioni}<br /></>
                                                   )}
                                                   {sig.notes && (
                                                     <><strong>Note:</strong> {sig.notes}<br /></>
@@ -2200,6 +2332,15 @@ const MappingView: React.FC<MappingViewProps> = ({
                                 }<br />
                                                           {sig.tipologicoId && (
                                                             <><strong>Tipologico:</strong> {getTipologicoNumber(sig.tipologicoId)}<br /></>
+                                                          )}
+                                                          {sig.quantita && (
+                                                            <><strong>Quantità:</strong> {sig.quantita}<br /></>
+                                                          )}
+                                                          {sig.diametro && (
+                                                            <><strong>Diametro:</strong> {sig.diametro}<br /></>
+                                                          )}
+                                                          {sig.dimensioni && (
+                                                            <><strong>Dimensioni:</strong> {sig.dimensioni}<br /></>
                                                           )}
                                                           {sig.notes && (
                                                             <><strong>Note:</strong> {sig.notes}<br /></>
