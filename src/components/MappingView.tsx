@@ -1504,43 +1504,47 @@ const MappingView: React.FC<MappingViewProps> = ({
             ctx.stroke();
           }
 
-          // Get label text from mapping entry
-          const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-          let labelText = ['Punto'];
-          if (mappingEntry) {
-            // First line: foto n. P0_S3_I3
-            const firstLineParts = [];
-            if (project.floors && project.floors.length > 1) {
-              firstLineParts.push(`P${mappingEntry.floor}`);
-            }
-            if (project.useRoomNumbering && mappingEntry.room) {
-              firstLineParts.push(`S${mappingEntry.room}`);
-            }
-            if (project.useInterventionNumbering && mappingEntry.intervention) {
-              firstLineParts.push(`I${mappingEntry.intervention}`);
-            }
+          // Get label text from metadata if available, otherwise generate from mapping entry
+          let labelText: string[] = point.metadata?.labelText || ['Punto'];
 
-            // Build first line with "foto n. " prefix
-            const firstLine = firstLineParts.length > 0
-              ? `foto n. ${firstLineParts.join('_')}`
-              : 'Punto';
-            labelText = [firstLine];
+          if (!point.metadata?.labelText) {
+            // Generate label text from mapping entry
+            const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
+            if (mappingEntry) {
+              // First line: foto n. P0_S3_I3
+              const firstLineParts = [];
+              if (project.floors && project.floors.length > 1) {
+                firstLineParts.push(`P${mappingEntry.floor}`);
+              }
+              if (project.useRoomNumbering && mappingEntry.room) {
+                firstLineParts.push(`S${mappingEntry.room}`);
+              }
+              if (project.useInterventionNumbering && mappingEntry.intervention) {
+                firstLineParts.push(`I${mappingEntry.intervention}`);
+              }
 
-            // Second line: Tip. X - get all unique tipologici, sorted
-            const tipNumbers = mappingEntry.crossings
-              .map(c => {
-                if (c.tipologicoId) {
-                  const tip = project.typologies.find(t => t.id === c.tipologicoId);
-                  return tip ? tip.number : null;
-                }
-                return null;
-              })
-              .filter((n): n is number => n !== null)
-              .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
-              .sort((a, b) => a - b); // Sort ascending
+              // Build first line with "foto n. " prefix
+              const firstLine = firstLineParts.length > 0
+                ? `foto n. ${firstLineParts.join('_')}`
+                : 'Punto';
+              labelText = [firstLine];
 
-            if (tipNumbers.length > 0) {
-              labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
+              // Second line: Tip. X - get all unique tipologici, sorted
+              const tipNumbers = mappingEntry.crossings
+                .map(c => {
+                  if (c.tipologicoId) {
+                    const tip = project.typologies.find(t => t.id === c.tipologicoId);
+                    return tip ? tip.number : null;
+                  }
+                  return null;
+                })
+                .filter((n): n is number => n !== null)
+                .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+                .sort((a, b) => a - b); // Sort ascending
+
+              if (tipNumbers.length > 0) {
+                labelText.push(`Tip. ${tipNumbers.join(' - ')}`);
+              }
             }
           }
 
@@ -1555,13 +1559,17 @@ const MappingView: React.FC<MappingViewProps> = ({
           const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
           const labelHeight = Math.max((labelText.length * lineHeight) + (padding * 2), minHeight);
 
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          // Use custom colors if available
+          const bgColor = point.metadata?.labelBackgroundColor || 'rgba(255, 255, 255, 0.95)';
+          const textColor = point.metadata?.labelTextColor || '#000000';
+
+          ctx.fillStyle = bgColor;
           ctx.strokeStyle = '#333333';
           ctx.lineWidth = 2;
           ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
           ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
 
-          ctx.fillStyle = '#000000';
+          ctx.fillStyle = textColor;
           ctx.textBaseline = 'top';
           labelText.forEach((line, index) => {
             const yPos = labelY + padding + (index * lineHeight);
