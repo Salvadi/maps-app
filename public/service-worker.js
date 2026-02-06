@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 29; // Increment this on every deploy! (v29: Label coloring and point filtering in planimetrie)
+const CACHE_VERSION = 30; // Increment this on every deploy! (v30: Fix export colors, text color support, visible checkboxes)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
