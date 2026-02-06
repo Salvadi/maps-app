@@ -935,11 +935,15 @@ const MappingView: React.FC<MappingViewProps> = ({
                 ctx.stroke();
               }
 
-              const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-              let labelText = ['Punto'];
-              if (mappingEntry) {
-                const photos = mappingPhotos[mappingEntry.id] || [];
-                labelText = generateMappingLabel(mappingEntry, photos.length);
+              // Get label text from metadata if available, otherwise generate from mapping entry
+              let labelText: string[] = point.metadata?.labelText || ['Punto'];
+
+              if (!point.metadata?.labelText) {
+                const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
+                if (mappingEntry) {
+                  const photos = mappingPhotos[mappingEntry.id] || [];
+                  labelText = generateMappingLabel(mappingEntry, photos.length);
+                }
               }
 
               const padding = 8;
@@ -952,13 +956,17 @@ const MappingView: React.FC<MappingViewProps> = ({
               const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
               const labelHeight = Math.max((labelText.length * lineHeight) + (padding * 2), minHeight);
 
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+              // Use custom colors if available
+              const bgColor = point.metadata?.labelBackgroundColor || 'rgba(255, 255, 255, 0.95)';
+              const textColor = point.metadata?.labelTextColor || '#000000';
+
+              ctx.fillStyle = bgColor;
               ctx.strokeStyle = '#333333';
               ctx.lineWidth = 2;
               ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
               ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
 
-              ctx.fillStyle = '#000000';
+              ctx.fillStyle = textColor;
               ctx.textBaseline = 'top';
               labelText.forEach((line, index) => {
                 const yPos = labelY + padding + (index * lineHeight);
