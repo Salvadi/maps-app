@@ -23,6 +23,7 @@ export const PRODUCTS_BY_BRAND: Record<string, string[]> = {
     'AF Fireguard 3',
     'AF Safeguard',
     'AF Bags',
+    'AF Junction Box'
   ],
   'Global Building': [
     'Global Building FireSeal',

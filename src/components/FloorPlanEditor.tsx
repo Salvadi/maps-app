@@ -166,7 +166,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
       return p;
     }));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Handle point selection
   const handlePointSelect = useCallback((pointId: string | null) => {
@@ -778,18 +779,20 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
           </div>
 
           <div className="menu-content">
-            {/* Filter toggle for unmapped entries */}
-            {mode === 'view-edit' && unmappedEntries.length > 0 && (
+            {/* Filter toggle for unmapped entries and sorting */}
+            {mode === 'view-edit' && (
               <div className="menu-section">
-                <label className="menu-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={showOnlyUnmapped}
-                    onChange={(e) => setShowOnlyUnmapped(e.target.checked)}
-                  />
-                  <span>Mostra solo non posizionati ({filteredUnmappedEntries().length})</span>
-                </label>
-                <div style={{ marginTop: '8px' }}>
+                {unmappedEntries.length > 0 && (
+                  <label className="menu-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyUnmapped}
+                      onChange={(e) => setShowOnlyUnmapped(e.target.checked)}
+                    />
+                    <span>Mostra solo non posizionati ({filteredUnmappedEntries().length})</span>
+                  </label>
+                )}
+                <div style={{ marginTop: unmappedEntries.length > 0 ? '8px' : '0' }}>
                   <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>
                     Ordina punti:
                   </label>

@@ -873,6 +873,7 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
         intervention: supabaseEntry.intervention || undefined,
         photos: supabaseEntry.photos || [],
         crossings: supabaseEntry.crossings || [],
+        toComplete: supabaseEntry.to_complete || false,
         timestamp: new Date(supabaseEntry.created_at).getTime(),
         createdBy: supabaseEntry.created_by,
         lastModified: new Date(supabaseEntry.updated_at).getTime(),
