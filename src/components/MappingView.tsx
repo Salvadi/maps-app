@@ -28,7 +28,9 @@ import {
   deleteFloorPlanPoint,
 } from '../db';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
+import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
+import { exportMappingsToDOCX } from '../utils/docxExportUtils';
 import './MappingView.css';
 
 interface MappingViewProps {
@@ -1197,6 +1199,35 @@ const MappingView: React.FC<MappingViewProps> = ({
     }
   };
 
+  // Export to DOCX Report
+  const handleExportDOCX = async () => {
+    setIsExporting(true);
+
+    try {
+      // Prepare mappings with photos
+      const mappingsWithPhotos = mappings.map(mapping => ({
+        ...mapping,
+        photos: mappingPhotos[mapping.id] || [],
+      }));
+
+      // Call export function
+      await exportMappingsToDOCX(
+        project,
+        mappingsWithPhotos,
+        SUPPORTO_OPTIONS,
+        TIPO_SUPPORTO_OPTIONS,
+        ATTRAVERSAMENTO_OPTIONS
+      );
+
+      console.log('DOCX report exported successfully');
+    } catch (error) {
+      console.error('Failed to export DOCX report:', error);
+      alert('Errore durante l\'esportazione del report DOCX. Controlla la console per dettagli.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Handle delete mapping
   const handleDeleteMapping = async (mappingId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1794,6 +1825,21 @@ const MappingView: React.FC<MappingViewProps> = ({
           >
             <DownloadIcon className="icon" />
             Export Completo
+          </button>
+          <button
+            className="export-btn primary"
+            onClick={handleExportDOCX}
+            disabled={isExporting || mappings.length === 0}
+            title="Esporta report fotografico in formato Word"
+          >
+            <svg className="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 2V8H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M16 13H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M16 17H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10 9H9H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Report DOCX
           </button>
           <button
             className="export-btn"
