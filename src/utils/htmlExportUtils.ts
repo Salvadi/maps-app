@@ -14,24 +14,6 @@ interface GroupedMapping {
   mappings: MappingWithPhotos[];
 }
 
-/**
- * Convert image URL to base64
- */
-async function imageUrlToBase64(url: string): Promise<string> {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error('Error converting image to base64:', error);
-    return '';
-  }
-}
 
 /**
  * Group mappings by floor, room, and intervention
@@ -72,12 +54,67 @@ function getLabelFromOptions(
 }
 
 /**
+ * Resize header image
+ */
+async function resizeHeaderImage(url: string, maxHeight: number = 60): Promise<string> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(blob);
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+
+        // Calculate new dimensions maintaining aspect ratio
+        const aspectRatio = img.width / img.height;
+        const height = Math.min(img.height, maxHeight);
+        const width = height * aspectRatio;
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to base64 with compression
+        try {
+          const base64 = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(base64);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Failed to load image'));
+      };
+
+      img.src = objectUrl;
+    });
+  } catch (error) {
+    console.error('Error resizing header image:', error);
+    return '';
+  }
+}
+
+/**
  * Generate HTML header with letterhead images
  */
 async function generateHeader(): Promise<string> {
-  const img1Base64 = await imageUrlToBase64(headerImage1);
-  const img2Base64 = await imageUrlToBase64(headerImage2);
-  const img3Base64 = await imageUrlToBase64(headerImage3);
+  const img1Base64 = await resizeHeaderImage(headerImage1, 50);
+  const img2Base64 = await resizeHeaderImage(headerImage2, 40);
+  const img3Base64 = await resizeHeaderImage(headerImage3, 40);
 
   return `
     <div class="header">
@@ -276,16 +313,63 @@ function generateCSS(): string {
 }
 
 /**
- * Convert blob to base64
+ * Resize and compress image to reduce file size
  */
-async function blobToBase64(blob: Blob): Promise<string> {
+async function resizeImage(blob: Blob, maxWidth: number = 800, maxHeight: number = 600, quality: number = 0.7): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // Calculate new dimensions maintaining aspect ratio
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        const aspectRatio = width / height;
+
+        if (width > height) {
+          width = maxWidth;
+          height = width / aspectRatio;
+        } else {
+          height = maxHeight;
+          width = height * aspectRatio;
+        }
+      }
+
+      // Create canvas and draw resized image
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to base64 with compression
+      try {
+        const base64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(base64);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+
+    img.src = url;
   });
 }
+
 
 /**
  * Generate photo prefix for naming
@@ -332,7 +416,8 @@ async function generatePhotosGrid(
     const photoNum = (i + 1).toString().padStart(2, '0');
     const photoName = `${photoPrefix}${photoNum}`;
 
-    const photoBase64 = await blobToBase64(photo.blob);
+    // Resize and compress image to reduce file size
+    const photoBase64 = await resizeImage(photo.blob, 800, 600, 0.7);
     html += `
       <div class="photo-item">
         <img src="${photoBase64}" alt="${photoName}">
