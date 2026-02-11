@@ -19,7 +19,8 @@ interface GroupedMapping {
  * Extract numeric value from string for sorting
  */
 function extractNumber(str: string): number {
-  const match = str.match(/\d+/);
+  // Remove all non-digits and parse
+  const match = str.match(/-?\d+/);
   return match ? parseInt(match[0], 10) : NaN;
 }
 
@@ -32,13 +33,15 @@ function compareAlphanumeric(a: string, b: string): number {
 
   // If both have numbers, compare numerically
   if (!isNaN(numA) && !isNaN(numB)) {
-    if (numA !== numB) {
-      return numA - numB;
-    }
+    return numA - numB;
   }
 
+  // If only one has a number, number comes first
+  if (!isNaN(numA)) return -1;
+  if (!isNaN(numB)) return 1;
+
   // Otherwise, compare alphabetically
-  return a.localeCompare(b, 'it');
+  return a.localeCompare(b, 'it', { numeric: true, sensitivity: 'base' });
 }
 
 /**
@@ -48,9 +51,9 @@ function groupMappings(mappings: MappingWithPhotos[], project: Project): Grouped
   const groups: { [key: string]: GroupedMapping } = {};
 
   mappings.forEach((mapping) => {
-    const floor = mapping.floor || 'Piano non specificato';
-    const room = mapping.room || 'Vano non specificato';
-    const intervention = mapping.intervention || 'Intervento non specificato';
+    const floor = mapping.floor || '';
+    const room = mapping.room || '';
+    const intervention = mapping.intervention || '';
     const key = `${floor}|${room}|${intervention}`;
 
     if (!groups[key]) {
@@ -92,7 +95,7 @@ function getLabelFromOptions(
 }
 
 /**
- * Resize header image
+ * Resize header image with white background
  */
 async function resizeHeaderImage(url: string, maxHeight: number = 60): Promise<string> {
   try {
@@ -122,11 +125,16 @@ async function resizeHeaderImage(url: string, maxHeight: number = 60): Promise<s
           return;
         }
 
+        // Fill white background (to replace transparency)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw image on top
         ctx.drawImage(img, 0, 0, width, height);
 
         // Convert to base64 with compression
         try {
-          const base64 = canvas.toDataURL('image/jpeg', 0.8);
+          const base64 = canvas.toDataURL('image/jpeg', 0.9);
           resolve(base64);
         } catch (error) {
           reject(error);
@@ -403,6 +411,11 @@ async function resizeImage(blob: Blob, maxWidth: number = 800, maxHeight: number
         return;
       }
 
+      // Fill white background (to replace transparency)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw image on top
       ctx.drawImage(img, 0, 0, width, height);
 
       // Convert to base64 with compression
@@ -435,16 +448,18 @@ function generatePhotoPrefix(
 ): string {
   const parts: string[] = [];
 
-  // Add floor
-  parts.push(`P${floor}`);
+  // Add floor if specified
+  if (floor && floor.trim()) {
+    parts.push(`P${floor}`);
+  }
 
   // Add room if numbering is enabled and room is specified
-  if (project.useRoomNumbering && room) {
+  if (project.useRoomNumbering && room && room.trim()) {
     parts.push(`S${room}`);
   }
 
   // Add intervention if numbering is enabled and intervention is specified
-  if (project.useInterventionNumbering && intervention) {
+  if (project.useInterventionNumbering && intervention && intervention.trim()) {
     parts.push(`I${intervention}`);
   }
 
@@ -612,10 +627,25 @@ export async function exportMappingsToHTML(
 
     // Generate content for each group
     for (const group of grouped) {
+      // Add floor header if specified
+      if (group.floor) {
+        html += `
+    <h2>Piano: ${group.floor}</h2>`;
+      }
+
+      // Add room header if specified
+      if (group.room) {
+        html += `
+    <h3>Stanza: ${group.room}</h3>`;
+      }
+
+      // Add intervention header if specified
+      if (group.intervention) {
+        html += `
+    <h4>Intervento: ${group.intervention}</h4>`;
+      }
+
       html += `
-    <h2>Piano: ${group.floor}</h2>
-    <h3>Vano: ${group.room}</h3>
-    <h4>Intervento: ${group.intervention}</h4>
 `;
 
       // Process each mapping in the group
