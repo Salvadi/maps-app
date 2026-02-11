@@ -1,7 +1,7 @@
 import type { Project, MappingEntry, Photo } from '../db/database';
-import headerImage1 from '../assets/image1.png';
-import headerImage2 from '../assets/image2.jpg';
-import headerImage3 from '../assets/image3.jpeg';
+import logoLeft from '../assets/letterhead/logo-left.png';
+import logoRight from '../assets/letterhead/logo-right1.jpg';
+import footerBanner from '../assets/letterhead/header-banner.jpg';
 
 type MappingWithPhotos = Omit<MappingEntry, 'photos'> & {
   photos: Photo[];
@@ -14,6 +14,32 @@ interface GroupedMapping {
   mappings: MappingWithPhotos[];
 }
 
+
+/**
+ * Extract numeric value from string for sorting
+ */
+function extractNumber(str: string): number {
+  const match = str.match(/\d+/);
+  return match ? parseInt(match[0], 10) : NaN;
+}
+
+/**
+ * Compare function for sorting floors and rooms numerically when possible
+ */
+function compareAlphanumeric(a: string, b: string): number {
+  const numA = extractNumber(a);
+  const numB = extractNumber(b);
+
+  // If both have numbers, compare numerically
+  if (!isNaN(numA) && !isNaN(numB)) {
+    if (numA !== numB) {
+      return numA - numB;
+    }
+  }
+
+  // Otherwise, compare alphabetically
+  return a.localeCompare(b, 'it');
+}
 
 /**
  * Group mappings by floor, room, and intervention
@@ -39,7 +65,19 @@ function groupMappings(mappings: MappingWithPhotos[], project: Project): Grouped
     groups[key].mappings.push(mapping);
   });
 
-  return Object.values(groups);
+  // Sort groups by floor, then room, then intervention
+  return Object.values(groups).sort((a, b) => {
+    // First compare floors
+    const floorCompare = compareAlphanumeric(a.floor, b.floor);
+    if (floorCompare !== 0) return floorCompare;
+
+    // Then compare rooms
+    const roomCompare = compareAlphanumeric(a.room, b.room);
+    if (roomCompare !== 0) return roomCompare;
+
+    // Finally compare interventions
+    return a.intervention.localeCompare(b.intervention, 'it');
+  });
 }
 
 /**
@@ -112,27 +150,38 @@ async function resizeHeaderImage(url: string, maxHeight: number = 60): Promise<s
  * Generate HTML header with letterhead images
  */
 async function generateHeader(): Promise<string> {
-  const img1Base64 = await resizeHeaderImage(headerImage1, 50);
-  const img2Base64 = await resizeHeaderImage(headerImage2, 40);
-  const img3Base64 = await resizeHeaderImage(headerImage3, 40);
+  const leftLogoBase64 = await resizeHeaderImage(logoLeft, 50);
+  const rightLogoBase64 = await resizeHeaderImage(logoRight, 40);
 
   return `
     <div class="header">
       <table style="width: 100%; border: none;">
         <tr>
-          <td style="width: 33%; text-align: left; border: none;">
-            ${img1Base64 ? `<img src="${img1Base64}" style="max-height: 50px; width: auto;" alt="Logo 1">` : ''}
+          <td style="width: 33%; text-align: left; border: none; vertical-align: middle;">
+            ${leftLogoBase64 ? `<img src="${leftLogoBase64}" style="max-height: 50px; width: auto;" alt="Logo sinistra">` : ''}
           </td>
-          <td style="width: 34%; text-align: center; border: none;">
+          <td style="width: 34%; text-align: center; border: none; vertical-align: middle;">
             <strong style="font-size: 18pt; color: #003366;">OPIFIRESAFE</strong>
           </td>
-          <td style="width: 33%; text-align: right; border: none;">
-            ${img2Base64 ? `<img src="${img2Base64}" style="max-height: 40px; width: auto; margin-right: 10px;" alt="Logo 2">` : ''}
-            ${img3Base64 ? `<img src="${img3Base64}" style="max-height: 40px; width: auto;" alt="Logo 3">` : ''}
+          <td style="width: 33%; text-align: right; border: none; vertical-align: middle;">
+            ${rightLogoBase64 ? `<img src="${rightLogoBase64}" style="max-height: 40px; width: auto;" alt="Logo destra">` : ''}
           </td>
         </tr>
       </table>
       <hr style="border: none; border-bottom: 2px solid #003366; margin-top: 10px; margin-bottom: 20px;">
+    </div>
+  `;
+}
+
+/**
+ * Generate HTML footer with letterhead banner
+ */
+async function generateFooter(): Promise<string> {
+  const bannerBase64 = await resizeHeaderImage(footerBanner, 80);
+
+  return `
+    <div class="footer" style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #003366;">
+      ${bannerBase64 ? `<img src="${bannerBase64}" style="width: 100%; max-width: 100%; height: auto; display: block;" alt="Footer">` : ''}
     </div>
   `;
 }
@@ -170,6 +219,10 @@ function generateCSS(): string {
       }
     }
 
+    html {
+      background-color: #ffffff;
+    }
+
     * {
       box-sizing: border-box;
     }
@@ -181,7 +234,7 @@ function generateCSS(): string {
       color: #000000;
       margin: 0;
       padding: 20px;
-      background: white;
+      background-color: #ffffff;
     }
 
     .page {
@@ -533,8 +586,9 @@ export async function exportMappingsToHTML(
     // Group mappings
     const grouped = groupMappings(mappings, project);
 
-    // Generate header
+    // Generate header and footer
     const headerHtml = await generateHeader();
+    const footerHtml = await generateFooter();
 
     // Start HTML document
     let html = `
@@ -594,8 +648,9 @@ export async function exportMappingsToHTML(
       }
     }
 
-    // Close HTML document
+    // Add footer before closing page
     html += `
+    ${footerHtml}
   </div>
 </body>
 </html>
