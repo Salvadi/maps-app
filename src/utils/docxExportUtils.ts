@@ -16,9 +16,15 @@ import {
   HeadingLevel,
   ImageRun,
   BorderStyle,
+  Header,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import type { Project, MappingEntry, Photo } from '../db/database';
+
+// Import header images
+import headerImage1 from '../assets/image1.png';
+import headerImage2 from '../assets/image2.jpg';
+import headerImage3 from '../assets/image3.jpeg';
 
 type MappingWithPhotos = Omit<MappingEntry, 'photos'> & {
   photos: Photo[];
@@ -142,9 +148,67 @@ function getLabel(options: { value: string; label: string }[], value: string): s
 }
 
 /**
- * Create header section with title and address
+ * Create document header with letterhead images
  */
-function createHeader(project: Project): Paragraph[] {
+async function createDocumentHeader(): Promise<Header> {
+  // Load header images
+  const loadImage = async (url: string): Promise<Uint8Array> => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  };
+
+  const image1Data = await loadImage(headerImage1);
+  const image2Data = await loadImage(headerImage2);
+  const image3Data = await loadImage(headerImage3);
+
+  return new Header({
+    children: [
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: image1Data,
+            transformation: {
+              width: 200,
+              height: 50,
+            },
+            type: 'png',
+          }),
+        ],
+        alignment: AlignmentType.LEFT,
+      }),
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: image2Data,
+            transformation: {
+              width: 150,
+              height: 40,
+            },
+            type: 'jpg',
+          }),
+          new TextRun({ text: '  ' }),
+          new ImageRun({
+            data: image3Data,
+            transformation: {
+              width: 150,
+              height: 40,
+            },
+            type: 'jpg',
+          }),
+        ],
+        alignment: AlignmentType.RIGHT,
+        spacing: { after: 200 },
+      }),
+    ],
+  });
+}
+
+/**
+ * Create title section with project name and address
+ */
+function createTitleSection(project: Project): Paragraph[] {
   return [
     new Paragraph({
       text: project.title,
@@ -541,14 +605,17 @@ export async function exportMappingsToDOCX(
   attraversamentoOptions: { value: string; label: string }[]
 ): Promise<void> {
   try {
+    // Create document header with letterhead
+    const documentHeader = await createDocumentHeader();
+
     // Group mappings
     const grouped = groupMappingsByFloorRoomIntervention(mappings, project);
 
     // Build document sections
     const sections: (Paragraph | Table)[] = [];
 
-    // Add header
-    sections.push(...createHeader(project));
+    // Add title section
+    sections.push(...createTitleSection(project));
 
     // Process each floor
     for (const floorGroup of grouped) {
@@ -603,11 +670,14 @@ export async function exportMappingsToDOCX(
       }
     }
 
-    // Create document
+    // Create document with header
     const doc = new Document({
       sections: [
         {
           properties: {},
+          headers: {
+            default: documentHeader,
+          },
           children: sections,
         },
       ],
