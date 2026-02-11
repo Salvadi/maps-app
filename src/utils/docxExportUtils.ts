@@ -150,59 +150,93 @@ function getLabel(options: { value: string; label: string }[], value: string): s
 /**
  * Create document header with letterhead images
  */
-async function createDocumentHeader(): Promise<Header> {
-  // Load header images
-  const loadImage = async (url: string): Promise<Uint8Array> => {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    const arrayBuffer = await blob.arrayBuffer();
-    return new Uint8Array(arrayBuffer);
-  };
+async function createDocumentHeader(): Promise<Header | null> {
+  try {
+    // Load header images
+    const loadImage = async (url: string): Promise<Uint8Array | null> => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`Failed to load image: ${url}`);
+          return null;
+        }
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        return new Uint8Array(arrayBuffer);
+      } catch (error) {
+        console.error(`Error loading image ${url}:`, error);
+        return null;
+      }
+    };
 
-  const image1Data = await loadImage(headerImage1);
-  const image2Data = await loadImage(headerImage2);
-  const image3Data = await loadImage(headerImage3);
+    const image1Data = await loadImage(headerImage1);
+    const image2Data = await loadImage(headerImage2);
+    const image3Data = await loadImage(headerImage3);
 
-  return new Header({
-    children: [
-      new Paragraph({
+    // If any image failed to load, return a simple text header
+    if (!image1Data || !image2Data || !image3Data) {
+      console.warn('Some header images failed to load, using simple header');
+      return new Header({
         children: [
-          new ImageRun({
-            data: image1Data,
-            transformation: {
-              width: 200,
-              height: 50,
-            },
-            type: 'png',
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: 'OPIFIRESAFE',
+                bold: true,
+                size: 28,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
           }),
         ],
-        alignment: AlignmentType.LEFT,
-      }),
-      new Paragraph({
-        children: [
-          new ImageRun({
-            data: image2Data,
-            transformation: {
-              width: 150,
-              height: 40,
+      });
+    }
+
+    // Create a table for better image layout
+    return new Header({
+      children: [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: 'OPIFIRESAFE',
+              bold: true,
+              size: 32,
+              color: '003366',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+          border: {
+            bottom: {
+              color: '003366',
+              space: 1,
+              style: BorderStyle.SINGLE,
+              size: 6,
             },
-            type: 'jpg',
-          }),
-          new TextRun({ text: '  ' }),
-          new ImageRun({
-            data: image3Data,
-            transformation: {
-              width: 150,
-              height: 40,
-            },
-            type: 'jpg',
-          }),
-        ],
-        alignment: AlignmentType.RIGHT,
-        spacing: { after: 200 },
-      }),
-    ],
-  });
+          },
+        }),
+      ],
+    });
+  } catch (error) {
+    console.error('Error creating document header:', error);
+    // Return simple text header as fallback
+    return new Header({
+      children: [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: 'OPIFIRESAFE',
+              bold: true,
+              size: 28,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+      ],
+    });
+  }
 }
 
 /**
@@ -607,6 +641,10 @@ export async function exportMappingsToDOCX(
   try {
     // Create document header with letterhead
     const documentHeader = await createDocumentHeader();
+
+    if (!documentHeader) {
+      throw new Error('Failed to create document header');
+    }
 
     // Group mappings
     const grouped = groupMappingsByFloorRoomIntervention(mappings, project);
