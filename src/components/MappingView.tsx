@@ -23,6 +23,7 @@ import {
   getFloorPlanPoints,
   getFloorPlanBlobUrl,
   updateFloorPlanPoint,
+  updateFloorPlanLabelsForMapping,
   createFloorPlanPoint,
   deleteFloorPlanPoint,
 } from '../db';
@@ -163,6 +164,7 @@ const MappingView: React.FC<MappingViewProps> = ({
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
   const [users, setUsers] = useState<User[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [floorPlanPoints, setFloorPlanPoints] = useState<Record<string, FloorPlanPoint[]>>({});
   const [selectedFloorPlan, setSelectedFloorPlan] = useState<string>('');
@@ -1227,6 +1229,52 @@ const MappingView: React.FC<MappingViewProps> = ({
     onEditMapping(mapping);
   };
 
+  // Handle update all floor plan labels
+  const handleUpdateAllLabels = async () => {
+    if (!window.confirm('Aggiornare tutte le etichette sulla planimetria con i dati più recenti delle mappature?')) {
+      return;
+    }
+
+    setIsUpdatingLabels(true);
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Update labels for each mapping that has floor plan points
+      for (const mapping of mappings) {
+        try {
+          const photos = mappingPhotos[mapping.id] || [];
+          await updateFloorPlanLabelsForMapping(mapping.id, () =>
+            generateMappingLabel(mapping, photos.length)
+          );
+          updatedCount++;
+        } catch (error) {
+          console.error(`Error updating labels for mapping ${mapping.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      // Reload floor plan points to reflect changes
+      const pointsMap: Record<string, FloorPlanPoint[]> = {};
+      for (const plan of floorPlans) {
+        const points = await getFloorPlanPoints(plan.id);
+        pointsMap[plan.id] = points;
+      }
+      setFloorPlanPoints(pointsMap);
+
+      if (errorCount === 0) {
+        alert(`✓ Aggiornate con successo le etichette di ${updatedCount} mappature!`);
+      } else {
+        alert(`⚠️ Aggiornate ${updatedCount} etichette, ${errorCount} errori. Controlla la console per dettagli.`);
+      }
+    } catch (error) {
+      console.error('Error updating floor plan labels:', error);
+      alert('Errore durante l\'aggiornamento delle etichette. Riprova.');
+    } finally {
+      setIsUpdatingLabels(false);
+    }
+  };
+
   // Handle open floor plan editor
   const handleOpenFloorPlanEditor = async (floorPlanId: string) => {
     const plan = floorPlans.find(p => p.id === floorPlanId);
@@ -1746,6 +1794,18 @@ const MappingView: React.FC<MappingViewProps> = ({
           >
             <DownloadIcon className="icon" />
             Export Completo
+          </button>
+          <button
+            className="export-btn"
+            onClick={handleUpdateAllLabels}
+            disabled={isUpdatingLabels || mappings.length === 0 || floorPlans.length === 0}
+            title="Aggiorna tutte le etichette sulla planimetria con i dati più recenti"
+          >
+            <svg className="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21.5 2V8H15.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3 12C3 13.1819 3.23279 14.3522 3.68508 15.4442C4.13738 16.5361 4.80031 17.5282 5.63604 18.364C6.47177 19.1997 7.46392 19.8626 8.55585 20.3149C9.64778 20.7672 10.8181 21 12 21C13.1819 21 14.3522 20.7672 15.4442 20.3149C16.5361 19.8626 17.5282 19.1997 18.364 18.364C19.1997 17.5282 19.8626 16.5361 20.3149 15.4442C20.7672 14.3522 21 13.1819 21 12C21 10.8181 20.7672 9.64778 20.3149 8.55585C19.8626 7.46392 19.1997 6.47177 18.364 5.63604" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            {isUpdatingLabels ? 'Aggiornamento...' : 'Aggiorna Etichette'}
           </button>
         </div>
 

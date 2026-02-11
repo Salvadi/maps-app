@@ -25,6 +25,7 @@ export {
   getFloorPlanPoints,
   updateFloorPlanPoint,
   deleteFloorPlanPoint,
+  updateFloorPlanLabelsForMapping,
   createStandaloneMap,
   getStandaloneMap,
   getStandaloneMaps,
