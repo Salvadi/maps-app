@@ -508,3 +508,59 @@ export function getFloorPlanBlobUrl(imageBlob: Blob): string {
 export function revokeFloorPlanBlobUrl(url: string): void {
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Update floor plan point labels for a specific mapping entry
+ * This should be called when a mapping entry is updated to keep labels in sync
+ */
+export async function updateFloorPlanLabelsForMapping(
+  mappingEntryId: string,
+  generateLabelFn: () => string[]
+): Promise<void> {
+  try {
+    // Find all floor plan points associated with this mapping entry
+    const points = await db.floorPlanPoints
+      .where('mappingEntryId')
+      .equals(mappingEntryId)
+      .toArray();
+
+    if (points.length === 0) {
+      console.log('No floor plan points found for mapping entry:', mappingEntryId);
+      return;
+    }
+
+    // Update each point's label metadata
+    for (const point of points) {
+      const newLabel = generateLabelFn();
+
+      await db.floorPlanPoints.update(point.id, {
+        metadata: {
+          ...point.metadata,
+          labelText: newLabel,
+        },
+        updatedAt: now(),
+        synced: 0,
+      });
+
+      // Add to sync queue
+      const updatedPoint = await db.floorPlanPoints.get(point.id);
+      if (updatedPoint) {
+        await db.syncQueue.add({
+          id: generateId(),
+          operation: 'UPDATE',
+          entityType: 'floor_plan_point',
+          entityId: point.id,
+          payload: updatedPoint,
+          timestamp: now(),
+          retryCount: 0,
+          synced: 0,
+        });
+      }
+    }
+
+    console.log(`Updated labels for ${points.length} floor plan point(s) associated with mapping ${mappingEntryId}`);
+  } catch (error) {
+    console.error('Error updating floor plan labels for mapping:', error);
+    throw error;
+  }
+}

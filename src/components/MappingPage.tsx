@@ -22,6 +22,7 @@ import {
   createFloorPlanPoint,
   updateFloorPlanPoint,
   updateFloorPlan,
+  updateFloorPlanLabelsForMapping,
   getFloorPlanBlobUrl
 } from '../db';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -743,6 +744,15 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           },
           currentUser.id
         );
+
+        // Update floor plan labels if they exist
+        try {
+          await updateFloorPlanLabelsForMapping(existingEntry.id, () => generateLabelText());
+          console.log('Etichette planimetria aggiornate per mapping:', existingEntry.id);
+        } catch (labelError) {
+          console.warn('Errore nell\'aggiornamento delle etichette planimetria:', labelError);
+          // Non blocchiamo il salvataggio se fallisce l'aggiornamento delle etichette
+        }
 
         // Remove photos that were marked for deletion
         if (photosToRemove.length > 0) {
