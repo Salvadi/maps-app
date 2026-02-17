@@ -23,11 +23,10 @@ import {
   updateFloorPlanPoint,
   updateFloorPlan,
   updateFloorPlanLabelsForMapping,
-  getFloorPlanBlobUrl
+  getFloorPlanBlobUrl,
+  getFloorPlanPoints
 } from '../db';
-import { SUPPORTO_OPTIONS } from '../config/supporto';
-import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
-import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
+import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import './MappingPage.css';
 
 interface MappingPageProps {
@@ -62,6 +61,10 @@ interface TypologyViewerModalProps {
 }
 
 const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onClose }) => {
+  const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
+  const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
+  const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
+
   // Helper function to get label from options
   const getLabel = (options: { value: string; label: string }[], value: string) => {
     const option = options.find(opt => opt.value === value);
@@ -73,7 +76,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
       <div className="modal-content typology-viewer-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Tipologici del Progetto</h2>
-          <button className="modal-close-btn" onClick={onClose}>×</button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Chiudi">×</button>
         </div>
         <div className="modal-body">
           {[...project.typologies].sort((a, b) => a.number - b.number).map((tip) => (
@@ -116,6 +119,10 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
 };
 
 const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack, editingEntry, onSync, isSyncing }) => {
+  const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
+  const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
+  const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
+
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoIds, setPhotoIds] = useState<(string | null)[]>([]); // Track photo IDs (null for new photos)
@@ -128,6 +135,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [currentFloorPlan, setCurrentFloorPlan] = useState<FloorPlan | null>(null);
   const [currentFloorPlanPoint, setCurrentFloorPlanPoint] = useState<FloorPlanPoint | null>(null);
   const [floorPlanImageUrl, setFloorPlanImageUrl] = useState<string | null>(null);
+  const [readOnlyPoints, setReadOnlyPoints] = useState<CanvasPoint[]>([]);
 
   // Track auto-saved draft entry (when user adds point before saving)
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
@@ -425,6 +433,31 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       setCurrentFloorPlanPoint(point || null);
     }
 
+    // Load all existing points on this floor plan for read-only display
+    try {
+      const allPoints = await getFloorPlanPoints(currentFloorPlan.id);
+      const currentEntryId = (editingEntry || savedDraftEntry)?.id;
+      const otherPoints = allPoints
+        .filter(p => p.mappingEntryId !== currentEntryId)
+        .map(p => ({
+          id: p.id,
+          type: p.pointType as CanvasPoint['type'],
+          pointX: p.pointX,
+          pointY: p.pointY,
+          labelX: p.labelX,
+          labelY: p.labelY,
+          labelText: p.metadata?.labelText || ['Punto'],
+          perimeterPoints: p.perimeterPoints,
+          mappingEntryId: p.mappingEntryId,
+          labelBackgroundColor: p.metadata?.labelBackgroundColor,
+          labelTextColor: p.metadata?.labelTextColor,
+        }));
+      setReadOnlyPoints(otherPoints);
+    } catch (err) {
+      console.warn('Could not load existing points:', err);
+      setReadOnlyPoints([]);
+    }
+
     setShowFloorPlanEditor(true);
   };
 
@@ -506,7 +539,6 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       });
 
       alert('Punto salvato sulla planimetria!');
-      setShowFloorPlanEditor(false);
     } catch (error) {
       console.error('Error saving floor plan point:', error);
       alert('Errore nel salvataggio del punto');
@@ -705,18 +737,25 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         : photoFiles;
 
       if (photosToCompress.length > 0) {
-        compressedBlobs = await Promise.all(
-          photosToCompress.map(async (file) => {
-            const options = {
-              maxSizeMB: 1,
-              maxWidthOrHeight: 1920,
-              useWebWorker: true,
-            };
-
-            const compressedFile = await imageCompression(file, options);
-            return compressedFile as Blob;
-          })
-        );
+        // Compress photos with concurrency limit to avoid memory spikes
+        const concurrency = 3;
+        const results: Blob[] = [];
+        for (let i = 0; i < photosToCompress.length; i += concurrency) {
+          const batch = photosToCompress.slice(i, i + concurrency);
+          const batchResults = await Promise.all(
+            batch.map(async (file) => {
+              const options = {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true,
+              };
+              const compressedFile = await imageCompression(file, options);
+              return compressedFile as Blob;
+            })
+          );
+          results.push(...batchResults);
+        }
+        compressedBlobs = results;
 
         console.log(`Compresse ${photosToCompress.length} foto`);
       }
@@ -1047,7 +1086,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
 
             <div className="crossings-list">
               {sigillature.map((sig, index) => (
-                <div key={index} className="crossing-row sigillatura-row">
+                <div key={sig.id} className="crossing-row sigillatura-row">
                   <div className="crossing-fields">
                     <div className="crossing-field">
                       <label className="crossing-label">Supporto</label>
@@ -1318,6 +1357,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             maxPoints={1}
             onSave={handleSaveFloorPlanPoint}
             onClose={() => setShowFloorPlanEditor(false)}
+            readOnlyPoints={readOnlyPoints}
           />
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PRODUCTS_BY_BRAND } from '../config/products';
+import { useProductsByBrand } from '../hooks/useDropdownOptions';
 import './ProductSelector.css';
 
 interface ProductSelectorProps {
@@ -13,6 +13,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   selectedProducts,
   onChange,
 }) => {
+  const PRODUCTS_BY_BRAND = useProductsByBrand();
   const [currentValue, setCurrentValue] = useState('');
 
   // Reset il select quando cambia la marca

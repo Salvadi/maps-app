@@ -22,13 +22,13 @@ import {
   getFloorPlansByProject,
   getFloorPlanPoints,
   getFloorPlanBlobUrl,
+  updateFloorPlan,
   updateFloorPlanPoint,
   updateFloorPlanLabelsForMapping,
   createFloorPlanPoint,
   deleteFloorPlanPoint,
 } from '../db';
-import { SUPPORTO_OPTIONS } from '../config/supporto';
-import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
+import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import './MappingView.css';
 
 interface MappingViewProps {
@@ -158,6 +158,9 @@ const MappingView: React.FC<MappingViewProps> = ({
   onSync,
   isSyncing,
 }) => {
+  const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
+  const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
+
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMapping, setSelectedMapping] = useState<string | null>(null);
@@ -1346,7 +1349,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             pointY: point.pointY,
             labelX: point.labelX,
             labelY: point.labelY,
-            labelText: point.metadata?.labelText || labelText, // Usa labelText custom se esiste, altrimenti generato
+            labelText: mappingEntry ? labelText : (point.metadata?.labelText || labelText), // Per punti con mapping, usa sempre il label rigenerato
             perimeterPoints: point.perimeterPoints,
             mappingEntryId: point.mappingEntryId, // Include to distinguish existing points from new ones
             labelBackgroundColor: point.metadata?.labelBackgroundColor, // Carica anche colore custom
@@ -1386,6 +1389,17 @@ const MappingView: React.FC<MappingViewProps> = ({
     if (!editorFloorPlan) return;
 
     try {
+      // Save grid configuration to floor plan
+      await updateFloorPlan(editorFloorPlan.id, {
+        gridEnabled: gridConfig.enabled,
+        gridConfig: {
+          rows: gridConfig.rows,
+          cols: gridConfig.cols,
+          offsetX: gridConfig.offsetX,
+          offsetY: gridConfig.offsetY,
+        }
+      });
+
       const currentPoints = floorPlanPoints[editorFloorPlan.id] || [];
       const currentPointIds = new Set(currentPoints.map(p => p.id));
       const newPointIds = new Set(points.map(p => p.id));
@@ -1461,7 +1475,6 @@ const MappingView: React.FC<MappingViewProps> = ({
       setFloorPlanPoints(pointsMap);
 
       alert('Modifiche salvate con successo!');
-      handleCloseFloorPlanEditor();
     } catch (error) {
       console.error('Error saving floor plan changes:', error);
       alert('Errore durante il salvataggio delle modifiche');
@@ -2482,16 +2495,23 @@ const MappingView: React.FC<MappingViewProps> = ({
             imageUrl={editorImageUrl}
             initialPoints={editorPoints}
             initialGridConfig={{
-              enabled: false,
-              rows: 10,
-              cols: 10,
-              offsetX: 0,
-              offsetY: 0,
+              enabled: editorFloorPlan.gridEnabled || false,
+              rows: editorFloorPlan.gridConfig?.rows || 10,
+              cols: editorFloorPlan.gridConfig?.cols || 10,
+              offsetX: editorFloorPlan.gridConfig?.offsetX || 0,
+              offsetY: editorFloorPlan.gridConfig?.offsetY || 0,
             }}
             mode="view-edit"
             unmappedEntries={editorUnmappedEntries}
             onSave={handleSaveFloorPlanEditor}
             onClose={handleCloseFloorPlanEditor}
+            onOpenMappingEntry={(mappingEntryId) => {
+              const mapping = mappings.find(m => m.id === mappingEntryId);
+              if (mapping) {
+                handleCloseFloorPlanEditor();
+                onEditMapping(mapping);
+              }
+            }}
           />
         </div>
       )}

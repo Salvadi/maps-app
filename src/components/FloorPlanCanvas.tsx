@@ -45,6 +45,7 @@ interface FloorPlanCanvasProps {
   onPerimeterDrawingChange?: (isDrawing: boolean) => void; // Callback when perimeter drawing starts/stops
   onCompletePerimeter?: () => void; // External trigger to complete perimeter
   onCancelPerimeter?: () => void; // External trigger to cancel perimeter
+  readOnlyPoints?: CanvasPoint[]; // Points to display as read-only (semi-transparent, no interaction)
 }
 
 const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
@@ -61,6 +62,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   onPerimeterDrawingChange,
   onCompletePerimeter,
   onCancelPerimeter,
+  readOnlyPoints = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,24 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [perimeterPoints, setPerimeterPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
   const [currentMousePos, setCurrentMousePos] = useState<{ x: number; y: number } | null>(null);
+  const measureTextCacheRef = useRef<Map<string, number>>(new Map());
+  const measureTextCacheZoomRef = useRef<number>(0);
+
+  // Cached measureText helper - invalidates when zoom changes
+  const cachedMeasureText = useCallback((ctx: CanvasRenderingContext2D, text: string, font: string): number => {
+    if (measureTextCacheZoomRef.current !== zoom) {
+      measureTextCacheRef.current.clear();
+      measureTextCacheZoomRef.current = zoom;
+    }
+    const key = `${font}|${text}`;
+    let width = measureTextCacheRef.current.get(key);
+    if (width === undefined) {
+      ctx.font = font;
+      width = ctx.measureText(text).width;
+      measureTextCacheRef.current.set(key, width);
+    }
+    return width;
+  }, [zoom]);
 
   // Notify when perimeter drawing state changes
   useEffect(() => {
@@ -222,6 +242,18 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       drawGrid(ctx);
     }
 
+    // Draw read-only points (semi-transparent, no interaction)
+    if (readOnlyPoints.length > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      readOnlyPoints.forEach(point => {
+        drawPoint(ctx, point);
+        drawConnectingLine(ctx, point);
+        drawLabel(ctx, point);
+      });
+      ctx.restore();
+    }
+
     // Draw points and labels (lines first, then labels on top)
     points.forEach(point => {
       drawPoint(ctx, point);
@@ -281,7 +313,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     // Restore context state
     ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos]);
+  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints]);
 
   // Draw grid
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
@@ -367,10 +399,12 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const minWidth = 70 * zoom;
     const minHeight = 36 * zoom;
 
-    ctx.font = `bold ${fontSize}px Arial`;
+    const boldFont = `bold ${fontSize}px Arial`;
+    const italicFont = `italic ${fontSize}px Arial`;
+    ctx.font = boldFont;
 
     // Calculate label dimensions based on number of lines
-    const maxWidth = Math.max(...point.labelText.map(line => ctx.measureText(line).width));
+    const maxWidth = Math.max(...point.labelText.map(line => cachedMeasureText(ctx, line, boldFont)));
     const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
     const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
 
@@ -397,27 +431,27 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       // Check if line starts with "foto n." or "Tip." and render with italic
       if (line.startsWith('foto n. ')) {
         // Draw "foto n." in italic
-        ctx.font = `italic ${fontSize}px Arial`;
+        ctx.font = italicFont;
         const intText = 'foto n. ';
         ctx.fillText(intText, xPos, yPos);
-        xPos += ctx.measureText(intText).width;
+        xPos += cachedMeasureText(ctx, intText, italicFont);
 
         // Draw rest in bold
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = boldFont;
         ctx.fillText(line.substring(8), xPos, yPos);
       } else if (line.startsWith('Tip. ')) {
         // Draw "Tip." in italic
-        ctx.font = `italic ${fontSize}px Arial`;
+        ctx.font = italicFont;
         const tipText = 'Tip. ';
         ctx.fillText(tipText, xPos, yPos);
-        xPos += ctx.measureText(tipText).width;
+        xPos += cachedMeasureText(ctx, tipText, italicFont);
 
         // Draw rest in bold
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = boldFont;
         ctx.fillText(line.substring(5), xPos, yPos);
       } else {
         // Draw entire line in bold
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = boldFont;
         ctx.fillText(line, xPos, yPos);
       }
     });
@@ -456,8 +490,9 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const lineHeight = 18 * zoom;
     const minWidth = 70 * zoom;
     const minHeight = 36 * zoom;
-    ctx.font = `bold ${fontSize}px Arial`;
-    const maxWidth = Math.max(...point.labelText.map(line => ctx.measureText(line).width));
+    const boldFontConn = `bold ${fontSize}px Arial`;
+    ctx.font = boldFontConn;
+    const maxWidth = Math.max(...point.labelText.map(line => cachedMeasureText(ctx, line, boldFontConn)));
     const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
     const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
 
@@ -747,18 +782,17 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     for (const point of points) {
       const labelPos = normalizedToCanvas(point.labelX, point.labelY);
 
-      // Calculate label dimensions using a temporary canvas context
+      // Calculate label dimensions using cached measureText
       // Scale with zoom to match drawLabel
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      if (tempCtx) {
+      const ctx = canvasRef.current?.getContext('2d');
+      if (ctx) {
         const padding = 8 * zoom;
         const fontSize = 14 * zoom;
         const lineHeight = 18 * zoom;
         const minWidth = 70 * zoom;
         const minHeight = 36 * zoom;
-        tempCtx.font = `bold ${fontSize}px Arial`;
-        const maxWidth = Math.max(...point.labelText.map(line => tempCtx.measureText(line).width));
+        const hitFont = `bold ${fontSize}px Arial`;
+        const maxWidth = Math.max(...point.labelText.map(line => cachedMeasureText(ctx, line, hitFont)));
         const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
         const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
 
@@ -1001,4 +1035,4 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   );
 };
 
-export default FloorPlanCanvas;
+export default React.memo(FloorPlanCanvas);

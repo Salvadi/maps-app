@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useModal } from '../hooks/useModal';
 import './ColorPickerModal.css';
 
 interface ColorPickerModalProps {
@@ -79,25 +80,7 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
     }
   };
 
-  // Chiudi su Escape
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  // Previeni scroll body
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = ''; };
-    }
-  }, [isOpen]);
+  useModal(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -111,7 +94,7 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
       <div className="color-picker-container" onClick={(e) => e.stopPropagation()}>
         <div className="color-picker-header">
           <h3>Seleziona Colore Etichetta</h3>
-          <button className="color-picker-close" onClick={onClose}>×</button>
+          <button className="color-picker-close" onClick={onClose} aria-label="Chiudi">×</button>
         </div>
 
         <div className="color-picker-content">

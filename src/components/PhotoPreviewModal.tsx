@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { useModal } from '../hooks/useModal';
 import './PhotoPreviewModal.css';
 
 interface PhotoPreviewModalProps {
@@ -8,25 +9,7 @@ interface PhotoPreviewModalProps {
 }
 
 const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({ imageUrl, altText, onClose }) => {
-  // Close on Escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
+  useModal(true, onClose);
 
   return (
     <div className="photo-preview-overlay" onClick={onClose}>

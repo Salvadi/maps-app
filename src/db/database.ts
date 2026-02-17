@@ -214,6 +214,29 @@ export interface StandaloneMap {
   synced: 0 | 1;
 }
 
+// ============================================
+// DROPDOWN OPTIONS CACHE INTERFACES
+// ============================================
+
+export interface DropdownOptionCache {
+  id: string; // Supabase UUID
+  category: string; // e.g., 'supporto', 'tipo_supporto', 'attraversamento'
+  value: string;
+  label: string;
+  sortOrder: number;
+  isActive: boolean;
+  fetchedAt: number; // timestamp
+}
+
+export interface ProductCache {
+  id: string; // Supabase UUID
+  brand: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  fetchedAt: number; // timestamp
+}
+
 // Dexie database class
 export class MappingDatabase extends Dexie {
   // Typed table properties
@@ -229,6 +252,10 @@ export class MappingDatabase extends Dexie {
   floorPlans!: Table<FloorPlan, string>;
   floorPlanPoints!: Table<FloorPlanPoint, string>;
   standaloneMaps!: Table<StandaloneMap, string>;
+
+  // DROPDOWN OPTIONS CACHE
+  dropdownOptionsCache!: Table<DropdownOptionCache, string>;
+  productsCache!: Table<ProductCache, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -292,6 +319,23 @@ export class MappingDatabase extends Dexie {
       floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
       standaloneMaps: 'id, userId, name, synced'
     });
+
+    // Define schema v5 - add dropdown options and products cache tables
+    this.version(5).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      // DROPDOWN OPTIONS CACHE
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder'
+    });
   }
 }
 
@@ -340,6 +384,8 @@ export async function clearDatabase(): Promise<void> {
   await db.floorPlans.clear();
   await db.floorPlanPoints.clear();
   await db.standaloneMaps.clear();
+  await db.dropdownOptionsCache.clear();
+  await db.productsCache.clear();
   // Keep metadata
   console.log('Database cleared');
 }

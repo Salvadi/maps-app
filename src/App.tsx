@@ -7,6 +7,7 @@ import MappingPage from './components/MappingPage';
 import MappingView from './components/MappingView';
 import StandaloneFloorPlanEditor from './components/StandaloneFloorPlanEditor';
 import UpdateNotification from './components/UpdateNotification';
+import ErrorBoundary from './components/ErrorBoundary';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry, db } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
@@ -512,7 +513,9 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {renderView()}
+      <ErrorBoundary>
+        {renderView()}
+      </ErrorBoundary>
 
       {/* Update notification banner */}
       <UpdateNotification registration={swRegistration} />

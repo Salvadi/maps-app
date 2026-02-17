@@ -31,6 +31,8 @@ interface FloorPlanEditorProps {
   onExportJSON?: () => void;
   onExportPNG?: () => void;
   onExportPDF?: () => void;
+  onOpenMappingEntry?: (mappingEntryId: string) => void;
+  readOnlyPoints?: CanvasPoint[];
 }
 
 const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
@@ -54,6 +56,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   onExportJSON,
   onExportPNG: onExportPNGProp,
   onExportPDF: onExportPDFProp,
+  onOpenMappingEntry,
+  readOnlyPoints,
 }) => {
   const [points, setPoints] = useState<CanvasPoint[]>(initialPoints);
   const [gridConfig, setGridConfig] = useState<GridConfig>(initialGridConfig);
@@ -61,10 +65,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [activeTool, setActiveTool] = useState<Tool>('pan');
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [showLeftMenu, setShowLeftMenu] = useState(false);
-  const [showRightMenu, setShowRightMenu] = useState(mode === 'mapping' || (mode === 'view-edit' && unmappedEntriesProp.length > 0)); // Auto-show in mapping mode or view-edit with unmapped
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const [showRightMenu, setShowRightMenu] = useState(!isMobile && (mode === 'mapping' || (mode === 'view-edit' && unmappedEntriesProp.length > 0))); // Auto-show unless mobile
   const [zoomInTrigger, setZoomInTrigger] = useState(0);
   const [zoomOutTrigger, setZoomOutTrigger] = useState(0);
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showToolbarMenu, setShowToolbarMenu] = useState(false);
   const [selectedUnmappedId, setSelectedUnmappedId] = useState<string | null>(null);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
@@ -119,6 +125,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     setSelectedPointId(point.id);
     setSelectedUnmappedId(null);
     setActiveTool('pan');
+    setHasUnsavedChanges(true);
 
     // Remove entry from unmapped list
     setUnmappedEntries(prev => prev.filter(e => e.id !== entry.id));
@@ -150,6 +157,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     };
 
     setPoints(prev => [...prev, point]);
+    setHasUnsavedChanges(true);
     setSelectedPointId(point.id);
   }, [maxPoints, points.length, mode, selectedUnmappedId, handlePlaceUnmappedEntry]);
 
@@ -166,6 +174,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
       return p;
     }));
+    setHasUnsavedChanges(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -208,29 +217,46 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
         setPoints(prev => prev.filter(p => p.id !== selectedPointId));
         setSelectedPointId(null);
+        setHasUnsavedChanges(true);
         return;
       }
 
       // Normal mode - allow deleting any point
       setPoints(prev => prev.filter(p => p.id !== selectedPointId));
       setSelectedPointId(null);
+      setHasUnsavedChanges(true);
     }
   }, [selectedPointId, mode, points]);
 
   // Handle grid toggle
   const handleGridToggle = useCallback(() => {
     setGridConfig(prev => ({ ...prev, enabled: !prev.enabled }));
+    setHasUnsavedChanges(true);
   }, []);
 
   // Handle grid config change
   const handleGridConfigChange = useCallback((key: keyof GridConfig, value: number) => {
     setGridConfig(prev => ({ ...prev, [key]: value }));
+    setHasUnsavedChanges(true);
   }, []);
 
   // Handle save
   const handleSave = useCallback(() => {
     onSave?.(points, gridConfig);
+    setHasUnsavedChanges(false);
   }, [points, gridConfig, onSave]);
+
+  // Handle close with unsaved changes check
+  const handleClose = useCallback(() => {
+    if (hasUnsavedChanges) {
+      const result = window.confirm('Hai modifiche non salvate. Salvare prima di chiudere?');
+      if (result) {
+        onSave?.(points, gridConfig);
+        setHasUnsavedChanges(false);
+      }
+    }
+    onClose?.();
+  }, [hasUnsavedChanges, onSave, points, gridConfig, onClose]);
 
   // Handle export to PDF
   const handleExportPDF = useCallback(() => {
@@ -441,7 +467,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             </button>
           )}
           {mode !== 'standalone' && (
-            <button className="btn-close" onClick={onClose}>
+            <button className="btn-close" onClick={handleClose}>
               Chiudi
             </button>
           )}
@@ -622,7 +648,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         <div className={`editor-menu left-menu ${showLeftMenu ? 'open' : ''}`}>
           <div className="menu-header">
             <h3>Impostazioni</h3>
-            <button className="menu-close" onClick={() => setShowLeftMenu(false)}>×</button>
+            <button className="menu-close" onClick={() => setShowLeftMenu(false)} aria-label="Chiudi menu">×</button>
           </div>
 
           <div className="menu-content">
@@ -717,18 +743,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               )}
             </div>
 
-            {/* Export options */}
-            {mode !== 'standalone' && (
-              <div className="menu-section">
-                <h4>Esporta</h4>
-                <button className="menu-btn" onClick={handleExportPDF}>
-                  <span>📄</span> Esporta PDF
-                </button>
-                <button className="menu-btn" onClick={handleExportPNG}>
-                  <span>🖼️</span> Esporta PNG
-                </button>
-              </div>
-            )}
+            {/* Export options - only in standalone mode (MappingView has its own export) */}
           </div>
         </div>
 
@@ -748,6 +763,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             onPerimeterDrawingChange={handlePerimeterDrawingChange}
             onCompletePerimeter={handleCompletePerimeter}
             onCancelPerimeter={handleCancelPerimeter}
+            readOnlyPoints={readOnlyPoints}
           />
 
           {/* Perimeter control buttons (V/X) */}
@@ -775,7 +791,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         <div className={`editor-menu right-menu ${showRightMenu ? 'open' : ''}`}>
           <div className="menu-header">
             <h3>Punti</h3>
-            <button className="menu-close" onClick={() => setShowRightMenu(false)}>×</button>
+            <button className="menu-close" onClick={() => setShowRightMenu(false)} aria-label="Chiudi menu">×</button>
           </div>
 
           <div className="menu-content">
@@ -931,6 +947,26 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                             ))
                           )}
                         </div>
+                        {onOpenMappingEntry && point.mappingEntryId && (
+                          <button
+                            className="btn-open-mapping"
+                            title="Apri mappatura"
+                            aria-label="Apri mappatura"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (hasUnsavedChanges) {
+                                const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
+                                if (save) {
+                                  onSave?.(points, gridConfig);
+                                  setHasUnsavedChanges(false);
+                                }
+                              }
+                              onOpenMappingEntry(point.mappingEntryId!);
+                            }}
+                          >
+                            📋
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
