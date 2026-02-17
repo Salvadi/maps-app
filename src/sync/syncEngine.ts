@@ -1,6 +1,7 @@
 import { db, Project, MappingEntry, Photo, SyncQueueItem } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
+import { refreshDropdownCaches } from '../db/dropdownOptions';
 
 /**
  * Sync Engine for Phase 3
@@ -81,8 +82,16 @@ export async function processSyncQueue(): Promise<SyncResult> {
   let failedCount = 0;
   const errors: Array<{ item: SyncQueueItem; error: string }> = [];
 
+  const MAX_RETRIES = 5;
+
   // Process items sequentially to maintain order
   for (const item of pendingItems) {
+    // Skip items that have exceeded retry limit
+    if ((item.retryCount || 0) >= MAX_RETRIES) {
+      console.warn(`⏭️ Skipping permanently failed item: ${item.entityType} ${item.entityId} (${item.retryCount} retries)`);
+      continue;
+    }
+
     try {
       await processSyncItem(item);
 
@@ -96,9 +105,12 @@ export async function processSyncQueue(): Promise<SyncResult> {
       const errorMessage = err instanceof Error ? err.message : String(err);
       errors.push({ item, error: errorMessage });
 
-      console.error(`❌ Failed to sync ${item.entityType} ${item.operation}:`, errorMessage);
+      // Increment retry count
+      await db.syncQueue.update(item.id, {
+        retryCount: (item.retryCount || 0) + 1
+      });
 
-      // Continue processing other items even if one fails
+      console.error(`❌ Failed to sync ${item.entityType} ${item.operation} (retry ${(item.retryCount || 0) + 1}/${MAX_RETRIES}):`, errorMessage);
     }
   }
 
@@ -337,12 +349,9 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
           synced: 0
         };
 
-        // Check if this photo sync item already exists
-        const existingPhotoSync = await db.syncQueue.get(photoSyncItem.id);
-        if (!existingPhotoSync) {
-          await db.syncQueue.add(photoSyncItem);
-          console.log(`📸 Added photo ${photo.id} to sync queue`);
-        }
+        // Idempotent put - avoids race condition with check-then-add
+        await db.syncQueue.put(photoSyncItem);
+        console.log(`📸 Added photo ${photo.id} to sync queue`);
       }
     }
   } else if (item.operation === 'DELETE') {
@@ -924,15 +933,15 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
 /**
  * Download photos from Supabase Storage and save to IndexedDB
  */
-export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
+export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolean = false): Promise<{ downloaded: number; failed: number }> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
+    return { downloaded: 0, failed: 0 };
   }
 
   if (!navigator.onLine) {
     console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
+    return { downloaded: 0, failed: 0 };
   }
 
   console.log(`⬇️  Downloading photos from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
@@ -958,7 +967,7 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 
     if (userProjects.length === 0) {
       console.log('✅ No sync-enabled projects found, skipping photos download');
-      return 0;
+      return { downloaded: 0, failed: 0 };
     }
 
     const projectIds = userProjects.map(p => p.id);
@@ -972,7 +981,7 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 
     if (mappingEntries.length === 0) {
       console.log('✅ No mapping entries found, skipping photos download');
-      return 0;
+      return { downloaded: 0, failed: 0 };
     }
 
     const mappingEntryIds = mappingEntries.map(e => e.id);
@@ -1005,12 +1014,13 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 
     if (!photoMetadata || photoMetadata.length === 0) {
       console.log('✅ No photos to download');
-      return 0;
+      return { downloaded: 0, failed: 0 };
     }
 
     console.log(`📥 Found ${photoMetadata.length} photos to download`);
 
     let downloadedCount = 0;
+    let failedCount = 0;
 
     for (const photoMeta of photoMetadata) {
       try {
@@ -1028,11 +1038,13 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
 
         if (downloadError) {
           console.error(`❌ Failed to download photo ${photoMeta.id}:`, downloadError.message);
+          failedCount++;
           continue;
         }
 
         if (!blob) {
           console.error(`❌ No blob returned for photo ${photoMeta.id}`);
+          failedCount++;
           continue;
         }
 
@@ -1052,12 +1064,12 @@ export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolea
       } catch (photoErr) {
         const photoErrorMessage = photoErr instanceof Error ? photoErr.message : String(photoErr);
         console.error(`❌ Error downloading photo ${photoMeta.id}:`, photoErrorMessage);
-        // Continue with next photo even if one fails
+        failedCount++;
       }
     }
 
-    console.log(`✅ Downloaded ${downloadedCount} photos from Supabase`);
-    return downloadedCount;
+    console.log(`✅ Downloaded ${downloadedCount} photos from Supabase${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
+    return { downloaded: downloadedCount, failed: failedCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Failed to download photos:', errorMessage);
@@ -1397,17 +1409,17 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
  * Sync data FROM Supabase TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
-export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
+export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
   }
 
   // Check if user is authenticated
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
   }
 
   console.log('⬇️  Starting sync FROM Supabase...');
@@ -1435,13 +1447,16 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
 
     const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-    const photosCount = await downloadPhotosFromSupabase(session.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
     const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
     const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points`);
+    const photosCount = photosResult.downloaded;
+    const photosFailedCount = photosResult.failed;
 
-    return { projectsCount, entriesCount, photosCount, floorPlansCount, floorPlanPointsCount };
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points`);
+
+    return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Sync from Supabase failed:', errorMessage);
@@ -1543,6 +1558,9 @@ export async function manualSync(): Promise<{
 
     // Download remote changes AFTER upload completes
     const downloadResult = await syncFromSupabase();
+
+    // Refresh dropdown option caches
+    await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed:', err));
 
     console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 

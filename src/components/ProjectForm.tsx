@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan } from '../db';
+import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry } from '../db';
+import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
 import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
-import { SUPPORTO_OPTIONS } from '../config/supporto';
-import { TIPO_SUPPORTO_OPTIONS } from '../config/tipoSupporto';
-import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
-import { MARCA_PRODOTTO_OPTIONS } from '../config/marcaProdotto';
+import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
 import './ProjectForm.css';
 
 interface ProjectFormProps {
@@ -18,6 +16,11 @@ interface ProjectFormProps {
 }
 
 const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave, onCancel, onSync, isSyncing }) => {
+  const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
+  const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
+  const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
+  const MARCA_PRODOTTO_OPTIONS = useBrandOptions();
+
   const [title, setTitle] = useState(project?.title || '');
   const [client, setClient] = useState(project?.client || '');
   const [address, setAddress] = useState(project?.address || '');
@@ -249,6 +252,90 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     setSelectedUserIds([ownerId]);
   };
 
+  const cascadeTypologyChangesToMappings = async (
+    projectId: string,
+    oldTypologies: Typology[],
+    newTypologies: Typology[],
+    userId: string
+  ) => {
+    // Find typologies that were modified (same id but different fields)
+    const modifiedTypologies: Array<{ old: Typology; new_: Typology }> = [];
+    for (const newTyp of newTypologies) {
+      const oldTyp = oldTypologies.find(t => t.id === newTyp.id);
+      if (oldTyp && (
+        oldTyp.supporto !== newTyp.supporto ||
+        oldTyp.tipoSupporto !== newTyp.tipoSupporto ||
+        oldTyp.attraversamento !== newTyp.attraversamento ||
+        oldTyp.attraversamentoCustom !== newTyp.attraversamentoCustom
+      )) {
+        modifiedTypologies.push({ old: oldTyp, new_: newTyp });
+      }
+    }
+
+    if (modifiedTypologies.length === 0) return;
+
+    // Get all mapping entries for this project
+    const mappings = await getMappingEntriesForProject(projectId);
+    if (mappings.length === 0) return;
+
+    // For each modified typology, find affected mappings
+    for (const { new_: modifiedTyp } of modifiedTypologies) {
+      const affectedMappings = mappings.filter(m =>
+        m.crossings.some(c => c.tipologicoId === modifiedTyp.id)
+      );
+
+      if (affectedMappings.length === 0) continue;
+
+      const shouldUpdate = window.confirm(
+        `Hai modificato il tipologico N. ${modifiedTyp.number}. Ci sono ${affectedMappings.length} mappature che lo usano.\nVuoi aggiornare anche le mappature esistenti con i nuovi dati del tipologico?`
+      );
+
+      if (!shouldUpdate) continue;
+
+      for (const mapping of affectedMappings) {
+        const updatedCrossings = mapping.crossings.map(c => {
+          if (c.tipologicoId === modifiedTyp.id) {
+            return {
+              ...c,
+              supporto: modifiedTyp.supporto,
+              tipoSupporto: modifiedTyp.tipoSupporto,
+              attraversamento: modifiedTyp.attraversamento,
+              attraversamentoCustom: modifiedTyp.attraversamentoCustom,
+            };
+          }
+          return c;
+        });
+
+        await updateMappingEntry(mapping.id, { crossings: updatedCrossings }, userId);
+
+        // Update floor plan labels
+        try {
+          await updateFloorPlanLabelsForMapping(mapping.id, () => {
+            // Generate simple label - the full label will be regenerated when MappingView opens
+            const tipNumbers = updatedCrossings
+              .map(c => {
+                if (c.tipologicoId) {
+                  const tip = newTypologies.find(t => t.id === c.tipologicoId);
+                  return tip ? tip.number : null;
+                }
+                return null;
+              })
+              .filter((n): n is number => n !== null)
+              .filter((v, i, a) => a.indexOf(v) === i)
+              .sort((a, b) => a - b)
+              .join(' - ');
+            const tipLine = tipNumbers ? `tip. ${tipNumbers}` : '';
+            return [mapping.id.substring(0, 8), tipLine].filter(Boolean);
+          });
+        } catch (labelErr) {
+          console.warn('Failed to update labels for mapping:', mapping.id, labelErr);
+        }
+      }
+
+      console.log(`Updated ${affectedMappings.length} mappings for typology ${modifiedTyp.number}`);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -268,6 +355,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         : (project?.typologies || []);
 
       if (project) {
+        // Detect modified typologies before saving
+        const oldTypologies = project.typologies || [];
+
         // Update existing project
         await updateProject(project.id, {
           title,
@@ -281,6 +371,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : project.accessibleUsers,
         });
         console.log('Project updated:', project.id);
+
+        // Check if any typologies were modified and cascade to existing mappings
+        if (showTipologici) {
+          await cascadeTypologyChangesToMappings(project.id, oldTypologies, sortedTypologies, currentUser.id);
+        }
       } else {
         // Create new project
         const newProject = await createProject({

@@ -435,6 +435,24 @@
 .point-label {
   font-size: 12px;
   color: #757575;
+  flex: 1;
+}
+
+.btn-open-mapping {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  transition: background-color 0.2s;
+}
+
+.btn-open-mapping:hover {
+  background-color: #e3f2fd;
+  border-color: #2196F3;
 }
 
 .label-edit-fields {

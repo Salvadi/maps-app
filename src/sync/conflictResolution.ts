@@ -368,9 +368,11 @@ export async function checkForConflicts(
         return { hasConflict: false, remote };
       }
 
-      // Compare versions
+      // Compare versions and timestamps
       const remoteTime = new Date(remote.updated_at).getTime();
-      const hasConflict = local.updatedAt !== remoteTime;
+      const remoteVersion = remote.version ?? 0;
+      const localVersion = local.version ?? 0;
+      const hasConflict = localVersion !== remoteVersion || local.updatedAt !== remoteTime;
 
       return { hasConflict, remote };
     } else {
@@ -403,36 +405,3 @@ export async function checkForConflicts(
   }
 }
 
-/**
- * Apply conflict resolution and update local database
- */
-export async function applyConflictResolution(
-  entityType: 'project' | 'mapping',
-  entityId: string,
-  strategy: ConflictResolutionStrategy = 'last-modified-wins'
-): Promise<void> {
-  const { hasConflict, remote } = await checkForConflicts(entityType, entityId);
-
-  if (!hasConflict || !remote) {
-    console.log(`No conflict for ${entityType} ${entityId}`);
-    return;
-  }
-
-  if (entityType === 'project') {
-    const local = await db.projects.get(entityId);
-    if (!local) return;
-
-    const resolved = await resolveProjectConflict(local, remote, strategy);
-    await db.projects.put(resolved);
-
-    console.log(`✅ Project ${entityId} conflict resolved and updated locally`);
-  } else {
-    const local = await db.mappingEntries.get(entityId);
-    if (!local) return;
-
-    const resolved = await resolveMappingEntryConflict(local, remote, strategy);
-    await db.mappingEntries.put(resolved);
-
-    console.log(`✅ Mapping entry ${entityId} conflict resolved and updated locally`);
-  }
-}

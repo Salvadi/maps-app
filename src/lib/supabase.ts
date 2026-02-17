@@ -249,6 +249,57 @@ export interface Database {
           processed_at?: string | null;
         };
       };
+      dropdown_options: {
+        Row: {
+          id: string;
+          category: string;
+          value: string;
+          label: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          category: string;
+          value: string;
+          label: string;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+        Update: {
+          category?: string;
+          value?: string;
+          label?: string;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+      };
+      products: {
+        Row: {
+          id: string;
+          brand: string;
+          name: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          brand: string;
+          name: string;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+        Update: {
+          brand?: string;
+          name?: string;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+      };
     };
   };
 }

@@ -167,6 +167,22 @@ export async function deleteMappingEntry(id: string): Promise<void> {
     // Delete photos
     await db.photos.where('mappingEntryId').equals(id).delete();
 
+    // Delete associated floor plan points
+    const orphanedPoints = await db.floorPlanPoints.where('mappingEntryId').equals(id).toArray();
+    for (const point of orphanedPoints) {
+      await db.floorPlanPoints.delete(point.id);
+      await db.syncQueue.add({
+        id: generateId(),
+        operation: 'DELETE',
+        entityType: 'floor_plan_point',
+        entityId: point.id,
+        payload: { id: point.id },
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      });
+    }
+
     // Delete mapping entry
     await db.mappingEntries.delete(id);
 

@@ -8,7 +8,7 @@ export * from './floorPlans';
 // Re-export commonly used functions
 export { db, initializeDatabase, clearDatabase, getDatabaseStats } from './database';
 export { createProject, getProject, getAllProjects, getProjectsForUser, updateProject, deleteProject, archiveProject, unarchiveProject } from './projects';
-export { createMappingEntry, getMappingEntry, getMappingEntriesForProject } from './mappings';
+export { createMappingEntry, getMappingEntry, getMappingEntriesForProject, updateMappingEntry, deleteMappingEntry, getPhotosForMapping, addPhotosToMapping, removePhotoFromMapping } from './mappings';
 export { login, signUp, logout, getCurrentUser, isAdmin, initializeMockUsers, onAuthStateChange, sendPasswordResetEmail, updatePassword } from './auth';
 
 // Floor Plans exports
@@ -38,3 +38,6 @@ export {
 
 // Export floor plan types
 export type { FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
+
+// Dropdown options exports
+export { getDropdownOptions, getProductsByBrand, getBrandOptions, refreshDropdownCaches } from './dropdownOptions';
