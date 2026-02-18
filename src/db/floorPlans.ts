@@ -5,6 +5,7 @@
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
 import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
+import { triggerImmediateUpload } from '../sync/syncEngine';
 
 // ============================================
 // FLOOR PLANS
@@ -69,6 +70,7 @@ export async function createFloorPlan(
       retryCount: 0,
       synced: 0, // Always set to 0 so it gets processed by sync engine
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan created:', floorPlan.id);
     return floorPlan;
@@ -132,6 +134,7 @@ export async function updateFloorPlan(
         retryCount: 0,
         synced: 0,
       });
+      triggerImmediateUpload();
     }
 
     console.log('Floor plan updated:', id);
@@ -168,6 +171,7 @@ export async function deleteFloorPlan(id: string): Promise<void> {
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan deleted:', id);
   } catch (error) {
@@ -230,6 +234,7 @@ export async function createFloorPlanPoint(
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan point created:', point.id);
     return point;
@@ -289,6 +294,7 @@ export async function updateFloorPlanPoint(
         retryCount: 0,
         synced: 0,
       });
+      triggerImmediateUpload();
     }
 
     console.log('Floor plan point updated:', id);
@@ -316,6 +322,7 @@ export async function deleteFloorPlanPoint(id: string): Promise<void> {
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan point deleted:', id);
   } catch (error) {
@@ -395,6 +402,7 @@ export async function createStandaloneMap(
       retryCount: 0,
       synced: 0, // Always set to 0 so it gets processed by sync engine
     });
+    triggerImmediateUpload();
 
     console.log('Standalone map created:', map.id);
     return map;
@@ -445,6 +453,7 @@ export async function updateStandaloneMap(
         retryCount: 0,
         synced: 0,
       });
+      triggerImmediateUpload();
     }
 
     console.log('Standalone map updated:', id);
@@ -472,6 +481,7 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Standalone map deleted:', id);
   } catch (error) {
@@ -557,6 +567,7 @@ export async function updateFloorPlanLabelsForMapping(
         });
       }
     }
+    triggerImmediateUpload();
 
     console.log(`Updated labels for ${points.length} floor plan point(s) associated with mapping ${mappingEntryId}`);
   } catch (error) {

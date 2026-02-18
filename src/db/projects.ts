@@ -1,4 +1,5 @@
 import { db, generateId, now, Project, SyncQueueItem } from './database';
+import { triggerImmediateUpload } from '../sync/syncEngine';
 
 /**
  * Create a new project
@@ -33,6 +34,7 @@ export async function createProject(
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
 
     console.log('Project created:', project.id);
     return project;
@@ -107,6 +109,7 @@ export async function updateProject(
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
 
     console.log('Project updated:', id);
     return updatedProject;
@@ -149,6 +152,7 @@ export async function deleteProject(id: string): Promise<void> {
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
 
     console.log('Project deleted:', id);
   } catch (error) {

@@ -71,6 +71,7 @@ export interface MappingEntry {
   modifiedBy: string;
   version: number; // For conflict detection
   synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
+  hasRemotePhotos?: boolean; // True when server has photos not downloaded locally
 }
 
 export interface Photo {

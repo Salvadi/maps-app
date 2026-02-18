@@ -2083,6 +2083,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                             ⚠️
                           </span>
                         )}
+                        {mapping.hasRemotePhotos && (
+                          <span className="remote-photos-badge" title="Foto disponibili sul server (non scaricate)">
+                            📷
+                          </span>
+                        )}
                       </h3>
                       <p className="mapping-meta">
                         {new Date(mapping.timestamp).toLocaleDateString()} • {photos.length} foto
@@ -2226,6 +2231,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                                           {mapping.toComplete && (
                                             <span className="to-complete-badge" title="Da Completare">
                                               ⚠️
+                                            </span>
+                                          )}
+                                          {mapping.hasRemotePhotos && (
+                                            <span className="remote-photos-badge" title="Foto disponibili sul server (non scaricate)">
+                                              📷
                                             </span>
                                           )}
                                         </h3>
@@ -2374,6 +2384,11 @@ const MappingView: React.FC<MappingViewProps> = ({
                                                   {mapping.toComplete && (
                                                     <span className="to-complete-badge" title="Da Completare">
                                                       ⚠️
+                                                    </span>
+                                                  )}
+                                                  {mapping.hasRemotePhotos && (
+                                                    <span className="remote-photos-badge" title="Foto disponibili sul server (non scaricate)">
+                                                      📷
                                                     </span>
                                                   )}
                                                 </h3>

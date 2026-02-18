@@ -10,7 +10,7 @@ import UpdateNotification from './components/UpdateNotification';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout, User, Project, MappingEntry, db } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
-import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats } from './sync/syncEngine';
+import { startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase, getSyncStats, manualSync, clearAndSync, SyncStats, onSyncComplete, offSyncComplete } from './sync/syncEngine';
 import './App.css';
 
 type View = 'login' | 'passwordReset' | 'home' | 'projectForm' | 'projectEdit' | 'mapping' | 'mappingView' | 'standaloneEditor';
@@ -190,10 +190,13 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Periodically update sync stats
+  // Event-driven sync stats updates
   useEffect(() => {
-    const interval = setInterval(updateSyncStats, 10000); // Update every 10 seconds
-    return () => clearInterval(interval);
+    const handler = (stats: SyncStats) => setSyncStats(stats);
+    onSyncComplete(handler);
+    // Initial fetch
+    updateSyncStats();
+    return () => offSyncComplete(handler);
   }, []);
 
   // Listen for background sync messages from Service Worker
@@ -281,10 +284,17 @@ const App: React.FC = () => {
 
     try {
       setSyncStats(prev => ({ ...prev, isSyncing: true }));
-      const result = await manualSync();
+      const result = await manualSync({
+        onPhotoDecisionNeeded: () => Promise.resolve(
+          window.confirm('Sincronizzare anche le foto? Potrebbe richiedere più tempo.')
+        ),
+      });
       await updateSyncStats();
 
-      const message = `Sync complete!\nUploaded: ${result.uploadResult.processedCount} items\nDownloaded: ${result.downloadResult.projectsCount} projects, ${result.downloadResult.entriesCount} entries, ${result.downloadResult.photosCount} photos`;
+      const photosInfo = result.downloadResult.photosCount > 0
+        ? `, ${result.downloadResult.photosCount} foto`
+        : (result.downloadResult.photosFailedCount > 0 ? '' : ', foto saltate');
+      const message = `Sync completato!\nCaricati: ${result.uploadResult.processedCount} elementi\nScaricati: ${result.downloadResult.projectsCount} progetti, ${result.downloadResult.entriesCount} mappature, ${result.downloadResult.floorPlansCount} planimetrie${photosInfo}`;
       alert(message);
     } catch (error) {
       console.error('❌ Manual sync failed:', error);

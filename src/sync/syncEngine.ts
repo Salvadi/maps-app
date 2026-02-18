@@ -24,6 +24,133 @@ export interface SyncStats {
 }
 
 /**
+ * Deduplicate the sync queue by collapsing redundant operations on the same entity.
+ * Rules:
+ * - Multiple UPDATEs on same entity → keep only the last one
+ * - CREATE + UPDATE on same entity → keep CREATE with latest payload
+ * - CREATE/UPDATE + DELETE on same entity → keep only DELETE
+ * - Multiple DELETEs → keep only one
+ */
+async function deduplicateSyncQueue(): Promise<{ before: number; after: number }> {
+  const pendingItems = await db.syncQueue
+    .where('synced')
+    .equals(0)
+    .sortBy('timestamp');
+
+  if (pendingItems.length <= 1) {
+    return { before: pendingItems.length, after: pendingItems.length };
+  }
+
+  // Group by entityType+entityId
+  const groups = new Map<string, SyncQueueItem[]>();
+  for (const item of pendingItems) {
+    const key = `${item.entityType}:${item.entityId}`;
+    const group = groups.get(key) || [];
+    group.push(item);
+    groups.set(key, group);
+  }
+
+  const toRemove: string[] = [];
+  const groupEntries = Array.from(groups.values());
+
+  for (const items of groupEntries) {
+    if (items.length <= 1) continue;
+
+    const hasDelete = items.some((i: SyncQueueItem) => i.operation === 'DELETE');
+    const hasCreate = items.find((i: SyncQueueItem) => i.operation === 'CREATE');
+    const lastItem = items[items.length - 1]; // Most recent by timestamp
+
+    if (hasDelete) {
+      // DELETE wins: remove all items except the last DELETE
+      const lastDelete = [...items].reverse().find((i: SyncQueueItem) => i.operation === 'DELETE')!;
+      for (const item of items) {
+        if (item.id !== lastDelete.id) {
+          toRemove.push(item.id);
+        }
+      }
+    } else if (hasCreate) {
+      // CREATE + UPDATEs: keep CREATE with latest payload
+      const latestPayload = lastItem.payload;
+      await db.syncQueue.update(hasCreate.id, { payload: latestPayload });
+      for (const item of items) {
+        if (item.id !== hasCreate.id) {
+          toRemove.push(item.id);
+        }
+      }
+    } else {
+      // Multiple UPDATEs: keep only the last one
+      for (const item of items) {
+        if (item.id !== lastItem.id) {
+          toRemove.push(item.id);
+        }
+      }
+    }
+  }
+
+  if (toRemove.length > 0) {
+    // Mark deduplicated items as synced so they won't be processed
+    for (const id of toRemove) {
+      await db.syncQueue.update(id, { synced: 1 });
+    }
+    console.log(`🔄 Deduplicati ${pendingItems.length} → ${pendingItems.length - toRemove.length} items nella sync queue`);
+  }
+
+  return { before: pendingItems.length, after: pendingItems.length - toRemove.length };
+}
+
+// ---- Event-driven sync stats ----
+type SyncCompleteListener = (stats: SyncStats) => void;
+const syncListeners: Set<SyncCompleteListener> = new Set();
+
+export function onSyncComplete(cb: SyncCompleteListener): void {
+  syncListeners.add(cb);
+}
+
+export function offSyncComplete(cb: SyncCompleteListener): void {
+  syncListeners.delete(cb);
+}
+
+async function emitSyncComplete(): Promise<void> {
+  const stats = await getSyncStats();
+  syncListeners.forEach(cb => cb(stats));
+}
+
+// ---- Debounced immediate upload ----
+let uploadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function triggerImmediateUpload(): void {
+  if (uploadDebounceTimer) clearTimeout(uploadDebounceTimer);
+  uploadDebounceTimer = setTimeout(async () => {
+    try {
+      if (!navigator.onLine || !isSupabaseConfigured()) return;
+      const isSyncingMeta = await db.metadata.get('isSyncing');
+      // Check timestamp-based lock
+      const LOCK_TIMEOUT = 3 * 60 * 1000;
+      if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < LOCK_TIMEOUT) return;
+      await processSyncQueue();
+    } catch (err) {
+      console.error('Debounced upload failed:', err);
+    }
+  }, 2000);
+}
+
+// ---- Timestamp-based sync lock ----
+const SYNC_LOCK_TIMEOUT = 3 * 60 * 1000; // 3 minutes
+
+async function acquireSyncLock(): Promise<boolean> {
+  const isSyncingMeta = await db.metadata.get('isSyncing');
+  if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < SYNC_LOCK_TIMEOUT) {
+    return false; // Lock is held and not expired
+  }
+  await db.metadata.put({ key: 'isSyncing', value: Date.now() });
+  return true;
+}
+
+async function releaseSyncLock(): Promise<void> {
+  await db.metadata.put({ key: 'isSyncing', value: false });
+}
+
+/**
  * Process all pending items in the sync queue
  * Returns the number of items successfully synced
  */
@@ -60,6 +187,9 @@ export async function processSyncQueue(): Promise<SyncResult> {
     };
   }
 
+  // Deduplicate queue before processing
+  await deduplicateSyncQueue();
+
   // Get all unsynced items, ordered by timestamp
   const pendingItems = await db.syncQueue
     .where('synced')
@@ -68,6 +198,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
 
   if (pendingItems.length === 0) {
     console.log('✅ Sync queue empty');
+    await emitSyncComplete();
     return {
       success: true,
       processedCount: 0,
@@ -138,6 +269,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
     console.warn(`⚠️  Sync partial: ${processedCount} success, ${failedCount} failed`);
   }
 
+  await emitSyncComplete();
   return result;
 }
 
@@ -665,7 +797,10 @@ export async function getSyncStats(): Promise<SyncStats> {
   const lastSyncTime = lastSyncMeta?.value || null;
 
   const isSyncingMeta = await db.metadata.get('isSyncing');
-  const isSyncing = isSyncingMeta?.value || false;
+  // Timestamp-based lock: consider active only if within timeout
+  const isSyncing = isSyncingMeta?.value
+    ? (Date.now() - isSyncingMeta.value) < SYNC_LOCK_TIMEOUT
+    : false;
 
   return {
     pendingCount,
@@ -1406,6 +1541,67 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
 }
 
 /**
+ * Update hasRemotePhotos flags on mapping entries.
+ * Called when photos are skipped during sync, to indicate which entries have photos on the server.
+ */
+async function updateRemotePhotosFlags(userId: string, isAdmin: boolean): Promise<void> {
+  try {
+    // Get sync-enabled projects
+    let userProjects;
+    if (isAdmin) {
+      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
+    } else {
+      const allUserProjects = await db.projects
+        .where('ownerId').equals(userId)
+        .or('accessibleUsers').equals(userId)
+        .toArray();
+      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
+    }
+
+    if (userProjects.length === 0) return;
+
+    const projectIds = userProjects.map(p => p.id);
+
+    // Get photo counts from Supabase grouped by mapping_entry_id
+    const { data: photoCounts, error } = await supabase
+      .from('photos')
+      .select('mapping_entry_id')
+      .in('mapping_entry_id', (await db.mappingEntries.where('projectId').anyOf(projectIds).toArray()).map(e => e.id));
+
+    if (error || !photoCounts) return;
+
+    // Count photos per mapping entry on server
+    const remotePhotoMap = new Map<string, number>();
+    for (const row of photoCounts) {
+      remotePhotoMap.set(row.mapping_entry_id, (remotePhotoMap.get(row.mapping_entry_id) || 0) + 1);
+    }
+
+    // Get local photo counts
+    const localPhotos = await db.photos.toArray();
+    const localPhotoMap = new Map<string, number>();
+    for (const photo of localPhotos) {
+      localPhotoMap.set(photo.mappingEntryId, (localPhotoMap.get(photo.mappingEntryId) || 0) + 1);
+    }
+
+    // Update flags on mapping entries
+    const entries = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
+    for (const entry of entries) {
+      const remoteCount = remotePhotoMap.get(entry.id) || 0;
+      const localCount = localPhotoMap.get(entry.id) || 0;
+      const hasRemotePhotos = remoteCount > localCount;
+
+      if (entry.hasRemotePhotos !== hasRemotePhotos) {
+        await db.mappingEntries.update(entry.id, { hasRemotePhotos });
+      }
+    }
+
+    console.log('📷 Remote photo flags aggiornati');
+  } catch (err) {
+    console.warn('Failed to update remote photo flags:', err);
+  }
+}
+
+/**
  * Sync data FROM Supabase TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
@@ -1456,6 +1652,7 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
 
     console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points`);
 
+    await emitSyncComplete();
     return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1469,7 +1666,7 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
  */
 let syncInterval: NodeJS.Timeout | null = null;
 
-export function startAutoSync(intervalMs: number = 60000): void {
+export function startAutoSync(intervalMs: number = 30000): void {
   if (syncInterval) {
     console.warn('⚠️  Auto-sync already running');
     return;
@@ -1487,30 +1684,23 @@ export function startAutoSync(intervalMs: number = 60000): void {
     })
   ]);
 
-  // Then sync on interval (bidirectional with lock)
+  // Then sync on interval (bidirectional with timestamp lock)
   syncInterval = setInterval(async () => {
     try {
-      // Check if sync is already in progress
-      const isSyncingMeta = await db.metadata.get('isSyncing');
-      if (isSyncingMeta?.value === true) {
+      if (!await acquireSyncLock()) {
         console.log('⏭️  Auto-sync skipped: sync already in progress');
         return;
       }
 
-      // Use atomic lock for auto-sync
-      await db.metadata.put({ key: 'isSyncing', value: true });
       try {
-        // Upload local changes
         await processSyncQueue();
-        // Download remote changes
         await syncFromSupabase();
       } finally {
-        await db.metadata.put({ key: 'isSyncing', value: false });
+        await releaseSyncLock();
       }
     } catch (err) {
       console.error('❌ Auto-sync failed:', err);
-      // Ensure lock is released on error
-      await db.metadata.put({ key: 'isSyncing', value: false });
+      await releaseSyncLock();
     }
   }, intervalMs);
 }
@@ -1527,53 +1717,102 @@ export function stopAutoSync(): void {
  * Manual sync trigger (for UI button)
  * Performs bidirectional sync with atomic lock: upload local changes and download remote changes
  */
-export async function manualSync(): Promise<{
+export async function manualSync(options?: {
+  skipPhotos?: boolean;
+  onPhotoDecisionNeeded?: () => Promise<boolean>;
+}): Promise<{
   uploadResult: SyncResult;
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; floorPlansCount: number; floorPlanPointsCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }
 }> {
   console.log('🔄 Manual bidirectional sync triggered');
 
-  // Check if sync is already in progress
-  const isSyncingMeta = await db.metadata.get('isSyncing');
-  if (isSyncingMeta?.value === true) {
+  if (!await acquireSyncLock()) {
     console.warn('⚠️  Sync already in progress, skipping');
     return {
       uploadResult: { success: false, processedCount: 0, failedCount: 0, errors: [] },
-      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 }
+      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 }
     };
   }
 
-  // Safety timeout: force release lock after 5 minutes to prevent indefinite blocking
-  const timeoutId = setTimeout(async () => {
-    console.error('🚨 Sync timeout after 5 minutes - force releasing lock');
-    await db.metadata.put({ key: 'isSyncing', value: false });
-  }, 5 * 60 * 1000); // 5 minutes
-
   try {
-    // Set sync lock
-    await db.metadata.put({ key: 'isSyncing', value: true });
-
-    // Upload local changes FIRST (to avoid conflicts with concurrent edits)
+    // Upload local changes FIRST
     const uploadResult = await processSyncQueue();
 
-    // Download remote changes AFTER upload completes
-    const downloadResult = await syncFromSupabase();
+    // Download remote changes with phased approach
+    const downloadResult = await phasedSyncFromSupabase(options);
 
     // Refresh dropdown option caches
     await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed:', err));
 
-    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
+    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos${downloadResult.photosFailedCount > 0 ? ` (${downloadResult.photosFailedCount} failed)` : ''}, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 
-    clearTimeout(timeoutId); // Cancel timeout on success
+    await emitSyncComplete();
     return { uploadResult, downloadResult };
   } catch (error) {
     console.error('❌ Manual sync failed:', error);
-    clearTimeout(timeoutId); // Cancel timeout on error
     throw error;
   } finally {
-    // Release sync lock (always runs even if error occurs)
-    await db.metadata.put({ key: 'isSyncing', value: false });
+    await releaseSyncLock();
   }
+}
+
+/**
+ * Phased sync from Supabase: data → floor plans → photos (optional)
+ * Used by manualSync to allow user choice on photo download
+ */
+export async function phasedSyncFromSupabase(options?: {
+  skipPhotos?: boolean;
+  onPhotoDecisionNeeded?: () => Promise<boolean>;
+}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
+  if (!isSupabaseConfigured()) {
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single();
+
+  const isAdmin = profile?.role === 'admin';
+
+  // Phase 1: Data (projects + mapping entries)
+  console.log('📦 Fase 1: Sincronizzazione dati...');
+  const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
+  const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+
+  // Phase 2: Floor plans + points
+  console.log('🗺️ Fase 2: Sincronizzazione planimetrie...');
+  const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
+  const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
+
+  // Phase 3: Photos (optional)
+  let photosCount = 0;
+  let photosFailedCount = 0;
+
+  let shouldDownloadPhotos = !options?.skipPhotos;
+
+  if (shouldDownloadPhotos && options?.onPhotoDecisionNeeded) {
+    shouldDownloadPhotos = await options.onPhotoDecisionNeeded();
+  }
+
+  if (shouldDownloadPhotos) {
+    console.log('📸 Fase 3: Sincronizzazione foto...');
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
+    photosCount = photosResult.downloaded;
+    photosFailedCount = photosResult.failed;
+  } else {
+    console.log('📸 Fase 3: Foto saltate (scelta utente)');
+    // Update hasRemotePhotos flags for entries that have photos on server but not locally
+    await updateRemotePhotosFlags(session.user.id, isAdmin);
+  }
+
+  return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount };
 }
 
 /**
