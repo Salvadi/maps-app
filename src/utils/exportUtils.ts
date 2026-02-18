@@ -142,14 +142,15 @@ export interface ExportPoint {
   labelTextColor?: string;        // hex #RRGGBB
 }
 
-// Costanti tipografiche dell'export (in pt)
-const EXPORT_FONT_SIZE = 10;
-const EXPORT_LINE_HEIGHT = 14;
-const EXPORT_PADDING = 6;
-const EXPORT_MIN_LABEL_W = 52;
-const EXPORT_MIN_LABEL_H = 27;
-const EXPORT_POINT_RADIUS = 4;
-const EXPORT_DEFAULT_BG = '#FAFAF0';
+// Costanti canvas originale (in px, su immagine a risoluzione piena)
+// Vengono moltiplicate per scale (min(pageW/imgW, pageH/imgH)) per ottenere pt nel PDF
+const CANVAS_FONT_SIZE   = 14;
+const CANVAS_LINE_HEIGHT = 18;
+const CANVAS_PADDING     = 8;
+const CANVAS_MIN_LABEL_W = 70;
+const CANVAS_MIN_LABEL_H = 36;
+const CANVAS_POINT_R     = 8;
+const EXPORT_DEFAULT_BG  = '#FAFAF0';
 
 /** Converte hex (#RRGGBB) in rgb() di pdf-lib */
 function hexToRgbLib(hex: string) {
@@ -170,29 +171,36 @@ function getExportPointColor(type: string): string {
   }
 }
 
-/** Calcola dimensioni etichetta usando i font pdf-lib (in pt) */
+/** Calcola dimensioni etichetta usando i font pdf-lib.
+ *  Accetta dimensioni dinamiche (calcolate in base allo scale dell'immagine).
+ */
 function getLabelDimensions(
   lines: string[],
   fontBold: PDFFont,
-  fontItalic: PDFFont
+  fontItalic: PDFFont,
+  fontSize: number,
+  padding: number,
+  lineHeight: number,
+  minLabelW: number,
+  minLabelH: number,
 ): { width: number; height: number } {
   let maxWidth = 0;
   for (const line of lines) {
     let lineWidth: number;
     if (line.startsWith('foto n. ')) {
-      lineWidth = fontItalic.widthOfTextAtSize('foto n. ', EXPORT_FONT_SIZE)
-               + fontBold.widthOfTextAtSize(line.substring(8), EXPORT_FONT_SIZE);
+      lineWidth = fontItalic.widthOfTextAtSize('foto n. ', fontSize)
+               + fontBold.widthOfTextAtSize(line.substring(8), fontSize);
     } else if (line.startsWith('Tip. ')) {
-      lineWidth = fontItalic.widthOfTextAtSize('Tip. ', EXPORT_FONT_SIZE)
-               + fontBold.widthOfTextAtSize(line.substring(5), EXPORT_FONT_SIZE);
+      lineWidth = fontItalic.widthOfTextAtSize('Tip. ', fontSize)
+               + fontBold.widthOfTextAtSize(line.substring(5), fontSize);
     } else {
-      lineWidth = fontBold.widthOfTextAtSize(line, EXPORT_FONT_SIZE);
+      lineWidth = fontBold.widthOfTextAtSize(line, fontSize);
     }
     if (lineWidth > maxWidth) maxWidth = lineWidth;
   }
   return {
-    width:  Math.max(maxWidth + EXPORT_PADDING * 2, EXPORT_MIN_LABEL_W),
-    height: Math.max(lines.length * EXPORT_LINE_HEIGHT + EXPORT_PADDING * 2, EXPORT_MIN_LABEL_H),
+    width:  Math.max(maxWidth + padding * 2, minLabelW),
+    height: Math.max(lines.length * lineHeight + padding * 2, minLabelH),
   };
 }
 
@@ -289,6 +297,15 @@ export async function buildFloorPlanVectorPDF(
   const offsetX = (pageW - effectiveW) / 2;
   const offsetY = (pageH - effectiveH) / 2;
 
+  // Dimensioni tipografiche proporzionali all'immagine (come il canvas originale:
+  // es. 14px su imgW pixel → scalate a pageW pt → equivalente a 14*scale pt)
+  const dynFontSize   = Math.max(3, CANVAS_FONT_SIZE   * scale);
+  const dynLineHeight = CANVAS_LINE_HEIGHT * scale;
+  const dynPadding    = CANVAS_PADDING     * scale;
+  const dynMinLabelW  = CANVAS_MIN_LABEL_W * scale;
+  const dynMinLabelH  = CANVAS_MIN_LABEL_H * scale;
+  const dynPointR     = Math.max(2, CANVAS_POINT_R * scale);
+
   // Helper coordinate: normalizzato → PDF (origine bottom-left, Y verso l'alto)
   const toX = (nx: number) => offsetX + nx * effectiveW;
   const toY = (ny: number) => offsetY + (1 - ny) * effectiveH;  // flip Y
@@ -325,7 +342,10 @@ export async function buildFloorPlanVectorPDF(
 
   // 2. Linee tratteggiate punto → etichetta
   for (const point of points) {
-    const { width: lw, height: lh } = getLabelDimensions(point.labelText, fontBold, fontItalic);
+    const { width: lw, height: lh } = getLabelDimensions(
+      point.labelText, fontBold, fontItalic,
+      dynFontSize, dynPadding, dynLineHeight, dynMinLabelW, dynMinLabelH
+    );
     const labelTopX = toX(point.labelX);
     const labelTopY = toY(point.labelY);           // PDF Y del bordo superiore
     const labelBottomY = labelTopY - lh;           // PDF Y del bordo inferiore
@@ -361,14 +381,17 @@ export async function buildFloorPlanVectorPDF(
     page.drawCircle({
       x: ptX,
       y: ptY,
-      size: EXPORT_POINT_RADIUS,
+      size: dynPointR,
       color: hexToRgbLib(getExportPointColor(point.type)),
     });
   }
 
   // 4. Etichette (in primo piano)
   for (const point of points) {
-    const { width: lw, height: lh } = getLabelDimensions(point.labelText, fontBold, fontItalic);
+    const { width: lw, height: lh } = getLabelDimensions(
+      point.labelText, fontBold, fontItalic,
+      dynFontSize, dynPadding, dynLineHeight, dynMinLabelW, dynMinLabelH
+    );
     const labelTopX   = toX(point.labelX);
     const labelTopY   = toY(point.labelY);
     const labelBottomY = labelTopY - lh;
@@ -391,21 +414,21 @@ export async function buildFloorPlanVectorPDF(
     for (let i = 0; i < point.labelText.length; i++) {
       const line = point.labelText[i];
       // baseline = top_etichetta − padding − offset_riga − dimensione_font
-      const baselineY = labelTopY - EXPORT_PADDING - i * EXPORT_LINE_HEIGHT - EXPORT_FONT_SIZE;
-      const textX = labelTopX + EXPORT_PADDING;
+      const baselineY = labelTopY - dynPadding - i * dynLineHeight - dynFontSize;
+      const textX = labelTopX + dynPadding;
 
       if (line.startsWith('foto n. ')) {
         const prefix = 'foto n. ';
-        const prefixW = fontItalic.widthOfTextAtSize(prefix, EXPORT_FONT_SIZE);
-        page.drawText(prefix, { x: textX,           y: baselineY, font: fontItalic, size: EXPORT_FONT_SIZE, color: textColor });
-        page.drawText(line.substring(8), { x: textX + prefixW, y: baselineY, font: fontBold,   size: EXPORT_FONT_SIZE, color: textColor });
+        const prefixW = fontItalic.widthOfTextAtSize(prefix, dynFontSize);
+        page.drawText(prefix, { x: textX,           y: baselineY, font: fontItalic, size: dynFontSize, color: textColor });
+        page.drawText(line.substring(8), { x: textX + prefixW, y: baselineY, font: fontBold,   size: dynFontSize, color: textColor });
       } else if (line.startsWith('Tip. ')) {
         const prefix = 'Tip. ';
-        const prefixW = fontItalic.widthOfTextAtSize(prefix, EXPORT_FONT_SIZE);
-        page.drawText(prefix, { x: textX,           y: baselineY, font: fontItalic, size: EXPORT_FONT_SIZE, color: textColor });
-        page.drawText(line.substring(5), { x: textX + prefixW, y: baselineY, font: fontBold,   size: EXPORT_FONT_SIZE, color: textColor });
+        const prefixW = fontItalic.widthOfTextAtSize(prefix, dynFontSize);
+        page.drawText(prefix, { x: textX,           y: baselineY, font: fontItalic, size: dynFontSize, color: textColor });
+        page.drawText(line.substring(5), { x: textX + prefixW, y: baselineY, font: fontBold,   size: dynFontSize, color: textColor });
       } else {
-        page.drawText(line, { x: textX, y: baselineY, font: fontBold, size: EXPORT_FONT_SIZE, color: textColor });
+        page.drawText(line, { x: textX, y: baselineY, font: fontBold, size: dynFontSize, color: textColor });
       }
     }
   }
