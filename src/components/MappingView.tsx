@@ -16,6 +16,7 @@ import {
   getMappingEntriesForProject,
   getPhotosForMapping,
   deleteMappingEntry,
+  updateMappingEntry,
   getAllUsers,
   FloorPlan,
   FloorPlanPoint,
@@ -1481,6 +1482,74 @@ const MappingView: React.FC<MappingViewProps> = ({
     }
   };
 
+  // Handle reorder points: assign sequential intervention numbers grouped by room, sorted by X
+  const handleReorderPoints = async (sortedMappingEntryIds: string[]): Promise<CanvasPoint[]> => {
+    if (!editorFloorPlan) return editorPoints;
+
+    try {
+      const updatedMappingsMap = new Map<string, MappingEntry>();
+
+      // Group IDs by room (preserving left-to-right X order within each group)
+      const roomGroups: Record<string, string[]> = {};
+      for (const id of sortedMappingEntryIds) {
+        const mapping = mappings.find(m => m.id === id);
+        const roomKey = mapping?.room ?? '';
+        if (!roomGroups[roomKey]) roomGroups[roomKey] = [];
+        roomGroups[roomKey].push(id);
+      }
+
+      // Assign intervention numbers per room (each room restarts from 1)
+      const interventionMap: Record<string, string> = {};
+      Object.values(roomGroups).forEach(ids => {
+        ids.forEach((id, index) => { interventionMap[id] = (index + 1).toString(); });
+      });
+
+      // Update each MappingEntry in DB with the assigned intervention number
+      for (const id of Object.keys(interventionMap)) {
+        try {
+          const updated = await updateMappingEntry(id, { intervention: interventionMap[id] }, currentUser.id);
+          updatedMappingsMap.set(id, updated);
+        } catch (err) {
+          console.error(`Failed to update intervention for ${id}:`, err);
+        }
+      }
+
+      // Update local mappings state
+      setMappings(prev => prev.map(m => updatedMappingsMap.get(m.id) ?? m));
+
+      // Update floor plan point labels for each renamed mapping
+      for (const entry of Array.from(updatedMappingsMap.entries())) {
+        const [id, updatedMapping] = entry;
+        const photos = mappingPhotos[id] || [];
+        try {
+          await updateFloorPlanLabelsForMapping(id, () => generateMappingLabel(updatedMapping, photos.length));
+        } catch (err) {
+          console.error(`Failed to update floor plan label for ${id}:`, err);
+        }
+      }
+
+      // Rebuild CanvasPoint[] with updated labelText, preserving positions and colors
+      const updatedCanvasPoints: CanvasPoint[] = editorPoints.map(cp => {
+        if (!cp.mappingEntryId) return cp;
+        const updatedMapping = updatedMappingsMap.get(cp.mappingEntryId);
+        if (!updatedMapping) return cp;
+        const photos = mappingPhotos[cp.mappingEntryId] || [];
+        return { ...cp, labelText: generateMappingLabel(updatedMapping, photos.length) };
+      });
+
+      // Update editorPoints and refresh DB points for consistency
+      setEditorPoints(updatedCanvasPoints);
+      const freshDbPoints = await getFloorPlanPoints(editorFloorPlan.id);
+      setFloorPlanPoints(prev => ({ ...prev, [editorFloorPlan!.id]: freshDbPoints }));
+
+      return updatedCanvasPoints;
+    } catch (error) {
+      console.error('Error in handleReorderPoints:', error);
+      alert('Errore durante il riordino dei punti.');
+      return editorPoints;
+    }
+  };
+
   // Export floor plan with points as image
   const handleExportFloorPlan = async (plan: FloorPlan) => {
     try {
@@ -2527,6 +2596,7 @@ const MappingView: React.FC<MappingViewProps> = ({
                 onEditMapping(mapping);
               }
             }}
+            onReorderPoints={handleReorderPoints}
           />
         </div>
       )}

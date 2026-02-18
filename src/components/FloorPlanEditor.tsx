@@ -32,6 +32,7 @@ interface FloorPlanEditorProps {
   onExportPNG?: () => void;
   onExportPDF?: () => void;
   onOpenMappingEntry?: (mappingEntryId: string) => void;
+  onReorderPoints?: (sortedMappingEntryIds: string[]) => Promise<CanvasPoint[]>;
   readOnlyPoints?: CanvasPoint[];
 }
 
@@ -57,6 +58,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   onExportPNG: onExportPNGProp,
   onExportPDF: onExportPDFProp,
   onOpenMappingEntry,
+  onReorderPoints,
   readOnlyPoints,
 }) => {
   const [points, setPoints] = useState<CanvasPoint[]>(initialPoints);
@@ -75,6 +77,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [selectedUnmappedId, setSelectedUnmappedId] = useState<string | null>(null);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc' | 'recent'>('none');
+  const [isReordering, setIsReordering] = useState(false);
 
   // Multi-selection for color picker
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
@@ -320,6 +323,50 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const handleCancelPerimeter = useCallback(() => {
     (window as any).__cancelPerimeter?.();
   }, []);
+
+  // Handle reorder points by X position (leftmost first, per room)
+  const handleReorderPoints = useCallback(async () => {
+    const mappedPoints = points.filter(p => p.mappingEntryId);
+    if (mappedPoints.length === 0) {
+      alert('Nessun punto posizionato da riordinare.');
+      return;
+    }
+
+    if (hasUnsavedChanges) {
+      const save = window.confirm('Ci sono modifiche non salvate. Salvare prima di riordinare?');
+      if (save) {
+        onSave?.(points, gridConfig);
+        setHasUnsavedChanges(false);
+      }
+    }
+
+    const confirmed = window.confirm(
+      `Rinominare i ${mappedPoints.length} punti posizionati sulla planimetria?\n\n` +
+      'Verranno numerati da sinistra verso destra (1 = più a sinistra).\n' +
+      'Se presenti più stanze, la numerazione riparte da 1 per ogni stanza.\n' +
+      'Verranno aggiornati anche i campi "Intervento n." delle mappature.\n\n' +
+      'Questa operazione non può essere annullata.'
+    );
+    if (!confirmed) return;
+
+    // Sort ascending by pointX: leftmost (lowest X) gets intervention "1"
+    const sorted = [...mappedPoints].sort((a, b) => a.pointX - b.pointX);
+    const sortedMappingEntryIds = sorted.map(p => p.mappingEntryId!);
+
+    setIsReordering(true);
+    try {
+      if (onReorderPoints) {
+        const updatedPoints = await onReorderPoints(sortedMappingEntryIds);
+        setPoints(updatedPoints);
+        setHasUnsavedChanges(false);
+      }
+    } catch (error) {
+      console.error('Error reordering points:', error);
+      alert('Errore durante il riordino dei punti.');
+    } finally {
+      setIsReordering(false);
+    }
+  }, [points, hasUnsavedChanges, onReorderPoints, onSave, gridConfig]);
 
   // Handle unmapped entry selection (for positioning)
   const handleUnmappedEntryClick = useCallback((entryId: string) => {
@@ -832,6 +879,27 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                     <option value="recent">Più recenti</option>
                   </select>
                 </div>
+                {onReorderPoints && points.some(p => p.mappingEntryId) && (
+                  <div style={{ marginTop: '8px' }}>
+                    <button
+                      onClick={handleReorderPoints}
+                      disabled={isReordering}
+                      style={{
+                        width: '100%',
+                        padding: '6px 12px',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '4px',
+                        cursor: isReordering ? 'wait' : 'pointer',
+                        fontSize: '13px',
+                        color: 'var(--color-text)',
+                      }}
+                      title="Rinomina i punti da sinistra a destra e aggiorna i numeri intervento"
+                    >
+                      {isReordering ? '⏳ Riordinamento...' : '↔ Riordina punti'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -856,6 +924,26 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                           <div key={i} className="label-line">{line}</div>
                         ))}
                       </div>
+                      {onOpenMappingEntry && (
+                        <button
+                          className="btn-open-mapping"
+                          title="Apri mappatura"
+                          aria-label="Apri mappatura"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasUnsavedChanges) {
+                              const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
+                              if (save) {
+                                onSave?.(points, gridConfig);
+                                setHasUnsavedChanges(false);
+                              }
+                            }
+                            onOpenMappingEntry(entry.id);
+                          }}
+                        >
+                          📋
+                        </button>
+                      )}
                       <div className="unmapped-indicator">⬇ Clicca per posizionare</div>
                     </div>
                   ))}
@@ -993,6 +1081,26 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                         <div key={i} className="label-line">{line}</div>
                       ))}
                     </div>
+                    {onOpenMappingEntry && (
+                      <button
+                        className="btn-open-mapping"
+                        title="Apri mappatura"
+                        aria-label="Apri mappatura"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasUnsavedChanges) {
+                            const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
+                            if (save) {
+                              onSave?.(points, gridConfig);
+                              setHasUnsavedChanges(false);
+                            }
+                          }
+                          onOpenMappingEntry(entry.id);
+                        }}
+                      >
+                        📋
+                      </button>
+                    )}
                     <div className="unmapped-indicator">⬇ Clicca per posizionare</div>
                   </div>
                 ))}
