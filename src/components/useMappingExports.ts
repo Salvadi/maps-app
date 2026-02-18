@@ -9,8 +9,7 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import jsPDF from 'jspdf';
-import { exportCanvasToPDF } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, buildFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import {
   Project,
   MappingEntry,
@@ -18,7 +17,6 @@ import {
   User,
   FloorPlan,
   FloorPlanPoint,
-  getFloorPlanBlobUrl,
   getFloorPlanPoints,
   updateFloorPlanLabelsForMapping,
 } from '../db';
@@ -318,10 +316,10 @@ export function useMappingExports({
 
       // Add annotated floor plans to Planimetrie folder
       for (const plan of floorPlans) {
-        const points = floorPlanPoints[plan.id] || [];
+        const rawPoints = floorPlanPoints[plan.id] || [];
 
         // Only export if there are points
-        if (points.length === 0) continue;
+        if (rawPoints.length === 0) continue;
 
         // Skip if no imageBlob available
         if (!plan.imageBlob) {
@@ -329,269 +327,36 @@ export function useMappingExports({
           continue;
         }
 
-        // Generate annotated floor plan image
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-
-        const img = new Image();
-        const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
-
-        // Wait for image to load using a Promise
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            // Draw points and labels (same logic as handleExportFloorPlan)
-            points.forEach((point) => {
-              const pointX = point.pointX * img.width;
-              const pointY = point.pointY * img.height;
-              const labelX = point.labelX * img.width;
-              const labelY = point.labelY * img.height;
-
-              let pointColor = '#333333';
-              switch (point.pointType) {
-                case 'parete': pointColor = '#0066FF'; break;
-                case 'solaio': pointColor = '#00CC66'; break;
-                case 'perimetro': pointColor = '#FF6600'; break;
-                case 'generico': pointColor = '#9933FF'; break;
-              }
-
-              if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-                ctx.strokeStyle = pointColor;
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                const firstPoint = point.perimeterPoints[0];
-                ctx.moveTo(firstPoint.x * img.width, firstPoint.y * img.height);
-                for (let i = 1; i < point.perimeterPoints.length; i++) {
-                  const p = point.perimeterPoints[i];
-                  ctx.lineTo(p.x * img.width, p.y * img.height);
-                }
-                ctx.stroke();
-
-                point.perimeterPoints.forEach(p => {
-                  ctx.fillStyle = pointColor;
-                  ctx.beginPath();
-                  ctx.arc(p.x * img.width, p.y * img.height, 6, 0, 2 * Math.PI);
-                  ctx.fill();
-                  ctx.fillStyle = '#FFFFFF';
-                  ctx.beginPath();
-                  ctx.arc(p.x * img.width, p.y * img.height, 3, 0, 2 * Math.PI);
-                  ctx.fill();
-                });
-              } else {
-                ctx.fillStyle = pointColor;
-                ctx.beginPath();
-                ctx.arc(pointX, pointY, 8, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-              }
-
-              // Get label text from metadata if available, otherwise generate from mapping entry
-              let labelText: string[] = point.metadata?.labelText || ['Punto'];
-
-              if (!point.metadata?.labelText) {
-                const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-                if (mappingEntry) {
-                  const photos = mappingPhotos[mappingEntry.id] || [];
-                  labelText = generateMappingLabel(mappingEntry, photos.length);
-                }
-              }
-
-              const padding = 8;
-              const fontSize = 14;
-              const lineHeight = 18;
-              const minWidth = 70;
-              const minHeight = 36;
-              ctx.font = `bold ${fontSize}px Arial`;
-              const maxWidth = Math.max(...labelText.map(line => ctx.measureText(line).width));
-              const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
-              const labelHeight = Math.max((labelText.length * lineHeight) + (padding * 2), minHeight);
-
-              // Use custom colors if available
-              const bgColor = point.metadata?.labelBackgroundColor || 'rgba(255, 255, 255, 0.95)';
-              const textColor = point.metadata?.labelTextColor || '#000000';
-
-              ctx.fillStyle = bgColor;
-              ctx.strokeStyle = '#333333';
-              ctx.lineWidth = 2;
-              ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-              ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
-
-              ctx.fillStyle = textColor;
-              ctx.textBaseline = 'top';
-              labelText.forEach((line, index) => {
-                const yPos = labelY + padding + (index * lineHeight);
-                let xPos = labelX + padding;
-
-                if (line.startsWith('foto n. ')) {
-                  ctx.font = `italic ${fontSize}px Arial`;
-                  const intText = 'foto n. ';
-                  ctx.fillText(intText, xPos, yPos);
-                  xPos += ctx.measureText(intText).width;
-                  ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line.substring(8), xPos, yPos);
-                } else if (line.startsWith('Tip. ')) {
-                  ctx.font = `italic ${fontSize}px Arial`;
-                  const tipText = 'Tip. ';
-                  ctx.fillText(tipText, xPos, yPos);
-                  xPos += ctx.measureText(tipText).width;
-                  ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line.substring(5), xPos, yPos);
-                } else {
-                  ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line, xPos, yPos);
-                }
-              });
-
-              ctx.strokeStyle = '#666666';
-              ctx.lineWidth = 2;
-              ctx.setLineDash([5, 5]);
-
-              const labelCenterX = labelX + labelWidth / 2;
-              const labelCenterY = labelY + labelHeight / 2;
-
-              if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-                let minDistance = Infinity;
-                let closestX = pointX;
-                let closestY = pointY;
-
-                for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
-                  const p1 = point.perimeterPoints[i];
-                  const p2 = point.perimeterPoints[i + 1];
-                  const p1x = p1.x * img.width;
-                  const p1y = p1.y * img.height;
-                  const p2x = p2.x * img.width;
-                  const p2y = p2.y * img.height;
-
-                  const dx = p2x - p1x;
-                  const dy = p2y - p1y;
-                  const lengthSquared = dx * dx + dy * dy;
-                  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((labelCenterX - p1x) * dx + (labelCenterY - p1y) * dy) / lengthSquared));
-                  const closestOnSeg = { x: p1x + t * dx, y: p1y + t * dy };
-
-                  const distance = Math.sqrt(
-                    Math.pow(closestOnSeg.x - labelCenterX, 2) +
-                    Math.pow(closestOnSeg.y - labelCenterY, 2)
-                  );
-
-                  if (distance < minDistance) {
-                    minDistance = distance;
-                    closestX = closestOnSeg.x;
-                    closestY = closestOnSeg.y;
-                  }
-                }
-
-                const edges = [
-                  { x: labelCenterX, y: labelY },
-                  { x: labelCenterX, y: labelY + labelHeight },
-                  { x: labelX, y: labelCenterY },
-                  { x: labelX + labelWidth, y: labelCenterY },
-                ];
-
-                let minEdgeDist = Infinity;
-                let targetX = labelCenterX;
-                let targetY = labelCenterY;
-
-                edges.forEach(edge => {
-                  const distance = Math.sqrt(
-                    Math.pow(edge.x - closestX, 2) +
-                    Math.pow(edge.y - closestY, 2)
-                  );
-                  if (distance < minEdgeDist) {
-                    minEdgeDist = distance;
-                    targetX = edge.x;
-                    targetY = edge.y;
-                  }
-                });
-
-                ctx.beginPath();
-                ctx.moveTo(closestX, closestY);
-                ctx.lineTo(targetX, targetY);
-                ctx.stroke();
-              } else {
-                const edges = [
-                  { x: labelCenterX, y: labelY },
-                  { x: labelCenterX, y: labelY + labelHeight },
-                  { x: labelX, y: labelCenterY },
-                  { x: labelX + labelWidth, y: labelCenterY },
-                ];
-
-                let minDistance = Infinity;
-                let targetX = labelCenterX;
-                let targetY = labelCenterY;
-
-                edges.forEach(edge => {
-                  const distance = Math.sqrt(
-                    Math.pow(edge.x - pointX, 2) +
-                    Math.pow(edge.y - pointY, 2)
-                  );
-                  if (distance < minDistance) {
-                    minDistance = distance;
-                    targetX = edge.x;
-                    targetY = edge.y;
-                  }
-                });
-
-                ctx.beginPath();
-                ctx.moveTo(pointX, pointY);
-                ctx.lineTo(targetX, targetY);
-                ctx.stroke();
-              }
-
-              ctx.setLineDash([]);
-            });
-
-            // Convert canvas to PDF blob and add to ZIP
-            try {
-              const canvasWidth = canvas.width;
-              const canvasHeight = canvas.height;
-              const aspectRatio = canvasWidth / canvasHeight;
-
-              const pdf = new jsPDF({
-                orientation: aspectRatio > 1 ? 'landscape' : 'portrait',
-                unit: 'mm',
-                format: 'a4'
-              });
-
-              const pdfWidth = aspectRatio > 1 ? 297 : 210;
-              const pdfHeight = aspectRatio > 1 ? 210 : 297;
-              const imgData = canvas.toDataURL('image/png');
-              const imgAspectRatio = canvasWidth / canvasHeight;
-              const pdfAspectRatio = pdfWidth / pdfHeight;
-
-              let finalWidth = pdfWidth;
-              let finalHeight = pdfHeight;
-              let x = 0;
-              let y = 0;
-
-              if (imgAspectRatio > pdfAspectRatio) {
-                finalHeight = pdfWidth / imgAspectRatio;
-                y = (pdfHeight - finalHeight) / 2;
-              } else {
-                finalWidth = pdfHeight * imgAspectRatio;
-                x = (pdfWidth - finalWidth) / 2;
-              }
-
-              pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
-              const pdfBlob = pdf.output('blob');
-              zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBlob);
-
-              resolve();
-            } catch (error) {
-              console.error('Error creating PDF for ZIP:', error);
-              reject(error);
+        // Converti FloorPlanPoint[] → ExportPoint[]
+        const exportPoints: ExportPoint[] = rawPoints.map(point => {
+          let labelText: string[] = point.metadata?.labelText || ['Punto'];
+          if (!point.metadata?.labelText) {
+            const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
+            if (mappingEntry) {
+              const photos = mappingPhotos[mappingEntry.id] || [];
+              labelText = generateMappingLabel(mappingEntry, photos.length);
             }
-
-            URL.revokeObjectURL(imageUrl);
+          }
+          return {
+            type: point.pointType,
+            pointX: point.pointX,
+            pointY: point.pointY,
+            labelX: point.labelX,
+            labelY: point.labelY,
+            labelText,
+            perimeterPoints: point.perimeterPoints,
+            labelBackgroundColor: point.metadata?.labelBackgroundColor,
+            labelTextColor: point.metadata?.labelTextColor,
           };
-
-          img.src = imageUrl;
         });
+
+        try {
+          const pdfBytes = await buildFloorPlanVectorPDF(plan.imageBlob, exportPoints);
+          zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
+        } catch (error) {
+          console.error(`Error creating PDF for plan ${plan.floor}:`, error);
+        }
+
       }
 
       // Generate ZIP
@@ -660,13 +425,11 @@ export function useMappingExports({
 
   // ============================================
   // SEZIONE: Export planimetria singola in PDF
-  // Renderizza su canvas la planimetria annotata con punti ed etichette,
-  // poi esporta in PDF tramite exportCanvasToPDF.
+  // Genera PDF vettoriale con pdf-lib a partire da imageBlob e FloorPlanPoint[].
   // ============================================
 
   const handleExportFloorPlan = async (plan: FloorPlan) => {
     try {
-      // Check if imageBlob is available
       if (!plan.imageBlob) {
         if (plan.imageUrl) {
           alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
@@ -676,255 +439,32 @@ export function useMappingExports({
         return;
       }
 
-      const points = floorPlanPoints[plan.id] || [];
+      const rawPoints = floorPlanPoints[plan.id] || [];
 
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Load image
-      const img = new Image();
-      const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
-
-      img.onload = () => {
-        // Set canvas size to image size
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        // Draw image
-        ctx.drawImage(img, 0, 0);
-
-        // Draw points and labels
-        points.forEach((point) => {
-          const pointX = point.pointX * img.width;
-          const pointY = point.pointY * img.height;
-          const labelX = point.labelX * img.width;
-          const labelY = point.labelY * img.height;
-
-          // Get point color based on type
-          let pointColor = '#333333';
-          switch (point.pointType) {
-            case 'parete':
-              pointColor = '#0066FF';
-              break;
-            case 'solaio':
-              pointColor = '#00CC66';
-              break;
-            case 'perimetro':
-              pointColor = '#FF6600';
-              break;
-            case 'generico':
-              pointColor = '#9933FF';
-              break;
+      const exportPoints: ExportPoint[] = rawPoints.map(point => {
+        let labelText: string[] = point.metadata?.labelText || ['Punto'];
+        if (!point.metadata?.labelText) {
+          const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
+          if (mappingEntry) {
+            const photos = mappingPhotos[mappingEntry.id] || [];
+            labelText = generateMappingLabel(mappingEntry, photos.length);
           }
-
-          // Draw perimeter if exists
-          if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-            ctx.strokeStyle = pointColor;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            const firstPoint = point.perimeterPoints[0];
-            ctx.moveTo(firstPoint.x * img.width, firstPoint.y * img.height);
-            for (let i = 1; i < point.perimeterPoints.length; i++) {
-              const p = point.perimeterPoints[i];
-              ctx.lineTo(p.x * img.width, p.y * img.height);
-            }
-            ctx.stroke();
-
-            // Draw vertices
-            point.perimeterPoints.forEach(p => {
-              ctx.fillStyle = pointColor;
-              ctx.beginPath();
-              ctx.arc(p.x * img.width, p.y * img.height, 6, 0, 2 * Math.PI);
-              ctx.fill();
-              ctx.fillStyle = '#FFFFFF';
-              ctx.beginPath();
-              ctx.arc(p.x * img.width, p.y * img.height, 3, 0, 2 * Math.PI);
-              ctx.fill();
-            });
-          } else {
-            // Draw point marker
-            ctx.fillStyle = pointColor;
-            ctx.beginPath();
-            ctx.arc(pointX, pointY, 8, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          }
-
-          // Get label text from metadata if available, otherwise generate from mapping entry
-          let labelText: string[] = point.metadata?.labelText || ['Punto'];
-
-          if (!point.metadata?.labelText) {
-            const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-            if (mappingEntry) {
-              const photos = mappingPhotos[mappingEntry.id] || [];
-              labelText = generateMappingLabel(mappingEntry, photos.length);
-            }
-          }
-
-          // Draw label
-          const padding = 8;
-          const fontSize = 14;
-          const lineHeight = 18;
-          const minWidth = 70;
-          const minHeight = 36;
-          ctx.font = `bold ${fontSize}px Arial`;
-          const maxWidth = Math.max(...labelText.map(line => ctx.measureText(line).width));
-          const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
-          const labelHeight = Math.max((labelText.length * lineHeight) + (padding * 2), minHeight);
-
-          // Use custom colors if available
-          const bgColor = point.metadata?.labelBackgroundColor || 'rgba(255, 255, 255, 0.95)';
-          const textColor = point.metadata?.labelTextColor || '#000000';
-
-          ctx.fillStyle = bgColor;
-          ctx.strokeStyle = '#333333';
-          ctx.lineWidth = 2;
-          ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-          ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
-
-          ctx.fillStyle = textColor;
-          ctx.textBaseline = 'top';
-          labelText.forEach((line, index) => {
-            const yPos = labelY + padding + (index * lineHeight);
-            let xPos = labelX + padding;
-
-            if (line.startsWith('foto n. ')) {
-              ctx.font = `italic ${fontSize}px Arial`;
-              const intText = 'foto n. ';
-              ctx.fillText(intText, xPos, yPos);
-              xPos += ctx.measureText(intText).width;
-              ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line.substring(8), xPos, yPos);
-            } else if (line.startsWith('Tip. ')) {
-              ctx.font = `italic ${fontSize}px Arial`;
-              const tipText = 'Tip. ';
-              ctx.fillText(tipText, xPos, yPos);
-              xPos += ctx.measureText(tipText).width;
-              ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line.substring(5), xPos, yPos);
-            } else {
-              ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line, xPos, yPos);
-            }
-          });
-
-          // Draw connecting line
-          ctx.strokeStyle = '#666666';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 5]);
-
-          const labelCenterX = labelX + labelWidth / 2;
-          const labelCenterY = labelY + labelHeight / 2;
-
-          if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-            let minDistance = Infinity;
-            let closestX = pointX;
-            let closestY = pointY;
-
-            for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
-              const p1 = point.perimeterPoints[i];
-              const p2 = point.perimeterPoints[i + 1];
-              const p1x = p1.x * img.width;
-              const p1y = p1.y * img.height;
-              const p2x = p2.x * img.width;
-              const p2y = p2.y * img.height;
-
-              const dx = p2x - p1x;
-              const dy = p2y - p1y;
-              const lengthSquared = dx * dx + dy * dy;
-              const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((labelCenterX - p1x) * dx + (labelCenterY - p1y) * dy) / lengthSquared));
-              const closestOnSeg = { x: p1x + t * dx, y: p1y + t * dy };
-
-              const distance = Math.sqrt(
-                Math.pow(closestOnSeg.x - labelCenterX, 2) +
-                Math.pow(closestOnSeg.y - labelCenterY, 2)
-              );
-
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestX = closestOnSeg.x;
-                closestY = closestOnSeg.y;
-              }
-            }
-
-            const edges = [
-              { x: labelCenterX, y: labelY },
-              { x: labelCenterX, y: labelY + labelHeight },
-              { x: labelX, y: labelCenterY },
-              { x: labelX + labelWidth, y: labelCenterY },
-            ];
-
-            let minEdgeDist = Infinity;
-            let targetX = labelCenterX;
-            let targetY = labelCenterY;
-
-            edges.forEach(edge => {
-              const distance = Math.sqrt(
-                Math.pow(edge.x - closestX, 2) +
-                Math.pow(edge.y - closestY, 2)
-              );
-              if (distance < minEdgeDist) {
-                minEdgeDist = distance;
-                targetX = edge.x;
-                targetY = edge.y;
-              }
-            });
-
-            ctx.beginPath();
-            ctx.moveTo(closestX, closestY);
-            ctx.lineTo(targetX, targetY);
-            ctx.stroke();
-          } else {
-            const edges = [
-              { x: labelCenterX, y: labelY },
-              { x: labelCenterX, y: labelY + labelHeight },
-              { x: labelX, y: labelCenterY },
-              { x: labelX + labelWidth, y: labelCenterY },
-            ];
-
-            let minDistance = Infinity;
-            let targetX = labelCenterX;
-            let targetY = labelCenterY;
-
-            edges.forEach(edge => {
-              const distance = Math.sqrt(
-                Math.pow(edge.x - pointX, 2) +
-                Math.pow(edge.y - pointY, 2)
-              );
-              if (distance < minDistance) {
-                minDistance = distance;
-                targetX = edge.x;
-                targetY = edge.y;
-              }
-            });
-
-            ctx.beginPath();
-            ctx.moveTo(pointX, pointY);
-            ctx.lineTo(targetX, targetY);
-            ctx.stroke();
-          }
-
-          ctx.setLineDash([]);
-        });
-
-        // Export as PDF
-        try {
-          exportCanvasToPDF(canvas, `Piano_${plan.floor}_annotato.pdf`);
-          alert('✅ Planimetria esportata in PDF');
-        } catch (error) {
-          console.error('Export PDF error:', error);
-          alert('❌ Errore durante l\'esportazione PDF');
         }
+        return {
+          type: point.pointType,
+          pointX: point.pointX,
+          pointY: point.pointY,
+          labelX: point.labelX,
+          labelY: point.labelY,
+          labelText,
+          perimeterPoints: point.perimeterPoints,
+          labelBackgroundColor: point.metadata?.labelBackgroundColor,
+          labelTextColor: point.metadata?.labelTextColor,
+        };
+      });
 
-        // Clean up
-        URL.revokeObjectURL(imageUrl);
-      };
-
-      img.src = imageUrl;
+      await exportFloorPlanVectorPDF(plan.imageBlob, exportPoints, `Piano_${plan.floor}_annotato.pdf`);
+      alert('✅ Planimetria esportata in PDF (vettoriale)');
     } catch (error) {
       console.error('Failed to export floor plan:', error);
       alert('Errore durante l\'esportazione della planimetria');
