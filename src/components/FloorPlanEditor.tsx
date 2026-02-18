@@ -9,6 +9,11 @@ import { exportCanvasToPDF, exportCanvasToPNG } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
+// ============================================
+// SEZIONE: Interfacce e Props
+// Tipi per i punti canvas, gli entry non posizionati e le props dell'editor.
+// ============================================
+
 export interface UnmappedEntry {
   id: string;
   labelText: string[];
@@ -61,6 +66,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   onReorderPoints,
   readOnlyPoints,
 }) => {
+  // ============================================
+  // SEZIONE: Stato e inizializzazione
+  // Dichiarazioni di stato, ref e inizializzazione dell'editor.
+  // ============================================
+
   const [points, setPoints] = useState<CanvasPoint[]>(initialPoints);
   const [gridConfig, setGridConfig] = useState<GridConfig>(initialGridConfig);
   const [unmappedEntries, setUnmappedEntries] = useState<UnmappedEntry[]>(unmappedEntriesProp);
@@ -109,6 +119,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   useEffect(() => {
     localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
   }, [recentTextColors]);
+
+  // ============================================
+  // SEZIONE: Gestione punti
+  // Funzioni per aggiungere, spostare, eliminare e aggiornare i punti sulla planimetria.
+  // ============================================
 
   // Handle placing unmapped entry on canvas
   const handlePlaceUnmappedEntry = useCallback((newPoint: Omit<CanvasPoint, 'id'>) => {
@@ -260,6 +275,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     }
     onClose?.();
   }, [hasUnsavedChanges, onSave, points, gridConfig, onClose]);
+
+  // ============================================
+  // SEZIONE: Esportazione
+  // Logica di esportazione PDF/PNG della planimetria annotata.
+  // ============================================
 
   // Handle export to PDF
   const handleExportPDF = useCallback(() => {
@@ -498,6 +518,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
 
+  // ============================================
+  // SEZIONE: Render principale
+  // JSX principale dell'editor con canvas, pannelli laterali e toolbar.
+  // ============================================
+
   return (
     <div className="floor-plan-editor">
       {/* Header */}
@@ -691,6 +716,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
       {/* Main content area */}
       <div className="editor-content">
+        {/* ============================================ */}
+        {/* SEZIONE: Menu strumenti (pannello sinistro)  */}
+        {/* Render del pannello sinistro con selezione   */}
+        {/* tipo punto, stile colori e azioni.           */}
+        {/* ============================================ */}
         {/* Left menu (Settings) */}
         <div className={`editor-menu left-menu ${showLeftMenu ? 'open' : ''}`}>
           <div className="menu-header">
@@ -834,6 +864,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
           )}
         </div>
 
+        {/* ============================================ */}
+        {/* SEZIONE: Lista punti (pannello destro)       */}
+        {/* Render del pannello destro con lista punti   */}
+        {/* posizionati e non posizionati.               */}
+        {/* ============================================ */}
         {/* Right menu (Points list) */}
         <div className={`editor-menu right-menu ${showRightMenu ? 'open' : ''}`}>
           <div className="menu-header">

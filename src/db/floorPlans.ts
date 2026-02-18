@@ -1,6 +1,8 @@
 /**
- * Floor Plan Database Operations
- * CRUD operations for floor plans, floor plan points, and standalone maps
+ * floorPlans.ts
+ * Operazioni su database per planimetrie, punti planimetria e mappe standalone.
+ * Ogni operazione di scrittura aggiunge un record alla coda di sincronizzazione
+ * e attiva l'upload immediato verso Supabase.
  */
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
@@ -8,7 +10,8 @@ import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap } from '../utils
 import { triggerImmediateUpload } from '../sync/syncEngine';
 
 // ============================================
-// FLOOR PLANS
+// SEZIONE: CRUD Planimetrie
+// Creazione, lettura, aggiornamento ed eliminazione delle planimetrie (FloorPlan).
 // ============================================
 
 /**
@@ -181,7 +184,8 @@ export async function deleteFloorPlan(id: string): Promise<void> {
 }
 
 // ============================================
-// FLOOR PLAN POINTS
+// SEZIONE: CRUD Punti Planimetria
+// Creazione, lettura, aggiornamento ed eliminazione dei punti sulla planimetria.
 // ============================================
 
 /**
@@ -332,7 +336,8 @@ export async function deleteFloorPlanPoint(id: string): Promise<void> {
 }
 
 // ============================================
-// STANDALONE MAPS
+// SEZIONE: CRUD Mappe Standalone
+// Creazione, lettura, aggiornamento ed eliminazione delle mappe standalone.
 // ============================================
 
 /**
@@ -491,7 +496,8 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
 }
 
 // ============================================
-// HELPER FUNCTIONS
+// SEZIONE: Aggiornamento etichette
+// Funzioni per aggiornare le etichette dei punti in base alle mapping entries.
 // ============================================
 
 /**

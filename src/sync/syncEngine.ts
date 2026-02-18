@@ -1,14 +1,28 @@
-import { db, Project, MappingEntry, Photo, SyncQueueItem } from '../db/database';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
-import { refreshDropdownCaches } from '../db/dropdownOptions';
-
 /**
- * Sync Engine for Phase 3
- *
- * Processes the local sync queue and uploads changes to Supabase
- * Handles projects, mapping entries, and photos
+ * @file Sync Engine - Orchestratore della sincronizzazione
+ * @description Gestisce la coda di sync locale, l'event system, il lock,
+ * e le operazioni di sincronizzazione bidirezionale con Supabase.
+ * Le operazioni di upload specifiche per entità sono in syncUploadHandlers.ts.
+ * Le operazioni di download da Supabase sono in syncDownloadHandlers.ts.
  */
+
+import { db, SyncQueueItem } from '../db/database';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { refreshDropdownCaches } from '../db/dropdownOptions';
+import { processSyncItem } from './syncUploadHandlers';
+import {
+  downloadProjectsFromSupabase,
+  downloadMappingEntriesFromSupabase,
+  downloadPhotosFromSupabase,
+  downloadFloorPlansFromSupabase,
+  downloadFloorPlanPointsFromSupabase,
+  updateRemotePhotosFlags
+} from './syncDownloadHandlers';
+
+// ============================================
+// SEZIONE: Interfacce e tipi pubblici
+// Tipi di ritorno usati dalle funzioni di sincronizzazione e dai componenti UI.
+// ============================================
 
 export interface SyncResult {
   success: boolean;
@@ -23,14 +37,13 @@ export interface SyncStats {
   isSyncing: boolean;
 }
 
-/**
- * Deduplicate the sync queue by collapsing redundant operations on the same entity.
- * Rules:
- * - Multiple UPDATEs on same entity → keep only the last one
- * - CREATE + UPDATE on same entity → keep CREATE with latest payload
- * - CREATE/UPDATE + DELETE on same entity → keep only DELETE
- * - Multiple DELETEs → keep only one
- */
+// ============================================
+// SEZIONE: Deduplicazione coda di sync
+// Elimina operazioni ridondanti sulla stessa entità prima del processing.
+// Regole: UPDATE multipli → tieni solo l'ultimo; CREATE+UPDATE → tieni CREATE
+// con payload aggiornato; CREATE/UPDATE+DELETE → tieni solo DELETE.
+// ============================================
+
 async function deduplicateSyncQueue(): Promise<{ before: number; after: number }> {
   const pendingItems = await db.syncQueue
     .where('synced')
@@ -98,7 +111,12 @@ async function deduplicateSyncQueue(): Promise<{ before: number; after: number }
   return { before: pendingItems.length, after: pendingItems.length - toRemove.length };
 }
 
-// ---- Event-driven sync stats ----
+// ============================================
+// SEZIONE: Event system per completamento sync
+// Permette ai componenti React di reagire al completamento della sync
+// senza polling: si registrano con onSyncComplete e ricevono i SyncStats aggiornati.
+// ============================================
+
 type SyncCompleteListener = (stats: SyncStats) => void;
 const syncListeners: Set<SyncCompleteListener> = new Set();
 
@@ -115,7 +133,12 @@ async function emitSyncComplete(): Promise<void> {
   syncListeners.forEach(cb => cb(stats));
 }
 
-// ---- Debounced immediate upload ----
+// ============================================
+// SEZIONE: Upload immediato con debounce
+// Dopo una modifica locale, triggerImmediateUpload avvia l'upload con
+// un ritardo di 2 secondi per raggruppare modifiche ravvicinate in un unico batch.
+// ============================================
+
 let uploadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function triggerImmediateUpload(): void {
@@ -134,7 +157,12 @@ export function triggerImmediateUpload(): void {
   }, 2000);
 }
 
-// ---- Timestamp-based sync lock ----
+// ============================================
+// SEZIONE: Lock di sincronizzazione (timestamp-based)
+// Previene sync concorrenti: il lock scade automaticamente dopo 3 minuti
+// per evitare blocchi permanenti in caso di crash o eccezioni non gestite.
+// ============================================
+
 const SYNC_LOCK_TIMEOUT = 3 * 60 * 1000; // 3 minutes
 
 async function acquireSyncLock(): Promise<boolean> {
@@ -149,6 +177,13 @@ async function acquireSyncLock(): Promise<boolean> {
 async function releaseSyncLock(): Promise<void> {
   await db.metadata.put({ key: 'isSyncing', value: false });
 }
+
+// ============================================
+// SEZIONE: Processing della coda di upload
+// Prende tutti gli item in attesa, li deduplica, li processa in ordine
+// tramite processSyncItem (da syncUploadHandlers.ts).
+// Gestisce retry (max 5) e aggiorna il timestamp dell'ultima sync.
+// ============================================
 
 /**
  * Process all pending items in the sync queue
@@ -273,516 +308,11 @@ export async function processSyncQueue(): Promise<SyncResult> {
   return result;
 }
 
-async function processSyncItem(item: SyncQueueItem): Promise<void> {
-  switch (item.entityType) {
-    case 'project':
-      await syncProject(item);
-      break;
-
-    case 'mapping_entry':
-      await syncMappingEntry(item);
-      break;
-
-    case 'photo':
-      await syncPhoto(item);
-      break;
-
-    case 'floor_plan':
-      await syncFloorPlan(item);
-      break;
-
-    case 'floor_plan_point':
-      await syncFloorPlanPoint(item);
-      break;
-
-    case 'standalone_map':
-      await syncStandaloneMap(item);
-      break;
-
-    default:
-      throw new Error(`Unknown entity type: ${item.entityType}`);
-  }
-}
-
-
-/**
- * Process a single sync queue item
- */
-async function syncProject(item: SyncQueueItem): Promise<void> {
-  let project = item.payload as Project;
-
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  // =========================
-  // CREATE
-  // =========================
-  if (item.operation === 'CREATE') {
-    const supabaseProject = {
-      id: project.id,
-      title: project.title,
-      client: project.client,
-      address: project.address,
-      notes: project.notes,
-      floors: project.floors,
-      plans: project.plans,
-      use_room_numbering: project.useRoomNumbering,
-      use_intervention_numbering: project.useInterventionNumbering,
-      typologies: project.typologies,
-      owner_id: project.ownerId,
-      accessible_users: project.accessibleUsers,
-      archived: project.archived,
-      // NOTE: syncEnabled is NOT synced - it's a per-device preference
-      created_at: new Date(project.createdAt).toISOString(),
-      updated_at: new Date(project.updatedAt).toISOString(),
-      version: project.version || 1, // Add version for conflict detection
-      last_modified: project.lastModified || project.updatedAt, // Add lastModified
-      synced: 1
-    };
-
-    const { error } = await supabase
-      .from('projects')
-      .insert(supabaseProject);
-
-    if (error) throw new Error(error.message);
-  }
-
-  // =========================
-  // UPDATE
-  // =========================
-  if (item.operation === 'UPDATE') {
-    // Check for conflicts before updating
-    const { hasConflict, remote } = await checkForConflicts('project', project.id);
-
-    if (hasConflict && remote) {
-      console.log(`⚠️  Conflict detected for project ${project.id}`);
-
-      // Resolve conflict using last-modified-wins strategy
-      project = await resolveProjectConflict(project, remote, 'last-modified-wins');
-
-      // Update local database with resolved version
-      await db.projects.put(project);
-      console.log(`✅ Conflict resolved for project ${project.id}`);
-    }
-
-    const supabaseProject = {
-      title: project.title,
-      client: project.client,
-      address: project.address,
-      notes: project.notes,
-      floors: project.floors,
-      plans: project.plans,
-      use_room_numbering: project.useRoomNumbering,
-      use_intervention_numbering: project.useInterventionNumbering,
-      typologies: project.typologies,
-      accessible_users: project.accessibleUsers,
-      archived: project.archived,
-      // NOTE: syncEnabled is NOT synced - it's a per-device preference
-      updated_at: new Date(project.updatedAt).toISOString(),
-      version: project.version || 1, // Add version for conflict detection
-      last_modified: project.lastModified || project.updatedAt, // Add lastModified
-      synced: 1
-    };
-
-    const { error } = await supabase
-      .from('projects')
-      .update(supabaseProject)
-      .eq('id', project.id);
-
-    if (error) throw new Error(error.message);
-  }
-
-  // =========================
-  // DELETE
-  // =========================
-  if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', project.id);
-
-    if (error) throw new Error(error.message);
-  }
-
-  // Mark local as synced
-  await db.projects.update(project.id, { synced: 1 });
-}
-
-/**
- * Sync a mapping entry to Supabase
- */
-async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
-  let entry = item.payload as MappingEntry;
-
-  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    // Check for conflicts before syncing
-    const { hasConflict, remote } = await checkForConflicts('mapping', entry.id);
-
-    if (hasConflict && remote) {
-      console.log(`⚠️  Conflict detected for mapping entry ${entry.id}`);
-
-      // Resolve conflict using last-modified-wins strategy
-      entry = await resolveMappingEntryConflict(entry, remote, 'last-modified-wins');
-
-      // Update local database with resolved version
-      await db.mappingEntries.put(entry);
-      console.log(`✅ Conflict resolved for mapping entry ${entry.id}`);
-    }
-
-    const supabaseEntry = {
-      id: entry.id,
-      project_id: entry.projectId,
-      floor: entry.floor,
-      room: entry.room || null,
-      intervention: entry.intervention || null,
-      crossings: entry.crossings,
-      to_complete: entry.toComplete || false,
-      timestamp: entry.timestamp,
-      last_modified: entry.lastModified,
-      version: entry.version,
-      created_by: entry.createdBy,
-      modified_by: entry.modifiedBy,
-      photos: entry.photos,
-      synced: 1,
-      created_at: new Date(entry.timestamp).toISOString(),
-      updated_at: new Date(entry.lastModified).toISOString()
-    };
-
-    const { error } = await supabase
-      .from('mapping_entries')
-      .upsert(supabaseEntry, {
-        onConflict: 'id'
-      });
-
-    if (error) {
-      throw new Error(`Supabase mapping entry upsert failed: ${error.message}`);
-    }
-
-    // Mark local entry as synced
-    await db.mappingEntries.update(entry.id, { synced: 1 });
-
-    // Sync photos associated with this mapping entry
-    const photos = await db.photos
-      .where('mappingEntryId')
-      .equals(entry.id)
-      .toArray();
-
-    for (const photo of photos) {
-      if (!photo.uploaded) {
-        // Add photo to sync queue if not already uploaded
-        const photoSyncItem: SyncQueueItem = {
-          id: `${entry.id}-photo-${photo.id}`,
-          operation: 'CREATE',
-          entityType: 'photo',
-          entityId: photo.id,
-          payload: photo,
-          timestamp: Date.now(),
-          retryCount: 0,
-          synced: 0
-        };
-
-        // Idempotent put - avoids race condition with check-then-add
-        await db.syncQueue.put(photoSyncItem);
-        console.log(`📸 Added photo ${photo.id} to sync queue`);
-      }
-    }
-  } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('mapping_entries')
-      .delete()
-      .eq('id', entry.id);
-
-    if (error) {
-      throw new Error(`Supabase mapping entry delete failed: ${error.message}`);
-    }
-  }
-}
-
-/**
- * Sync a photo to Supabase Storage
- */
-async function syncPhoto(item: SyncQueueItem): Promise<void> {
-  const photoMeta = item.payload as Photo;
-
-  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    // Get the actual photo blob from IndexedDB
-    const photo = await db.photos.get(photoMeta.id);
-
-    if (!photo || !photo.blob) {
-      throw new Error(`Photo blob not found: ${photoMeta.id}`);
-    }
-
-    // Upload to Supabase Storage
-    const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from('photos')
-      .upload(fileName, photo.blob, {
-        contentType: photo.blob.type,
-        upsert: true
-      });
-
-    if (uploadError) {
-      throw new Error(`Supabase photo upload failed: ${uploadError.message}`);
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('photos')
-      .getPublicUrl(fileName);
-
-    // Create photo metadata record in Supabase
-    const { error: metaError } = await supabase
-      .from('photos')
-      .upsert({
-        id: photoMeta.id,
-        mapping_entry_id: photoMeta.mappingEntryId,
-        storage_path: fileName,
-        url: publicUrl,
-        metadata: photoMeta.metadata,
-        uploaded: true,
-        created_at: new Date(photoMeta.metadata.captureTimestamp).toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      });
-
-    if (metaError) {
-      throw new Error(`Supabase photo metadata upsert failed: ${metaError.message}`);
-    }
-
-    // Mark local photo as uploaded
-    await db.photos.update(photoMeta.id, { uploaded: true });
-  } else if (item.operation === 'DELETE') {
-    // Use photoMeta from sync queue payload instead of querying database
-    // (photo was already deleted locally in removePhotoFromMapping)
-    const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
-
-    // Delete from storage
-    const { error: storageError } = await supabase.storage
-      .from('photos')
-      .remove([fileName]);
-
-    if (storageError) {
-      console.warn(`Failed to delete photo from storage: ${storageError.message}`);
-      // Continue with metadata deletion even if storage deletion fails
-    } else {
-      console.log(`🗑️ Deleted photo from storage: ${fileName}`);
-    }
-
-    // Delete metadata from database
-    const { error } = await supabase
-      .from('photos')
-      .delete()
-      .eq('id', photoMeta.id);
-
-    if (error) {
-      throw new Error(`Supabase photo delete failed: ${error.message}`);
-    }
-  }
-}
-
-/**
- * Sync floor plan to Supabase
- */
-async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
-  const floorPlan = item.payload as any; // FloorPlan type from database.ts
-
-  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    // Get the actual floor plan from IndexedDB (with blobs)
-    const localFloorPlan = await db.floorPlans.get(floorPlan.id);
-
-    if (!localFloorPlan) {
-      throw new Error(`Floor plan not found: ${floorPlan.id}`);
-    }
-
-    // Upload blobs to Supabase Storage if not already uploaded
-    let imageUrl = localFloorPlan.imageUrl;
-    let thumbnailUrl = localFloorPlan.thumbnailUrl;
-
-    if (!imageUrl && localFloorPlan.imageBlob) {
-      const { uploadFloorPlan } = await import('../utils/floorPlanUtils');
-      const urls = await uploadFloorPlan(
-        localFloorPlan.projectId,
-        localFloorPlan.floor,
-        localFloorPlan.imageBlob,
-        localFloorPlan.thumbnailBlob || localFloorPlan.imageBlob,
-        localFloorPlan.createdBy
-      );
-      imageUrl = urls.fullResUrl;
-      thumbnailUrl = urls.thumbnailUrl;
-
-      // Update local record with URLs
-      await db.floorPlans.update(floorPlan.id, { imageUrl, thumbnailUrl, synced: 1 });
-    }
-
-    // Create/update floor plan record in Supabase
-    const { error } = await supabase
-      .from('floor_plans')
-      .upsert({
-        id: localFloorPlan.id,
-        project_id: localFloorPlan.projectId,
-        floor: localFloorPlan.floor,
-        image_url: imageUrl,
-        thumbnail_url: thumbnailUrl,
-        original_filename: localFloorPlan.originalFilename,
-        original_format: localFloorPlan.originalFormat,
-        width: localFloorPlan.width,
-        height: localFloorPlan.height,
-        metadata: localFloorPlan.metadata || {},
-        created_by: localFloorPlan.createdBy,
-        created_at: new Date(localFloorPlan.createdAt).toISOString(),
-        updated_at: new Date(localFloorPlan.updatedAt).toISOString()
-      }, {
-        onConflict: 'id'
-      });
-
-    if (error) {
-      throw new Error(`Supabase floor plan upsert failed: ${error.message}`);
-    }
-  } else if (item.operation === 'DELETE') {
-    // Delete from Supabase
-    const { error } = await supabase
-      .from('floor_plans')
-      .delete()
-      .eq('id', floorPlan.id);
-
-    if (error) {
-      throw new Error(`Supabase floor plan delete failed: ${error.message}`);
-    }
-
-    // Delete from Storage if URLs exist
-    if (floorPlan.imageUrl || floorPlan.thumbnailUrl) {
-      const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
-      try {
-        await deleteFloorPlan(floorPlan.imageUrl, floorPlan.thumbnailUrl);
-      } catch (err) {
-        console.warn('Failed to delete floor plan from storage:', err);
-      }
-    }
-  }
-}
-
-/**
- * Sync floor plan point to Supabase
- */
-async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
-  const point = item.payload as any; // FloorPlanPoint type
-
-  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    const { error } = await supabase
-      .from('floor_plan_points')
-      .upsert({
-        id: point.id,
-        floor_plan_id: point.floorPlanId,
-        mapping_entry_id: point.mappingEntryId,
-        point_type: point.pointType,
-        point_x: point.pointX,
-        point_y: point.pointY,
-        label_x: point.labelX,
-        label_y: point.labelY,
-        perimeter_points: point.perimeterPoints,
-        custom_text: point.customText,
-        metadata: point.metadata || {},
-        created_by: point.createdBy,
-        created_at: new Date(point.createdAt).toISOString(),
-        updated_at: new Date(point.updatedAt).toISOString()
-      }, {
-        onConflict: 'id'
-      });
-
-    if (error) {
-      throw new Error(`Supabase floor plan point upsert failed: ${error.message}`);
-    }
-  } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('floor_plan_points')
-      .delete()
-      .eq('id', point.id);
-
-    if (error) {
-      throw new Error(`Supabase floor plan point delete failed: ${error.message}`);
-    }
-  }
-}
-
-/**
- * Sync standalone map to Supabase
- */
-async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
-  const map = item.payload as any; // StandaloneMap type
-
-  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    const localMap = await db.standaloneMaps.get(map.id);
-
-    if (!localMap) {
-      throw new Error(`Standalone map not found: ${map.id}`);
-    }
-
-    // Upload blobs to Supabase Storage if not already uploaded
-    let imageUrl = localMap.imageUrl;
-    let thumbnailUrl = localMap.thumbnailUrl;
-
-    if (!imageUrl && localMap.imageBlob) {
-      const { uploadStandaloneMap } = await import('../utils/floorPlanUtils');
-      const urls = await uploadStandaloneMap(
-        localMap.id,
-        localMap.imageBlob,
-        localMap.thumbnailBlob || localMap.imageBlob,
-        localMap.userId
-      );
-      imageUrl = urls.fullResUrl;
-      thumbnailUrl = urls.thumbnailUrl;
-
-      // Update local record with URLs
-      await db.standaloneMaps.update(map.id, { imageUrl, thumbnailUrl, synced: 1 });
-    }
-
-    // Create/update standalone map record in Supabase
-    const { error } = await supabase
-      .from('standalone_maps')
-      .upsert({
-        id: localMap.id,
-        user_id: localMap.userId,
-        name: localMap.name,
-        description: localMap.description,
-        image_url: imageUrl,
-        thumbnail_url: thumbnailUrl,
-        original_filename: localMap.originalFilename,
-        width: localMap.width,
-        height: localMap.height,
-        points: localMap.points,
-        grid_enabled: localMap.gridEnabled,
-        grid_config: localMap.gridConfig,
-        created_at: new Date(localMap.createdAt).toISOString(),
-        updated_at: new Date(localMap.updatedAt).toISOString()
-      }, {
-        onConflict: 'id'
-      });
-
-    if (error) {
-      throw new Error(`Supabase standalone map upsert failed: ${error.message}`);
-    }
-  } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('standalone_maps')
-      .delete()
-      .eq('id', map.id);
-
-    if (error) {
-      throw new Error(`Supabase standalone map delete failed: ${error.message}`);
-    }
-
-    // Delete from Storage if URLs exist
-    if (map.imageUrl || map.thumbnailUrl) {
-      const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
-      try {
-        await deleteFloorPlan(map.imageUrl, map.thumbnailUrl);
-      } catch (err) {
-        console.warn('Failed to delete standalone map from storage:', err);
-      }
-    }
-  }
-}
+// ============================================
+// SEZIONE: Statistiche e pulizia coda
+// getSyncStats: legge stato corrente (pending count, last sync time, is syncing).
+// clearSyncedItems: rimuove dalla coda gli item già sincronizzati (housekeeping).
+// ============================================
 
 /**
  * Get sync statistics
@@ -824,782 +354,25 @@ export async function clearSyncedItems(): Promise<number> {
   return syncedItems.length;
 }
 
-/**
- * Download projects from Supabase and save to IndexedDB
- * This pulls data from the server to the local database
- */
-export async function downloadProjectsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
-  }
-
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
-  }
-
-  console.log(`⬇️  Downloading projects from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-
-    // Download ALL projects and filter client-side
-    // This is less efficient but more reliable than PostgREST array queries
-    const { data: allProjects, error } = await supabase
-      .from('projects')
-      .select('*');
-
-    if (error) {
-      throw new Error(`Failed to download projects: ${error.message}`);
-    }
-
-    if (!allProjects || allProjects.length === 0) {
-      console.log('✅ No projects to download');
-      return 0;
-    }
-
-    // Filter projects: admins see all, regular users see only accessible
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading all projects');
-      userProjects = allProjects;
-    } else {
-      userProjects = allProjects.filter((p: any) =>
-        p.owner_id === userId ||
-        (p.accessible_users && Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
-      );
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No projects accessible to this user');
-      return 0;
-    }
-
-    console.log(`📥 Found ${userProjects.length} projects for user`);
-
-    let downloadedCount = 0;
-
-    for (const supabaseProject of userProjects) {
-      // Convert Supabase format to IndexedDB format
-      const project: Project = {
-        id: supabaseProject.id,
-        title: supabaseProject.title,
-        client: supabaseProject.client,
-        address: supabaseProject.address,
-        notes: supabaseProject.notes,
-        floors: supabaseProject.floors,
-        plans: supabaseProject.plans,
-        useRoomNumbering: supabaseProject.use_room_numbering,
-        useInterventionNumbering: supabaseProject.use_intervention_numbering,
-        typologies: supabaseProject.typologies,
-        ownerId: supabaseProject.owner_id,
-        accessibleUsers: supabaseProject.accessible_users || [],
-        archived: supabaseProject.archived || 0,
-        syncEnabled: 0, // Always default to 0 for newly downloaded projects (per-device preference)
-        createdAt: new Date(supabaseProject.created_at).getTime(),
-        updatedAt: new Date(supabaseProject.updated_at).getTime(),
-        version: supabaseProject.version || 1, // Add version for conflict detection
-        lastModified: supabaseProject.last_modified || new Date(supabaseProject.updated_at).getTime(), // Add lastModified
-        synced: 1
-      };
-
-      // Check if project exists locally
-      const existingProject = await db.projects.get(project.id);
-
-      if (existingProject) {
-        // IMPORTANT: Preserve local syncEnabled preference when updating from remote
-        project.syncEnabled = existingProject.syncEnabled;
-
-        // Check for conflicts and resolve using conflict resolution strategy
-        const hasConflict =
-          existingProject.updatedAt !== project.updatedAt ||
-          (existingProject.version || 1) !== (project.version || 1);
-
-        if (hasConflict) {
-          console.log(`⚠️  Conflict detected for project ${project.id} during download`);
-          // Use conflict resolution to merge properly
-          const resolved = await resolveProjectConflict(existingProject, supabaseProject, 'last-modified-wins');
-          // Preserve syncEnabled preference after conflict resolution
-          resolved.syncEnabled = existingProject.syncEnabled;
-          await db.projects.put(resolved);
-          console.log(`✅ Updated project from server with conflict resolution: ${project.title}`);
-          downloadedCount++;
-        } else if (project.updatedAt > existingProject.updatedAt) {
-          // No conflict, just newer remote version
-          await db.projects.put(project);
-          console.log(`✅ Updated project from server: ${project.title}`);
-          downloadedCount++;
-        }
-      } else {
-        // New project, just add it with syncEnabled = 0
-        await db.projects.put(project);
-        console.log(`✅ Downloaded new project: ${project.title}`);
-        downloadedCount++;
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} projects from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download projects:', errorMessage);
-    throw err;
-  }
-}
-
-/**
- * Download mapping entries from Supabase and save to IndexedDB
- */
-export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
-  }
-
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
-  }
-
-  console.log(`⬇️  Downloading mapping entries from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-
-    // Get all project IDs that have syncEnabled = 1 (full sync)
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading mapping entries for all sync-enabled projects');
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      // Get user's projects that have sync enabled
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No sync-enabled projects found, skipping mapping entries download');
-      return 0;
-    }
-
-    const projectIds = userProjects.map(p => p.id);
-    console.log(`📥 Downloading mapping entries for ${projectIds.length} sync-enabled projects`);
-
-    // Download mapping entries for these projects
-    const { data: mappingEntries, error } = await supabase
-      .from('mapping_entries')
-      .select('*')
-      .in('project_id', projectIds);
-
-    if (error) {
-      throw new Error(`Failed to download mapping entries: ${error.message}`);
-    }
-
-    if (!mappingEntries || mappingEntries.length === 0) {
-      console.log('✅ No mapping entries to download');
-      return 0;
-    }
-
-    let downloadedCount = 0;
-
-    for (const supabaseEntry of mappingEntries) {
-      // Convert Supabase format to IndexedDB format
-      const mappingEntry: MappingEntry = {
-        id: supabaseEntry.id,
-        projectId: supabaseEntry.project_id,
-        floor: supabaseEntry.floor,
-        room: supabaseEntry.room || undefined,
-        intervention: supabaseEntry.intervention || undefined,
-        photos: supabaseEntry.photos || [],
-        crossings: supabaseEntry.crossings || [],
-        toComplete: supabaseEntry.to_complete || false,
-        timestamp: new Date(supabaseEntry.created_at).getTime(),
-        createdBy: supabaseEntry.created_by,
-        lastModified: new Date(supabaseEntry.updated_at).getTime(),
-        modifiedBy: supabaseEntry.modified_by,
-        version: supabaseEntry.version || 1,
-        synced: 1
-      };
-
-      // Check if mapping entry exists locally
-      const existingEntry = await db.mappingEntries.get(mappingEntry.id);
-
-      if (existingEntry) {
-        // Check for conflicts and resolve using conflict resolution strategy
-        const hasConflict =
-          existingEntry.lastModified !== mappingEntry.lastModified ||
-          existingEntry.version !== mappingEntry.version;
-
-        if (hasConflict) {
-          console.log(`⚠️  Conflict detected for mapping entry ${mappingEntry.id} during download`);
-          // Use conflict resolution to merge properly
-          const resolved = await resolveMappingEntryConflict(existingEntry, supabaseEntry, 'last-modified-wins');
-          await db.mappingEntries.put(resolved);
-          console.log(`✅ Updated mapping entry from server with conflict resolution: ${mappingEntry.id}`);
-          downloadedCount++;
-        } else if (mappingEntry.lastModified > existingEntry.lastModified) {
-          // No conflict, just newer remote version
-          await db.mappingEntries.put(mappingEntry);
-          console.log(`✅ Updated mapping entry from server: ${mappingEntry.id}`);
-          downloadedCount++;
-        }
-      } else {
-        // New entry, just add it
-        await db.mappingEntries.put(mappingEntry);
-        console.log(`✅ Downloaded new mapping entry: ${mappingEntry.id}`);
-        downloadedCount++;
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} mapping entries from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download mapping entries:', errorMessage);
-    throw err;
-  }
-}
-
-/**
- * Download photos from Supabase Storage and save to IndexedDB
- */
-export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolean = false): Promise<{ downloaded: number; failed: number }> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return { downloaded: 0, failed: 0 };
-  }
-
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return { downloaded: 0, failed: 0 };
-  }
-
-  console.log(`⬇️  Downloading photos from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-
-    // Get all projects with syncEnabled = 1 (full sync including photos)
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading photos for all sync-enabled projects');
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      // Get user's projects that have sync enabled
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No sync-enabled projects found, skipping photos download');
-      return { downloaded: 0, failed: 0 };
-    }
-
-    const projectIds = userProjects.map(p => p.id);
-    console.log(`📥 Downloading photos for ${projectIds.length} sync-enabled projects`);
-
-    // Get all mapping entries for these projects
-    const mappingEntries = await db.mappingEntries
-      .where('projectId')
-      .anyOf(projectIds)
-      .toArray();
-
-    if (mappingEntries.length === 0) {
-      console.log('✅ No mapping entries found, skipping photos download');
-      return { downloaded: 0, failed: 0 };
-    }
-
-    const mappingEntryIds = mappingEntries.map(e => e.id);
-
-    console.log(`📥 Downloading photos for ${mappingEntryIds.length} mapping entries`);
-
-    // Split into batches to avoid URL length limits (PostgREST has a limit on query string length)
-    const BATCH_SIZE = 100;
-    const allPhotoMetadata = [];
-
-    for (let i = 0; i < mappingEntryIds.length; i += BATCH_SIZE) {
-      const batch = mappingEntryIds.slice(i, i + BATCH_SIZE);
-      console.log(`📥 Fetching photos batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(mappingEntryIds.length / BATCH_SIZE)} (${batch.length} entries)`);
-
-      const { data: batchData, error: batchError } = await supabase
-        .from('photos')
-        .select('*')
-        .in('mapping_entry_id', batch);
-
-      if (batchError) {
-        throw new Error(`Failed to download photo metadata (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${batchError.message}`);
-      }
-
-      if (batchData && batchData.length > 0) {
-        allPhotoMetadata.push(...batchData);
-      }
-    }
-
-    const photoMetadata = allPhotoMetadata;
-
-    if (!photoMetadata || photoMetadata.length === 0) {
-      console.log('✅ No photos to download');
-      return { downloaded: 0, failed: 0 };
-    }
-
-    console.log(`📥 Found ${photoMetadata.length} photos to download`);
-
-    let downloadedCount = 0;
-    let failedCount = 0;
-
-    for (const photoMeta of photoMetadata) {
-      try {
-        // Check if photo already exists locally
-        const existingPhoto = await db.photos.get(photoMeta.id);
-        if (existingPhoto && existingPhoto.uploaded) {
-          console.log(`⏭️  Photo ${photoMeta.id} already exists locally, skipping`);
-          continue;
-        }
-
-        // Download the photo blob from Supabase Storage
-        const { data: blob, error: downloadError } = await supabase.storage
-          .from('photos')
-          .download(photoMeta.storage_path);
-
-        if (downloadError) {
-          console.error(`❌ Failed to download photo ${photoMeta.id}:`, downloadError.message);
-          failedCount++;
-          continue;
-        }
-
-        if (!blob) {
-          console.error(`❌ No blob returned for photo ${photoMeta.id}`);
-          failedCount++;
-          continue;
-        }
-
-        // Save photo to IndexedDB
-        const photo: Photo = {
-          id: photoMeta.id,
-          blob: blob,
-          mappingEntryId: photoMeta.mapping_entry_id,
-          metadata: photoMeta.metadata,
-          uploaded: true,
-          remoteUrl: photoMeta.url
-        };
-
-        await db.photos.put(photo);
-        console.log(`✅ Downloaded photo: ${photoMeta.id}`);
-        downloadedCount++;
-      } catch (photoErr) {
-        const photoErrorMessage = photoErr instanceof Error ? photoErr.message : String(photoErr);
-        console.error(`❌ Error downloading photo ${photoMeta.id}:`, photoErrorMessage);
-        failedCount++;
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} photos from Supabase${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
-    return { downloaded: downloadedCount, failed: failedCount };
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download photos:', errorMessage);
-    throw err;
-  }
-}
-
-/**
- * Download floor plans from Supabase and save to IndexedDB
- */
-export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
-  }
-
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
-  }
-
-  console.log(`⬇️  Downloading floor plans from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-    // Get all projects with syncEnabled = 1 (full sync)
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading floor plans for all sync-enabled projects');
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      // Get user's projects that have sync enabled
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No sync-enabled projects found, skipping floor plans download');
-      return 0;
-    }
-
-    const projectIds = userProjects.map(p => p.id);
-    console.log(`📥 Downloading floor plans for ${projectIds.length} sync-enabled projects`);
-
-    // Download floor plans for these projects
-    const { data: floorPlans, error } = await supabase
-      .from('floor_plans')
-      .select('*')
-      .in('project_id', projectIds);
-
-    if (error) {
-      throw new Error(`Failed to download floor plans: ${error.message}`);
-    }
-
-    if (!floorPlans || floorPlans.length === 0) {
-      console.log('✅ No floor plans to download');
-      return 0;
-    }
-
-    console.log(`📥 Found ${floorPlans.length} floor plans to download`);
-
-    let downloadedCount = 0;
-
-    for (const supabaseFloorPlan of floorPlans) {
-      try {
-        // Check if floor plan already exists locally
-        const existingFloorPlan = await db.floorPlans.get(supabaseFloorPlan.id);
-
-        if (existingFloorPlan) {
-          // Check if remote version is newer
-          const remoteUpdated = new Date(supabaseFloorPlan.updated_at).getTime();
-          const localUpdated = existingFloorPlan.updatedAt;
-
-          // Skip only if up to date AND imageBlob exists
-          if (remoteUpdated <= localUpdated && existingFloorPlan.imageBlob) {
-            console.log(`⏭️  Floor plan ${supabaseFloorPlan.id} is up to date, skipping`);
-            continue;
-          }
-
-          // If imageBlob is missing, download it even if metadata is up to date
-          if (remoteUpdated <= localUpdated && !existingFloorPlan.imageBlob) {
-            console.log(`📥 Floor plan ${supabaseFloorPlan.id} metadata is up to date but imageBlob is missing, downloading image...`);
-          }
-        }
-
-        // Download image blobs from Supabase Storage if URLs exist
-        let imageBlob = null;
-        let thumbnailBlob = null;
-
-        if (supabaseFloorPlan.image_url) {
-          try {
-            console.log(`📥 Attempting to download floor plan image for ${supabaseFloorPlan.id}`);
-            console.log(`   Image URL: ${supabaseFloorPlan.image_url}`);
-
-            // Extract storage path from URL
-            const imageUrl = new URL(supabaseFloorPlan.image_url);
-            console.log(`   Parsed URL pathname: ${imageUrl.pathname}`);
-
-            // Try to extract path - support both 'floor-plans' and 'planimetrie' bucket names
-            let imagePath: string | undefined;
-            let bucketName = 'floor-plans'; // default
-
-            if (imageUrl.pathname.includes('/storage/v1/object/public/floor-plans/')) {
-              imagePath = imageUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
-              bucketName = 'floor-plans';
-            } else if (imageUrl.pathname.includes('/storage/v1/object/public/planimetrie/')) {
-              imagePath = imageUrl.pathname.split('/storage/v1/object/public/planimetrie/')[1];
-              bucketName = 'planimetrie';
-            } else {
-              // Try to extract bucket name dynamically
-              const match = imageUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
-              if (match) {
-                bucketName = match[1];
-                imagePath = match[2];
-              }
-            }
-
-            console.log(`   Extracted image path: ${imagePath}`);
-            console.log(`   Using bucket: ${bucketName}`);
-
-            if (imagePath) {
-              const { data: blob, error: downloadError } = await supabase.storage
-                .from(bucketName)
-                .download(imagePath);
-
-              if (!downloadError && blob) {
-                imageBlob = blob;
-                console.log(`✅ Successfully downloaded floor plan image for ${supabaseFloorPlan.id} (size: ${blob.size} bytes)`);
-              } else {
-                console.error(`❌ Failed to download floor plan image for ${supabaseFloorPlan.id}:`);
-                console.error(`   Error: ${downloadError?.message || 'Unknown error'}`);
-                console.error(`   Blob: ${blob}`);
-              }
-            } else {
-              console.error(`❌ Failed to extract image path from URL for ${supabaseFloorPlan.id}`);
-            }
-          } catch (urlErr) {
-            console.error(`❌ Failed to parse floor plan image URL for ${supabaseFloorPlan.id}:`, urlErr);
-            console.error(`   URL was: ${supabaseFloorPlan.image_url}`);
-          }
-        } else {
-          console.warn(`⚠️  No image_url for floor plan ${supabaseFloorPlan.id}`);
-        }
-
-        if (supabaseFloorPlan.thumbnail_url) {
-          try {
-            // Extract storage path from URL
-            const thumbnailUrl = new URL(supabaseFloorPlan.thumbnail_url);
-
-            // Try to extract path - support both 'floor-plans' and 'planimetrie' bucket names
-            let thumbnailPath: string | undefined;
-            let bucketName = 'floor-plans'; // default
-
-            if (thumbnailUrl.pathname.includes('/storage/v1/object/public/floor-plans/')) {
-              thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
-              bucketName = 'floor-plans';
-            } else if (thumbnailUrl.pathname.includes('/storage/v1/object/public/planimetrie/')) {
-              thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/planimetrie/')[1];
-              bucketName = 'planimetrie';
-            } else {
-              // Try to extract bucket name dynamically
-              const match = thumbnailUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
-              if (match) {
-                bucketName = match[1];
-                thumbnailPath = match[2];
-              }
-            }
-
-            if (thumbnailPath) {
-              const { data: blob, error: downloadError } = await supabase.storage
-                .from(bucketName)
-                .download(thumbnailPath);
-
-              if (!downloadError && blob) {
-                thumbnailBlob = blob;
-              } else {
-                console.warn(`⚠️  Failed to download floor plan thumbnail for ${supabaseFloorPlan.id}: ${downloadError?.message}`);
-              }
-            }
-          } catch (urlErr) {
-            console.warn(`⚠️  Failed to parse floor plan thumbnail URL: ${urlErr}`);
-          }
-        }
-
-        // Convert Supabase format to IndexedDB format
-        const floorPlan = {
-          id: supabaseFloorPlan.id,
-          projectId: supabaseFloorPlan.project_id,
-          floor: supabaseFloorPlan.floor,
-          imageUrl: supabaseFloorPlan.image_url,
-          thumbnailUrl: supabaseFloorPlan.thumbnail_url,
-          imageBlob: imageBlob,
-          thumbnailBlob: thumbnailBlob,
-          originalFilename: supabaseFloorPlan.original_filename,
-          originalFormat: supabaseFloorPlan.original_format,
-          width: supabaseFloorPlan.width,
-          height: supabaseFloorPlan.height,
-          metadata: supabaseFloorPlan.metadata || {},
-          createdBy: supabaseFloorPlan.created_by,
-          createdAt: new Date(supabaseFloorPlan.created_at).getTime(),
-          updatedAt: new Date(supabaseFloorPlan.updated_at).getTime(),
-          synced: 1 as 0 | 1
-        };
-
-        // Warn if imageBlob is missing
-        if (!imageBlob && supabaseFloorPlan.image_url) {
-          console.warn(`⚠️  WARNING: Saving floor plan ${supabaseFloorPlan.id} with NULL imageBlob even though image_url exists!`);
-          console.warn(`   This floor plan will not be viewable until the image is downloaded successfully.`);
-        }
-
-        await db.floorPlans.put(floorPlan);
-        console.log(`✅ Downloaded floor plan: ${supabaseFloorPlan.id} for project ${supabaseFloorPlan.project_id}, floor ${supabaseFloorPlan.floor} (imageBlob: ${imageBlob ? 'YES' : 'NO'})`);
-        downloadedCount++;
-      } catch (floorPlanErr) {
-        const errorMessage = floorPlanErr instanceof Error ? floorPlanErr.message : String(floorPlanErr);
-        console.error(`❌ Error downloading floor plan ${supabaseFloorPlan.id}:`, errorMessage);
-        // Continue with next floor plan even if one fails
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} floor plans from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download floor plans:', errorMessage);
-    throw err;
-  }
-}
-
-/**
- * Download floor plan points from Supabase and save to IndexedDB
- */
-export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
-  }
-
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
-  }
-
-  console.log(`⬇️  Downloading floor plan points from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-    // Get all floor plans that we have locally
-    const localFloorPlans = await db.floorPlans.toArray();
-
-    if (localFloorPlans.length === 0) {
-      console.log('✅ No floor plans found locally, skipping floor plan points download');
-      return 0;
-    }
-
-    const floorPlanIds = localFloorPlans.map(fp => fp.id);
-    console.log(`📥 Downloading floor plan points for ${floorPlanIds.length} floor plans`);
-
-    // Download floor plan points for these floor plans
-    const { data: floorPlanPoints, error } = await supabase
-      .from('floor_plan_points')
-      .select('*')
-      .in('floor_plan_id', floorPlanIds);
-
-    if (error) {
-      throw new Error(`Failed to download floor plan points: ${error.message}`);
-    }
-
-    if (!floorPlanPoints || floorPlanPoints.length === 0) {
-      console.log('✅ No floor plan points to download');
-      return 0;
-    }
-
-    console.log(`📥 Found ${floorPlanPoints.length} floor plan points to download`);
-
-    let downloadedCount = 0;
-
-    for (const supabasePoint of floorPlanPoints) {
-      try {
-        // Check if point already exists locally
-        const existingPoint = await db.floorPlanPoints.get(supabasePoint.id);
-
-        if (existingPoint) {
-          // Check if remote version is newer
-          const remoteUpdated = new Date(supabasePoint.updated_at).getTime();
-          const localUpdated = existingPoint.updatedAt;
-
-          if (remoteUpdated <= localUpdated) {
-            console.log(`⏭️  Floor plan point ${supabasePoint.id} is up to date, skipping`);
-            continue;
-          }
-        }
-
-        // Convert Supabase format to IndexedDB format
-        const point = {
-          id: supabasePoint.id,
-          floorPlanId: supabasePoint.floor_plan_id,
-          mappingEntryId: supabasePoint.mapping_entry_id,
-          pointType: supabasePoint.point_type,
-          pointX: supabasePoint.point_x,
-          pointY: supabasePoint.point_y,
-          labelX: supabasePoint.label_x,
-          labelY: supabasePoint.label_y,
-          perimeterPoints: supabasePoint.perimeter_points,
-          customText: supabasePoint.custom_text,
-          metadata: supabasePoint.metadata || {},
-          createdBy: supabasePoint.created_by,
-          createdAt: new Date(supabasePoint.created_at).getTime(),
-          updatedAt: new Date(supabasePoint.updated_at).getTime(),
-          synced: 1 as 0 | 1
-        };
-
-        await db.floorPlanPoints.put(point);
-        console.log(`✅ Downloaded floor plan point: ${supabasePoint.id} (${supabasePoint.point_type})`);
-        downloadedCount++;
-      } catch (pointErr) {
-        const errorMessage = pointErr instanceof Error ? pointErr.message : String(pointErr);
-        console.error(`❌ Error downloading floor plan point ${supabasePoint.id}:`, errorMessage);
-        // Continue with next point even if one fails
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} floor plan points from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download floor plan points:', errorMessage);
-    throw err;
-  }
-}
-
-/**
- * Update hasRemotePhotos flags on mapping entries.
- * Called when photos are skipped during sync, to indicate which entries have photos on the server.
- */
-async function updateRemotePhotosFlags(userId: string, isAdmin: boolean): Promise<void> {
-  try {
-    // Get sync-enabled projects
-    let userProjects;
-    if (isAdmin) {
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      const allUserProjects = await db.projects
-        .where('ownerId').equals(userId)
-        .or('accessibleUsers').equals(userId)
-        .toArray();
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) return;
-
-    const projectIds = userProjects.map(p => p.id);
-
-    // Get photo counts from Supabase grouped by mapping_entry_id
-    const { data: photoCounts, error } = await supabase
-      .from('photos')
-      .select('mapping_entry_id')
-      .in('mapping_entry_id', (await db.mappingEntries.where('projectId').anyOf(projectIds).toArray()).map(e => e.id));
-
-    if (error || !photoCounts) return;
-
-    // Count photos per mapping entry on server
-    const remotePhotoMap = new Map<string, number>();
-    for (const row of photoCounts) {
-      remotePhotoMap.set(row.mapping_entry_id, (remotePhotoMap.get(row.mapping_entry_id) || 0) + 1);
-    }
-
-    // Get local photo counts
-    const localPhotos = await db.photos.toArray();
-    const localPhotoMap = new Map<string, number>();
-    for (const photo of localPhotos) {
-      localPhotoMap.set(photo.mappingEntryId, (localPhotoMap.get(photo.mappingEntryId) || 0) + 1);
-    }
-
-    // Update flags on mapping entries
-    const entries = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
-    for (const entry of entries) {
-      const remoteCount = remotePhotoMap.get(entry.id) || 0;
-      const localCount = localPhotoMap.get(entry.id) || 0;
-      const hasRemotePhotos = remoteCount > localCount;
-
-      if (entry.hasRemotePhotos !== hasRemotePhotos) {
-        await db.mappingEntries.update(entry.id, { hasRemotePhotos });
-      }
-    }
-
-    console.log('📷 Remote photo flags aggiornati');
-  } catch (err) {
-    console.warn('Failed to update remote photo flags:', err);
-  }
-}
+// ============================================
+// SEZIONE: Re-export funzioni download
+// Le funzioni di download sono definite in syncDownloadHandlers.ts.
+// Re-esportate qui per retrocompatibilità con i file che le importano da syncEngine.
+// ============================================
+
+export {
+  downloadProjectsFromSupabase,
+  downloadMappingEntriesFromSupabase,
+  downloadPhotosFromSupabase,
+  downloadFloorPlansFromSupabase,
+  downloadFloorPlanPointsFromSupabase
+};
+
+// ============================================
+// SEZIONE: Sync FROM Supabase (download completo)
+// Scarica progetti, entries, foto, planimetrie e punti in un'unica operazione.
+// Usato dall'auto-sync periodico e come base di phasedSyncFromSupabase.
+// ============================================
 
 /**
  * Sync data FROM Supabase TO local IndexedDB
@@ -1661,6 +434,12 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
   }
 }
 
+// ============================================
+// SEZIONE: Auto-sync periodico
+// startAutoSync: avvia il timer di sync automatico bidirezionale.
+// stopAutoSync: ferma il timer. Usa il lock per evitare sync concorrenti.
+// ============================================
+
 /**
  * Auto-sync on interval (call this on app startup)
  */
@@ -1713,6 +492,12 @@ export function stopAutoSync(): void {
   }
 }
 
+// ============================================
+// SEZIONE: Sync manuale (manualSync)
+// Sync bidirezionale con lock atomico: prima upload locale, poi download remoto
+// con approccio a fasi. Aggiorna anche le cache dei dropdown al completamento.
+// ============================================
+
 /**
  * Manual sync trigger (for UI button)
  * Performs bidirectional sync with atomic lock: upload local changes and download remote changes
@@ -1755,6 +540,13 @@ export async function manualSync(options?: {
     await releaseSyncLock();
   }
 }
+
+// ============================================
+// SEZIONE: Sync a fasi (phasedSyncFromSupabase)
+// Scarica in 3 fasi: 1) dati principali, 2) planimetrie+punti, 3) foto (opzionale).
+// Permette all'utente di scegliere se scaricare le foto tramite onPhotoDecisionNeeded.
+// Se le foto sono saltate, aggiorna i flag hasRemotePhotos sulle mapping entries.
+// ============================================
 
 /**
  * Phased sync from Supabase: data → floor plans → photos (optional)
@@ -1814,6 +606,13 @@ export async function phasedSyncFromSupabase(options?: {
 
   return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount };
 }
+
+// ============================================
+// SEZIONE: Clear and sync
+// Cancella tutti i dati locali e riscarica tutto da Supabase.
+// Utile per risolvere discrepanze persistenti tra locale e remoto.
+// Preserva solo i dati di autenticazione (users, currentUser metadata).
+// ============================================
 
 /**
  * Clear all local data and re-sync from Supabase

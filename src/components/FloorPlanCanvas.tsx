@@ -6,6 +6,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import './FloorPlanCanvas.css';
 
+// ============================================
+// SEZIONE: Interfacce e tipi
+// Definisce i tipi per punti, colori, configurazione griglia e props del canvas.
+// ============================================
+
 export interface CanvasPoint {
   id: string;
   type: 'parete' | 'solaio' | 'perimetro' | 'generico';
@@ -81,6 +86,12 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [perimeterPoints, setPerimeterPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
   const [currentMousePos, setCurrentMousePos] = useState<{ x: number; y: number } | null>(null);
+
+  // ============================================
+  // SEZIONE: Cache e costanti
+  // Cache per la misurazione del testo e costanti di rendering.
+  // ============================================
+
   const measureTextCacheRef = useRef<Map<string, number>>(new Map());
   const measureTextCacheZoomRef = useRef<number>(0);
 
@@ -207,6 +218,11 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       y: Math.max(0, Math.min(1, snappedY)),
     };
   }, [gridConfig, image]);
+
+  // ============================================
+  // SEZIONE: Funzioni di rendering canvas
+  // Funzioni per disegnare punti, etichette, griglia e il canvas principale.
+  // ============================================
 
   // Render canvas
   const render = useCallback(() => {
@@ -615,6 +631,11 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
   };
 
+  // ============================================
+  // SEZIONE: Gestione eventi mouse
+  // Handler per click, drag, hover e selezione punti tramite mouse.
+  // ============================================
+
   // Handle mouse down
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -856,6 +877,11 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     setZoom(prev => Math.max(0.1, prev * 0.8));
   }, []);
 
+  // ============================================
+  // SEZIONE: Gestione eventi touch
+  // Handler per gestures touch su dispositivi mobili.
+  // ============================================
+
   // Handle touch events for mobile
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
@@ -977,6 +1003,11 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     setLastTouchDistance(null);
     setLastTouchCenter(null);
   };
+
+  // ============================================
+  // SEZIONE: Effects e lifecycle
+  // useEffect per ridisegnare il canvas al cambio di stato o dimensioni.
+  // ============================================
 
   // Handle zoom triggers from parent
   useEffect(() => {
