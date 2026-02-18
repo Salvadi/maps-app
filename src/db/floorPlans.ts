@@ -1,13 +1,17 @@
 /**
- * Floor Plan Database Operations
- * CRUD operations for floor plans, floor plan points, and standalone maps
+ * floorPlans.ts
+ * Operazioni su database per planimetrie, punti planimetria e mappe standalone.
+ * Ogni operazione di scrittura aggiunge un record alla coda di sincronizzazione
+ * e attiva l'upload immediato verso Supabase.
  */
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
 import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
+import { triggerImmediateUpload } from '../sync/syncEngine';
 
 // ============================================
-// FLOOR PLANS
+// SEZIONE: CRUD Planimetrie
+// Creazione, lettura, aggiornamento ed eliminazione delle planimetrie (FloorPlan).
 // ============================================
 
 /**
@@ -69,6 +73,7 @@ export async function createFloorPlan(
       retryCount: 0,
       synced: 0, // Always set to 0 so it gets processed by sync engine
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan created:', floorPlan.id);
     return floorPlan;
@@ -132,6 +137,7 @@ export async function updateFloorPlan(
         retryCount: 0,
         synced: 0,
       });
+      triggerImmediateUpload();
     }
 
     console.log('Floor plan updated:', id);
@@ -168,6 +174,7 @@ export async function deleteFloorPlan(id: string): Promise<void> {
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan deleted:', id);
   } catch (error) {
@@ -177,7 +184,8 @@ export async function deleteFloorPlan(id: string): Promise<void> {
 }
 
 // ============================================
-// FLOOR PLAN POINTS
+// SEZIONE: CRUD Punti Planimetria
+// Creazione, lettura, aggiornamento ed eliminazione dei punti sulla planimetria.
 // ============================================
 
 /**
@@ -230,6 +238,7 @@ export async function createFloorPlanPoint(
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan point created:', point.id);
     return point;
@@ -289,6 +298,7 @@ export async function updateFloorPlanPoint(
         retryCount: 0,
         synced: 0,
       });
+      triggerImmediateUpload();
     }
 
     console.log('Floor plan point updated:', id);
@@ -316,6 +326,7 @@ export async function deleteFloorPlanPoint(id: string): Promise<void> {
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Floor plan point deleted:', id);
   } catch (error) {
@@ -325,7 +336,8 @@ export async function deleteFloorPlanPoint(id: string): Promise<void> {
 }
 
 // ============================================
-// STANDALONE MAPS
+// SEZIONE: CRUD Mappe Standalone
+// Creazione, lettura, aggiornamento ed eliminazione delle mappe standalone.
 // ============================================
 
 /**
@@ -395,6 +407,7 @@ export async function createStandaloneMap(
       retryCount: 0,
       synced: 0, // Always set to 0 so it gets processed by sync engine
     });
+    triggerImmediateUpload();
 
     console.log('Standalone map created:', map.id);
     return map;
@@ -445,6 +458,7 @@ export async function updateStandaloneMap(
         retryCount: 0,
         synced: 0,
       });
+      triggerImmediateUpload();
     }
 
     console.log('Standalone map updated:', id);
@@ -472,6 +486,7 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
       retryCount: 0,
       synced: 0,
     });
+    triggerImmediateUpload();
 
     console.log('Standalone map deleted:', id);
   } catch (error) {
@@ -481,7 +496,8 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
 }
 
 // ============================================
-// HELPER FUNCTIONS
+// SEZIONE: Aggiornamento etichette
+// Funzioni per aggiornare le etichette dei punti in base alle mapping entries.
 // ============================================
 
 /**
@@ -557,6 +573,7 @@ export async function updateFloorPlanLabelsForMapping(
         });
       }
     }
+    triggerImmediateUpload();
 
     console.log(`Updated labels for ${points.length} floor plan point(s) associated with mapping ${mappingEntryId}`);
   } catch (error) {

@@ -6,6 +6,17 @@ import ProductSelector from './ProductSelector';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
 import './ProjectForm.css';
 
+/**
+ * ProjectForm
+ * Componente per la creazione e modifica di un progetto (cantiere).
+ * Gestisce i dati anagrafici, i tipologici, le planimetrie e gli accessi utente.
+ */
+
+// ============================================
+// SEZIONE: Interfacce e stato
+// Tipi per le props, lo stato del form e le strutture dei tipologici.
+// ============================================
+
 interface ProjectFormProps {
   project: Project | null;
   currentUser: User;
@@ -116,6 +127,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
+  // ============================================
+  // SEZIONE: Gestione planimetrie
+  // Funzioni per caricare, eliminare e gestire le planimetrie del progetto.
+  // ============================================
+
   const loadFloorPlans = async () => {
     if (!project) return;
 
@@ -198,6 +214,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     }
   };
 
+  // ============================================
+  // SEZIONE: Gestione tipologici
+  // Funzioni per aggiungere, modificare ed eliminare i tipologici del progetto.
+  // ============================================
+
   const handleAddTypology = () => {
     const maxNumber = Math.max(...typologies.map((t) => t.number), 0);
     setTypologies([
@@ -229,6 +250,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       typologies.map((t) => (t.id === id ? { ...t, [field]: value } : t))
     );
   };
+
+  // ============================================
+  // SEZIONE: Gestione accessi utente
+  // Funzioni per aggiungere e rimuovere utenti con accesso al progetto.
+  // ============================================
 
   const handleUserToggle = (userId: string) => {
     if (selectedUserIds.includes(userId)) {
@@ -336,6 +362,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     }
   };
 
+  // ============================================
+  // SEZIONE: Salvataggio e submit
+  // Validazione del form e salvataggio del progetto su IndexedDB con sync.
+  // ============================================
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -438,6 +469,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       }
     }
   };
+
+  // ============================================
+  // SEZIONE: Render form
+  // JSX del form con sezioni: info progetto, tipologici, planimetrie e accessi.
+  // ============================================
 
   return (
     <div className="project-form-page">

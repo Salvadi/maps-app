@@ -327,6 +327,15 @@
   cursor: help;
 }
 
+.remote-photos-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.85rem;
+  vertical-align: middle;
+  cursor: help;
+  opacity: 0.8;
+}
+
 .mapping-meta {
   font-size: 0.875rem;
   color: var(--color-text-secondary);

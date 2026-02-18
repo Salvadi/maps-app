@@ -1,4 +1,5 @@
 import { db, generateId, now, MappingEntry, Photo, SyncQueueItem } from './database';
+import { triggerImmediateUpload } from '../sync/syncEngine';
 
 /**
  * Create a new mapping entry with photos
@@ -65,6 +66,7 @@ export async function createMappingEntry(
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
 
     console.log('Mapping entry created:', entry.id);
     return entry;
@@ -150,6 +152,7 @@ export async function updateMappingEntry(
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
 
     console.log('Mapping entry updated:', id);
     return updatedEntry;
@@ -198,6 +201,7 @@ export async function deleteMappingEntry(id: string): Promise<void> {
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
 
     console.log('Mapping entry deleted:', id);
   } catch (error) {
@@ -293,6 +297,7 @@ export async function removePhotoFromMapping(
       synced: 0
     };
     await db.syncQueue.add(syncItem);
+    triggerImmediateUpload();
     console.log(`Added photo deletion to sync queue: ${photoId}`);
   }
 
