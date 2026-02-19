@@ -280,7 +280,9 @@ export async function buildFloorPlanVectorPDF(
         ? hexToRgb(point.labelTextColor)
         : { r: 0.2, g: 0.2, b: 0.2 };
 
-      const labelHeight = Math.max(point.labelText.length * LINE_HEIGHT + LABEL_PADDING * 2, 36); // min height 36pt
+      // Calculate exact label height and width to match canvas editor
+      const textBlockHeight = point.labelText.length * LINE_HEIGHT;
+      const labelHeight = textBlockHeight + LABEL_PADDING * 2;
       const labelWidth = Math.max(approxLineWidth, 70) + LABEL_PADDING * 2;
 
       const labelRectLeft = labelPos.x - labelWidth / 2;
@@ -326,13 +328,15 @@ export async function buildFloorPlanVectorPDF(
         borderWidth: 0.5,
       });
 
-      // 5. Draw label text lines
+      // 5. Draw label text lines - CENTER VERTICALLY in label
+      const labelCenter = labelPos.y - labelHeight / 2;
+      const textTop = labelCenter + textBlockHeight / 2;
       for (let i = 0; i < point.labelText.length; i++) {
         const line = point.labelText[i];
-        const y = labelPos.y - LABEL_PADDING - (i + 1) * LINE_HEIGHT;
+        const y = textTop - (i + 1) * LINE_HEIGHT + LINE_HEIGHT / 2;
         page.drawText(line, {
           x: labelPos.x - labelWidth / 2 + LABEL_PADDING,
-          y: y - FONT_SIZE / 2,
+          y: y,
           size: FONT_SIZE,
           color: rgb(labelTextColor.r, labelTextColor.g, labelTextColor.b),
         });
