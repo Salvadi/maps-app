@@ -10,6 +10,36 @@ import { supabase } from '../lib/supabase';
 declare const pdfjsLib: any;
 
 /**
+ * Convert Blob to Base64 string for storage in IndexedDB
+ */
+export async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Extract base64 part after "data:...;base64,"
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Convert Base64 string back to Blob
+ */
+export function base64ToBlob(base64: string, mimeType: string = 'application/pdf'): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
+/**
  * Load PDF.js library dynamically
  */
 async function loadPdfJs(): Promise<void> {

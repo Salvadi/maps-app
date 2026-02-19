@@ -1350,7 +1350,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             }}
             mode="view-edit"
             unmappedEntries={editorUnmappedEntries}
-            pdfBlob={editorFloorPlan.pdfBlob}
+            pdfBlobBase64={editorFloorPlan.pdfBlobBase64}
             imageDimensions={{ width: editorFloorPlan.width, height: editorFloorPlan.height }}
             onSave={handleSaveFloorPlanEditor}
             onClose={handleCloseFloorPlanEditor}

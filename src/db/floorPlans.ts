@@ -6,7 +6,7 @@
  */
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
-import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
+import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap, blobToBase64 } from '../utils/floorPlanUtils';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 
 // ============================================
@@ -43,6 +43,12 @@ export async function createFloorPlan(
       // Continue anyway - will be stored locally and synced later
     }
 
+    // Convert pdfBlob to Base64 for storage in IndexedDB (Dexie doesn't serialize Blobs well)
+    let pdfBlobBase64: string | undefined;
+    if (pdfBlob) {
+      pdfBlobBase64 = await blobToBase64(pdfBlob);
+    }
+
     const floorPlan: FloorPlan = {
       id: generateId(),
       projectId,
@@ -51,7 +57,7 @@ export async function createFloorPlan(
       thumbnailBlob: thumbnail,
       imageUrl,
       thumbnailUrl,
-      pdfBlob, // Store original PDF for vector preservation
+      pdfBlobBase64, // Store original PDF as Base64 for vector preservation
       pdfUrl,  // URL to original PDF on Supabase
       originalFilename: file.name,
       originalFormat,

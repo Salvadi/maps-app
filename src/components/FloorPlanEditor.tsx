@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanvas';
 import { exportCanvasToPDF, exportCanvasToPNG, exportFloorPlanVectorPDF } from '../utils/exportUtils';
+import { base64ToBlob } from '../utils/floorPlanUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
@@ -27,7 +28,7 @@ interface FloorPlanEditorProps {
   mode?: 'mapping' | 'standalone' | 'view' | 'view-edit'; // mapping = linked to mapping entry, standalone = independent, view = read-only, view-edit = can move labels and add generico/perimetro
   maxPoints?: number; // Maximum number of points allowed (for mapping mode, typically 1)
   unmappedEntries?: UnmappedEntry[]; // Entries not yet positioned on floor plan (for view-edit mode)
-  pdfBlob?: Blob; // Original PDF blob for vector export (if floor plan was imported from PDF)
+  pdfBlobBase64?: string; // Original PDF as Base64 for vector export (if floor plan was imported from PDF)
   imageDimensions?: { width: number; height: number }; // Dimensions of the floor plan image
   onSave?: (points: CanvasPoint[], gridConfig: GridConfig) => void;
   onClose?: () => void;
@@ -56,7 +57,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   mode = 'standalone',
   maxPoints,
   unmappedEntries: unmappedEntriesProp = [],
-  pdfBlob,
+  pdfBlobBase64,
   imageDimensions,
   onSave,
   onClose,
@@ -307,25 +308,35 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       return;
     }
 
-    // Try vector export first if pdfBlob is available
-    let pdfBlobToUse = pdfBlob;
+    // Try vector export first if pdfBlobBase64 is available
+    let pdfBlobToUse: Blob | undefined;
+    let pdfBase64ToUse = pdfBlobBase64;
 
-    // If no pdfBlob in memory, try to get it from IndexedDB
-    if (!pdfBlobToUse && loadedImageDimensions) {
+    // If no pdfBlobBase64 in props, try to get it from IndexedDB
+    if (!pdfBase64ToUse && loadedImageDimensions) {
       try {
         // Try loading from IndexedDB directly
         const floorPlans = await (window as any).db?.floorPlans?.toArray?.();
         if (floorPlans && floorPlans.length > 0) {
-          // Get the most recent floor plan's pdfBlob
+          // Get the most recent floor plan's pdfBlobBase64
           for (let i = floorPlans.length - 1; i >= 0; i--) {
-            if (floorPlans[i].pdfBlob) {
-              pdfBlobToUse = floorPlans[i].pdfBlob;
+            if (floorPlans[i].pdfBlobBase64) {
+              pdfBase64ToUse = floorPlans[i].pdfBlobBase64;
               break;
             }
           }
         }
       } catch (error) {
-        console.warn('Could not retrieve pdfBlob from IndexedDB:', error);
+        console.warn('Could not retrieve pdfBlobBase64 from IndexedDB:', error);
+      }
+    }
+
+    // Convert Base64 to Blob if we have a Base64 string
+    if (pdfBase64ToUse) {
+      try {
+        pdfBlobToUse = base64ToBlob(pdfBase64ToUse);
+      } catch (error) {
+        console.error('Error converting Base64 to Blob:', error);
       }
     }
 
@@ -361,7 +372,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [onExportPDFProp, pdfBlob, points, loadedImageDimensions]);
+  }, [onExportPDFProp, pdfBlobBase64, points, loadedImageDimensions]);
 
   // Handle export to PNG
   const handleExportPNG = useCallback(() => {
