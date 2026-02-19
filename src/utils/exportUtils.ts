@@ -4,7 +4,7 @@
 
 import jsPDF from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 
 // Set up PDF.js worker - use unpkg CDN for better compatibility
@@ -248,27 +248,15 @@ export async function buildFloorPlanVectorPDF(
     const CONNECTING_LINE_WIDTH = 0.5; // pt
     const LINE_HEIGHT = 18; // pt (spacing between lines, match canvas editor)
 
+    // Load fonts once before the loop
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+
     // Add annotations for each point
     for (const point of points) {
       const pointPos = toPageCoords(point.pointX, point.pointY);
       const labelPos = toPageCoords(point.labelX, point.labelY);
       const pointColor = getPointColorForType(point.type);
-
-      // 1. Draw perimeter if applicable
-      if (point.type === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-        const perimeterColor = rgb(pointColor.r, pointColor.g, pointColor.b);
-        for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
-          const p1 = toPageCoords(point.perimeterPoints[i].x, point.perimeterPoints[i].y);
-          const p2 = toPageCoords(point.perimeterPoints[i + 1].x, point.perimeterPoints[i + 1].y);
-          page.drawLine({
-            start: p1,
-            end: p2,
-            thickness: 1.5,
-            color: perimeterColor,
-            dashArray: [6, 3],
-          });
-        }
-      }
 
       // Calculate label dimensions early (needed for both lines and rectangles)
       const labelBgColor = point.labelBackgroundColor
@@ -290,7 +278,7 @@ export async function buildFloorPlanVectorPDF(
       const labelRectTop = labelPos.y;
       const labelRectBottom = labelPos.y - labelHeight;
 
-      // 2. Draw connecting line FIRST (so it appears behind label)
+      // 1. Draw connecting line FIRST - BEFORE EVERYTHING (so it's always behind)
       let connectionEnd = labelPos;
       const distances = [
         { edge: { x: labelPos.x, y: labelRectTop }, dist: Math.abs(pointPos.y - labelRectTop) }, // top
@@ -308,6 +296,22 @@ export async function buildFloorPlanVectorPDF(
         color: rgb(0.4, 0.4, 0.4),
         dashArray: [2, 2],
       });
+
+      // 2. Draw perimeter if applicable
+      if (point.type === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
+        const perimeterColor = rgb(pointColor.r, pointColor.g, pointColor.b);
+        for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
+          const p1 = toPageCoords(point.perimeterPoints[i].x, point.perimeterPoints[i].y);
+          const p2 = toPageCoords(point.perimeterPoints[i + 1].x, point.perimeterPoints[i + 1].y);
+          page.drawLine({
+            start: p1,
+            end: p2,
+            thickness: 1.5,
+            color: perimeterColor,
+            dashArray: [6, 3],
+          });
+        }
+      }
 
       // 3. Draw point circle
       page.drawCircle({
@@ -328,18 +332,46 @@ export async function buildFloorPlanVectorPDF(
         borderWidth: 0.5,
       });
 
-      // 5. Draw label text lines - CENTER VERTICALLY in label
+      // 5. Draw label text lines with formatting - CENTER VERTICALLY in label
       const labelCenter = labelPos.y - labelHeight / 2;
       const textTop = labelCenter + textBlockHeight / 2;
       for (let i = 0; i < point.labelText.length; i++) {
         const line = point.labelText[i];
         const y = textTop - (i + 1) * LINE_HEIGHT + LINE_HEIGHT / 2;
-        page.drawText(line, {
-          x: labelPos.x - labelWidth / 2 + LABEL_PADDING,
-          y: y,
-          size: FONT_SIZE,
-          color: rgb(labelTextColor.r, labelTextColor.g, labelTextColor.b),
-        });
+        const textColor = rgb(labelTextColor.r, labelTextColor.g, labelTextColor.b);
+        const textX = labelPos.x - labelWidth / 2 + LABEL_PADDING;
+
+        // Handle formatting: "Tip. X" (second line) → italic "Tip. " + bold "X"
+        if (i === 1 && line.startsWith('Tip. ')) {
+          const tipPart = 'Tip. ';
+          const numPart = line.substring(5);
+          const estimatedTipWidth = FONT_SIZE * 2.5; // estimate for "Tip. "
+
+          page.drawText(tipPart, {
+            x: textX,
+            y: y,
+            size: FONT_SIZE,
+            color: textColor,
+            font: italicFont,
+          });
+
+          page.drawText(numPart, {
+            x: textX + estimatedTipWidth,
+            y: y,
+            size: FONT_SIZE,
+            color: textColor,
+            font: boldFont,
+          });
+        } else {
+          // Default: all text bold
+          page.drawText(line, {
+            x: textX,
+            y: y,
+            size: FONT_SIZE,
+            color: textColor,
+            font: boldFont,
+          });
+        }
       }
     }
 
