@@ -10,7 +10,8 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import { exportCanvasToPDF } from '../utils/exportUtils';
+import { exportCanvasToPDF, exportFloorPlanVectorPDF, buildFloorPlanVectorPDF } from '../utils/exportUtils';
+import { base64ToBlob } from '../utils/floorPlanUtils';
 import {
   Project,
   MappingEntry,
@@ -323,77 +324,14 @@ export function useMappingExports({
         // Only export if there are points
         if (points.length === 0) continue;
 
-        // Skip if no imageBlob available
-        if (!plan.imageBlob) {
-          console.warn(`⚠️  Skipping floor plan ${plan.id} - no image blob available`);
-          continue;
-        }
+        try {
+          // Try vector export if original PDF is available
+          if (plan.pdfBlobBase64) {
+            const pdfBlob = base64ToBlob(plan.pdfBlobBase64, 'application/pdf');
 
-        // Generate annotated floor plan image
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-
-        const img = new Image();
-        const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
-
-        // Wait for image to load using a Promise
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            // Draw points and labels (same logic as handleExportFloorPlan)
-            points.forEach((point) => {
-              const pointX = point.pointX * img.width;
-              const pointY = point.pointY * img.height;
-              const labelX = point.labelX * img.width;
-              const labelY = point.labelY * img.height;
-
-              let pointColor = '#333333';
-              switch (point.pointType) {
-                case 'parete': pointColor = '#0066FF'; break;
-                case 'solaio': pointColor = '#00CC66'; break;
-                case 'perimetro': pointColor = '#FF6600'; break;
-                case 'generico': pointColor = '#9933FF'; break;
-              }
-
-              if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-                ctx.strokeStyle = pointColor;
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                const firstPoint = point.perimeterPoints[0];
-                ctx.moveTo(firstPoint.x * img.width, firstPoint.y * img.height);
-                for (let i = 1; i < point.perimeterPoints.length; i++) {
-                  const p = point.perimeterPoints[i];
-                  ctx.lineTo(p.x * img.width, p.y * img.height);
-                }
-                ctx.stroke();
-
-                point.perimeterPoints.forEach(p => {
-                  ctx.fillStyle = pointColor;
-                  ctx.beginPath();
-                  ctx.arc(p.x * img.width, p.y * img.height, 6, 0, 2 * Math.PI);
-                  ctx.fill();
-                  ctx.fillStyle = '#FFFFFF';
-                  ctx.beginPath();
-                  ctx.arc(p.x * img.width, p.y * img.height, 3, 0, 2 * Math.PI);
-                  ctx.fill();
-                });
-              } else {
-                ctx.fillStyle = pointColor;
-                ctx.beginPath();
-                ctx.arc(pointX, pointY, 8, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-              }
-
-              // Get label text from metadata if available, otherwise generate from mapping entry
+            // Build ExportPoint array
+            const exportPoints = points.map((point) => {
               let labelText: string[] = point.metadata?.labelText || ['Punto'];
-
               if (!point.metadata?.labelText) {
                 const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
                 if (mappingEntry) {
@@ -402,196 +340,119 @@ export function useMappingExports({
                 }
               }
 
-              const padding = 8;
-              const fontSize = 14;
-              const lineHeight = 18;
-              const minWidth = 70;
-              const minHeight = 36;
-              ctx.font = `bold ${fontSize}px Arial`;
-              const maxWidth = Math.max(...labelText.map(line => ctx.measureText(line).width));
-              const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
-              const labelHeight = Math.max((labelText.length * lineHeight) + (padding * 2), minHeight);
-
-              // Use custom colors if available
-              const bgColor = point.metadata?.labelBackgroundColor || 'rgba(255, 255, 255, 0.95)';
-              const textColor = point.metadata?.labelTextColor || '#000000';
-
-              ctx.fillStyle = bgColor;
-              ctx.strokeStyle = '#333333';
-              ctx.lineWidth = 2;
-              ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-              ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
-
-              ctx.fillStyle = textColor;
-              ctx.textBaseline = 'top';
-              labelText.forEach((line, index) => {
-                const yPos = labelY + padding + (index * lineHeight);
-                let xPos = labelX + padding;
-
-                if (line.startsWith('foto n. ')) {
-                  ctx.font = `italic ${fontSize}px Arial`;
-                  const intText = 'foto n. ';
-                  ctx.fillText(intText, xPos, yPos);
-                  xPos += ctx.measureText(intText).width;
-                  ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line.substring(8), xPos, yPos);
-                } else if (line.startsWith('Tip. ')) {
-                  ctx.font = `italic ${fontSize}px Arial`;
-                  const tipText = 'Tip. ';
-                  ctx.fillText(tipText, xPos, yPos);
-                  xPos += ctx.measureText(tipText).width;
-                  ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line.substring(5), xPos, yPos);
-                } else {
-                  ctx.font = `bold ${fontSize}px Arial`;
-                  ctx.fillText(line, xPos, yPos);
-                }
-              });
-
-              ctx.strokeStyle = '#666666';
-              ctx.lineWidth = 2;
-              ctx.setLineDash([5, 5]);
-
-              const labelCenterX = labelX + labelWidth / 2;
-              const labelCenterY = labelY + labelHeight / 2;
-
-              if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-                let minDistance = Infinity;
-                let closestX = pointX;
-                let closestY = pointY;
-
-                for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
-                  const p1 = point.perimeterPoints[i];
-                  const p2 = point.perimeterPoints[i + 1];
-                  const p1x = p1.x * img.width;
-                  const p1y = p1.y * img.height;
-                  const p2x = p2.x * img.width;
-                  const p2y = p2.y * img.height;
-
-                  const dx = p2x - p1x;
-                  const dy = p2y - p1y;
-                  const lengthSquared = dx * dx + dy * dy;
-                  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((labelCenterX - p1x) * dx + (labelCenterY - p1y) * dy) / lengthSquared));
-                  const closestOnSeg = { x: p1x + t * dx, y: p1y + t * dy };
-
-                  const distance = Math.sqrt(
-                    Math.pow(closestOnSeg.x - labelCenterX, 2) +
-                    Math.pow(closestOnSeg.y - labelCenterY, 2)
-                  );
-
-                  if (distance < minDistance) {
-                    minDistance = distance;
-                    closestX = closestOnSeg.x;
-                    closestY = closestOnSeg.y;
-                  }
-                }
-
-                const edges = [
-                  { x: labelCenterX, y: labelY },
-                  { x: labelCenterX, y: labelY + labelHeight },
-                  { x: labelX, y: labelCenterY },
-                  { x: labelX + labelWidth, y: labelCenterY },
-                ];
-
-                let minEdgeDist = Infinity;
-                let targetX = labelCenterX;
-                let targetY = labelCenterY;
-
-                edges.forEach(edge => {
-                  const distance = Math.sqrt(
-                    Math.pow(edge.x - closestX, 2) +
-                    Math.pow(edge.y - closestY, 2)
-                  );
-                  if (distance < minEdgeDist) {
-                    minEdgeDist = distance;
-                    targetX = edge.x;
-                    targetY = edge.y;
-                  }
-                });
-
-                ctx.beginPath();
-                ctx.moveTo(closestX, closestY);
-                ctx.lineTo(targetX, targetY);
-                ctx.stroke();
-              } else {
-                const edges = [
-                  { x: labelCenterX, y: labelY },
-                  { x: labelCenterX, y: labelY + labelHeight },
-                  { x: labelX, y: labelCenterY },
-                  { x: labelX + labelWidth, y: labelCenterY },
-                ];
-
-                let minDistance = Infinity;
-                let targetX = labelCenterX;
-                let targetY = labelCenterY;
-
-                edges.forEach(edge => {
-                  const distance = Math.sqrt(
-                    Math.pow(edge.x - pointX, 2) +
-                    Math.pow(edge.y - pointY, 2)
-                  );
-                  if (distance < minDistance) {
-                    minDistance = distance;
-                    targetX = edge.x;
-                    targetY = edge.y;
-                  }
-                });
-
-                ctx.beginPath();
-                ctx.moveTo(pointX, pointY);
-                ctx.lineTo(targetX, targetY);
-                ctx.stroke();
-              }
-
-              ctx.setLineDash([]);
+              return {
+                id: point.id,
+                type: point.pointType as 'parete' | 'solaio' | 'perimetro' | 'generico',
+                pointX: point.pointX,
+                pointY: point.pointY,
+                labelX: point.labelX,
+                labelY: point.labelY,
+                labelText,
+                perimeterPoints: point.perimeterPoints,
+                customText: point.customText,
+                labelBackgroundColor: point.metadata?.labelBackgroundColor,
+                labelTextColor: point.metadata?.labelTextColor,
+              };
             });
 
-            // Convert canvas to PDF blob and add to ZIP
-            try {
-              const canvasWidth = canvas.width;
-              const canvasHeight = canvas.height;
-              const aspectRatio = canvasWidth / canvasHeight;
+            // Export as vector PDF bytes
+            const pdfBytes = await buildFloorPlanVectorPDF(pdfBlob, exportPoints, plan.width, plan.height);
+            zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
+          } else {
+            // Fallback to raster export if no original PDF
+            console.warn(`⚠️  Using raster export for floor plan ${plan.id} - no original PDF available`);
 
-              const pdf = new jsPDF({
-                orientation: aspectRatio > 1 ? 'landscape' : 'portrait',
-                unit: 'mm',
-                format: 'a4'
-              });
-
-              const pdfWidth = aspectRatio > 1 ? 297 : 210;
-              const pdfHeight = aspectRatio > 1 ? 210 : 297;
-              const imgData = canvas.toDataURL('image/png');
-              const imgAspectRatio = canvasWidth / canvasHeight;
-              const pdfAspectRatio = pdfWidth / pdfHeight;
-
-              let finalWidth = pdfWidth;
-              let finalHeight = pdfHeight;
-              let x = 0;
-              let y = 0;
-
-              if (imgAspectRatio > pdfAspectRatio) {
-                finalHeight = pdfWidth / imgAspectRatio;
-                y = (pdfHeight - finalHeight) / 2;
-              } else {
-                finalWidth = pdfHeight * imgAspectRatio;
-                x = (pdfWidth - finalWidth) / 2;
-              }
-
-              pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
-              const pdfBlob = pdf.output('blob');
-              zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBlob);
-
-              resolve();
-            } catch (error) {
-              console.error('Error creating PDF for ZIP:', error);
-              reject(error);
+            if (!plan.imageBlob) {
+              console.warn(`⚠️  Skipping floor plan ${plan.id} - no image blob available`);
+              continue;
             }
 
-            URL.revokeObjectURL(imageUrl);
-          };
+            // Canvas-based raster export (legacy)
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) continue;
 
-          img.src = imageUrl;
-        });
+            const img = new Image();
+            const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
+
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => {
+                try {
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  ctx.drawImage(img, 0, 0);
+
+                  // Draw points (simplified)
+                  points.forEach((point) => {
+                    const pointX = point.pointX * img.width;
+                    const pointY = point.pointY * img.height;
+
+                    let pointColor = '#333333';
+                    switch (point.pointType) {
+                      case 'parete': pointColor = '#0066FF'; break;
+                      case 'solaio': pointColor = '#00CC66'; break;
+                      case 'perimetro': pointColor = '#FF6600'; break;
+                      case 'generico': pointColor = '#9933FF'; break;
+                    }
+
+                    ctx.fillStyle = pointColor;
+                    ctx.beginPath();
+                    ctx.arc(pointX, pointY, 8, 0, 2 * Math.PI);
+                    ctx.fill();
+                  });
+
+                  const canvasWidth = canvas.width;
+                  const canvasHeight = canvas.height;
+                  const aspectRatio = canvasWidth / canvasHeight;
+
+                  const pdf = new jsPDF({
+                    orientation: aspectRatio > 1 ? 'landscape' : 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                  });
+
+                  const pdfWidth = aspectRatio > 1 ? 297 : 210;
+                  const pdfHeight = aspectRatio > 1 ? 210 : 297;
+                  const imgData = canvas.toDataURL('image/png');
+                  const imgAspectRatio = canvasWidth / canvasHeight;
+                  const pdfAspectRatio = pdfWidth / pdfHeight;
+
+                  let finalWidth = pdfWidth;
+                  let finalHeight = pdfHeight;
+                  let x = 0;
+                  let y = 0;
+
+                  if (imgAspectRatio > pdfAspectRatio) {
+                    finalHeight = pdfWidth / imgAspectRatio;
+                    y = (pdfHeight - finalHeight) / 2;
+                  } else {
+                    finalWidth = pdfHeight * imgAspectRatio;
+                    x = (pdfWidth - finalWidth) / 2;
+                  }
+
+                  pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+                  const pdfBlob = pdf.output('blob');
+                  zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBlob);
+
+                  URL.revokeObjectURL(imageUrl);
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              };
+
+              img.onerror = () => {
+                URL.revokeObjectURL(imageUrl);
+                reject(new Error('Failed to load image'));
+              };
+
+              img.src = imageUrl;
+            });
+          }
+        } catch (error) {
+          console.error(`Error exporting floor plan ${plan.id} to ZIP:`, error);
+          // Continue with other floor plans even if one fails
+        }
       }
 
       // Generate ZIP
@@ -666,268 +527,112 @@ export function useMappingExports({
 
   const handleExportFloorPlan = async (plan: FloorPlan) => {
     try {
-      // Check if imageBlob is available
-      if (!plan.imageBlob) {
-        if (plan.imageUrl) {
-          alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
-        } else {
-          alert('Errore: immagine della planimetria non disponibile.');
-        }
-        return;
-      }
-
-      const points = floorPlanPoints[plan.id] || [];
-
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Load image
-      const img = new Image();
-      const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
-
-      img.onload = () => {
-        // Set canvas size to image size
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        // Draw image
-        ctx.drawImage(img, 0, 0);
-
-        // Draw points and labels
-        points.forEach((point) => {
-          const pointX = point.pointX * img.width;
-          const pointY = point.pointY * img.height;
-          const labelX = point.labelX * img.width;
-          const labelY = point.labelY * img.height;
-
-          // Get point color based on type
-          let pointColor = '#333333';
-          switch (point.pointType) {
-            case 'parete':
-              pointColor = '#0066FF';
-              break;
-            case 'solaio':
-              pointColor = '#00CC66';
-              break;
-            case 'perimetro':
-              pointColor = '#FF6600';
-              break;
-            case 'generico':
-              pointColor = '#9933FF';
-              break;
+      // Check if pdfBlobBase64 is available (original PDF for vector preservation)
+      if (!plan.pdfBlobBase64) {
+        // Fallback to raster export if no original PDF
+        console.warn('No original PDF blob found, using raster export fallback');
+        if (!plan.imageBlob) {
+          if (plan.imageUrl) {
+            alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
+          } else {
+            alert('Errore: immagine della planimetria non disponibile.');
           }
+          return;
+        }
+        // Use old canvas-based export as fallback
+        const points = floorPlanPoints[plan.id] || [];
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-          // Draw perimeter if exists
-          if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-            ctx.strokeStyle = pointColor;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            const firstPoint = point.perimeterPoints[0];
-            ctx.moveTo(firstPoint.x * img.width, firstPoint.y * img.height);
-            for (let i = 1; i < point.perimeterPoints.length; i++) {
-              const p = point.perimeterPoints[i];
-              ctx.lineTo(p.x * img.width, p.y * img.height);
-            }
-            ctx.stroke();
+        const img = new Image();
+        const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
 
-            // Draw vertices
-            point.perimeterPoints.forEach(p => {
+        return new Promise<void>((resolve) => {
+          img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            // Draw points (simplified raster fallback)
+            points.forEach((point) => {
+              const pointX = point.pointX * img.width;
+              const pointY = point.pointY * img.height;
+
+              let pointColor = '#333333';
+              switch (point.pointType) {
+                case 'parete': pointColor = '#0066FF'; break;
+                case 'solaio': pointColor = '#00CC66'; break;
+                case 'perimetro': pointColor = '#FF6600'; break;
+                case 'generico': pointColor = '#9933FF'; break;
+              }
+
               ctx.fillStyle = pointColor;
               ctx.beginPath();
-              ctx.arc(p.x * img.width, p.y * img.height, 6, 0, 2 * Math.PI);
-              ctx.fill();
-              ctx.fillStyle = '#FFFFFF';
-              ctx.beginPath();
-              ctx.arc(p.x * img.width, p.y * img.height, 3, 0, 2 * Math.PI);
+              ctx.arc(pointX, pointY, 8, 0, 2 * Math.PI);
               ctx.fill();
             });
-          } else {
-            // Draw point marker
-            ctx.fillStyle = pointColor;
-            ctx.beginPath();
-            ctx.arc(pointX, pointY, 8, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          }
 
-          // Get label text from metadata if available, otherwise generate from mapping entry
-          let labelText: string[] = point.metadata?.labelText || ['Punto'];
-
-          if (!point.metadata?.labelText) {
-            const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-            if (mappingEntry) {
-              const photos = mappingPhotos[mappingEntry.id] || [];
-              labelText = generateMappingLabel(mappingEntry, photos.length);
-            }
-          }
-
-          // Draw label
-          const padding = 8;
-          const fontSize = 14;
-          const lineHeight = 18;
-          const minWidth = 70;
-          const minHeight = 36;
-          ctx.font = `bold ${fontSize}px Arial`;
-          const maxWidth = Math.max(...labelText.map(line => ctx.measureText(line).width));
-          const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
-          const labelHeight = Math.max((labelText.length * lineHeight) + (padding * 2), minHeight);
-
-          // Use custom colors if available
-          const bgColor = point.metadata?.labelBackgroundColor || 'rgba(255, 255, 255, 0.95)';
-          const textColor = point.metadata?.labelTextColor || '#000000';
-
-          ctx.fillStyle = bgColor;
-          ctx.strokeStyle = '#333333';
-          ctx.lineWidth = 2;
-          ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-          ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
-
-          ctx.fillStyle = textColor;
-          ctx.textBaseline = 'top';
-          labelText.forEach((line, index) => {
-            const yPos = labelY + padding + (index * lineHeight);
-            let xPos = labelX + padding;
-
-            if (line.startsWith('foto n. ')) {
-              ctx.font = `italic ${fontSize}px Arial`;
-              const intText = 'foto n. ';
-              ctx.fillText(intText, xPos, yPos);
-              xPos += ctx.measureText(intText).width;
-              ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line.substring(8), xPos, yPos);
-            } else if (line.startsWith('Tip. ')) {
-              ctx.font = `italic ${fontSize}px Arial`;
-              const tipText = 'Tip. ';
-              ctx.fillText(tipText, xPos, yPos);
-              xPos += ctx.measureText(tipText).width;
-              ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line.substring(5), xPos, yPos);
-            } else {
-              ctx.font = `bold ${fontSize}px Arial`;
-              ctx.fillText(line, xPos, yPos);
-            }
-          });
-
-          // Draw connecting line
-          ctx.strokeStyle = '#666666';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 5]);
-
-          const labelCenterX = labelX + labelWidth / 2;
-          const labelCenterY = labelY + labelHeight / 2;
-
-          if (point.pointType === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
-            let minDistance = Infinity;
-            let closestX = pointX;
-            let closestY = pointY;
-
-            for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
-              const p1 = point.perimeterPoints[i];
-              const p2 = point.perimeterPoints[i + 1];
-              const p1x = p1.x * img.width;
-              const p1y = p1.y * img.height;
-              const p2x = p2.x * img.width;
-              const p2y = p2.y * img.height;
-
-              const dx = p2x - p1x;
-              const dy = p2y - p1y;
-              const lengthSquared = dx * dx + dy * dy;
-              const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((labelCenterX - p1x) * dx + (labelCenterY - p1y) * dy) / lengthSquared));
-              const closestOnSeg = { x: p1x + t * dx, y: p1y + t * dy };
-
-              const distance = Math.sqrt(
-                Math.pow(closestOnSeg.x - labelCenterX, 2) +
-                Math.pow(closestOnSeg.y - labelCenterY, 2)
-              );
-
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestX = closestOnSeg.x;
-                closestY = closestOnSeg.y;
-              }
+            try {
+              exportCanvasToPDF(canvas, `Piano_${plan.floor}_annotato.pdf`);
+              alert('⚠️ Esportazione raster (PDF originale non disponibile). Reimportare la planimetria per l\'export vettoriale.');
+            } catch (error) {
+              console.error('Export PDF error:', error);
+              alert('❌ Errore durante l\'esportazione PDF');
             }
 
-            const edges = [
-              { x: labelCenterX, y: labelY },
-              { x: labelCenterX, y: labelY + labelHeight },
-              { x: labelX, y: labelCenterY },
-              { x: labelX + labelWidth, y: labelCenterY },
-            ];
+            URL.revokeObjectURL(imageUrl);
+            resolve();
+          };
 
-            let minEdgeDist = Infinity;
-            let targetX = labelCenterX;
-            let targetY = labelCenterY;
-
-            edges.forEach(edge => {
-              const distance = Math.sqrt(
-                Math.pow(edge.x - closestX, 2) +
-                Math.pow(edge.y - closestY, 2)
-              );
-              if (distance < minEdgeDist) {
-                minEdgeDist = distance;
-                targetX = edge.x;
-                targetY = edge.y;
-              }
-            });
-
-            ctx.beginPath();
-            ctx.moveTo(closestX, closestY);
-            ctx.lineTo(targetX, targetY);
-            ctx.stroke();
-          } else {
-            const edges = [
-              { x: labelCenterX, y: labelY },
-              { x: labelCenterX, y: labelY + labelHeight },
-              { x: labelX, y: labelCenterY },
-              { x: labelX + labelWidth, y: labelCenterY },
-            ];
-
-            let minDistance = Infinity;
-            let targetX = labelCenterX;
-            let targetY = labelCenterY;
-
-            edges.forEach(edge => {
-              const distance = Math.sqrt(
-                Math.pow(edge.x - pointX, 2) +
-                Math.pow(edge.y - pointY, 2)
-              );
-              if (distance < minDistance) {
-                minDistance = distance;
-                targetX = edge.x;
-                targetY = edge.y;
-              }
-            });
-
-            ctx.beginPath();
-            ctx.moveTo(pointX, pointY);
-            ctx.lineTo(targetX, targetY);
-            ctx.stroke();
-          }
-
-          ctx.setLineDash([]);
+          img.src = imageUrl;
         });
+      }
 
-        // Export as PDF
-        try {
-          exportCanvasToPDF(canvas, `Piano_${plan.floor}_annotato.pdf`);
-          alert('✅ Planimetria esportata in PDF');
-        } catch (error) {
-          console.error('Export PDF error:', error);
-          alert('❌ Errore durante l\'esportazione PDF');
+      // Vector export: convert Base64 back to Blob and export
+      const pdfBlob = base64ToBlob(plan.pdfBlobBase64, 'application/pdf');
+      const points = floorPlanPoints[plan.id] || [];
+
+      // Build ExportPoint array for pdf-lib
+      const exportPoints = points.map((point) => {
+        // Get label text from metadata or generate from mapping entry
+        let labelText: string[] = point.metadata?.labelText || ['Punto'];
+        if (!point.metadata?.labelText) {
+          const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
+          if (mappingEntry) {
+            const photos = mappingPhotos[mappingEntry.id] || [];
+            labelText = generateMappingLabel(mappingEntry, photos.length);
+          }
         }
 
-        // Clean up
-        URL.revokeObjectURL(imageUrl);
-      };
+        return {
+          id: point.id,
+          type: point.pointType as 'parete' | 'solaio' | 'perimetro' | 'generico',
+          pointX: point.pointX,
+          pointY: point.pointY,
+          labelX: point.labelX,
+          labelY: point.labelY,
+          labelText,
+          perimeterPoints: point.perimeterPoints,
+          customText: point.customText,
+          labelBackgroundColor: point.metadata?.labelBackgroundColor,
+          labelTextColor: point.metadata?.labelTextColor,
+        };
+      });
 
-      img.src = imageUrl;
+      // Export as vector PDF
+      await exportFloorPlanVectorPDF(
+        pdfBlob,
+        exportPoints,
+        plan.width,
+        plan.height,
+        `Piano_${plan.floor}_annotato.pdf`
+      );
+
+      alert('✅ Planimetria esportata in PDF vettoriale');
     } catch (error) {
       console.error('Failed to export floor plan:', error);
-      alert('Errore durante l\'esportazione della planimetria');
+      alert('❌ Errore durante l\'esportazione della planimetria');
     }
   };
 
