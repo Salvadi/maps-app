@@ -345,6 +345,11 @@ export class MappingDatabase extends Dexie {
 // Create and export database instance
 export const db = new MappingDatabase();
 
+// Expose db globally for debugging (remove in production)
+if (typeof window !== 'undefined') {
+  (window as any).db = db;
+}
+
 // Helper function to generate UUIDs
 export function generateId(): string {
   return crypto.randomUUID();
