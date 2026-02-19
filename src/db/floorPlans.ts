@@ -46,7 +46,13 @@ export async function createFloorPlan(
     // Convert pdfBlob to Base64 for storage in IndexedDB (Dexie doesn't serialize Blobs well)
     let pdfBlobBase64: string | undefined;
     if (pdfBlob) {
-      pdfBlobBase64 = await blobToBase64(pdfBlob);
+      console.log('🔄 Converting pdfBlob to Base64..., size:', pdfBlob.size);
+      try {
+        pdfBlobBase64 = await blobToBase64(pdfBlob);
+        console.log('✅ pdfBlobBase64 conversion successful, length:', pdfBlobBase64?.length);
+      } catch (error) {
+        console.error('❌ Error converting pdfBlob to Base64:', error);
+      }
     }
 
     const floorPlan: FloorPlan = {
@@ -69,6 +75,7 @@ export async function createFloorPlan(
       synced: imageUrl ? 1 : 0, // Mark as synced if uploaded successfully
     };
 
+    console.log('💾 Saving FloorPlan to IndexedDB:', { id: floorPlan.id, hasPdfBlobBase64: !!floorPlan.pdfBlobBase64, pdfBlobBase64Length: floorPlan.pdfBlobBase64?.length });
     await db.floorPlans.add(floorPlan);
 
     // Always add to sync queue to ensure floor_plans table entry is created in Supabase
@@ -117,7 +124,14 @@ export async function getFloorPlanByProjectAndFloor(
  * Get all floor plans for a project
  */
 export async function getFloorPlansByProject(projectId: string): Promise<FloorPlan[]> {
-  return await db.floorPlans.where('projectId').equals(projectId).toArray();
+  const plans = await db.floorPlans.where('projectId').equals(projectId).toArray();
+  console.log(`📋 Loaded ${plans.length} floor plans for project ${projectId}:`, plans.map(p => ({
+    id: p.id,
+    floor: p.floor,
+    hasPdfBlobBase64: !!p.pdfBlobBase64,
+    pdfBlobBase64Length: p.pdfBlobBase64?.length,
+  })));
+  return plans;
 }
 
 /**
