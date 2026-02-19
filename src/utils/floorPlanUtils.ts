@@ -28,6 +28,7 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 
 /**
  * Convert Base64 string back to Blob
+ * Converts a Base64-encoded string back to a Blob object for use in export operations
  */
 export function base64ToBlob(base64: string, mimeType: string = 'application/pdf'): Blob {
   const byteCharacters = atob(base64);
