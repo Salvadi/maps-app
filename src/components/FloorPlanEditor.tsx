@@ -308,10 +308,31 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     }
 
     // Try vector export first if pdfBlob is available
-    if (pdfBlob && loadedImageDimensions) {
+    let pdfBlobToUse = pdfBlob;
+
+    // If no pdfBlob in memory, try to get it from IndexedDB
+    if (!pdfBlobToUse && loadedImageDimensions) {
+      try {
+        // Try loading from IndexedDB directly
+        const floorPlans = await (window as any).db?.floorPlans?.toArray?.();
+        if (floorPlans && floorPlans.length > 0) {
+          // Get the most recent floor plan's pdfBlob
+          for (let i = floorPlans.length - 1; i >= 0; i--) {
+            if (floorPlans[i].pdfBlob) {
+              pdfBlobToUse = floorPlans[i].pdfBlob;
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Could not retrieve pdfBlob from IndexedDB:', error);
+      }
+    }
+
+    if (pdfBlobToUse && loadedImageDimensions) {
       try {
         await exportFloorPlanVectorPDF(
-          pdfBlob,
+          pdfBlobToUse,
           points,
           loadedImageDimensions.width,
           loadedImageDimensions.height,
