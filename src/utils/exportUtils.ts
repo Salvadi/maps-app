@@ -242,11 +242,11 @@ export async function buildFloorPlanVectorPDF(
       y: pageH - ny * pageH, // Invert Y axis
     });
 
-    const FONT_SIZE = 12; // pt (match canvas editor 14px visual size with PDF scaling)
-    const LABEL_PADDING = 6; // pt (match canvas editor 8px)
-    const POINT_RADIUS = 3; // pt
+    const FONT_SIZE = 14; // pt (match canvas editor exactly)
+    const LABEL_PADDING = 8; // pt (match canvas editor exactly)
+    const POINT_RADIUS = 4; // pt
     const CONNECTING_LINE_WIDTH = 0.5; // pt
-    const LINE_HEIGHT = 14; // pt (spacing between lines)
+    const LINE_HEIGHT = 18; // pt (spacing between lines, match canvas editor)
 
     // Add annotations for each point
     for (const point of points) {
@@ -270,20 +270,11 @@ export async function buildFloorPlanVectorPDF(
         }
       }
 
-      // 2. Draw point circle
-      page.drawCircle({
-        x: pointPos.x,
-        y: pointPos.y,
-        size: POINT_RADIUS,
-        color: rgb(pointColor.r, pointColor.g, pointColor.b),
-      });
-
-      // 3. Draw label background and text
+      // Calculate label dimensions early (needed for both lines and rectangles)
       const labelBgColor = point.labelBackgroundColor
         ? hexToRgb(point.labelBackgroundColor)
         : { r: 0.98, g: 0.98, b: 0.94 }; // light beige
 
-      // Estimate label dimensions (match canvas editor sizing)
       const approxLineWidth = FONT_SIZE * 6.5; // improved estimate for text width
       const labelTextColor = point.labelTextColor
         ? hexToRgb(point.labelTextColor)
@@ -292,36 +283,12 @@ export async function buildFloorPlanVectorPDF(
       const labelHeight = Math.max(point.labelText.length * LINE_HEIGHT + LABEL_PADDING * 2, 36); // min height 36pt
       const labelWidth = Math.max(approxLineWidth, 70) + LABEL_PADDING * 2;
 
-      // Draw label background rectangle
-      page.drawRectangle({
-        x: labelPos.x - labelWidth / 2,
-        y: labelPos.y - labelHeight,
-        width: labelWidth,
-        height: labelHeight,
-        color: rgb(labelBgColor.r, labelBgColor.g, labelBgColor.b),
-        borderColor: rgb(0.2, 0.2, 0.2),
-        borderWidth: 0.5,
-      });
-
-      // Draw label text lines
-      for (let i = 0; i < point.labelText.length; i++) {
-        const line = point.labelText[i];
-        const y = labelPos.y - LABEL_PADDING - (i + 1) * LINE_HEIGHT;
-        page.drawText(line, {
-          x: labelPos.x - labelWidth / 2 + LABEL_PADDING,
-          y: y - FONT_SIZE / 2,
-          size: FONT_SIZE,
-          color: rgb(labelTextColor.r, labelTextColor.g, labelTextColor.b),
-        });
-      }
-
-      // 4. Draw connecting line from point to label
       const labelRectLeft = labelPos.x - labelWidth / 2;
       const labelRectRight = labelPos.x + labelWidth / 2;
       const labelRectTop = labelPos.y;
       const labelRectBottom = labelPos.y - labelHeight;
 
-      // Find nearest edge of label rectangle
+      // 2. Draw connecting line FIRST (so it appears behind label)
       let connectionEnd = labelPos;
       const distances = [
         { edge: { x: labelPos.x, y: labelRectTop }, dist: Math.abs(pointPos.y - labelRectTop) }, // top
@@ -339,6 +306,37 @@ export async function buildFloorPlanVectorPDF(
         color: rgb(0.4, 0.4, 0.4),
         dashArray: [2, 2],
       });
+
+      // 3. Draw point circle
+      page.drawCircle({
+        x: pointPos.x,
+        y: pointPos.y,
+        size: POINT_RADIUS,
+        color: rgb(pointColor.r, pointColor.g, pointColor.b),
+      });
+
+      // 4. Draw label background rectangle
+      page.drawRectangle({
+        x: labelPos.x - labelWidth / 2,
+        y: labelPos.y - labelHeight,
+        width: labelWidth,
+        height: labelHeight,
+        color: rgb(labelBgColor.r, labelBgColor.g, labelBgColor.b),
+        borderColor: rgb(0.2, 0.2, 0.2),
+        borderWidth: 0.5,
+      });
+
+      // 5. Draw label text lines
+      for (let i = 0; i < point.labelText.length; i++) {
+        const line = point.labelText[i];
+        const y = labelPos.y - LABEL_PADDING - (i + 1) * LINE_HEIGHT;
+        page.drawText(line, {
+          x: labelPos.x - labelWidth / 2 + LABEL_PADDING,
+          y: y - FONT_SIZE / 2,
+          size: FONT_SIZE,
+          color: rgb(labelTextColor.r, labelTextColor.g, labelTextColor.b),
+        });
+      }
     }
 
     return await outDoc.save();
