@@ -218,8 +218,14 @@ export async function buildFloorPlanVectorPDF(
   imgHeight: number
 ): Promise<Uint8Array> {
   try {
+    console.log('🔍 buildFloorPlanVectorPDF - pdfBlob size:', pdfBlob.size, 'bytes');
+
     const pdfBytes = await pdfBlob.arrayBuffer();
+    console.log('📄 PDF bytes loaded:', pdfBytes.byteLength);
+
     const srcDoc = await PDFDocument.load(pdfBytes);
+    console.log('✅ PDF loaded, pages:', srcDoc.getPageCount());
+
     const outDoc = await PDFDocument.create();
 
     // Copy first page to preserve original vector content
@@ -227,6 +233,7 @@ export async function buildFloorPlanVectorPDF(
     outDoc.addPage(page);
 
     const { width: pageW, height: pageH } = page.getSize();
+    console.log('📐 Page size:', pageW, 'x', pageH);
 
     // Conversion function from normalized coordinates to PDF page coordinates
     // Note: PDF has origin at bottom-left, image has origin at top-left
