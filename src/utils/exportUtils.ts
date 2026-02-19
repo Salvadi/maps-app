@@ -242,10 +242,11 @@ export async function buildFloorPlanVectorPDF(
       y: pageH - ny * pageH, // Invert Y axis
     });
 
-    const FONT_SIZE = 10; // pt
-    const LABEL_PADDING = 4; // pt
-    const POINT_RADIUS = 2; // pt
+    const FONT_SIZE = 12; // pt (match canvas editor 14px visual size with PDF scaling)
+    const LABEL_PADDING = 6; // pt (match canvas editor 8px)
+    const POINT_RADIUS = 3; // pt
     const CONNECTING_LINE_WIDTH = 0.5; // pt
+    const LINE_HEIGHT = 14; // pt (spacing between lines)
 
     // Add annotations for each point
     for (const point of points) {
@@ -282,13 +283,13 @@ export async function buildFloorPlanVectorPDF(
         ? hexToRgb(point.labelBackgroundColor)
         : { r: 0.98, g: 0.98, b: 0.94 }; // light beige
 
-      // Estimate label dimensions
-      const approxLineWidth = FONT_SIZE * 6; // rough estimate
+      // Estimate label dimensions (match canvas editor sizing)
+      const approxLineWidth = FONT_SIZE * 6.5; // improved estimate for text width
       const labelTextColor = point.labelTextColor
         ? hexToRgb(point.labelTextColor)
         : { r: 0.2, g: 0.2, b: 0.2 };
 
-      const labelHeight = point.labelText.length * (FONT_SIZE + 2) + LABEL_PADDING * 2;
+      const labelHeight = Math.max(point.labelText.length * LINE_HEIGHT + LABEL_PADDING * 2, 36); // min height 36pt
       const labelWidth = Math.max(approxLineWidth, 70) + LABEL_PADDING * 2;
 
       // Draw label background rectangle
@@ -305,7 +306,7 @@ export async function buildFloorPlanVectorPDF(
       // Draw label text lines
       for (let i = 0; i < point.labelText.length; i++) {
         const line = point.labelText[i];
-        const y = labelPos.y - LABEL_PADDING - (i + 1) * (FONT_SIZE + 2);
+        const y = labelPos.y - LABEL_PADDING - (i + 1) * LINE_HEIGHT;
         page.drawText(line, {
           x: labelPos.x - labelWidth / 2 + LABEL_PADDING,
           y: y - FONT_SIZE / 2,
