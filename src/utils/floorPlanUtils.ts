@@ -33,11 +33,16 @@ async function loadPdfJs(): Promise<void> {
 
 /**
  * Convert PDF first page to PNG at 2x resolution
+ * Also returns the original PDF blob for vector preservation
  */
-async function pdfToPng(file: File): Promise<Blob> {
+async function pdfToPng(file: File): Promise<{ png: Blob; pdfBlob: Blob }> {
   await loadPdfJs();
 
   const arrayBuffer = await file.arrayBuffer();
+
+  // Save the original PDF blob for vector preservation
+  const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const page = await pdf.getPage(1); // Get first page
 
@@ -60,7 +65,7 @@ async function pdfToPng(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) {
-        resolve(blob);
+        resolve({ png: blob, pdfBlob });
       } else {
         reject(new Error('Failed to convert canvas to blob'));
       }
@@ -166,13 +171,17 @@ export async function processFloorPlan(file: File): Promise<{
   width: number;
   height: number;
   originalFormat: string;
+  pdfBlob?: Blob; // Original PDF blob if input was PDF (for vector preservation)
 }> {
   let fullRes: Blob;
+  let pdfBlob: Blob | undefined;
   const originalFormat = file.type.split('/')[1] || file.name.split('.').pop() || 'unknown';
 
   // Convert to PNG 2x based on file type
   if (file.type === 'application/pdf') {
-    fullRes = await pdfToPng(file);
+    const { png, pdfBlob: pdf } = await pdfToPng(file);
+    fullRes = png;
+    pdfBlob = pdf;
   } else if (file.type.startsWith('image/')) {
     fullRes = await imageToPng2x(file);
   } else {
@@ -191,6 +200,7 @@ export async function processFloorPlan(file: File): Promise<{
     width,
     height,
     originalFormat,
+    pdfBlob,
   };
 }
 
@@ -202,8 +212,9 @@ export async function uploadFloorPlan(
   floor: string,
   fullRes: Blob,
   thumbnail: Blob,
-  userId: string
-): Promise<{ fullResUrl: string; thumbnailUrl: string }> {
+  userId: string,
+  pdfBlob?: Blob // Optional original PDF for vector preservation
+): Promise<{ fullResUrl: string; thumbnailUrl: string; pdfUrl?: string }> {
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
@@ -211,6 +222,7 @@ export async function uploadFloorPlan(
   const timestamp = Date.now();
   const fullResPath = `${projectId}/${floor}/fullres_${timestamp}.png`;
   const thumbnailPath = `${projectId}/${floor}/thumb_${timestamp}.png`;
+  const pdfPath = pdfBlob ? `${projectId}/${floor}/original_${timestamp}.pdf` : undefined;
 
   // Upload full resolution
   const { error: fullResError } = await supabase.storage
@@ -240,6 +252,28 @@ export async function uploadFloorPlan(
     throw new Error(`Failed to upload thumbnail: ${thumbnailError.message}`);
   }
 
+  // Upload original PDF if provided
+  let pdfUrl: string | undefined;
+  if (pdfBlob && pdfPath) {
+    const { error: pdfError } = await supabase.storage
+      .from('planimetrie')
+      .upload(pdfPath, pdfBlob, {
+        contentType: 'application/pdf',
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (pdfError) {
+      console.warn(`Failed to upload original PDF: ${pdfError.message}`);
+      // Don't fail the whole upload if PDF fails - still upload the PNG
+    } else {
+      const { data: pdfUrlData } = supabase.storage
+        .from('planimetrie')
+        .getPublicUrl(pdfPath);
+      pdfUrl = pdfUrlData.publicUrl;
+    }
+  }
+
   // Get public URLs
   const { data: fullResUrlData } = supabase.storage
     .from('planimetrie')
@@ -252,13 +286,14 @@ export async function uploadFloorPlan(
   return {
     fullResUrl: fullResUrlData.publicUrl,
     thumbnailUrl: thumbnailUrlData.publicUrl,
+    pdfUrl,
   };
 }
 
 /**
  * Delete floor plan from Supabase Storage
  */
-export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string): Promise<void> {
+export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string, pdfUrl?: string): Promise<void> {
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
@@ -280,6 +315,13 @@ export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string): 
     const thumbPath = extractPath(thumbnailUrl);
     if (thumbPath) {
       paths.push(thumbPath);
+    }
+  }
+
+  if (pdfUrl) {
+    const pdfPath = extractPath(pdfUrl);
+    if (pdfPath) {
+      paths.push(pdfPath);
     }
   }
 

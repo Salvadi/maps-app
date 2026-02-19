@@ -24,17 +24,19 @@ export async function createFloorPlan(
   userId: string
 ): Promise<FloorPlan> {
   try {
-    // Process the floor plan file (convert to PNG 2x, generate thumbnail)
-    const { fullRes, thumbnail, width, height, originalFormat } = await processFloorPlan(file);
+    // Process the floor plan file (convert to PNG 2x, generate thumbnail, extract PDF if provided)
+    const { fullRes, thumbnail, width, height, originalFormat, pdfBlob } = await processFloorPlan(file);
 
     // Upload to Supabase Storage
     let imageUrl: string | undefined;
     let thumbnailUrl: string | undefined;
+    let pdfUrl: string | undefined;
 
     try {
-      const urls = await uploadFloorPlan(projectId, floor, fullRes, thumbnail, userId);
+      const urls = await uploadFloorPlan(projectId, floor, fullRes, thumbnail, userId, pdfBlob);
       imageUrl = urls.fullResUrl;
       thumbnailUrl = urls.thumbnailUrl;
+      pdfUrl = urls.pdfUrl;
       console.log('Floor plan uploaded to Supabase Storage:', projectId, floor);
     } catch (uploadError) {
       console.warn('Failed to upload floor plan to Supabase Storage, saving locally only:', uploadError);
@@ -49,6 +51,8 @@ export async function createFloorPlan(
       thumbnailBlob: thumbnail,
       imageUrl,
       thumbnailUrl,
+      pdfBlob, // Store original PDF for vector preservation
+      pdfUrl,  // URL to original PDF on Supabase
       originalFilename: file.name,
       originalFormat,
       width,
