@@ -249,8 +249,8 @@ export async function buildFloorPlanVectorPDF(
     const LINE_HEIGHT = 18; // pt (spacing between lines, match canvas editor)
 
     // Load fonts once before the loop
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+    const boldFont = await outDoc.embedFont(StandardFonts.HelveticaBold);
+    const italicFont = await outDoc.embedFont(StandardFonts.HelveticaOblique);
 
     // Add annotations for each point
     for (const point of points) {
