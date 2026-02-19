@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanvas';
-import { exportCanvasToPDF, exportCanvasToPNG } from '../utils/exportUtils';
+import { exportCanvasToPDF, exportCanvasToPNG, exportFloorPlanVectorPDF } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
@@ -27,6 +27,8 @@ interface FloorPlanEditorProps {
   mode?: 'mapping' | 'standalone' | 'view' | 'view-edit'; // mapping = linked to mapping entry, standalone = independent, view = read-only, view-edit = can move labels and add generico/perimetro
   maxPoints?: number; // Maximum number of points allowed (for mapping mode, typically 1)
   unmappedEntries?: UnmappedEntry[]; // Entries not yet positioned on floor plan (for view-edit mode)
+  pdfBlob?: Blob; // Original PDF blob for vector export (if floor plan was imported from PDF)
+  imageDimensions?: { width: number; height: number }; // Dimensions of the floor plan image
   onSave?: (points: CanvasPoint[], gridConfig: GridConfig) => void;
   onClose?: () => void;
   // Standalone mode handlers
@@ -54,6 +56,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   mode = 'standalone',
   maxPoints,
   unmappedEntries: unmappedEntriesProp = [],
+  pdfBlob,
+  imageDimensions,
   onSave,
   onClose,
   onNewFile,
@@ -119,6 +123,21 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   useEffect(() => {
     localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
   }, [recentTextColors]);
+
+  // Load image dimensions if not provided
+  const [loadedImageDimensions, setLoadedImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    if (imageDimensions) {
+      setLoadedImageDimensions(imageDimensions);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      setLoadedImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = imageUrl;
+  }, [imageUrl, imageDimensions]);
 
   // ============================================
   // SEZIONE: Gestione punti
@@ -282,12 +301,32 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // ============================================
 
   // Handle export to PDF
-  const handleExportPDF = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
     if (onExportPDFProp) {
       onExportPDFProp();
       return;
     }
 
+    // Try vector export first if pdfBlob is available
+    if (pdfBlob && loadedImageDimensions) {
+      try {
+        await exportFloorPlanVectorPDF(
+          pdfBlob,
+          points,
+          loadedImageDimensions.width,
+          loadedImageDimensions.height,
+          'planimetria-annotata.pdf'
+        );
+        alert('✅ Planimetria esportata in PDF vettoriale');
+        return;
+      } catch (error) {
+        console.error('Vector PDF export error:', error);
+        // Fall back to raster export
+        console.log('Falling back to raster PDF export');
+      }
+    }
+
+    // Fall back to raster export using canvas
     const canvas = document.querySelector('.floor-plan-canvas') as HTMLCanvasElement;
     if (!canvas) {
       alert('❌ Impossibile trovare il canvas');
@@ -296,12 +335,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
     try {
       exportCanvasToPDF(canvas, 'planimetria-annotata.pdf');
-      alert('✅ Planimetria esportata in PDF');
+      alert('✅ Planimetria esportata in PDF (raster)');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [onExportPDFProp]);
+  }, [onExportPDFProp, pdfBlob, points, loadedImageDimensions]);
 
   // Handle export to PNG
   const handleExportPNG = useCallback(() => {

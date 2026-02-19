@@ -4,6 +4,8 @@
 
 import jsPDF from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFDocument, rgb } from 'pdf-lib';
+import { saveAs } from 'file-saver';
 
 // Set up PDF.js worker - use unpkg CDN for better compatibility
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -145,3 +147,220 @@ export const exportCanvasToPNG = (canvas: HTMLCanvasElement, filename: string = 
     throw new Error('Errore durante l\'esportazione PNG');
   }
 };
+
+// ============================================
+// SEZIONE: Export PDF Vettoriale
+// Funzioni per esportare planimetrie come PDF 100% vettoriale usando pdf-lib
+// ============================================
+
+/**
+ * Type for export-compatible CanvasPoint
+ */
+interface ExportPoint {
+  id: string;
+  type: 'parete' | 'solaio' | 'perimetro' | 'generico';
+  pointX: number; // Normalized 0-1
+  pointY: number; // Normalized 0-1
+  labelX: number; // Normalized 0-1
+  labelY: number; // Normalized 0-1
+  labelText: string[];
+  perimeterPoints?: Array<{ x: number; y: number }>;
+  customText?: string;
+  labelBackgroundColor?: string;
+  labelTextColor?: string;
+}
+
+/**
+ * Convert hex color to RGB components in [0,1] range for pdf-lib
+ */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) {
+    return { r: 0.2, g: 0.2, b: 0.2 }; // default gray
+  }
+  return {
+    r: parseInt(result[1], 16) / 255,
+    g: parseInt(result[2], 16) / 255,
+    b: parseInt(result[3], 16) / 255,
+  };
+}
+
+/**
+ * Get color for point type
+ */
+function getPointColorForType(type: string): { r: number; g: number; b: number } {
+  switch (type) {
+    case 'parete':
+      return { r: 0, g: 0.4, b: 1 }; // #0066FF
+    case 'solaio':
+      return { r: 0, g: 0.8, b: 0.4 }; // #00CC66
+    case 'perimetro':
+      return { r: 1, g: 0.4, b: 0 }; // #FF6600
+    case 'generico':
+      return { r: 0.6, g: 0.2, b: 1 }; // #9933FF
+    default:
+      return { r: 0.2, g: 0.2, b: 0.2 };
+  }
+}
+
+/**
+ * Build vector PDF from original PDF blob with annotations
+ * @param pdfBlob The original PDF file as Blob
+ * @param points Array of canvas points to annotate
+ * @param imgWidth Width of the floor plan image in pixels
+ * @param imgHeight Height of the floor plan image in pixels
+ * @returns Uint8Array with PDF data
+ */
+export async function buildFloorPlanVectorPDF(
+  pdfBlob: Blob,
+  points: ExportPoint[],
+  imgWidth: number,
+  imgHeight: number
+): Promise<Uint8Array> {
+  try {
+    const pdfBytes = await pdfBlob.arrayBuffer();
+    const srcDoc = await PDFDocument.load(pdfBytes);
+    const outDoc = await PDFDocument.create();
+
+    // Copy first page to preserve original vector content
+    const [page] = await outDoc.copyPages(srcDoc, [0]);
+    outDoc.addPage(page);
+
+    const { width: pageW, height: pageH } = page.getSize();
+
+    // Conversion function from normalized coordinates to PDF page coordinates
+    // Note: PDF has origin at bottom-left, image has origin at top-left
+    const toPageCoords = (nx: number, ny: number) => ({
+      x: nx * pageW,
+      y: pageH - ny * pageH, // Invert Y axis
+    });
+
+    const FONT_SIZE = 10; // pt
+    const LABEL_PADDING = 4; // pt
+    const POINT_RADIUS = 2; // pt
+    const CONNECTING_LINE_WIDTH = 0.5; // pt
+
+    // Add annotations for each point
+    for (const point of points) {
+      const pointPos = toPageCoords(point.pointX, point.pointY);
+      const labelPos = toPageCoords(point.labelX, point.labelY);
+      const pointColor = getPointColorForType(point.type);
+
+      // 1. Draw perimeter if applicable
+      if (point.type === 'perimetro' && point.perimeterPoints && point.perimeterPoints.length > 1) {
+        const perimeterColor = rgb(pointColor.r, pointColor.g, pointColor.b);
+        for (let i = 0; i < point.perimeterPoints.length - 1; i++) {
+          const p1 = toPageCoords(point.perimeterPoints[i].x, point.perimeterPoints[i].y);
+          const p2 = toPageCoords(point.perimeterPoints[i + 1].x, point.perimeterPoints[i + 1].y);
+          page.drawLine({
+            start: p1,
+            end: p2,
+            thickness: 1.5,
+            color: perimeterColor,
+            dashArray: [6, 3],
+          });
+        }
+      }
+
+      // 2. Draw point circle
+      page.drawCircle({
+        x: pointPos.x,
+        y: pointPos.y,
+        size: POINT_RADIUS,
+        color: rgb(pointColor.r, pointColor.g, pointColor.b),
+      });
+
+      // 3. Draw label background and text
+      const labelBgColor = point.labelBackgroundColor
+        ? hexToRgb(point.labelBackgroundColor)
+        : { r: 0.98, g: 0.98, b: 0.94 }; // light beige
+
+      // Estimate label dimensions
+      const approxLineWidth = FONT_SIZE * 6; // rough estimate
+      const labelTextColor = point.labelTextColor
+        ? hexToRgb(point.labelTextColor)
+        : { r: 0.2, g: 0.2, b: 0.2 };
+
+      const labelHeight = point.labelText.length * (FONT_SIZE + 2) + LABEL_PADDING * 2;
+      const labelWidth = Math.max(approxLineWidth, 70) + LABEL_PADDING * 2;
+
+      // Draw label background rectangle
+      page.drawRectangle({
+        x: labelPos.x - labelWidth / 2,
+        y: labelPos.y - labelHeight,
+        width: labelWidth,
+        height: labelHeight,
+        color: rgb(labelBgColor.r, labelBgColor.g, labelBgColor.b),
+        borderColor: rgb(0.2, 0.2, 0.2),
+        borderWidth: 0.5,
+      });
+
+      // Draw label text lines
+      for (let i = 0; i < point.labelText.length; i++) {
+        const line = point.labelText[i];
+        const y = labelPos.y - LABEL_PADDING - (i + 1) * (FONT_SIZE + 2);
+        page.drawText(line, {
+          x: labelPos.x - labelWidth / 2 + LABEL_PADDING,
+          y: y - FONT_SIZE / 2,
+          size: FONT_SIZE,
+          color: rgb(labelTextColor.r, labelTextColor.g, labelTextColor.b),
+        });
+      }
+
+      // 4. Draw connecting line from point to label
+      const labelRectLeft = labelPos.x - labelWidth / 2;
+      const labelRectRight = labelPos.x + labelWidth / 2;
+      const labelRectTop = labelPos.y;
+      const labelRectBottom = labelPos.y - labelHeight;
+
+      // Find nearest edge of label rectangle
+      let connectionEnd = labelPos;
+      const distances = [
+        { edge: { x: labelPos.x, y: labelRectTop }, dist: Math.abs(pointPos.y - labelRectTop) }, // top
+        { edge: { x: labelPos.x, y: labelRectBottom }, dist: Math.abs(pointPos.y - labelRectBottom) }, // bottom
+        { edge: { x: labelRectLeft, y: labelPos.y }, dist: Math.abs(pointPos.x - labelRectLeft) }, // left
+        { edge: { x: labelRectRight, y: labelPos.y }, dist: Math.abs(pointPos.x - labelRectRight) }, // right
+      ];
+      const nearest = distances.reduce((a, b) => (a.dist < b.dist ? a : b));
+      connectionEnd = nearest.edge;
+
+      page.drawLine({
+        start: pointPos,
+        end: connectionEnd,
+        thickness: CONNECTING_LINE_WIDTH,
+        color: rgb(0.4, 0.4, 0.4),
+        dashArray: [2, 2],
+      });
+    }
+
+    return await outDoc.save();
+  } catch (error) {
+    console.error('Error building vector PDF:', error);
+    throw new Error('Errore durante la creazione del PDF vettoriale');
+  }
+}
+
+/**
+ * Export floor plan as vector PDF
+ * @param pdfBlob The original PDF blob to preserve vector content
+ * @param points Array of points to export
+ * @param imgWidth Width of the image
+ * @param imgHeight Height of the image
+ * @param filename Name for the exported file
+ */
+export async function exportFloorPlanVectorPDF(
+  pdfBlob: Blob,
+  points: ExportPoint[],
+  imgWidth: number,
+  imgHeight: number,
+  filename: string = 'planimetria.pdf'
+): Promise<void> {
+  try {
+    const pdfBytes = await buildFloorPlanVectorPDF(pdfBlob, points, imgWidth, imgHeight);
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    saveAs(blob, filename);
+  } catch (error) {
+    console.error('Error exporting vector PDF:', error);
+    throw new Error('Errore durante l\'esportazione del PDF vettoriale');
+  }
+}
