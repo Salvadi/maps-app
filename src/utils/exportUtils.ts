@@ -499,9 +499,41 @@ async function rotateBlob(blob: Blob, rotation: number): Promise<Blob> {
 }
 
 /**
+ * Trasforma le coordinate normalizzate di annotazioni dallo spazio dell'immagine ruotata
+ * allo spazio del PDF originale (non ruotato).
+ * 90° CW: (rx,ry) → (ry, 1-rx)
+ * 180°:   (rx,ry) → (1-rx, 1-ry)
+ * 270° CW:(rx,ry) → (1-ry, rx)
+ */
+function transformPointsForRotation(points: ExportPoint[], rotation: number): ExportPoint[] {
+  const t = (nx: number, ny: number): [number, number] => {
+    switch (rotation) {
+      case 90:  return [ny, 1 - nx];
+      case 180: return [1 - nx, 1 - ny];
+      case 270: return [1 - ny, nx];
+      default:  return [nx, ny];
+    }
+  };
+  return points.map(p => {
+    const [px, py] = t(p.pointX, p.pointY);
+    const [lx, ly] = t(p.labelX, p.labelY);
+    return {
+      ...p,
+      pointX: px, pointY: py,
+      labelX: lx, labelY: ly,
+      perimeterPoints: p.perimeterPoints?.map(v => {
+        const [x, y] = t(v.x, v.y);
+        return { x, y };
+      }),
+    };
+  });
+}
+
+/**
  * Genera i byte del PDF vettoriale a partire da imageBlob e punti normalizzati.
- * Se pdfBlobBase64 è fornito e la rotazione è 0°, usa il PDF originale come sfondo vettoriale.
- * Con rotazione attiva o senza PDF originale, usa imageBlob rasterizzato (ruotato) come sfondo.
+ * Se pdfBlobBase64 è fornito, usa sempre il PDF originale come sfondo vettoriale,
+ * trasformando le coordinate delle annotazioni nello spazio originale se necessario.
+ * Solo se pdfBlobBase64 non è disponibile usa imageBlob rasterizzato come sfondo.
  */
 export async function buildFloorPlanVectorPDF(
   imageBlob: Blob,
@@ -509,8 +541,9 @@ export async function buildFloorPlanVectorPDF(
   pdfBlobBase64?: string,
   rotation: number = 0,
 ): Promise<Uint8Array> {
-  if (pdfBlobBase64 && !rotation) {
-    return _buildFromOriginalPDF(pdfBlobBase64, points);
+  if (pdfBlobBase64) {
+    const transformedPoints = rotation ? transformPointsForRotation(points, rotation) : points;
+    return _buildFromOriginalPDF(pdfBlobBase64, transformedPoints);
   }
   const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
   return _buildWithRasterBackground(blob, points);
@@ -518,7 +551,8 @@ export async function buildFloorPlanVectorPDF(
 
 /**
  * Esporta la planimetria annotata come PDF vettoriale e lo scarica.
- * Se pdfBlobBase64 è fornito e la rotazione è 0°, usa il PDF originale come sfondo vettoriale.
+ * Se pdfBlobBase64 è fornito, usa sempre il PDF originale come sfondo vettoriale
+ * (con trasformazione delle coordinate per la rotazione).
  */
 export async function exportFloorPlanVectorPDF(
   imageBlob: Blob,
