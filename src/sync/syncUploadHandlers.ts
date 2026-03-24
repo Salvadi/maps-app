@@ -353,6 +353,8 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     let imageUrl = localFloorPlan.imageUrl;
     let thumbnailUrl = localFloorPlan.thumbnailUrl;
 
+    let pdfUrl = localFloorPlan.pdfUrl;
+
     if (!imageUrl && localFloorPlan.imageBlob) {
       const { uploadFloorPlan } = await import('../utils/floorPlanUtils');
       const urls = await uploadFloorPlan(
@@ -364,9 +366,29 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       );
       imageUrl = urls.fullResUrl;
       thumbnailUrl = urls.thumbnailUrl;
-
-      // Update local record with URLs
       await db.floorPlans.update(floorPlan.id, { imageUrl, thumbnailUrl, synced: 1 });
+    }
+
+    // Upload PDF originale indipendentemente dall'imageUrl (il PDF può esistere
+    // anche quando le immagini sono già state caricate in un ciclo precedente)
+    if (!pdfUrl && localFloorPlan.pdfBlobBase64) {
+      try {
+        const { uploadFloorPlanPDF } = await import('../utils/floorPlanUtils');
+        const binaryStr = atob(localFloorPlan.pdfBlobBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        const pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+        pdfUrl = await uploadFloorPlanPDF(
+          localFloorPlan.projectId,
+          localFloorPlan.floor,
+          pdfBlob,
+          localFloorPlan.createdBy
+        );
+        await db.floorPlans.update(floorPlan.id, { pdfUrl });
+        console.log(`📄 Uploaded PDF originale for floor plan ${floorPlan.id}`);
+      } catch (pdfErr) {
+        console.warn(`⚠️  Failed to upload PDF for floor plan ${floorPlan.id}:`, pdfErr);
+      }
     }
 
     // Create/update floor plan record in Supabase
@@ -378,6 +400,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
         floor: localFloorPlan.floor,
         image_url: imageUrl,
         thumbnail_url: thumbnailUrl,
+        pdf_url: pdfUrl || null,
         original_filename: localFloorPlan.originalFilename,
         original_format: localFloorPlan.originalFormat,
         width: localFloorPlan.width,

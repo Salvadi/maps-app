@@ -293,6 +293,42 @@ export async function uploadFloorPlan(
 }
 
 /**
+ * Upload PDF originale della planimetria su Supabase Storage
+ * Restituisce l'URL pubblico del PDF caricato.
+ */
+export async function uploadFloorPlanPDF(
+  projectId: string,
+  floor: string,
+  pdfBlob: Blob,
+  userId: string
+): Promise<string> {
+  if (!supabase) {
+    throw new Error('Supabase not configured');
+  }
+
+  const timestamp = Date.now();
+  const pdfPath = `${projectId}/${floor}/original_${timestamp}.pdf`;
+
+  const { error } = await supabase.storage
+    .from('planimetrie')
+    .upload(pdfPath, pdfBlob, {
+      contentType: 'application/pdf',
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload PDF: ${error.message}`);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('planimetrie')
+    .getPublicUrl(pdfPath);
+
+  return urlData.publicUrl;
+}
+
+/**
  * Delete floor plan from Supabase Storage
  */
 export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string): Promise<void> {

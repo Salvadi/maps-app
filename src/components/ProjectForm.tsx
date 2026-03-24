@@ -40,7 +40,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
     project?.floors.join(', ') || '-1, 0, 1, 2, 3'
   );
   const [floorsEnabled, setFloorsEnabled] = useState(
-    project?.floors && project.floors.length > 0 && project.floors[0] !== '0'
+    project?.floors
+      ? project.floors.length > 1 || project.floors[0] !== '0'
+      : false
   );
   const [useRoomNumbering, setUseRoomNumbering] = useState(
     project?.useRoomNumbering || false

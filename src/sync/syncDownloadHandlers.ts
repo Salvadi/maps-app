@@ -560,6 +560,38 @@ export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: bo
           }
         }
 
+        // Download PDF blob e converti in base64 (se disponibile e non già presente localmente)
+        let pdfBlobBase64: string | undefined = existingFloorPlan?.pdfBlobBase64;
+        if (!pdfBlobBase64 && supabaseFloorPlan.pdf_url) {
+          try {
+            const pdfUrl = new URL(supabaseFloorPlan.pdf_url);
+            let pdfPath: string | undefined;
+            let bucketName = 'planimetrie';
+            const match = pdfUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
+            if (match) {
+              bucketName = match[1];
+              pdfPath = match[2];
+            }
+            if (pdfPath) {
+              const { data: pdfBlob, error: pdfDownloadError } = await supabase.storage
+                .from(bucketName)
+                .download(pdfPath);
+              if (!pdfDownloadError && pdfBlob) {
+                const arrayBuffer = await pdfBlob.arrayBuffer();
+                const bytes = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                pdfBlobBase64 = btoa(binary);
+                console.log(`📄 Downloaded PDF originale for floor plan ${supabaseFloorPlan.id}`);
+              } else {
+                console.warn(`⚠️  Failed to download PDF for floor plan ${supabaseFloorPlan.id}: ${pdfDownloadError?.message}`);
+              }
+            }
+          } catch (pdfErr) {
+            console.warn(`⚠️  Failed to parse PDF URL for floor plan ${supabaseFloorPlan.id}:`, pdfErr);
+          }
+        }
+
         // Convert Supabase format to IndexedDB format
         const floorPlan = {
           id: supabaseFloorPlan.id,
@@ -567,8 +599,10 @@ export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: bo
           floor: supabaseFloorPlan.floor,
           imageUrl: supabaseFloorPlan.image_url,
           thumbnailUrl: supabaseFloorPlan.thumbnail_url,
+          pdfUrl: supabaseFloorPlan.pdf_url || undefined,
           imageBlob: imageBlob,
           thumbnailBlob: thumbnailBlob,
+          pdfBlobBase64: pdfBlobBase64,
           originalFilename: supabaseFloorPlan.original_filename,
           originalFormat: supabaseFloorPlan.original_format,
           width: supabaseFloorPlan.width,
