@@ -719,6 +719,14 @@ const MappingView: React.FC<MappingViewProps> = ({
     setEditorUnmappedEntries([]);
   };
 
+  // Handle floor plan rotation change (save to metadata immediately)
+  const handleFloorPlanRotationChange = async (rotation: number) => {
+    if (!editorFloorPlan) return;
+    const updatedMetadata = { ...(editorFloorPlan.metadata || {}), rotation };
+    await updateFloorPlan(editorFloorPlan.id, { metadata: updatedMetadata });
+    setEditorFloorPlan(prev => prev ? { ...prev, metadata: updatedMetadata } : null);
+  };
+
   // Handle save floor plan editor changes
   const handleSaveFloorPlanEditor = async (points: CanvasPoint[], gridConfig: GridConfig) => {
     if (!editorFloorPlan) return;
@@ -1350,7 +1358,9 @@ const MappingView: React.FC<MappingViewProps> = ({
             }}
             mode="view-edit"
             unmappedEntries={editorUnmappedEntries}
+            initialRotation={editorFloorPlan.metadata?.rotation || 0}
             onSave={handleSaveFloorPlanEditor}
+            onRotationChange={handleFloorPlanRotationChange}
             onClose={handleCloseFloorPlanEditor}
             onOpenMappingEntry={(mappingEntryId) => {
               const mapping = mappings.find(m => m.id === mappingEntryId);

@@ -351,7 +351,7 @@ export function useMappingExports({
         });
 
         try {
-          const pdfBytes = await buildFloorPlanVectorPDF(plan.imageBlob, exportPoints, plan.pdfBlobBase64);
+          const pdfBytes = await buildFloorPlanVectorPDF(plan.imageBlob, exportPoints, plan.pdfBlobBase64, plan.metadata?.rotation || 0);
           zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
         } catch (error) {
           console.error(`Error creating PDF for plan ${plan.floor}:`, error);
@@ -463,7 +463,7 @@ export function useMappingExports({
         };
       });
 
-      await exportFloorPlanVectorPDF(plan.imageBlob, exportPoints, `Piano_${plan.floor}_annotato.pdf`, plan.pdfBlobBase64);
+      await exportFloorPlanVectorPDF(plan.imageBlob, exportPoints, `Piano_${plan.floor}_annotato.pdf`, plan.pdfBlobBase64, plan.metadata?.rotation || 0);
       const qualityNote = plan.pdfBlobBase64 ? ' (sfondo vettoriale)' : ' (sfondo raster)';
       alert(`✅ Planimetria esportata in PDF${qualityNote}`);
     } catch (error) {
