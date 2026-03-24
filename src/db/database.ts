@@ -142,6 +142,7 @@ export interface FloorPlan {
   imageUrl?: string; // Supabase URL (when synced)
   thumbnailUrl?: string; // Supabase URL (when synced)
   pdfBlobBase64?: string; // PDF originale come Base64 (solo se input era PDF) — per export vettoriale
+  pdfUrl?: string; // Supabase Storage URL del PDF originale (quando sincronizzato)
   originalFilename: string;
   originalFormat: string;
   width: number;
