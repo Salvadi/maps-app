@@ -6,7 +6,7 @@
  */
 
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
-import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap } from '../utils/floorPlanUtils';
+import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap, blobToBase64 } from '../utils/floorPlanUtils';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 
 // ============================================
@@ -24,8 +24,8 @@ export async function createFloorPlan(
   userId: string
 ): Promise<FloorPlan> {
   try {
-    // Process the floor plan file (convert to PNG 2x, generate thumbnail)
-    const { fullRes, thumbnail, width, height, originalFormat } = await processFloorPlan(file);
+    // Process the floor plan file (convert to PNG 2x, generate thumbnail, preserve PDF if applicable)
+    const { fullRes, thumbnail, width, height, originalFormat, pdfBlob } = await processFloorPlan(file);
 
     // Upload to Supabase Storage
     let imageUrl: string | undefined;
@@ -41,6 +41,16 @@ export async function createFloorPlan(
       // Continue anyway - will be stored locally and synced later
     }
 
+    // Converti il PDF originale in Base64 per IndexedDB (il syncQueue.payload deve essere JSON-serializzabile)
+    let pdfBlobBase64: string | undefined;
+    if (pdfBlob) {
+      try {
+        pdfBlobBase64 = await blobToBase64(pdfBlob);
+      } catch (err) {
+        console.warn('Failed to convert PDF blob to Base64, vector export will use raster fallback:', err);
+      }
+    }
+
     const floorPlan: FloorPlan = {
       id: generateId(),
       projectId,
@@ -49,6 +59,7 @@ export async function createFloorPlan(
       thumbnailBlob: thumbnail,
       imageUrl,
       thumbnailUrl,
+      pdfBlobBase64,
       originalFilename: file.name,
       originalFormat,
       width,

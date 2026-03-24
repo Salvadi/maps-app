@@ -32,12 +32,42 @@ async function loadPdfJs(): Promise<void> {
 }
 
 /**
- * Convert PDF first page to PNG at 2x resolution
+ * Convert Blob to Base64 string (senza il prefisso data URI).
+ * Usato per serializzare il PDF originale in IndexedDB via syncQueue.
  */
-async function pdfToPng(file: File): Promise<Blob> {
+export async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]); // strip "data:...;base64,"
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Convert Base64 string back to Blob.
+ */
+export function base64ToBlob(base64: string, mimeType: string = 'application/pdf'): Blob {
+  const bytes = atob(base64);
+  const buf = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+  return new Blob([buf], { type: mimeType });
+}
+
+/**
+ * Convert PDF first page to PNG at 2x resolution.
+ * Returns both the raster PNG (for canvas display) and the original PDF blob
+ * (for vector-quality export).
+ */
+async function pdfToPng(file: File): Promise<{ png: Blob; pdfBlob: Blob }> {
   await loadPdfJs();
 
   const arrayBuffer = await file.arrayBuffer();
+  const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const page = await pdf.getPage(1); // Get first page
 
@@ -60,7 +90,7 @@ async function pdfToPng(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) {
-        resolve(blob);
+        resolve({ png: blob, pdfBlob });
       } else {
         reject(new Error('Failed to convert canvas to blob'));
       }
@@ -158,7 +188,9 @@ async function getImageDimensions(blob: Blob): Promise<{ width: number; height: 
 }
 
 /**
- * Process floor plan file (PDF or image) to PNG 2x + thumbnail
+ * Process floor plan file (PDF or image) to PNG 2x + thumbnail.
+ * Se il file è un PDF, restituisce anche pdfBlob con il PDF originale
+ * (usato per preservare la vettorialità in export).
  */
 export async function processFloorPlan(file: File): Promise<{
   fullRes: Blob;
@@ -166,13 +198,17 @@ export async function processFloorPlan(file: File): Promise<{
   width: number;
   height: number;
   originalFormat: string;
+  pdfBlob?: Blob;
 }> {
   let fullRes: Blob;
+  let pdfBlob: Blob | undefined;
   const originalFormat = file.type.split('/')[1] || file.name.split('.').pop() || 'unknown';
 
   // Convert to PNG 2x based on file type
   if (file.type === 'application/pdf') {
-    fullRes = await pdfToPng(file);
+    const result = await pdfToPng(file);
+    fullRes = result.png;
+    pdfBlob = result.pdfBlob;
   } else if (file.type.startsWith('image/')) {
     fullRes = await imageToPng2x(file);
   } else {
@@ -191,6 +227,7 @@ export async function processFloorPlan(file: File): Promise<{
     width,
     height,
     originalFormat,
+    pdfBlob,
   };
 }
 
