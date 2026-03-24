@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanvas';
-import { exportCanvasToPDF, exportCanvasToPNG } from '../utils/exportUtils';
+import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
@@ -281,27 +281,37 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Logica di esportazione PDF/PNG della planimetria annotata.
   // ============================================
 
-  // Handle export to PDF
-  const handleExportPDF = useCallback(() => {
+  // Handle export to PDF (vettoriale con pdf-lib)
+  const handleExportPDF = useCallback(async () => {
     if (onExportPDFProp) {
       onExportPDFProp();
       return;
     }
 
-    const canvas = document.querySelector('.floor-plan-canvas') as HTMLCanvasElement;
-    if (!canvas) {
-      alert('❌ Impossibile trovare il canvas');
-      return;
-    }
-
     try {
-      exportCanvasToPDF(canvas, 'planimetria-annotata.pdf');
-      alert('✅ Planimetria esportata in PDF');
+      // Recupera imageBlob dall'imageUrl (funziona anche con blob:// URL)
+      const response = await fetch(imageUrl);
+      const imageBlob = await response.blob();
+
+      const exportPoints: ExportPoint[] = points.map(p => ({
+        type: p.type,
+        pointX: p.pointX,
+        pointY: p.pointY,
+        labelX: p.labelX,
+        labelY: p.labelY,
+        labelText: p.labelText,
+        perimeterPoints: p.perimeterPoints,
+        labelBackgroundColor: p.labelBackgroundColor,
+        labelTextColor: p.labelTextColor,
+      }));
+
+      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf');
+      alert('✅ Planimetria esportata in PDF (vettoriale)');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [onExportPDFProp]);
+  }, [imageUrl, points, onExportPDFProp]);
 
   // Handle export to PNG
   const handleExportPNG = useCallback(() => {

@@ -141,6 +141,7 @@ export interface FloorPlan {
   thumbnailBlob?: Blob; // Store thumbnail locally
   imageUrl?: string; // Supabase URL (when synced)
   thumbnailUrl?: string; // Supabase URL (when synced)
+  pdfBlobBase64?: string; // PDF originale come Base64 (solo se input era PDF) — per export vettoriale
   originalFilename: string;
   originalFormat: string;
   width: number;
