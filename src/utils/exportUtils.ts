@@ -4,7 +4,7 @@
 
 import jsPDF from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument, StandardFonts, rgb, PDFFont } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib';
 
 // Set up PDF.js worker - use unpkg CDN for better compatibility
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -433,40 +433,81 @@ async function _buildWithRasterBackground(
 }
 
 /**
- * Genera PDF vettoriale con sfondo vettoriale (PDF originale copiato via copyPages).
- * Preserva la qualità vettoriale della planimetria di background.
- * Usata quando pdfBlobBase64 è disponibile (pianimetria caricata come PDF su questo dispositivo).
+ * Genera PDF vettoriale con sfondo vettoriale (PDF originale) e annotazioni vettoriali.
+ * Supporta rotazione: il PDF di sfondo viene ruotato visivamente tramite embedPage+drawPage,
+ * e le annotazioni vengono disegnate nel sistema di coordinate dell'immagine ruotata
+ * (nessuna trasformazione dei punti necessaria).
  */
 async function _buildFromOriginalPDF(
   pdfBlobBase64: string,
   points: ExportPoint[],
+  rotation: number = 0,
 ): Promise<Uint8Array> {
   // Decodifica Base64 → bytes
   const binaryStr = atob(pdfBlobBase64);
   const srcBytes  = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) srcBytes[i] = binaryStr.charCodeAt(i);
 
-  // Carica PDF sorgente e copia la prima pagina nel documento di output
   const srcDoc  = await PDFDocument.load(srcBytes);
   const outDoc  = await PDFDocument.create();
-  const [copiedPage] = await outDoc.copyPages(srcDoc, [0]);
-  outDoc.addPage(copiedPage);
 
   const fontBold   = await outDoc.embedFont(StandardFonts.HelveticaBold);
   const fontItalic = await outDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  const pageW = copiedPage.getWidth();
-  const pageH = copiedPage.getHeight();
+  if (!rotation) {
+    // Nessuna rotazione: copia la pagina direttamente
+    const [copiedPage] = await outDoc.copyPages(srcDoc, [0]);
+    outDoc.addPage(copiedPage);
+    const pageW = copiedPage.getWidth();
+    const pageH = copiedPage.getHeight();
+    _drawAnnotationsOnPage(copiedPage, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic);
+  } else {
+    // Con rotazione: embed la pagina originale come XObject e ruotala sulla nuova pagina.
+    // Le annotazioni sono già nel sistema di coordinate dell'immagine ruotata (0-1 norm.),
+    // quindi vengono disegnate direttamente senza trasformazione.
+    const [srcPage] = await srcDoc.copyPages(srcDoc, [0]);
+    const origW = srcPage.getWidth();
+    const origH = srcPage.getHeight();
 
-  // I punti normalizzati sono relativi alla PNG rasterizzata a 2x.
-  // La PNG aveva dimensioni pdfPage_pt * 2, quindi scale = pageW / (pageW * 2) = 0.5
-  const scale      = 0.5;
-  const effectiveW = pageW;
-  const effectiveH = pageH;
-  const offsetX    = 0;
-  const offsetY    = 0;
+    // Dimensioni della pagina di output (swap per 90°/270°)
+    const [pageW, pageH] = (rotation === 90 || rotation === 270)
+      ? [origH, origW]
+      : [origW, origH];
 
-  _drawAnnotationsOnPage(copiedPage, points, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold, fontItalic);
+    const page = outDoc.addPage([pageW, pageH]);
+
+    // Embed la pagina originale come form XObject
+    const embedded = await outDoc.embedPage(srcPage);
+
+    // Parametri drawPage per ogni rotazione:
+    // Per -90° (90° CW visivo): x=0, y=origW; Per +90° (270° CW / 90° CCW): x=origH, y=0
+    // Per 180°: x=origW, y=origH; deriva dalla matrice di rotazione applicata al rettangolo della pagina.
+    let ex: number, ey: number, deg: number;
+    switch (rotation) {
+      case 90:
+        ex = 0; ey = origW; deg = -90;
+        break;
+      case 180:
+        ex = origW; ey = origH; deg = 180;
+        break;
+      case 270:
+        ex = origH; ey = 0; deg = 90;
+        break;
+      default:
+        ex = 0; ey = 0; deg = 0;
+    }
+
+    page.drawPage(embedded, {
+      x: ex,
+      y: ey,
+      width: origW,
+      height: origH,
+      rotate: degrees(deg),
+    });
+
+    // Le annotazioni sono nel sistema di coordinate dell'immagine ruotata → pageW × pageH
+    _drawAnnotationsOnPage(page, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic);
+  }
 
   return outDoc.save();
 }
@@ -499,40 +540,9 @@ async function rotateBlob(blob: Blob, rotation: number): Promise<Blob> {
 }
 
 /**
- * Trasforma le coordinate normalizzate di annotazioni dallo spazio dell'immagine ruotata
- * allo spazio del PDF originale (non ruotato).
- * 90° CW: (rx,ry) → (ry, 1-rx)
- * 180°:   (rx,ry) → (1-rx, 1-ry)
- * 270° CW:(rx,ry) → (1-ry, rx)
- */
-function transformPointsForRotation(points: ExportPoint[], rotation: number): ExportPoint[] {
-  const t = (nx: number, ny: number): [number, number] => {
-    switch (rotation) {
-      case 90:  return [ny, 1 - nx];
-      case 180: return [1 - nx, 1 - ny];
-      case 270: return [1 - ny, nx];
-      default:  return [nx, ny];
-    }
-  };
-  return points.map(p => {
-    const [px, py] = t(p.pointX, p.pointY);
-    const [lx, ly] = t(p.labelX, p.labelY);
-    return {
-      ...p,
-      pointX: px, pointY: py,
-      labelX: lx, labelY: ly,
-      perimeterPoints: p.perimeterPoints?.map(v => {
-        const [x, y] = t(v.x, v.y);
-        return { x, y };
-      }),
-    };
-  });
-}
-
-/**
  * Genera i byte del PDF vettoriale a partire da imageBlob e punti normalizzati.
- * Se pdfBlobBase64 è fornito, usa sempre il PDF originale come sfondo vettoriale,
- * trasformando le coordinate delle annotazioni nello spazio originale se necessario.
+ * Se pdfBlobBase64 è fornito, usa sempre il PDF originale come sfondo vettoriale
+ * (con rotazione visiva della pagina se rotation > 0 — nessuna trasformazione coordinate).
  * Solo se pdfBlobBase64 non è disponibile usa imageBlob rasterizzato come sfondo.
  */
 export async function buildFloorPlanVectorPDF(
@@ -542,8 +552,7 @@ export async function buildFloorPlanVectorPDF(
   rotation: number = 0,
 ): Promise<Uint8Array> {
   if (pdfBlobBase64) {
-    const transformedPoints = rotation ? transformPointsForRotation(points, rotation) : points;
-    return _buildFromOriginalPDF(pdfBlobBase64, transformedPoints);
+    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation);
   }
   const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
   return _buildWithRasterBackground(blob, points);
