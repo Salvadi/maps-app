@@ -39,6 +39,8 @@ interface FloorPlanEditorProps {
   onOpenMappingEntry?: (mappingEntryId: string) => void;
   onReorderPoints?: (sortedMappingEntryIds: string[]) => Promise<CanvasPoint[]>;
   readOnlyPoints?: CanvasPoint[];
+  initialRotation?: number; // 0, 90, 180, 270
+  onRotationChange?: (rotation: number) => void;
 }
 
 const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
@@ -65,6 +67,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   onOpenMappingEntry,
   onReorderPoints,
   readOnlyPoints,
+  initialRotation = 0,
+  onRotationChange,
 }) => {
   // ============================================
   // SEZIONE: Stato e inizializzazione
@@ -88,6 +92,37 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc' | 'recent'>('none');
   const [isReordering, setIsReordering] = useState(false);
+
+  // Rotation state
+  const [rotation, setRotation] = useState<number>(initialRotation);
+  const [rotatedImageUrl, setRotatedImageUrl] = useState<string>(imageUrl);
+
+  // Build rotated image URL whenever imageUrl or rotation changes
+  useEffect(() => {
+    if (rotation === 0) {
+      setRotatedImageUrl(imageUrl);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const radians = (rotation * Math.PI) / 180;
+      const cos = Math.abs(Math.cos(radians));
+      const sin = Math.abs(Math.sin(radians));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * cos + img.height * sin);
+      canvas.height = Math.round(img.width * sin + img.height * cos);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(radians);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      if (!cancelled) setRotatedImageUrl(canvas.toDataURL('image/png'));
+    };
+    img.src = imageUrl;
+    return () => { cancelled = true; };
+  }, [imageUrl, rotation]);
 
   // Multi-selection for color picker
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
@@ -338,6 +373,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Handle zoom
   const handleZoomIn = () => setZoomInTrigger(prev => prev + 1);
   const handleZoomOut = () => setZoomOutTrigger(prev => prev + 1);
+
+  // Handle rotate 90° CW
+  const handleRotate = useCallback(() => {
+    const newRotation = (rotation + 90) % 360;
+    setRotation(newRotation);
+    onRotationChange?.(newRotation);
+    setHasUnsavedChanges(true);
+  }, [rotation, onRotationChange]);
 
   // Handle perimeter drawing state change
   const handlePerimeterDrawingChange = useCallback((isDrawing: boolean) => {
@@ -601,6 +644,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             >
               <span className="tool-icon">🔍−</span>
             </button>
+            <button
+              className="tool-btn"
+              onClick={handleRotate}
+              title={`Ruota 90° in senso orario (attuale: ${rotation}°)`}
+            >
+              <span className="tool-icon">↻</span>
+              Ruota
+            </button>
           </div>
 
           {mode !== 'view' && (
@@ -837,7 +888,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         {/* Canvas area */}
         <div className="canvas-area">
           <FloorPlanCanvas
-            imageUrl={imageUrl}
+            imageUrl={rotatedImageUrl}
             points={points}
             gridConfig={gridConfig}
             activeTool={activeTool}

@@ -472,32 +472,96 @@ async function _buildFromOriginalPDF(
 }
 
 /**
+ * Ruota un Blob immagine di `rotation` gradi in senso orario usando un canvas offscreen.
+ * Restituisce un nuovo Blob PNG con l'immagine ruotata.
+ */
+async function rotateBlob(blob: Blob, rotation: number): Promise<Blob> {
+  if (!rotation) return blob;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const radians = (rotation * Math.PI) / 180;
+      const cos = Math.abs(Math.cos(radians));
+      const sin = Math.abs(Math.sin(radians));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * cos + img.height * sin);
+      canvas.height = Math.round(img.width * sin + img.height * cos);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas 2D not available')); return; }
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(radians);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+/**
+ * Trasforma le coordinate normalizzate di annotazioni dallo spazio dell'immagine ruotata
+ * allo spazio del PDF originale (non ruotato).
+ * 90° CW: (rx,ry) → (ry, 1-rx)
+ * 180°:   (rx,ry) → (1-rx, 1-ry)
+ * 270° CW:(rx,ry) → (1-ry, rx)
+ */
+function transformPointsForRotation(points: ExportPoint[], rotation: number): ExportPoint[] {
+  const t = (nx: number, ny: number): [number, number] => {
+    switch (rotation) {
+      case 90:  return [ny, 1 - nx];
+      case 180: return [1 - nx, 1 - ny];
+      case 270: return [1 - ny, nx];
+      default:  return [nx, ny];
+    }
+  };
+  return points.map(p => {
+    const [px, py] = t(p.pointX, p.pointY);
+    const [lx, ly] = t(p.labelX, p.labelY);
+    return {
+      ...p,
+      pointX: px, pointY: py,
+      labelX: lx, labelY: ly,
+      perimeterPoints: p.perimeterPoints?.map(v => {
+        const [x, y] = t(v.x, v.y);
+        return { x, y };
+      }),
+    };
+  });
+}
+
+/**
  * Genera i byte del PDF vettoriale a partire da imageBlob e punti normalizzati.
- * Se pdfBlobBase64 è fornito, usa il PDF originale come sfondo vettoriale (qualità massima).
- * Altrimenti usa imageBlob rasterizzato come sfondo (fallback).
+ * Se pdfBlobBase64 è fornito, usa sempre il PDF originale come sfondo vettoriale,
+ * trasformando le coordinate delle annotazioni nello spazio originale se necessario.
+ * Solo se pdfBlobBase64 non è disponibile usa imageBlob rasterizzato come sfondo.
  */
 export async function buildFloorPlanVectorPDF(
   imageBlob: Blob,
   points: ExportPoint[],
   pdfBlobBase64?: string,
+  rotation: number = 0,
 ): Promise<Uint8Array> {
   if (pdfBlobBase64) {
-    return _buildFromOriginalPDF(pdfBlobBase64, points);
+    const transformedPoints = rotation ? transformPointsForRotation(points, rotation) : points;
+    return _buildFromOriginalPDF(pdfBlobBase64, transformedPoints);
   }
-  return _buildWithRasterBackground(imageBlob, points);
+  const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
+  return _buildWithRasterBackground(blob, points);
 }
 
 /**
  * Esporta la planimetria annotata come PDF vettoriale e lo scarica.
- * Se pdfBlobBase64 è fornito, usa il PDF originale come sfondo vettoriale.
+ * Se pdfBlobBase64 è fornito, usa sempre il PDF originale come sfondo vettoriale
+ * (con trasformazione delle coordinate per la rotazione).
  */
 export async function exportFloorPlanVectorPDF(
   imageBlob: Blob,
   points: ExportPoint[],
   filename: string,
   pdfBlobBase64?: string,
+  rotation: number = 0,
 ): Promise<void> {
-  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64);
+  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation);
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
