@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Base styles - Minimalistic neutral palette */
 :root {
   --color-bg-primary: #f5f0e8;
