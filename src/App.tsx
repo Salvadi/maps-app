@@ -478,6 +478,7 @@ const App: React.FC = () => {
                   onNavigateToProject={handleViewProject}
                   onAddMapping={handleEnterMapping}
                   onCreateProject={handleCreateProject}
+                  onManualSync={handleManualSync}
                 />
               )}
               {activeTab === 'projects' && (
@@ -488,6 +489,8 @@ const App: React.FC = () => {
                   onDeleteProject={handleDeleteProject}
                   onViewProject={handleViewProject}
                   onEnterMapping={handleEnterMapping}
+                  onManualSync={handleManualSync}
+                  isSyncing={syncStats.isSyncing}
                 />
               )}
               {activeTab === 'maps' && (

@@ -10,6 +10,7 @@ interface DashboardProps {
   onNavigateToProject: (project: Project) => void;
   onAddMapping: (project: Project) => void;
   onCreateProject: () => void;
+  onManualSync: () => void;
 }
 
 interface RecentActivity {
@@ -27,6 +28,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onNavigateToProject,
   onAddMapping,
   onCreateProject,
+  onManualSync,
 }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [totalMappings, setTotalMappings] = useState(0);
@@ -160,10 +162,18 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
           </div>
-          {!isOnline && (
+          {!isOnline ? (
             <div className="bg-orange-100 text-warning text-xs font-semibold px-2.5 py-1 rounded-full">
               Offline
             </div>
+          ) : (
+            <button
+              onClick={onManualSync}
+              disabled={syncStats.isSyncing}
+              className="bg-accent/10 text-accent text-xs font-semibold px-3 py-1.5 rounded-full active:scale-95 transition-transform disabled:opacity-50"
+            >
+              {syncStats.isSyncing ? 'Sync...' : 'Sincronizza'}
+            </button>
           )}
         </div>
       </div>
