@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
-  RefreshCw
+  RefreshCw, Tag, Package
 } from 'lucide-react';
 import {
   Project, MappingEntry, Photo, User, FloorPlan,
@@ -279,17 +279,45 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                     {/* Crossings */}
                                     {entry.crossings && entry.crossings.length > 0 && (
                                       <div className="mb-3">
-                                        {entry.crossings.map((crossing, ci) => (
-                                          <div key={ci} className="text-xs text-brand-600 py-1 flex items-center gap-2">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-brand-300" />
-                                            <span>
-                                              {crossing.supporto} · {crossing.tipoSupporto} · {crossing.attraversamento}
-                                              {crossing.quantita && ` × ${crossing.quantita}`}
-                                              {crossing.diametro && ` Ø${crossing.diametro}`}
-                                              {crossing.dimensioni && ` (${crossing.dimensioni})`}
-                                            </span>
-                                          </div>
-                                        ))}
+                                        {entry.crossings.map((crossing, ci) => {
+                                          const linkedTypology = crossing.tipologicoId
+                                            ? project.typologies?.find(t => t.id === crossing.tipologicoId)
+                                            : undefined;
+                                          return (
+                                            <div key={ci} className="text-xs text-brand-600 py-1.5">
+                                              <div className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-brand-300 flex-shrink-0" />
+                                                <span>
+                                                  {crossing.supporto} · {crossing.tipoSupporto} · {crossing.attraversamento}
+                                                  {crossing.quantita && ` × ${crossing.quantita}`}
+                                                  {crossing.diametro && ` Ø${crossing.diametro}`}
+                                                  {crossing.dimensioni && ` (${crossing.dimensioni})`}
+                                                </span>
+                                                {linkedTypology && (
+                                                  <span className="text-[10px] font-bold text-accent bg-accent/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                                                    T#{linkedTypology.number}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {linkedTypology && (
+                                                <div className="ml-[17px] mt-1 space-y-0.5">
+                                                  {linkedTypology.marcaProdottoUtilizzato && (
+                                                    <div className="flex items-center gap-1.5 text-brand-500">
+                                                      <Tag size={10} className="text-brand-400" />
+                                                      <span>{linkedTypology.marcaProdottoUtilizzato}</span>
+                                                    </div>
+                                                  )}
+                                                  {linkedTypology.prodottiSelezionati && linkedTypology.prodottiSelezionati.length > 0 && (
+                                                    <div className="flex items-center gap-1.5 text-brand-500">
+                                                      <Package size={10} className="text-brand-400" />
+                                                      <span>{linkedTypology.prodottiSelezionati.join(', ')}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     )}
 
@@ -463,7 +491,19 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                               {tip.supporto} · {tip.tipoSupporto}
                             </span>
                           </div>
-                          <div className="text-xs text-brand-500">{tip.attraversamento}</div>
+                          <div className="text-xs text-brand-500 mb-1.5">{tip.attraversamento}</div>
+                          {tip.marcaProdottoUtilizzato && (
+                            <div className="flex items-center gap-1.5 text-xs text-brand-600 mb-0.5">
+                              <Tag size={12} className="text-brand-400" />
+                              <span className="font-medium">{tip.marcaProdottoUtilizzato}</span>
+                            </div>
+                          )}
+                          {tip.prodottiSelezionati && tip.prodottiSelezionati.length > 0 && (
+                            <div className="flex items-start gap-1.5 text-xs text-brand-500">
+                              <Package size={12} className="text-brand-400 mt-0.5 flex-shrink-0" />
+                              <span>{tip.prodottiSelezionati.join(', ')}</span>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
