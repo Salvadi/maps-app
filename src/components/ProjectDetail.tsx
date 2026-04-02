@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
-  RefreshCw, Tag, Package
+  RefreshCw, Tag, Package, Filter, X
 } from 'lucide-react';
+import { SUPPORTO_OPTIONS } from '../config/supporto';
+import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan,
   getMappingEntriesForProject, getPhotosForMapping, deleteMappingEntry,
@@ -50,6 +52,75 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; alt: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedMappings, setExpandedMappings] = useState<Set<string>>(new Set());
+
+  // Filters (persisted in localStorage)
+  const [showOnlyToComplete, setShowOnlyToComplete] = useState<boolean>(() => {
+    return localStorage.getItem(`pd_${project.id}_toComplete`) === 'true';
+  });
+  const [filterTipologico, setFilterTipologico] = useState<string>(() => {
+    return localStorage.getItem(`pd_${project.id}_tipologico`) || '';
+  });
+  const [filterSupporto, setFilterSupporto] = useState<string>(() => {
+    return localStorage.getItem(`pd_${project.id}_supporto`) || '';
+  });
+  const [filterAttraversamento, setFilterAttraversamento] = useState<string>(() => {
+    return localStorage.getItem(`pd_${project.id}_attraversamento`) || '';
+  });
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
+    return localStorage.getItem(`pd_${project.id}_filtersOpen`) === 'true';
+  });
+
+  const hasActiveFilters = showOnlyToComplete || !!filterTipologico || !!filterSupporto || !!filterAttraversamento;
+
+  const clearFilters = () => {
+    setShowOnlyToComplete(false);
+    setFilterTipologico('');
+    setFilterSupporto('');
+    setFilterAttraversamento('');
+    localStorage.removeItem(`pd_${project.id}_toComplete`);
+    localStorage.removeItem(`pd_${project.id}_tipologico`);
+    localStorage.removeItem(`pd_${project.id}_supporto`);
+    localStorage.removeItem(`pd_${project.id}_attraversamento`);
+  };
+
+  // Persist filters
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_toComplete`, String(showOnlyToComplete));
+  }, [showOnlyToComplete, project.id]);
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_tipologico`, filterTipologico);
+  }, [filterTipologico, project.id]);
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_supporto`, filterSupporto);
+  }, [filterSupporto, project.id]);
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_attraversamento`, filterAttraversamento);
+  }, [filterAttraversamento, project.id]);
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_filtersOpen`, String(filtersOpen));
+  }, [filtersOpen, project.id]);
+
+  // Compute filtered + grouped mappings
+  const filteredFloorGroups = useMemo(() => {
+    let filtered = mappings;
+    if (showOnlyToComplete) filtered = filtered.filter(m => m.toComplete === true);
+    if (filterTipologico) filtered = filtered.filter(m => m.crossings.some(c => c.tipologicoId === filterTipologico));
+    if (filterSupporto) filtered = filtered.filter(m => m.crossings.some(c => c.supporto === filterSupporto));
+    if (filterAttraversamento) filtered = filtered.filter(m => m.crossings.some(c => c.attraversamento === filterAttraversamento));
+
+    const grouped: Record<string, MappingEntry[]> = {};
+    for (const entry of filtered) {
+      const floor = entry.floor || 'N/D';
+      if (!grouped[floor]) grouped[floor] = [];
+      grouped[floor].push(entry);
+    }
+    return {
+      count: filtered.length,
+      groups: Object.keys(grouped)
+        .sort((a, b) => parseFloat(a) - parseFloat(b))
+        .map(floor => ({ floor, entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp) })),
+    };
+  }, [mappings, showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento]);
 
   useEffect(() => {
     loadData();
@@ -197,9 +268,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
             {/* Mappings Tab */}
             {activeTab === 'mappings' && (
               <div className="px-4 pt-4">
-                {/* Stats bar */}
+                {/* Stats bar + filter toggle */}
                 {mappings.length > 0 && (
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
                     <span className="text-xs text-brand-500">{mappings.length} mappature</span>
                     {totalToComplete > 0 && (
                       <span className="flex items-center gap-1 text-xs text-warning font-medium bg-orange-50 px-2 py-0.5 rounded-full">
@@ -207,12 +278,122 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                         {totalToComplete} da completare
                       </span>
                     )}
+                    <button
+                      onClick={() => setFiltersOpen(f => !f)}
+                      className={`ml-auto flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${
+                        hasActiveFilters
+                          ? 'bg-accent text-white'
+                          : filtersOpen
+                          ? 'bg-brand-200 text-brand-700'
+                          : 'bg-brand-50 text-brand-500 hover:bg-brand-100'
+                      }`}
+                    >
+                      <Filter size={12} />
+                      Filtri
+                      {hasActiveFilters && (
+                        <span className="bg-white/30 text-[10px] px-1 rounded-full ml-0.5">
+                          {[showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento].filter(Boolean).length}
+                        </span>
+                      )}
+                    </button>
                   </div>
                 )}
 
-                {/* Floor groups */}
+                {/* Filter panel */}
+                {filtersOpen && (
+                  <div className="bg-white rounded-xl shadow-card p-3 mb-4 space-y-2.5">
+                    {/* Da Completare toggle */}
+                    <button
+                      onClick={() => setShowOnlyToComplete(v => !v)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                        showOnlyToComplete
+                          ? 'bg-warning/10 text-warning'
+                          : 'bg-brand-50 text-brand-600'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <AlertTriangle size={12} />
+                        Solo da completare
+                      </span>
+                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                        showOnlyToComplete ? 'bg-warning border-warning text-white' : 'border-brand-300'
+                      }`}>
+                        {showOnlyToComplete && <span className="text-[10px]">✓</span>}
+                      </span>
+                    </button>
+
+                    {/* Tipologico */}
+                    <div>
+                      <select
+                        value={filterTipologico}
+                        onChange={e => setFilterTipologico(e.target.value)}
+                        className="w-full text-xs bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-brand-700 appearance-none"
+                      >
+                        <option value="">Tutti i tipologici</option>
+                        {(project.typologies || []).sort((a, b) => a.number - b.number).map(t => (
+                          <option key={t.id} value={t.id}>Tip. {t.number}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Supporto */}
+                    <div>
+                      <select
+                        value={filterSupporto}
+                        onChange={e => setFilterSupporto(e.target.value)}
+                        className="w-full text-xs bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-brand-700 appearance-none"
+                      >
+                        <option value="">Tutti i supporti</option>
+                        {SUPPORTO_OPTIONS.filter(o => o.value).map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Attraversamento */}
+                    <div>
+                      <select
+                        value={filterAttraversamento}
+                        onChange={e => setFilterAttraversamento(e.target.value)}
+                        className="w-full text-xs bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-brand-700 appearance-none"
+                      >
+                        <option value="">Tutti gli attraversamenti</option>
+                        {ATTRAVERSAMENTO_OPTIONS.filter(o => o.value).map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Clear button */}
+                    {hasActiveFilters && (
+                      <button
+                        onClick={clearFilters}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs text-danger font-medium py-2 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <X size={12} />
+                        Cancella filtri
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Filter results count */}
+                {hasActiveFilters && (
+                  filteredFloorGroups.count === 0 ? (
+                    <div className="text-center py-8 text-brand-400 text-sm">
+                      Nessuna mappatura trovata con i filtri attivi
+                    </div>
+                  ) : (
+                    <div className="mb-2">
+                      <span className="text-[11px] text-brand-400">
+                        {filteredFloorGroups.count} di {mappings.length} mappature
+                      </span>
+                    </div>
+                  )
+                )}
+
                 <div className="space-y-3">
-                  {floorGroups.map(group => (
+                  {filteredFloorGroups.groups.map(group => (
                     <div key={group.floor}>
                       <button
                         onClick={() => toggleFloor(group.floor)}
