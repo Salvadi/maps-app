@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import imageCompression from 'browser-image-compression';
 import {
   ArrowLeft, ArrowRight, Check, Camera, MapPin,
-  Plus, X, ChevronDown, Image, AlertTriangle
+  Plus, X, ChevronDown, Image, AlertTriangle, Eye
 } from 'lucide-react';
 import {
   Project, Crossing, User, MappingEntry,
@@ -16,6 +16,7 @@ import {
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import PhotoPreviewModal from './PhotoPreviewModal';
+import TypologyViewerModal from './TypologyViewerModal';
 import FloorPlanEditor from './FloorPlanEditor';
 import type { CanvasPoint, GridConfig } from './FloorPlanCanvas';
 
@@ -77,6 +78,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [readOnlyPoints, setReadOnlyPoints] = useState<CanvasPoint[]>([]);
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
 
+  const [showTypologyViewer, setShowTypologyViewer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState('');
@@ -226,14 +228,19 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const handleCopyPrevious = async () => {
     if (!project) return;
-    const lastJson = localStorage.getItem('lastMappingEntry');
-    if (!lastJson) { alert('Nessuna mappatura precedente'); return; }
-    const last = JSON.parse(lastJson);
+    const entries = await getMappingEntriesForProject(project.id);
+    if (entries.length === 0) { alert('Nessuna mappatura precedente nel progetto'); return; }
+    // Find the most recently updated/created entry
+    const sorted = entries.sort((a, b) => b.timestamp - a.timestamp);
+    const last = sorted[0];
     setFloor(last.floor || floor);
     setRoomNumber(last.room || '');
-    setCrossings(last.crossings || [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '' }]);
+    setCrossings(
+      last.crossings.length > 0
+        ? last.crossings.map((c, ci) => ({ ...c, id: `${Date.now()}-${ci}` }))
+        : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
+    );
     if (project.useInterventionNumbering) {
-      const entries = await getMappingEntriesForProject(project.id);
       const max = entries.reduce((m, e) => { const n = parseInt(e.intervention || '0'); return !isNaN(n) && n > m ? n : m; }, 0);
       setInterventionNumber((max + 1).toString());
     }
@@ -350,11 +357,6 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           createdBy: currentUser.id,
         }, compressedBlobs);
 
-        localStorage.setItem('lastMappingEntry', JSON.stringify({
-          floor, room: project.useRoomNumbering ? roomNumber : undefined,
-          intervention: project.useInterventionNumbering ? interventionNumber : undefined,
-          crossings: crossings.map((s, i) => ({ ...s, id: `${Date.now()}-${i}` })),
-        }));
         alert('Mappatura salvata!');
       }
       onBack();
@@ -514,6 +516,17 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         {/* STEP 1: Crossings */}
         {step === 1 && (
           <div className="space-y-3">
+            {/* Typology viewer button */}
+            {project?.typologies && project.typologies.length > 0 && (
+              <button
+                onClick={() => setShowTypologyViewer(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
+              >
+                <Eye size={14} />
+                Visualizza tipologici ({project.typologies.length})
+              </button>
+            )}
+
             {crossings.map((crossing, i) => (
               <div key={crossing.id} className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -578,16 +591,51 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                       <div className="relative">
                         <select
                           value={crossing.tipologicoId || ''}
-                          onChange={e => handleCrossingChange(i, 'tipologicoId' as any, e.target.value)}
+                          onChange={e => {
+                            const tipId = e.target.value;
+                            const updated = [...crossings];
+                            updated[i] = { ...updated[i], tipologicoId: tipId || undefined };
+                            if (tipId) {
+                              const tip = project.typologies.find(t => t.id === tipId);
+                              if (tip) {
+                                updated[i].supporto = tip.supporto;
+                                updated[i].tipoSupporto = tip.tipoSupporto;
+                                updated[i].attraversamento = tip.attraversamento;
+                              }
+                            }
+                            setCrossings(updated);
+                          }}
                           className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
                         >
                           <option value="">Nessuno</option>
                           {project.typologies.sort((a, b) => a.number - b.number).map(t => (
-                            <option key={t.id} value={t.id}>#{t.number} - {t.supporto} / {t.attraversamento}</option>
+                            <option key={t.id} value={t.id}>
+                              #{t.number} - {t.supporto} / {t.attraversamento}
+                              {t.marcaProdottoUtilizzato ? ` (${t.marcaProdottoUtilizzato})` : ''}
+                            </option>
                           ))}
                         </select>
                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
                       </div>
+                      {/* Show linked typology info */}
+                      {crossing.tipologicoId && (() => {
+                        const tip = project.typologies.find(t => t.id === crossing.tipologicoId);
+                        if (!tip || (!tip.marcaProdottoUtilizzato && (!tip.prodottiSelezionati || tip.prodottiSelezionati.length === 0))) return null;
+                        return (
+                          <div className="mt-1.5 px-3 py-2 bg-accent/5 rounded-lg border border-accent/10">
+                            {tip.marcaProdottoUtilizzato && (
+                              <div className="text-[11px] text-brand-600">
+                                <span className="font-medium text-brand-500">Marca:</span> {tip.marcaProdottoUtilizzato}
+                              </div>
+                            )}
+                            {tip.prodottiSelezionati && tip.prodottiSelezionati.length > 0 && (
+                              <div className="text-[11px] text-brand-600 mt-0.5">
+                                <span className="font-medium text-brand-500">Prodotti:</span> {tip.prodottiSelezionati.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -767,6 +815,14 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           imageUrl={selectedPhotoPreview.url}
           altText={selectedPhotoPreview.alt}
           onClose={() => setSelectedPhotoPreview(null)}
+        />
+      )}
+
+      {/* Typology viewer modal */}
+      {showTypologyViewer && project && (
+        <TypologyViewerModal
+          project={project}
+          onClose={() => setShowTypologyViewer(false)}
         />
       )}
     </div>
