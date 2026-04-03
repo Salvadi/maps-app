@@ -608,12 +608,19 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                           className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
                         >
                           <option value="">Nessuno</option>
-                          {project.typologies.sort((a, b) => a.number - b.number).map(t => (
-                            <option key={t.id} value={t.id}>
-                              #{t.number} - {t.supporto} / {t.attraversamento}
-                              {t.marcaProdottoUtilizzato ? ` (${t.marcaProdottoUtilizzato})` : ''}
-                            </option>
-                          ))}
+                          {project.typologies.sort((a, b) => a.number - b.number).map(t => {
+                            const products = t.prodottiSelezionati && t.prodottiSelezionati.length > 0
+                              ? t.prodottiSelezionati.join(', ')
+                              : '';
+                            const brand = t.marcaProdottoUtilizzato || '';
+                            const info = [brand, products].filter(Boolean).join(' - ');
+                            return (
+                              <option key={t.id} value={t.id}>
+                                #{t.number} - {t.supporto} / {t.attraversamento}
+                                {info ? ` (${info})` : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
                       </div>
