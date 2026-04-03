@@ -27,12 +27,6 @@ interface ProjectDetailProps {
 
 type SubTab = 'mappings' | 'plans' | 'info';
 
-interface FloorGroup {
-  floor: string;
-  entries: MappingEntry[];
-  isExpanded: boolean;
-}
-
 const ProjectDetail: React.FC<ProjectDetailProps> = ({
   project,
   currentUser,
@@ -47,7 +41,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
-  const [floorGroups, setFloorGroups] = useState<FloorGroup[]>([]);
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; alt: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -132,26 +125,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     const entries = await getMappingEntriesForProject(project.id);
     setMappings(entries);
 
-    // Group by floor
-    const grouped: Record<string, MappingEntry[]> = {};
-    for (const entry of entries) {
-      const floor = entry.floor || 'N/D';
-      if (!grouped[floor]) grouped[floor] = [];
-      grouped[floor].push(entry);
-    }
-
-    const groups: FloorGroup[] = Object.keys(grouped)
-      .sort((a, b) => parseFloat(a) - parseFloat(b))
-      .map(floor => ({
-        floor,
-        entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp),
-        isExpanded: true,
-      }));
-    setFloorGroups(groups);
-
     // Auto-expand first floor
-    if (groups.length > 0) {
-      setExpandedFloors(new Set([groups[0].floor]));
+    const floorSet: Record<string, boolean> = {};
+    entries.forEach(e => { floorSet[e.floor || 'N/D'] = true; });
+    const sorted = Object.keys(floorSet).sort((a, b) => parseFloat(a) - parseFloat(b));
+    if (sorted.length > 0) {
+      setExpandedFloors(new Set([sorted[0]]));
     }
 
     // Load photos for all entries
