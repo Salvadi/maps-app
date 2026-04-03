@@ -35,9 +35,9 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-brand-500 hover:bg-brand-100 active:bg-brand-200"
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-brand-100 text-brand-700 hover:bg-brand-200 active:bg-brand-300"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
