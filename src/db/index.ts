@@ -41,3 +41,7 @@ export type { FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
 
 // Dropdown options exports
 export { getDropdownOptions, getProductsByBrand, getBrandOptions, refreshDropdownCaches } from './dropdownOptions';
+
+// Pricing exports
+export { getTypologyPrices, upsertTypologyPrice, deleteTypologyPrice } from './pricing';
+export type { TypologyPrice } from './database';

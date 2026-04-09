@@ -218,6 +218,18 @@ export interface StandaloneMap {
 }
 
 // ============================================
+// TYPOLOGY PRICES INTERFACE
+// ============================================
+
+export interface TypologyPrice {
+  id: string;
+  projectId: string;
+  tipologicoId: string;
+  pricePerUnit: number;
+  unit: 'piece' | 'sqm';
+}
+
+// ============================================
 // DROPDOWN OPTIONS CACHE INTERFACES
 // ============================================
 
@@ -259,6 +271,9 @@ export class MappingDatabase extends Dexie {
   // DROPDOWN OPTIONS CACHE
   dropdownOptionsCache!: Table<DropdownOptionCache, string>;
   productsCache!: Table<ProductCache, string>;
+
+  // TYPOLOGY PRICES
+  typologyPrices!: Table<TypologyPrice, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -339,6 +354,24 @@ export class MappingDatabase extends Dexie {
       dropdownOptionsCache: 'id, category, sortOrder',
       productsCache: 'id, brand, sortOrder'
     });
+
+    // Define schema v6 - add typologyPrices table
+    this.version(6).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      // TYPOLOGY PRICES
+      typologyPrices: 'id, projectId, tipologicoId, [projectId+tipologicoId]'
+    });
   }
 }
 
@@ -389,6 +422,7 @@ export async function clearDatabase(): Promise<void> {
   await db.standaloneMaps.clear();
   await db.dropdownOptionsCache.clear();
   await db.productsCache.clear();
+  await db.typologyPrices.clear();
   // Keep metadata
   console.log('Database cleared');
 }
