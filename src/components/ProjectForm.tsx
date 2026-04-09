@@ -614,14 +614,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
               <h2 className="text-sm font-semibold text-brand-700">Struttura</h2>
             </div>
             <div className="px-4 py-4 space-y-3">
-              {!floorsEnabled && project && (
-                <label className="flex items-center gap-3 p-3 bg-brand-50 border border-brand-200 rounded-xl cursor-pointer hover:border-accent transition-colors">
-                  <Upload size={16} className="text-brand-500" />
-                  <span className="text-sm text-brand-700 font-medium">Carica pianta</span>
-                  <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleFloorPlanUpload('0', f); e.target.value = ''; } }} />
-                </label>
-              )}
-              <div className="flex items-center justify-between">
+<div className="flex items-center justify-between">
                 <span className="text-sm text-brand-700">Piani multipli</span>
                 <Toggle value={floorsEnabled} onChange={() => setFloorsEnabled(!floorsEnabled)} />
               </div>
