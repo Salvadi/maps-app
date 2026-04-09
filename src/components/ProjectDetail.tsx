@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
-  RefreshCw, Tag, Package, Filter, X
+  RefreshCw, Tag, Package, Filter, X, DollarSign
 } from 'lucide-react';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
@@ -12,6 +12,7 @@ import {
   getFloorPlansByProject
 } from '../db';
 import PhotoPreviewModal from './PhotoPreviewModal';
+import CostsTab from './CostsTab';
 
 interface ProjectDetailProps {
   project: Project;
@@ -25,7 +26,7 @@ interface ProjectDetailProps {
   isSyncing?: boolean;
 }
 
-type SubTab = 'mappings' | 'plans' | 'info';
+type SubTab = 'mappings' | 'plans' | 'info' | 'costs';
 
 const ProjectDetail: React.FC<ProjectDetailProps> = ({
   project,
@@ -178,6 +179,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     { id: 'mappings', label: 'Mappature', icon: Camera, count: mappings.length },
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
     { id: 'info', label: 'Info', icon: Info },
+    { id: 'costs', label: 'Costi', icon: DollarSign },
   ];
 
   return (
@@ -581,6 +583,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Costs Tab */}
+            {activeTab === 'costs' && (
+              <CostsTab project={project} />
             )}
 
             {/* Info Tab */}
