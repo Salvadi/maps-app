@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, FolderOpen, ChevronRight, Plus, RefreshCw } from 'lucide-react';
-import { Project, User, getAllProjects, getProjectsForUser, getMappingEntriesForProject } from '../db';
+import { Camera, FolderOpen, ChevronRight, ChevronDown, Plus, RefreshCw, Check } from 'lucide-react';
+import { Project, User, getAllProjects, getProjectsForUser, getMappingEntriesForProject, updateProject } from '../db';
 import { SyncStats } from '../sync/syncEngine';
 
 interface DashboardProps {
@@ -35,6 +35,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [toCompleteMappings, setToCompleteMappings] = useState(0);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [lastProject, setLastProject] = useState<Project | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [modalProjects, setModalProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -103,6 +105,34 @@ const Dashboard: React.FC<DashboardProps> = ({
     return new Date(timestamp).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
   };
 
+  const openSyncModal = () => {
+    setModalProjects(projects.map(p => ({ ...p })));
+    setShowSyncModal(true);
+  };
+
+  const handleSyncClick = () => {
+    if (projects.some(p => p.syncEnabled === 1)) {
+      onManualSync();
+    } else {
+      openSyncModal();
+    }
+  };
+
+  const handleSyncConfirm = async () => {
+    for (const mp of modalProjects) {
+      const original = projects.find(p => p.id === mp.id);
+      if (original && original.syncEnabled !== mp.syncEnabled) {
+        await updateProject(mp.id, { syncEnabled: mp.syncEnabled });
+      }
+    }
+    setProjects(prev => prev.map(p => {
+      const mp = modalProjects.find(m => m.id === p.id);
+      return mp ? { ...p, syncEnabled: mp.syncEnabled } : p;
+    }));
+    setShowSyncModal(false);
+    onManualSync();
+  };
+
   return (
     <div className="flex-1 overflow-auto pb-20 bg-brand-100">
       {/* Header */}
@@ -167,13 +197,24 @@ const Dashboard: React.FC<DashboardProps> = ({
               Offline
             </div>
           ) : (
-            <button
-              onClick={onManualSync}
-              disabled={syncStats.isSyncing}
-              className="bg-accent/10 text-accent text-xs font-semibold px-3 py-1.5 rounded-full active:scale-95 transition-transform disabled:opacity-50"
-            >
-              {syncStats.isSyncing ? 'Sync...' : 'Sincronizza'}
-            </button>
+            <div className="flex items-center rounded-full overflow-hidden border border-accent/25">
+              <button
+                onClick={handleSyncClick}
+                disabled={syncStats.isSyncing}
+                className="bg-accent/10 text-accent text-xs font-semibold px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {syncStats.isSyncing ? 'Sync...' : 'Sincronizza'}
+              </button>
+              <div className="w-px h-4 bg-accent/25" />
+              <button
+                onClick={openSyncModal}
+                disabled={syncStats.isSyncing}
+                className="bg-accent/10 text-accent px-2 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+                title="Seleziona progetti"
+              >
+                <ChevronDown size={13} />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -240,6 +281,64 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Spacer for bottom tab */}
       <div className="h-4" />
+
+      {/* Sync project selection modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
+            <div className="px-5 py-4 border-b border-brand-200">
+              <h3 className="text-base font-bold text-brand-800">Seleziona progetti</h3>
+              <p className="text-xs text-brand-500 mt-0.5">
+                Scegli quali progetti sincronizzare completamente
+              </p>
+            </div>
+            <div className="overflow-y-auto max-h-64 divide-y divide-brand-100">
+              {modalProjects.length === 0 ? (
+                <div className="px-5 py-8 text-center text-brand-500 text-sm">
+                  Nessun progetto disponibile
+                </div>
+              ) : (
+                modalProjects.map(project => (
+                  <button
+                    key={project.id}
+                    onClick={() => setModalProjects(prev => prev.map(p =>
+                      p.id === project.id ? { ...p, syncEnabled: p.syncEnabled === 1 ? 0 : 1 } : p
+                    ))}
+                    className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-brand-50 active:bg-brand-100 transition-colors text-left"
+                  >
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      project.syncEnabled === 1 ? 'bg-accent border-accent' : 'border-brand-300'
+                    }`}>
+                      {project.syncEnabled === 1 && <Check size={11} className="text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-brand-700 truncate">{project.title}</div>
+                      {project.client && (
+                        <div className="text-xs text-brand-500 truncate">{project.client}</div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-brand-200 flex gap-3">
+              <button
+                onClick={() => setShowSyncModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-brand-200 text-brand-700 text-sm font-semibold"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleSyncConfirm}
+                disabled={!modalProjects.some(p => p.syncEnabled === 1)}
+                className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold disabled:opacity-40"
+              >
+                Sincronizza
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
