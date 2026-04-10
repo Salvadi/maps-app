@@ -71,6 +71,8 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   zoomInTrigger,
   zoomOutTrigger,
   onPerimeterDrawingChange,
+  onCompletePerimeter,
+  onCancelPerimeter,
   readOnlyPoints = [],
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -119,6 +121,38 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   useEffect(() => {
     onPerimeterDrawingChange?.(isDrawingPerimeter);
   }, [isDrawingPerimeter, onPerimeterDrawingChange]);
+
+  // External perimeter completion/cancellation triggers
+  useEffect(() => {
+    if (onCompletePerimeter) {
+      // Listen for completion request
+      const complete = () => {
+        if (isDrawingPerimeter && perimeterPoints.length >= 2 && onPointAdd) {
+          const firstPoint = perimeterPoints[0];
+          const labelPos = perimeterPoints.reduce(
+            (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
+            { x: 0, y: 0 }
+          );
+          labelPos.x /= perimeterPoints.length;
+          labelPos.y /= perimeterPoints.length;
+
+          onPointAdd({
+            type: 'perimetro',
+            pointX: firstPoint.x,
+            pointY: firstPoint.y,
+            labelX: labelPos.x,
+            labelY: labelPos.y,
+            labelText: ['Perimetro'],
+            perimeterPoints: perimeterPoints,
+          });
+
+          setIsDrawingPerimeter(false);
+          setPerimeterPoints([]);
+          setCurrentMousePos(null);
+        }
+      };
+    }
+  }, [isDrawingPerimeter, perimeterPoints, onPointAdd, onCompletePerimeter]);
 
   // Expose completePerimeter/cancelPerimeter to parent via ref instead of window globals
   useImperativeHandle(ref, () => ({

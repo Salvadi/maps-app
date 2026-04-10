@@ -4,6 +4,7 @@ import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
 import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
+import { validateFileSignature } from '../utils/validation';
 import './ProjectForm.css';
 
 /**
@@ -154,6 +155,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
 
   const handleFloorPlanUpload = async (floor: string, file: File) => {
     if (!project) return;
+
+    // Validate file signature (magic bytes)
+    const { valid } = await validateFileSignature(file);
+    if (!valid) {
+      alert('Formato file non valido. Sono accettati solo immagini (JPEG, PNG, WebP) e PDF.');
+      return;
+    }
 
     try {
       // Check if floor plan already exists
