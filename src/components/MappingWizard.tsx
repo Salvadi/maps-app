@@ -742,19 +742,18 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                             />
                           </div>
                         </div>
-                        {crossing.asolaB && crossing.asolaH && (
-                          (() => {
-                            const realMq = (crossing.asolaB * crossing.asolaH) / 10000;
-                            const mq = calcAsolaMq(crossing.asolaB, crossing.asolaH);
-                            const isMin = realMq < 0.2;
-                            return (
-                              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${isMin ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
-                                <span>Area asola: {mq.toFixed(2)} mq</span>
-                                {isMin && <span className="text-[10px] opacity-75">(min 0,2 applicato)</span>}
-                              </div>
-                            );
-                          })()
-                        )}
+                        {(() => {
+                          const hasSize = crossing.asolaB && crossing.asolaH;
+                          const realMq = hasSize ? (crossing.asolaB! * crossing.asolaH!) / 10000 : 0;
+                          const mq = hasSize ? calcAsolaMq(crossing.asolaB!, crossing.asolaH!) : 0.2;
+                          const isMin = !hasSize || realMq < 0.2;
+                          return (
+                            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${isMin ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                              <span>Area asola: {mq.toFixed(2)} mq</span>
+                              {isMin && <span className="text-[10px] opacity-75">(min 0,2 applicato)</span>}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
