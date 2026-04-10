@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { MappingEntry, Photo } from '../db';
+import { MappingEntry, Photo, calcAsolaMq } from '../db';
 import { EditIcon, DeleteIcon, ImageIcon } from './icons/MappingViewIcons';
 
 export interface MappingEntryCardProps {
@@ -109,6 +109,14 @@ const MappingEntryCard: React.FC<MappingEntryCardProps> = ({
                     )}
                     {sig.notes && (
                       <><strong>Note:</strong> {sig.notes}<br /></>
+                    )}
+                    {sig.inAsola && sig.asolaB && sig.asolaH && (
+                      <div style={{ marginTop: '4px', paddingLeft: '8px', borderLeft: '2px solid #d4cdc0', color: '#9c9385', fontSize: '0.8em' }}>
+                        ↳ <strong>Asola</strong> B×H: {sig.asolaB}×{sig.asolaH} cm → {calcAsolaMq(sig.asolaB, sig.asolaH).toFixed(2)} mq
+                        {(sig.asolaB * sig.asolaH) / 10000 < 0.2 && (
+                          <span style={{ marginLeft: '4px', color: '#FF9500' }}>(min applicato)</span>
+                        )}
+                      </div>
                     )}
                   </li>
                 ))}

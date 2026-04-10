@@ -3,7 +3,7 @@ import { Download, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
-  Project, MappingEntry, Typology,
+  Project, MappingEntry, Typology, calcAsolaMq,
   getMappingEntriesForProject,
   getTypologyPrices, upsertTypologyPrice,
   TypologyPrice
@@ -104,6 +104,24 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
           total: pricePerUnit * quantity,
           mappingEntryId: entry.id,
         });
+
+        // Asola row — independent derived row with calculated sqm
+        if (crossing.inAsola && crossing.asolaB && crossing.asolaH) {
+          const asolaMq = calcAsolaMq(crossing.asolaB, crossing.asolaH);
+          result.push({
+            floor: entry.floor,
+            tipologicoId: '',
+            tipologicoLabel: 'Asola',
+            supporto: crossing.supporto || typology?.supporto || '',
+            tipoSupporto: crossing.tipoSupporto || typology?.tipoSupporto || '',
+            attraversamento: `Asola (${crossing.asolaB}×${crossing.asolaH} cm)`,
+            quantity: asolaMq,
+            pricePerUnit: 0,
+            unit: 'sqm',
+            total: 0,
+            mappingEntryId: entry.id,
+          });
+        }
       }
     }
     return result;

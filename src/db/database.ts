@@ -54,6 +54,14 @@ export interface Crossing {
   diametro?: string;
   dimensioni?: string;
   notes?: string;
+  inAsola?: boolean;  // true se l'attraversamento passa in un'asola
+  asolaB?: number;    // larghezza asola in cm
+  asolaH?: number;    // altezza asola in cm
+}
+
+// Calcola area asola in mq con minimo di 0,2 mq
+export function calcAsolaMq(b: number, h: number): number {
+  return Math.max(0.2, (b * h) / 10000);
 }
 
 export interface MappingEntry {

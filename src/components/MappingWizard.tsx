@@ -5,7 +5,7 @@ import {
   Plus, X, ChevronDown, Image, AlertTriangle, Eye
 } from 'lucide-react';
 import {
-  Project, Crossing, User, MappingEntry,
+  Project, Crossing, User, MappingEntry, calcAsolaMq,
   createMappingEntry, getMappingEntriesForProject,
   updateMappingEntry, getPhotosForMapping,
   addPhotosToMapping, removePhotoFromMapping,
@@ -195,9 +195,9 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     if (crossings.length > 1) setCrossings(crossings.filter((_, idx) => idx !== i));
   };
 
-  const handleCrossingChange = (i: number, field: keyof Omit<Crossing, 'id'>, value: string | number) => {
+  const handleCrossingChange = (i: number, field: keyof Omit<Crossing, 'id'>, value: string | number | boolean) => {
     const updated = [...crossings];
-    updated[i] = { ...updated[i], [field]: value || undefined };
+    updated[i] = { ...updated[i], [field]: typeof value === 'boolean' ? value : (value || undefined) };
     setCrossings(updated);
   };
 
@@ -690,6 +690,73 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                       placeholder="Note opzionali..."
                       className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm placeholder:text-brand-400 focus:ring-2 focus:ring-accent/30 outline-none"
                     />
+                  </div>
+
+                  {/* In asola toggle */}
+                  <div className="border-t border-brand-100 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-brand-600">In asola</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVal = !crossing.inAsola;
+                          const updated = [...crossings];
+                          updated[i] = {
+                            ...updated[i],
+                            inAsola: newVal,
+                            asolaB: newVal ? updated[i].asolaB : undefined,
+                            asolaH: newVal ? updated[i].asolaH : undefined,
+                          };
+                          setCrossings(updated);
+                        }}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${crossing.inAsola ? 'bg-accent' : 'bg-brand-200'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${crossing.inAsola ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    {crossing.inAsola && (
+                      <div className="mt-2.5 space-y-2">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-medium text-brand-500 mb-1">Larghezza B (cm)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="0.1"
+                              value={crossing.asolaB ?? ''}
+                              onChange={e => handleCrossingChange(i, 'asolaB', parseFloat(e.target.value))}
+                              placeholder="es. 40"
+                              className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm placeholder:text-brand-400 focus:ring-2 focus:ring-accent/30 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-medium text-brand-500 mb-1">Altezza H (cm)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="0.1"
+                              value={crossing.asolaH ?? ''}
+                              onChange={e => handleCrossingChange(i, 'asolaH', parseFloat(e.target.value))}
+                              placeholder="es. 30"
+                              className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm placeholder:text-brand-400 focus:ring-2 focus:ring-accent/30 outline-none"
+                            />
+                          </div>
+                        </div>
+                        {crossing.asolaB && crossing.asolaH && (
+                          (() => {
+                            const realMq = (crossing.asolaB * crossing.asolaH) / 10000;
+                            const mq = calcAsolaMq(crossing.asolaB, crossing.asolaH);
+                            const isMin = realMq < 0.2;
+                            return (
+                              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${isMin ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                                <span>Area asola: {mq.toFixed(2)} mq</span>
+                                {isMin && <span className="text-[10px] opacity-75">(min 0,2 applicato)</span>}
+                              </div>
+                            );
+                          })()
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
