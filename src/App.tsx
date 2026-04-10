@@ -18,7 +18,7 @@ import {
   User, Project, MappingEntry, FloorPlan, db,
   getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint
 } from './db';
-import { isSupabaseConfigured } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
   startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase,
   getSyncStats, manualSync, clearAndSync, SyncStats, onSyncComplete, offSyncComplete
@@ -316,7 +316,37 @@ const App: React.FC = () => {
     }
   };
 
-  const handleOpenFloorPlanEditor = (project: Project, floorPlan: FloorPlan) => {
+  const handleOpenFloorPlanEditor = async (project: Project, floorPlan: FloorPlan) => {
+    // Check remote version before opening to warn about concurrent edits
+    if (isOnline && isSupabaseConfigured() && supabase) {
+      try {
+        const { data } = await supabase
+          .from('floor_plans')
+          .select('updated_at')
+          .eq('id', floorPlan.id)
+          .single();
+
+        if (data) {
+          const remoteUpdatedAt = new Date(data.updated_at).getTime();
+          // Warn if remote is more than 5s newer than local (tolerance for clock skew)
+          if (remoteUpdatedAt > floorPlan.updatedAt + 5000) {
+            const localDate = new Date(floorPlan.updatedAt).toLocaleString('it-IT');
+            const remoteDate = new Date(remoteUpdatedAt).toLocaleString('it-IT');
+            const proceed = window.confirm(
+              `⚠️ Attenzione: questa planimetria è stata modificata da un altro utente.\n\n` +
+              `Versione remota: ${remoteDate}\n` +
+              `Versione locale:  ${localDate}\n\n` +
+              `Si consiglia di sincronizzare prima di modificare per non perdere le modifiche altrui.\n\n` +
+              `Continuare comunque?`
+            );
+            if (!proceed) return;
+          }
+        }
+      } catch {
+        // Network error or plan not yet on remote → open normally
+      }
+    }
+
     setEditorProject(project);
     setEditorFloorPlan(floorPlan);
     if (floorPlan.imageBlob) {
