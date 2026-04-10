@@ -3,8 +3,8 @@
  * Main editor component for floor plan annotation
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool } from './FloorPlanCanvas';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle } from './FloorPlanCanvas';
 import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
@@ -70,6 +70,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   initialRotation = 0,
   onRotationChange,
 }) => {
+  // Ref to FloorPlanCanvas imperative handle
+  const canvasRef = useRef<FloorPlanCanvasHandle>(null);
+
   // ============================================
   // SEZIONE: Stato e inizializzazione
   // Dichiarazioni di stato, ref e inizializzazione dell'editor.
@@ -387,14 +390,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     setIsDrawingPerimeter(isDrawing);
   }, []);
 
-  // Handle complete perimeter
+  // Handle complete perimeter via canvas ref
   const handleCompletePerimeter = useCallback(() => {
-    (window as any).__completePerimeter?.();
+    canvasRef.current?.completePerimeter();
   }, []);
 
-  // Handle cancel perimeter
+  // Handle cancel perimeter via canvas ref
   const handleCancelPerimeter = useCallback(() => {
-    (window as any).__cancelPerimeter?.();
+    canvasRef.current?.cancelPerimeter();
   }, []);
 
   // Handle reorder points by X position (leftmost first, per room)
@@ -842,17 +845,17 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                       min="1" 
                       max="50" 
                       value={gridConfig.rows}
-                      onChange={(e) => handleGridConfigChange('rows', parseInt(e.target.value) || 10)}
+                      onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 50) handleGridConfigChange('rows', v); }}
                     />
                   </div>
                   <div className="setting-row">
                     <label>Colonne:</label>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      max="50" 
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
                       value={gridConfig.cols}
-                      onChange={(e) => handleGridConfigChange('cols', parseInt(e.target.value) || 10)}
+                      onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 50) handleGridConfigChange('cols', v); }}
                     />
                   </div>
                   <div className="setting-row">
@@ -888,6 +891,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         {/* Canvas area */}
         <div className="canvas-area">
           <FloorPlanCanvas
+            ref={canvasRef}
             imageUrl={rotatedImageUrl}
             points={points}
             gridConfig={gridConfig}

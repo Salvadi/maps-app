@@ -4,6 +4,7 @@ import {
   ArrowLeft, ArrowRight, Check, Camera, MapPin,
   Plus, X, ChevronDown, Image, AlertTriangle, Eye
 } from 'lucide-react';
+import { validateFileSignature } from '../utils/validation';
 import {
   Project, Crossing, User, MappingEntry, calcAsolaMq,
   createMappingEntry, getMappingEntriesForProject,
@@ -80,6 +81,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState('');
   const [error, setError] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState('');
 
@@ -159,10 +161,23 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
-    const files = Array.from(e.target.files);
-    setPhotoFiles(prev => [...prev, ...files]);
-    setPhotoIds(prev => [...prev, ...files.map(() => null)]);
-    const previews = await Promise.all(files.map(f => new Promise<string>(r => {
+    const allFiles = Array.from(e.target.files);
+
+    // Validate file signatures (magic bytes) to prevent disguised file uploads
+    const validFiles: File[] = [];
+    for (const file of allFiles) {
+      const { valid } = await validateFileSignature(file);
+      if (valid) {
+        validFiles.push(file);
+      } else {
+        console.warn(`File rifiutato (tipo non valido): ${file.name}`);
+      }
+    }
+    if (validFiles.length === 0) return;
+
+    setPhotoFiles(prev => [...prev, ...validFiles]);
+    setPhotoIds(prev => [...prev, ...validFiles.map(() => null)]);
+    const previews = await Promise.all(validFiles.map(f => new Promise<string>(r => {
       const reader = new FileReader();
       reader.onload = () => r(reader.result as string);
       reader.readAsDataURL(f);
@@ -318,13 +333,14 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
       if (photosToCompress.length > 0) {
         const results: Blob[] = [];
-        for (let i = 0; i < photosToCompress.length; i += 3) {
-          const batch = photosToCompress.slice(i, i + 3);
-          const batchResults = await Promise.all(
-            batch.map(f => imageCompression(f, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }) as Promise<Blob>)
-          );
-          results.push(...batchResults);
+        for (let i = 0; i < photosToCompress.length; i++) {
+          setCompressionProgress(`Compressione foto ${i + 1}/${photosToCompress.length}...`);
+          const compressed = await imageCompression(photosToCompress[i], {
+            maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true
+          }) as Blob;
+          results.push(compressed);
         }
+        setCompressionProgress('');
         compressedBlobs = results;
       }
 
@@ -876,7 +892,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
               className="flex-1 py-3.5 bg-success text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
             >
               <Check size={16} />
-              {isSubmitting ? 'Salvataggio...' : editingEntry ? 'Aggiorna' : 'Salva'}
+              {compressionProgress || (isSubmitting ? 'Salvataggio...' : editingEntry ? 'Aggiorna' : 'Salva')}
             </button>
           )}
         </div>

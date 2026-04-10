@@ -1,15 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Login from './components/Login';
 import PasswordReset from './components/PasswordReset';
 import Dashboard from './components/Dashboard';
 import ProjectList from './components/ProjectList';
-import ProjectForm from './components/ProjectForm';
-import ProjectDetail from './components/ProjectDetail';
-import MappingWizard from './components/MappingWizard';
-import MapsOverview from './components/MapsOverview';
-import SettingsPage from './components/SettingsPage';
-import StandaloneFloorPlanEditor from './components/StandaloneFloorPlanEditor';
-import FloorPlanEditor from './components/FloorPlanEditor';
 import UpdateNotification from './components/UpdateNotification';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
@@ -20,10 +13,20 @@ import {
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
-  startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase,
+  startAutoSync, stopAutoSync, lockedSync,
   getSyncStats, manualSync, clearAndSync, SyncStats, onSyncComplete, offSyncComplete
 } from './sync/syncEngine';
 import './App.css';
+
+// Lazy-loaded components: these pull in heavy libraries (jsPDF, pdf-lib, pdfjs-dist, xlsx)
+// and are only needed when the user navigates to specific views
+const ProjectForm = React.lazy(() => import('./components/ProjectForm'));
+const ProjectDetail = React.lazy(() => import('./components/ProjectDetail'));
+const MappingWizard = React.lazy(() => import('./components/MappingWizard'));
+const MapsOverview = React.lazy(() => import('./components/MapsOverview'));
+const SettingsPage = React.lazy(() => import('./components/SettingsPage'));
+const StandaloneFloorPlanEditor = React.lazy(() => import('./components/StandaloneFloorPlanEditor'));
+const FloorPlanEditor = React.lazy(() => import('./components/FloorPlanEditor'));
 
 type View = 'login' | 'passwordReset' | 'tabs' | 'projectForm' | 'projectEdit' | 'mapping' | 'projectDetail' | 'standaloneEditor' | 'floorPlanEditor';
 
@@ -140,8 +143,7 @@ const App: React.FC = () => {
       setIsOnline(true);
       if (isSupabaseConfigured()) {
         try {
-          await processSyncQueue();
-          await syncFromSupabase();
+          await lockedSync();
           await updateSyncStats();
         } catch (err) {
           console.error('Sync after reconnection failed:', err);
@@ -171,8 +173,7 @@ const App: React.FC = () => {
     const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'BACKGROUND_SYNC') {
         try {
-          await processSyncQueue();
-          await syncFromSupabase();
+          await lockedSync();
           await updateSyncStats();
         } catch {}
       }
@@ -351,6 +352,10 @@ const App: React.FC = () => {
 
     setEditorProject(project);
     setEditorFloorPlan(floorPlan);
+    // Revoke previous blob URL before creating a new one
+    if (editorImageUrl) {
+      URL.revokeObjectURL(editorImageUrl);
+    }
     if (floorPlan.imageBlob) {
       setEditorImageUrl(getFloorPlanBlobUrl(floorPlan.imageBlob));
     }
@@ -363,6 +368,10 @@ const App: React.FC = () => {
     } else {
       setCurrentView('tabs');
       setActiveTab('maps');
+    }
+    // Revoke blob URL to prevent memory leak
+    if (editorImageUrl) {
+      URL.revokeObjectURL(editorImageUrl);
     }
     setEditorFloorPlan(null);
     setEditorImageUrl(null);
@@ -566,7 +575,13 @@ const App: React.FC = () => {
       )}
 
       <ErrorBoundary>
-        {renderContent()}
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-64">
+            <div className="w-8 h-8 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          {renderContent()}
+        </Suspense>
       </ErrorBoundary>
 
       <UpdateNotification registration={swRegistration} />

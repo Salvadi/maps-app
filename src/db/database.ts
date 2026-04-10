@@ -107,7 +107,8 @@ export interface SyncQueueItem {
   timestamp: number;
   retryCount: number;
   lastError?: string;
-  synced: number; // 0 = false, 1 = true (for Dexie indexing compatibility)
+  lastAttemptAt?: number; // Timestamp of last retry attempt (for exponential backoff)
+  synced: number; // 0 = pending, 1 = synced, 2 = permanently failed
 }
 
 export interface User {

@@ -252,10 +252,21 @@ export async function processSyncQueue(): Promise<SyncResult> {
 
   // Process items sequentially to maintain order
   for (const item of pendingItems) {
-    // Skip items that have exceeded retry limit
-    if ((item.retryCount || 0) >= MAX_RETRIES) {
-      console.warn(`⏭️ Skipping permanently failed item: ${item.entityType} ${item.entityId} (${item.retryCount} retries)`);
+    const retryCount = item.retryCount || 0;
+
+    // Mark permanently failed items (synced=2) so they stop appearing in future runs
+    if (retryCount >= MAX_RETRIES) {
+      await db.syncQueue.update(item.id, { synced: 2 });
+      console.warn(`🚫 Permanently failed: ${item.entityType} ${item.entityId} (${retryCount} retries) — removed from active queue`);
       continue;
+    }
+
+    // Exponential backoff: skip items that were retried too recently
+    if (retryCount > 0 && item.lastAttemptAt) {
+      const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 30000); // 2s, 4s, 8s, 16s, 30s
+      if (Date.now() - item.lastAttemptAt < backoffMs) {
+        continue; // Not ready for retry yet
+      }
     }
 
     try {
@@ -271,12 +282,14 @@ export async function processSyncQueue(): Promise<SyncResult> {
       const errorMessage = err instanceof Error ? err.message : String(err);
       errors.push({ item, error: errorMessage });
 
-      // Increment retry count
+      // Increment retry count and record attempt timestamp for backoff
       await db.syncQueue.update(item.id, {
-        retryCount: (item.retryCount || 0) + 1
+        retryCount: retryCount + 1,
+        lastAttemptAt: Date.now(),
+        lastError: errorMessage
       });
 
-      console.error(`❌ Failed to sync ${item.entityType} ${item.operation} (retry ${(item.retryCount || 0) + 1}/${MAX_RETRIES}):`, errorMessage);
+      console.error(`❌ Failed to sync ${item.entityType} ${item.operation} (retry ${retryCount + 1}/${MAX_RETRIES}):`, errorMessage);
     }
   }
 
@@ -489,6 +502,30 @@ export function stopAutoSync(): void {
     clearInterval(syncInterval);
     syncInterval = null;
     console.log('⏹️  Auto-sync stopped');
+  }
+}
+
+// ============================================
+// SEZIONE: Sync con lock (per uso da handler esterni)
+// Wrappa processSyncQueue + syncFromSupabase con il lock di sync.
+// Usare al posto di chiamare direttamente processSyncQueue/syncFromSupabase
+// da event handler (online, service worker message, etc.)
+// ============================================
+
+/**
+ * Run a locked bidirectional sync (upload + download).
+ * Safe to call from event handlers - skips if a sync is already in progress.
+ */
+export async function lockedSync(): Promise<void> {
+  if (!await acquireSyncLock()) {
+    console.log('⏭️  lockedSync skipped: sync already in progress');
+    return;
+  }
+  try {
+    await processSyncQueue();
+    await syncFromSupabase();
+  } finally {
+    await releaseSyncLock();
   }
 }
 

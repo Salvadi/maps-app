@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, FolderOpen, ChevronRight, ChevronDown, Plus, RefreshCw, Check } from 'lucide-react';
-import { Project, User, getAllProjects, getProjectsForUser, getMappingEntriesForProject, updateProject } from '../db';
+import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
 import { SyncStats } from '../sync/syncEngine';
 
 interface DashboardProps {
@@ -47,33 +47,38 @@ const Dashboard: React.FC<DashboardProps> = ({
       const activeProjects = loadedProjects.filter(p => p.archived === 0);
       setProjects(activeProjects);
 
+      // Single bulk query for ALL mapping entries instead of N+1 per-project queries
+      const allEntries = await db.mappingEntries.toArray();
+      const projectMap = new Map(activeProjects.map(p => [p.id, p]));
+
       let total = 0;
       let toComplete = 0;
       const activities: RecentActivity[] = [];
       let mostRecentProject: Project | null = null;
       let mostRecentTime = 0;
 
-      for (const project of activeProjects) {
-        const entries = await getMappingEntriesForProject(project.id);
-        total += entries.length;
-        toComplete += entries.filter(e => e.toComplete).length;
+      for (const entry of allEntries) {
+        const project = projectMap.get(entry.projectId);
+        if (!project) continue; // Entry belongs to archived/inaccessible project
 
-        // Track recent mapping activities
-        for (const entry of entries) {
-          if (entry.timestamp > mostRecentTime) {
-            mostRecentTime = entry.timestamp;
-            mostRecentProject = project;
-          }
-          activities.push({
-            type: 'mapping',
-            title: `Mappatura ${entry.floor}${entry.room ? ` / St. ${entry.room}` : ''}${entry.intervention ? ` / Int. ${entry.intervention}` : ''}`,
-            subtitle: project.title,
-            timestamp: entry.timestamp,
-            project,
-          });
+        total++;
+        if (entry.toComplete) toComplete++;
+
+        if (entry.timestamp > mostRecentTime) {
+          mostRecentTime = entry.timestamp;
+          mostRecentProject = project;
         }
+        activities.push({
+          type: 'mapping',
+          title: `Mappatura ${entry.floor}${entry.room ? ` / St. ${entry.room}` : ''}${entry.intervention ? ` / Int. ${entry.intervention}` : ''}`,
+          subtitle: project.title,
+          timestamp: entry.timestamp,
+          project,
+        });
+      }
 
-        // Track project creation
+      // Track project creation activities
+      for (const project of activeProjects) {
         activities.push({
           type: 'project',
           title: `Progetto "${project.title}"`,
