@@ -2,15 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
-  RefreshCw, Tag, Package, Filter, X, DollarSign
+  RefreshCw, Tag, Package, Filter, X, DollarSign, Download, FileDown
 } from 'lucide-react';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
-  Project, MappingEntry, Photo, User, FloorPlan,
+  Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMapping, deleteMappingEntry,
-  getFloorPlansByProject
+  getFloorPlansByProject, getFloorPlanPoints, getAllUsers
 } from '../db';
+import { exportFloorPlanVectorPDF, buildFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
 
@@ -42,10 +44,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
+  const [floorPlanPoints, setFloorPlanPoints] = useState<Record<string, FloorPlanPoint[]>>({});
+  const [users, setUsers] = useState<User[]>([]);
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; alt: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedMappings, setExpandedMappings] = useState<Set<string>>(new Set());
+  const [exportingPlanId, setExportingPlanId] = useState<string | null>(null);
 
   // Filters (persisted in localStorage)
   const [showOnlyToComplete, setShowOnlyToComplete] = useState<boolean>(() => {
@@ -141,9 +146,22 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     }
     setMappingPhotos(photosMap);
 
-    // Load floor plans
+    // Load floor plans + their points
     const plans = await getFloorPlansByProject(project.id);
     setFloorPlans(plans);
+    const pointsMap: Record<string, FloorPlanPoint[]> = {};
+    for (const plan of plans) {
+      pointsMap[plan.id] = await getFloorPlanPoints(plan.id);
+    }
+    setFloorPlanPoints(pointsMap);
+
+    // Load users for export labels
+    try {
+      const loadedUsers = await getAllUsers();
+      setUsers(loadedUsers);
+    } catch {
+      setUsers([currentUser]);
+    }
 
     setIsLoading(false);
   };
@@ -175,6 +193,89 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   const totalToComplete = mappings.filter(m => m.toComplete).length;
 
+  // ---- Export helpers ----
+  const getTipologicoNumber = (tipologicoId: string): string => {
+    const tip = project.typologies.find(t => t.id === tipologicoId);
+    return tip ? tip.number.toString() : tipologicoId;
+  };
+  const getUsername = (userId: string): string => {
+    const u = users.find(u => u.id === userId);
+    return u ? u.username : userId;
+  };
+  const generatePhotoPrefix = (floor: string, room?: string, intervention?: string): string => {
+    const parts: string[] = [];
+    if (project.floors && project.floors.length > 1) parts.push(`P${floor}`);
+    if (project.useRoomNumbering && room) parts.push(`S${room}`);
+    if (project.useInterventionNumbering && intervention) parts.push(`Int${intervention}`);
+    return parts.length > 0 ? parts.join('_') + '_' : '';
+  };
+  const generateMappingLabel = (entry: MappingEntry, photoCount: number): string[] => {
+    const parts: string[] = [];
+    if (project.floors && project.floors.length > 1) parts.push(`P${entry.floor}`);
+    if (project.useRoomNumbering && entry.room) parts.push(`S${entry.room}`);
+    if (project.useInterventionNumbering && entry.intervention) parts.push(`Int${entry.intervention}`);
+    let firstLine = parts.length > 0 ? parts.join('_') : 'Punto';
+    if (parts.length > 0 && photoCount > 1) {
+      firstLine += `_01-${photoCount.toString().padStart(2, '0')}`;
+    }
+    const tipNumbers = entry.crossings
+      .map(c => c.tipologicoId ? project.typologies.find(t => t.id === c.tipologicoId)?.number : null)
+      .filter((n): n is number => n !== null)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .sort((a, b) => a - b);
+    const result = [firstLine];
+    if (tipNumbers.length > 0) result.push(`Tip. ${tipNumbers.join(' - ')}`);
+    return result;
+  };
+
+  const { isExporting, handleExportZip, handleExportFloorPlan } = useMappingExports({
+    project,
+    mappings,
+    mappingPhotos,
+    users,
+    floorPlans,
+    floorPlanPoints,
+    setFloorPlanPoints,
+    getTipologicoNumber,
+    generatePhotoPrefix,
+    getUsername,
+    generateMappingLabel,
+  });
+
+  // Export a single floor plan as vector PDF
+  const handleExportPlanPDF = async (plan: FloorPlan) => {
+    if (!plan.imageBlob) return;
+    setExportingPlanId(plan.id);
+    try {
+      const rawPoints = floorPlanPoints[plan.id] || [];
+      const exportPoints: ExportPoint[] = rawPoints.map(point => ({
+        type: point.pointType,
+        pointX: point.pointX,
+        pointY: point.pointY,
+        labelX: point.labelX,
+        labelY: point.labelY,
+        labelText: point.metadata?.labelText || ((() => {
+          const entry = mappings.find(m => m.id === point.mappingEntryId);
+          if (!entry) return ['Punto'];
+          const photos = mappingPhotos[entry.id] || [];
+          return generateMappingLabel(entry, photos.length);
+        })()),
+        perimeterPoints: point.perimeterPoints,
+        labelBackgroundColor: point.metadata?.labelBackgroundColor,
+        labelTextColor: point.metadata?.labelTextColor,
+      }));
+      await exportFloorPlanVectorPDF(
+        plan.imageBlob,
+        exportPoints,
+        `Piano_${plan.floor}_annotato.pdf`,
+        plan.pdfBlobBase64,
+        plan.metadata?.rotation || 0,
+      );
+    } finally {
+      setExportingPlanId(null);
+    }
+  };
+
   const subTabs: { id: SubTab; label: string; icon: typeof Camera; count?: number }[] = [
     { id: 'mappings', label: 'Mappature', icon: Camera, count: mappings.length },
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
@@ -199,6 +300,17 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               <p className="text-xs text-brand-500 truncate">{project.client}</p>
             )}
           </div>
+          <button
+            onClick={handleExportZip}
+            disabled={isExporting || mappings.length === 0}
+            title="Esporta ZIP (foto + Excel + planimetrie)"
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-500 hover:bg-brand-50 disabled:opacity-40"
+          >
+            {isExporting
+              ? <RefreshCw size={18} className="animate-spin" />
+              : <Download size={18} />
+            }
+          </button>
           {onSync && (
             <button
               onClick={onSync}
@@ -559,26 +671,38 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {floorPlans.map(plan => (
-                      <button
-                        key={plan.id}
-                        onClick={() => onOpenFloorPlanEditor(project, plan)}
-                        className="bg-white rounded-2xl shadow-card overflow-hidden active:scale-[0.98] transition-transform"
-                      >
-                        <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
-                          {plan.thumbnailBlob ? (
-                            <img
-                              src={URL.createObjectURL(plan.thumbnailBlob)}
-                              alt={`Piano ${plan.floor}`}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Map size={28} className="text-brand-300" />
-                          )}
-                        </div>
-                        <div className="p-3">
+                      <div key={plan.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
+                        <button
+                          onClick={() => onOpenFloorPlanEditor(project, plan)}
+                          className="w-full active:scale-[0.98] transition-transform"
+                        >
+                          <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
+                            {plan.thumbnailBlob ? (
+                              <img
+                                src={URL.createObjectURL(plan.thumbnailBlob)}
+                                alt={`Piano ${plan.floor}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Map size={28} className="text-brand-300" />
+                            )}
+                          </div>
+                        </button>
+                        <div className="px-3 py-2.5 flex items-center justify-between">
                           <div className="text-sm font-semibold text-brand-700">Piano {plan.floor}</div>
+                          <button
+                            onClick={() => handleExportPlanPDF(plan)}
+                            disabled={exportingPlanId === plan.id || !plan.imageBlob}
+                            title="Scarica PDF"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 disabled:opacity-40"
+                          >
+                            {exportingPlanId === plan.id
+                              ? <RefreshCw size={13} className="animate-spin" />
+                              : <FileDown size={14} />
+                            }
+                          </button>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}

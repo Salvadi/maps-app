@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Map, FolderOpen, Plus, ChevronRight } from 'lucide-react';
+import { Map, FolderOpen, Plus, ChevronRight, FileDown, RefreshCw } from 'lucide-react';
 import {
   Project, User, FloorPlan,
-  getAllProjects, getProjectsForUser, getFloorPlansByProject
+  getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints
 } from '../db';
+import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 
 interface MapsOverviewProps {
   currentUser: User;
@@ -25,6 +26,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
 }) => {
   const [projectsWithPlans, setProjectsWithPlans] = useState<ProjectWithPlans[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [exportingPlanId, setExportingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -50,6 +52,34 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
   }, [currentUser]);
 
   const totalPlans = projectsWithPlans.reduce((sum, p) => sum + p.floorPlans.length, 0);
+
+  const handleExportPlanPDF = async (plan: FloorPlan) => {
+    if (!plan.imageBlob) return;
+    setExportingPlanId(plan.id);
+    try {
+      const rawPoints = await getFloorPlanPoints(plan.id);
+      const exportPoints: ExportPoint[] = rawPoints.map(point => ({
+        type: point.pointType,
+        pointX: point.pointX,
+        pointY: point.pointY,
+        labelX: point.labelX,
+        labelY: point.labelY,
+        labelText: point.metadata?.labelText || ['Punto'],
+        perimeterPoints: point.perimeterPoints,
+        labelBackgroundColor: point.metadata?.labelBackgroundColor,
+        labelTextColor: point.metadata?.labelTextColor,
+      }));
+      await exportFloorPlanVectorPDF(
+        plan.imageBlob,
+        exportPoints,
+        `Piano_${plan.floor}_annotato.pdf`,
+        plan.pdfBlobBase64,
+        plan.metadata?.rotation || 0,
+      );
+    } finally {
+      setExportingPlanId(null);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-auto pb-20 bg-brand-100">
@@ -82,29 +112,43 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
               </button>
               <div className="grid grid-cols-2 gap-3">
                 {floorPlans.map((plan) => (
-                  <button
-                    key={plan.id}
-                    onClick={() => onOpenFloorPlan(project, plan)}
-                    className="bg-white rounded-2xl shadow-card overflow-hidden active:scale-[0.98] transition-transform"
-                  >
-                    <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
-                      {plan.thumbnailBlob ? (
-                        <img
-                          src={URL.createObjectURL(plan.thumbnailBlob)}
-                          alt={`Piano ${plan.floor}`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Map size={32} className="text-brand-300" />
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <div className="text-sm font-semibold text-brand-700">Piano {plan.floor}</div>
-                      <div className="text-[11px] text-brand-500 mt-0.5">
-                        {plan.originalFilename || 'Planimetria'}
+                  <div key={plan.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
+                    <button
+                      onClick={() => onOpenFloorPlan(project, plan)}
+                      className="w-full active:scale-[0.98] transition-transform"
+                    >
+                      <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
+                        {plan.thumbnailBlob ? (
+                          <img
+                            src={URL.createObjectURL(plan.thumbnailBlob)}
+                            alt={`Piano ${plan.floor}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Map size={32} className="text-brand-300" />
+                        )}
                       </div>
+                    </button>
+                    <div className="px-3 py-2.5 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-brand-700">Piano {plan.floor}</div>
+                        <div className="text-[11px] text-brand-500 truncate max-w-[90px]">
+                          {plan.originalFilename || 'Planimetria'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleExportPlanPDF(plan)}
+                        disabled={exportingPlanId === plan.id || !plan.imageBlob}
+                        title="Scarica PDF"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 disabled:opacity-40 flex-shrink-0"
+                      >
+                        {exportingPlanId === plan.id
+                          ? <RefreshCw size={13} className="animate-spin" />
+                          : <FileDown size={14} />
+                        }
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
