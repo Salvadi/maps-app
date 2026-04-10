@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBlobUrl } from '../hooks/useBlobUrl';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
