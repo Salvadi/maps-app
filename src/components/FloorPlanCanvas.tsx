@@ -3,7 +3,7 @@
  * Core canvas component for rendering floor plans with points and labels
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import './FloorPlanCanvas.css';
 
 // ============================================
@@ -36,6 +36,12 @@ export interface GridConfig {
 
 export type Tool = 'pan' | 'move' | 'parete' | 'solaio' | 'perimetro' | 'generico' | 'zoom-in' | 'zoom-out' | 'color-picker';
 
+/** Methods exposed by FloorPlanCanvas via ref (useImperativeHandle) */
+export interface FloorPlanCanvasHandle {
+  completePerimeter: () => void;
+  cancelPerimeter: () => void;
+}
+
 interface FloorPlanCanvasProps {
   imageUrl: string; // URL or blob URL of floor plan image
   points: CanvasPoint[];
@@ -53,7 +59,7 @@ interface FloorPlanCanvasProps {
   readOnlyPoints?: CanvasPoint[]; // Points to display as read-only (semi-transparent, no interaction)
 }
 
-const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
+const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(({
   imageUrl,
   points,
   gridConfig,
@@ -65,10 +71,8 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   zoomInTrigger,
   zoomOutTrigger,
   onPerimeterDrawingChange,
-  onCompletePerimeter,
-  onCancelPerimeter,
   readOnlyPoints = [],
-}) => {
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -116,52 +120,32 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     onPerimeterDrawingChange?.(isDrawingPerimeter);
   }, [isDrawingPerimeter, onPerimeterDrawingChange]);
 
-  // External perimeter completion/cancellation triggers
-  useEffect(() => {
-    if (onCompletePerimeter) {
-      // Listen for completion request
-      const complete = () => {
-        if (isDrawingPerimeter && perimeterPoints.length >= 2 && onPointAdd) {
-          const firstPoint = perimeterPoints[0];
-          const labelPos = perimeterPoints.reduce(
-            (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
-            { x: 0, y: 0 }
-          );
-          labelPos.x /= perimeterPoints.length;
-          labelPos.y /= perimeterPoints.length;
-
-          onPointAdd({
-            type: 'perimetro',
-            pointX: firstPoint.x,
-            pointY: firstPoint.y,
-            labelX: labelPos.x,
-            labelY: labelPos.y,
-            labelText: ['Perimetro'],
-            perimeterPoints: perimeterPoints,
-          });
-
-          setIsDrawingPerimeter(false);
-          setPerimeterPoints([]);
-          setCurrentMousePos(null);
-        }
-      };
-      // Store reference for cleanup
-      (window as any).__completePerimeter = complete;
-    }
-  }, [isDrawingPerimeter, perimeterPoints, onPointAdd, onCompletePerimeter]);
-
-  useEffect(() => {
-    if (onCancelPerimeter) {
-      const cancel = () => {
-        if (isDrawingPerimeter) {
-          setIsDrawingPerimeter(false);
-          setPerimeterPoints([]);
-          setCurrentMousePos(null);
-        }
-      };
-      (window as any).__cancelPerimeter = cancel;
-    }
-  }, [isDrawingPerimeter, onCancelPerimeter]);
+  // Expose completePerimeter/cancelPerimeter to parent via ref instead of window globals
+  useImperativeHandle(ref, () => ({
+    completePerimeter: () => {
+      if (isDrawingPerimeter && perimeterPoints.length >= 3 && onPointAdd) {
+        onPointAdd({
+          type: 'perimetro',
+          pointX: perimeterPoints[0].x,
+          pointY: perimeterPoints[0].y,
+          labelX: perimeterPoints[0].x,
+          labelY: perimeterPoints[0].y - 0.03,
+          labelText: [],
+          perimeterPoints: perimeterPoints,
+        });
+        setIsDrawingPerimeter(false);
+        setPerimeterPoints([]);
+        setCurrentMousePos(null);
+      }
+    },
+    cancelPerimeter: () => {
+      if (isDrawingPerimeter) {
+        setIsDrawingPerimeter(false);
+        setPerimeterPoints([]);
+        setCurrentMousePos(null);
+      }
+    },
+  }), [isDrawingPerimeter, perimeterPoints, onPointAdd]);
 
   // Load image
   useEffect(() => {
@@ -203,7 +187,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
   // Snap to grid for labels
   const snapToGrid = useCallback((nx: number, ny: number): { x: number; y: number } => {
-    if (!gridConfig.enabled || !image) {
+    if (!gridConfig.enabled || !image || gridConfig.cols < 1 || gridConfig.rows < 1) {
       return { x: nx, y: ny };
     }
 
@@ -333,7 +317,7 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
   // Draw grid
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
-    if (!image) return;
+    if (!image || gridConfig.rows < 1 || gridConfig.cols < 1) return;
 
     ctx.strokeStyle = 'rgba(100, 100, 255, 0.3)';
     ctx.lineWidth = 1;
@@ -1064,6 +1048,8 @@ const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       </div>
     </div>
   );
-};
+});
+
+FloorPlanCanvas.displayName = 'FloorPlanCanvas';
 
 export default React.memo(FloorPlanCanvas);

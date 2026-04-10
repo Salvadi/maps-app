@@ -3,7 +3,7 @@ import {
   Search, SlidersHorizontal, Plus, FolderOpen, Eye, Pencil, Trash2,
   Camera, RefreshCw, MapPin, User as UserIcon, Archive
 } from 'lucide-react';
-import { Project, User, getAllProjects, getProjectsForUser, getMappingEntriesForProject, updateProject } from '../db';
+import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
 
 interface ProjectListProps {
   currentUser: User;
@@ -46,13 +46,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
         : await getProjectsForUser(currentUser.id);
       setProjects(loaded);
 
-      // Load mapping counts
+      // Load mapping counts in a single bulk query instead of N+1 per-project queries
+      const allEntries = await db.mappingEntries.toArray();
       const counts: Record<string, number> = {};
       const tcCounts: Record<string, number> = {};
-      for (const p of loaded) {
-        const entries = await getMappingEntriesForProject(p.id);
-        counts[p.id] = entries.length;
-        tcCounts[p.id] = entries.filter(e => e.toComplete).length;
+      for (const entry of allEntries) {
+        counts[entry.projectId] = (counts[entry.projectId] || 0) + 1;
+        if (entry.toComplete) {
+          tcCounts[entry.projectId] = (tcCounts[entry.projectId] || 0) + 1;
+        }
       }
       setMappingCounts(counts);
       setToCompleteCounts(tcCounts);
