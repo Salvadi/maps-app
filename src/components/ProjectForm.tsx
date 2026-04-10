@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check } from 'lucide-react';
 import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry } from '../db';
 import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
-import NavigationBar from './NavigationBar';
 import ProductSelector from './ProductSelector';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
-import './ProjectForm.css';
 
 /**
  * ProjectForm
@@ -477,417 +476,288 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   // JSX del form con sezioni: info progetto, tipologici, planimetrie e accessi.
   // ============================================
 
+  const inputCls = 'w-full px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent';
+  const selectCls = 'w-full px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-800 focus:outline-none focus:border-accent';
+
+  const Toggle: React.FC<{ value: boolean; onChange: () => void }> = ({ value, onChange }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${value ? 'bg-accent' : 'bg-brand-200'}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+  );
+
   return (
-    <div className="project-form-page">
-      <NavigationBar
-        title={project ? 'Modifica Dati Cantiere' : 'Dati Cantiere'}
-        onBack={onCancel}
-        onSync={onSync}
-        isSyncing={isSyncing}
-      />
-      <div className="project-form-container">
-        {error && (
-          <div style={{
-            padding: '12px',
-            marginBottom: '16px',
-            backgroundColor: '#FEE2E2',
-            color: '#991B1B',
-            borderRadius: '8px',
-            fontSize: '0.875rem'
-          }}>
-            {error}
-          </div>
+    <div className="flex flex-col h-full bg-brand-100">
+      {/* Header */}
+      <div className="bg-white shadow-card z-10 flex-shrink-0 flex items-center gap-3 px-4 py-4">
+        <button
+          onClick={onCancel}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-600 hover:bg-brand-50 active:bg-brand-100"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h1 className="flex-1 text-lg font-bold text-brand-800">
+          {project ? 'Modifica Cantiere' : 'Nuovo Cantiere'}
+        </h1>
+        {onSync && (
+          <button
+            onClick={onSync}
+            disabled={isSyncing}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-500 hover:bg-brand-50 disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+          </button>
         )}
+      </div>
 
-        <form onSubmit={handleSubmit} className="project-form">
-          {/* Title Section */}
-          <section className="form-section">
-            <label className="section-label">Nome Cantiere</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="form-input"
-              required
-            />
-          </section>
+      {/* Scrollable form */}
+      <form id="project-form" onSubmit={handleSubmit} className="flex-1 overflow-auto">
+        <div className="px-4 py-4 space-y-4 pb-6">
 
-          {/* Anagrafica Section */}
-          <section className="form-section">
-            <label className="section-label">Anagrafica</label>
-            <input
-              type="text"
-              value={client}
-              onChange={(e) => setClient(e.target.value)}
-              placeholder="Client"
-              className="form-input"
-            />
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Address"
-              className="form-input"
-            />
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notes"
-              className="form-textarea"
-              rows={3}
-            />
-          </section>
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+              {error}
+            </div>
+          )}
 
-          {/* Admin-only: Share Project Section */}
+          {/* Nome Cantiere */}
+          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-brand-100">
+              <h2 className="text-sm font-semibold text-brand-700">Nome Cantiere</h2>
+            </div>
+            <div className="px-4 py-4">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Nome del cantiere"
+                required
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          {/* Anagrafica */}
+          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-brand-100">
+              <h2 className="text-sm font-semibold text-brand-700">Anagrafica</h2>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+              <input type="text" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Cliente" className={inputCls} />
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Indirizzo" className={inputCls} />
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note" rows={3} className={`${inputCls} resize-none`} />
+            </div>
+          </div>
+
+          {/* Admin: Condividi Progetto */}
           {currentUser.role === 'admin' && (
-            <section className="form-section">
-              <label className="section-label">
-                Condividi Progetto
-                <span className="label-badge">ADMIN</span>
-              </label>
+            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-brand-700">Condividi Progetto</h2>
+                <span className="text-[11px] font-semibold bg-warning/10 text-warning px-2 py-0.5 rounded-full">ADMIN</span>
+              </div>
               {isLoadingUsers ? (
-                <div className="loading-users">Caricamento utenti...</div>
+                <div className="px-4 py-6 text-center text-brand-500 text-sm">Caricamento utenti...</div>
               ) : (
                 <>
-                  <div className="user-select-actions">
-                    <button
-                      type="button"
-                      className="select-action-btn"
-                      onClick={handleSelectAllUsers}
-                    >
-                      Seleziona Tutti
-                    </button>
-                    <button
-                      type="button"
-                      className="select-action-btn"
-                      onClick={handleDeselectAllUsers}
-                    >
-                      Deseleziona Tutti
-                    </button>
-                    <span className="selected-count">
-                      {selectedUserIds.length} di {allUsers.length} selezionati
-                    </span>
+                  <div className="px-4 py-2.5 border-b border-brand-100 flex items-center gap-3">
+                    <button type="button" onClick={handleSelectAllUsers} className="text-xs font-semibold text-accent">Seleziona tutti</button>
+                    <span className="text-brand-300">·</span>
+                    <button type="button" onClick={handleDeselectAllUsers} className="text-xs font-semibold text-brand-500">Deseleziona tutti</button>
+                    <span className="ml-auto text-xs text-brand-500">{selectedUserIds.length} / {allUsers.length}</span>
                   </div>
-                  <div className="user-select-list">
-                    {allUsers.map((user) => {
+                  <div className="divide-y divide-brand-100">
+                    {allUsers.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-brand-500 text-sm">Nessun utente disponibile</div>
+                    ) : allUsers.map(user => {
                       const isOwner = user.id === (project?.ownerId || currentUser.id);
                       const isSelected = selectedUserIds.includes(user.id);
-
                       return (
-                        <label
+                        <button
                           key={user.id}
-                          className={`user-select-item ${isSelected ? 'selected' : ''} ${isOwner ? 'owner' : ''}`}
+                          type="button"
+                          onClick={() => handleUserToggle(user.id)}
+                          disabled={isOwner}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-brand-50 active:bg-brand-100 transition-colors disabled:opacity-60 text-left"
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleUserToggle(user.id)}
-                            disabled={isOwner}
-                            className="user-checkbox"
-                          />
-                          <div className="user-info">
-                            <span className="user-email">{user.email}</span>
-                            <span className="user-meta">
-                              {user.role === 'admin' && <span className="user-badge admin">Admin</span>}
-                              {isOwner && <span className="user-badge owner">Proprietario</span>}
-                            </span>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-accent border-accent' : 'border-brand-300'}`}>
+                            {isSelected && <Check size={11} className="text-white" />}
                           </div>
-                        </label>
+                          <span className="flex-1 text-sm text-brand-700 truncate">{user.email}</span>
+                          <div className="flex gap-1.5">
+                            {user.role === 'admin' && <span className="text-[10px] font-semibold bg-warning/10 text-warning px-1.5 py-0.5 rounded-full">Admin</span>}
+                            {isOwner && <span className="text-[10px] font-semibold bg-brand-100 text-brand-500 px-1.5 py-0.5 rounded-full">Owner</span>}
+                          </div>
+                        </button>
                       );
                     })}
                   </div>
-                  {allUsers.length === 0 && (
-                    <div className="no-users-message">
-                      Nessun utente disponibile
-                    </div>
-                  )}
                 </>
               )}
-            </section>
+            </div>
           )}
 
-          {/* Struttura Section */}
-          <section className="form-section">
-            <label className="section-label">Struttura</label>
-            {!floorsEnabled && project && (
-              <label className="upload-button" style={{ cursor: 'pointer' }}>
-                Carica pianta
-                <input
-                  type="file"
-                  accept="application/pdf,image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleFloorPlanUpload('0', file);
-                      e.target.value = ''; // Reset input
-                    }
-                  }}
-                />
-              </label>
-            )}
-            {!floorsEnabled && !project && (
-              <button type="button" className="upload-button" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-                Carica pianta
-              </button>
-            )}
-            <div className="floors-input-group">
-              <div className="switch-container">
-                <div
-                  className={`switch ${floorsEnabled ? 'active' : ''}`}
-                  onClick={() => setFloorsEnabled(!floorsEnabled)}
-                >
-                  <div className="switch-thumb"></div>
-                </div>
-                <label className="switch-label" onClick={() => setFloorsEnabled(!floorsEnabled)}>
-                  Piani
-                </label>
+          {/* Struttura */}
+          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-brand-100">
+              <h2 className="text-sm font-semibold text-brand-700">Struttura</h2>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+<div className="flex items-center justify-between">
+                <span className="text-sm text-brand-700">Piani multipli</span>
+                <Toggle value={floorsEnabled} onChange={() => setFloorsEnabled(!floorsEnabled)} />
               </div>
               {floorsEnabled && (
-                <input
-                  type="text"
-                  value={floorsInput}
-                  onChange={(e) => setFloorsInput(e.target.value)}
-                  placeholder="-1, 0, 1, 2, 3..."
-                  className="form-input floors-input"
-                />
+                <input type="text" value={floorsInput} onChange={(e) => setFloorsInput(e.target.value)} placeholder="-1, 0, 1, 2, 3..." className={inputCls} />
               )}
             </div>
-          </section>
+          </div>
 
-          {/* Numerazione interventi Section */}
-          <section className="form-section">
-            <label className="section-label">Numerazione interventi</label>
-            <div className="intervention-switches">
-              <div className="switch-container">
-                <div
-                  className={`switch ${useRoomNumbering ? 'active' : ''}`}
-                  onClick={() => setUseRoomNumbering(!useRoomNumbering)}
-                >
-                  <div className="switch-thumb"></div>
-                </div>
-                <label className="switch-label" onClick={() => setUseRoomNumbering(!useRoomNumbering)}>
-                  Stanza
-                </label>
+          {/* Numerazione interventi */}
+          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-brand-100">
+              <h2 className="text-sm font-semibold text-brand-700">Numerazione interventi</h2>
+            </div>
+            <div className="divide-y divide-brand-100">
+              <div className="flex items-center justify-between px-4 py-3.5">
+                <span className="text-sm text-brand-700">Stanza</span>
+                <Toggle value={useRoomNumbering} onChange={() => setUseRoomNumbering(!useRoomNumbering)} />
               </div>
-              <div className="switch-container">
-                <div
-                  className={`switch ${useInterventionNumbering ? 'active' : ''}`}
-                  onClick={() => setUseInterventionNumbering(!useInterventionNumbering)}
-                >
-                  <div className="switch-thumb"></div>
-                </div>
-                <label className="switch-label" onClick={() => setUseInterventionNumbering(!useInterventionNumbering)}>
-                  Intervento n.
-                </label>
+              <div className="flex items-center justify-between px-4 py-3.5">
+                <span className="text-sm text-brand-700">Intervento n.</span>
+                <Toggle value={useInterventionNumbering} onChange={() => setUseInterventionNumbering(!useInterventionNumbering)} />
               </div>
             </div>
-          </section>
+          </div>
 
-          {/* Tipologici Section */}
-          <section className="form-section tipologici-section">
-            <div className="tipologici-header">
-              <label className="section-label">Tipologici</label>
-              <button
-                type="button"
-                className="toggle-button"
-                onClick={() => setShowTipologici(!showTipologici)}
-              >
-                {showTipologici ? 'Hide' : 'Show'}
+          {/* Tipologici */}
+          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-brand-700">Tipologici</h2>
+              <button type="button" onClick={() => setShowTipologici(!showTipologici)} className="text-xs font-semibold text-accent">
+                {showTipologici ? 'Nascondi' : 'Mostra'}
               </button>
             </div>
 
-            {showTipologici && (
-              <div className="tipologici-table">
-                <div className="table-header">
-                  <div className="table-cell table-cell-number">N.</div>
-                  <div className="table-cell">Supporto</div>
-                  <div className="table-cell">Tipo Supporto</div>
-                  <div className="table-cell">Attraversamento</div>
-                  <div className="table-cell">Marca prodotto</div>
-                  <div className="table-cell">Materiali</div>
-                </div>
+            {!showTipologici && (
+              <div className="px-4 py-3 text-sm text-brand-500">
+                {typologies.length} tipologic{typologies.length === 1 ? 'o' : 'i'} configurati
+              </div>
+            )}
 
-                {[...typologies].sort((a, b) => a.number - b.number).map((typology) => (
-                  <div key={typology.id} className="table-row">
-                    <div className="table-row-mobile-first">
-                      <div className="table-cell table-cell-number">
+            {showTipologici && (
+              <div className="divide-y divide-brand-100">
+                {[...typologies].sort((a, b) => a.number - b.number).map(typology => (
+                  <div key={typology.id} className="px-4 py-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full">N.</span>
                         <input
                           type="number"
                           value={typology.number}
-                          onChange={(e) =>
-                            handleTypologyChange(typology.id, 'number', parseInt(e.target.value) || 1)
-                          }
-                          className="table-input table-input-number"
-                          min="1"
-                          max="999"
+                          onChange={(e) => handleTypologyChange(typology.id, 'number', parseInt(e.target.value) || 1)}
+                          className="w-14 px-2 py-1.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 text-center focus:outline-none focus:border-accent"
+                          min="1" max="999"
                         />
                       </div>
-                      <div className="table-cell">
-                        <select
-                          value={typology.supporto}
-                          onChange={(e) =>
-                            handleTypologyChange(typology.id, 'supporto', e.target.value)
-                          }
-                          className="table-select"
-                        >
-                          {SUPPORTO_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="table-cell">
-                        <select
-                          value={typology.tipoSupporto}
-                          onChange={(e) =>
-                            handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)
-                          }
-                          className="table-select"
-                        >
-                          {TIPO_SUPPORTO_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="table-cell">
-                      <select
-                        value={typology.attraversamento}
-                        onChange={(e) =>
-                          handleTypologyChange(typology.id, 'attraversamento', e.target.value)
-                        }
-                        className="table-select"
-                      >
-                        {ATTRAVERSAMENTO_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      {typology.attraversamento === 'Altro' && (
-                        <input
-                          type="text"
-                          value={typology.attraversamentoCustom || ''}
-                          onChange={(e) =>
-                            handleTypologyChange(typology.id, 'attraversamentoCustom', e.target.value)
-                          }
-                          className="table-input"
-                          placeholder="Specifica tipo..."
-                          style={{ marginTop: '4px' }}
-                        />
-                      )}
-                    </div>
-                    <div className="table-cell">
-                      <select
-                        value={typology.marcaProdottoUtilizzato}
-                        onChange={(e) =>
-                          handleTypologyChange(
-                            typology.id,
-                            'marcaProdottoUtilizzato',
-                            e.target.value
-                          )
-                        }
-                        className="table-select"
-                      >
-                        {MARCA_PRODOTTO_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="table-cell">
-                      <ProductSelector
-                        marca={typology.marcaProdottoUtilizzato}
-                        selectedProducts={typology.prodottiSelezionati}
-                        onChange={(products) =>
-                          handleTypologyChange(typology.id, 'prodottiSelezionati', products)
-                        }
-                      />
-                    </div>
-                    <div className="table-cell actions">
                       {typologies.length > 1 && (
-                        <button
-                          type="button"
-                          className="remove-row-btn"
-                          onClick={() => handleRemoveTypology(typology.id)}
-                        >
-                          −
+                        <button type="button" onClick={() => handleRemoveTypology(typology.id)} className="w-8 h-8 flex items-center justify-center text-danger hover:bg-red-50 rounded-xl">
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-medium text-brand-500 mb-1 block">Supporto</label>
+                        <select value={typology.supporto} onChange={(e) => handleTypologyChange(typology.id, 'supporto', e.target.value)} className={selectCls}>
+                          {SUPPORTO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-brand-500 mb-1 block">Tipo Supporto</label>
+                        <select value={typology.tipoSupporto} onChange={(e) => handleTypologyChange(typology.id, 'tipoSupporto', e.target.value)} className={selectCls}>
+                          {TIPO_SUPPORTO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-brand-500 mb-1 block">Attraversamento</label>
+                      <select value={typology.attraversamento} onChange={(e) => handleTypologyChange(typology.id, 'attraversamento', e.target.value)} className={selectCls}>
+                        {ATTRAVERSAMENTO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                      </select>
+                      {typology.attraversamento === 'Altro' && (
+                        <input type="text" value={typology.attraversamentoCustom || ''} onChange={(e) => handleTypologyChange(typology.id, 'attraversamentoCustom', e.target.value)} placeholder="Specifica tipo..." className={`${selectCls} mt-2`} />
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-brand-500 mb-1 block">Marca prodotto</label>
+                      <select value={typology.marcaProdottoUtilizzato} onChange={(e) => handleTypologyChange(typology.id, 'marcaProdottoUtilizzato', e.target.value)} className={selectCls}>
+                        {MARCA_PRODOTTO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-brand-500 mb-1 block">Materiali</label>
+                      <ProductSelector
+                        marca={typology.marcaProdottoUtilizzato}
+                        selectedProducts={typology.prodottiSelezionati}
+                        onChange={(products) => handleTypologyChange(typology.id, 'prodottiSelezionati', products)}
+                      />
+                    </div>
                   </div>
                 ))}
-
-                <button
-                  type="button"
-                  className="add-row-btn"
-                  onClick={handleAddTypology}
-                >
-                  + Add row
-                </button>
+                <div className="px-4 py-3">
+                  <button type="button" onClick={handleAddTypology} className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-brand-300 rounded-xl text-sm font-medium text-brand-500 hover:border-accent hover:text-accent transition-colors">
+                    <Plus size={16} /> Aggiungi tipologico
+                  </button>
+                </div>
               </div>
             )}
-          </section>
+          </div>
 
-          {/* Floor Plans Section */}
+          {/* Planimetrie (existing project) */}
           {project && (
-            <section className="form-section">
-              <label className="section-label">Planimetrie</label>
-
-              {project?.floors && project.floors.length > 0 ? (
-                <div className="floor-plans-list">
+            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-brand-100">
+                <h2 className="text-sm font-semibold text-brand-700">Planimetrie</h2>
+              </div>
+              {project.floors && project.floors.length > 0 ? (
+                <div className="divide-y divide-brand-100">
                   {loadingFloorPlans ? (
-                    <p className="form-note">Caricamento planimetrie...</p>
+                    <div className="px-4 py-6 text-center text-brand-500 text-sm">Caricamento...</div>
                   ) : (
                     [...project.floors].sort((a, b) => parseFloat(a) - parseFloat(b)).map(floor => {
                       const floorPlan = floorPlans.get(floor);
-
                       return (
-                        <div key={floor} className="floor-plan-item">
-                          <div className="floor-plan-info">
-                            <span className="floor-label">Piano {floor}</span>
-                            {floorPlan && (
-                              <span className="floor-plan-status">✓ Planimetria caricata</span>
-                            )}
+                        <div key={floor} className="flex items-center gap-3 px-4 py-3.5">
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-brand-700">Piano {floor}</span>
+                            {floorPlan && <span className="ml-2 text-[11px] text-success font-medium">✓ caricata</span>}
                           </div>
-
-                          <div className="floor-plan-actions">
+                          <div className="flex gap-2">
                             {floorPlan ? (
                               <>
                                 <button
                                   type="button"
-                                  className="btn-secondary"
                                   onClick={() => {
-                                    if (!floorPlan.imageBlob) {
-                                      alert('Immagine planimetria non disponibile. Prova a sincronizzare il progetto.');
-                                      return;
-                                    }
-                                    const url = getFloorPlanBlobUrl(floorPlan.imageBlob);
-                                    window.open(url, '_blank');
+                                    if (!floorPlan.imageBlob) { alert('Immagine non disponibile. Sincronizza il progetto.'); return; }
+                                    window.open(getFloorPlanBlobUrl(floorPlan.imageBlob), '_blank');
                                   }}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-brand-100 text-brand-700 rounded-xl text-xs font-medium"
                                 >
-                                  Visualizza
+                                  <Eye size={13} /> Visualizza
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn-danger"
-                                  onClick={() => handleFloorPlanDelete(floor)}
-                                >
-                                  Elimina
+                                <button type="button" onClick={() => handleFloorPlanDelete(floor)} className="w-8 h-8 flex items-center justify-center bg-red-50 text-danger rounded-xl">
+                                  <Trash2 size={14} />
                                 </button>
                               </>
                             ) : (
-                              <label className="btn-primary">
-                                Aggiungi Planimetria
-                                <input
-                                  type="file"
-                                  accept="application/pdf,image/*"
-                                  style={{ display: 'none' }}
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      handleFloorPlanUpload(floor, file);
-                                      e.target.value = ''; // Reset input
-                                    }
-                                  }}
-                                />
+                              <label className="flex items-center gap-1 px-3 py-1.5 bg-accent text-white rounded-xl text-xs font-medium cursor-pointer">
+                                <Upload size={13} /> Aggiungi
+                                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleFloorPlanUpload(floor, f); e.target.value = ''; } }} />
                               </label>
                             )}
                           </div>
@@ -897,57 +767,44 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                   )}
                 </div>
               ) : (
-                <p className="form-note">
-                  Configura i piani sopra per caricare le planimetrie
-                </p>
-              )}
-            </section>
-          )}
-
-          {/* Form Actions */}
-          <div className="form-actions">
-            <button
-              type="button"
-              className="cancel-btn"
-              onClick={onCancel}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="create-btn"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Saving...' : (project ? 'Save' : 'Create')}
-            </button>
-          </div>
-
-          {/* Archive/Unarchive Button - only for existing projects */}
-          {project && (
-            <div className="archive-section">
-              {project.archived === 1 ? (
-                <button
-                  type="button"
-                  className="unarchive-btn"
-                  onClick={handleUnarchive}
-                  disabled={isSubmitting}
-                >
-                  Riapri
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="archive-btn"
-                  onClick={handleArchive}
-                  disabled={isSubmitting}
-                >
-                  Archivia
-                </button>
+                <div className="px-4 py-6 text-center text-brand-500 text-sm">
+                  Configura i piani per caricare le planimetrie
+                </div>
               )}
             </div>
           )}
-        </form>
+
+          {/* Archive / Unarchive */}
+          {project && (
+            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-brand-100">
+                <h2 className="text-sm font-semibold text-brand-700">Zona pericolosa</h2>
+              </div>
+              <div className="px-4 py-4">
+                {project.archived === 1 ? (
+                  <button type="button" onClick={handleUnarchive} disabled={isSubmitting} className="w-full py-3 bg-success/10 text-success rounded-xl text-sm font-semibold disabled:opacity-50">
+                    Riapri progetto
+                  </button>
+                ) : (
+                  <button type="button" onClick={handleArchive} disabled={isSubmitting} className="w-full py-3 bg-warning/10 text-warning rounded-xl text-sm font-semibold disabled:opacity-50">
+                    Archivia progetto
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </form>
+
+      {/* Fixed bottom action bar */}
+      <div className="flex-shrink-0 bg-white border-t border-brand-200 px-4 py-4 flex gap-3">
+        <button type="button" onClick={onCancel} disabled={isSubmitting} className="flex-1 py-3 rounded-2xl border border-brand-200 text-brand-700 text-sm font-semibold disabled:opacity-50">
+          Annulla
+        </button>
+        <button type="submit" form="project-form" disabled={isSubmitting || !title.trim()} className="flex-1 py-3 rounded-2xl bg-accent text-white text-sm font-semibold disabled:opacity-40">
+          {isSubmitting ? 'Salvataggio...' : (project ? 'Salva' : 'Crea')}
+        </button>
       </div>
     </div>
   );

@@ -611,6 +611,7 @@ export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: bo
           createdBy: supabaseFloorPlan.created_by,
           createdAt: new Date(supabaseFloorPlan.created_at).getTime(),
           updatedAt: new Date(supabaseFloorPlan.updated_at).getTime(),
+          remoteUpdatedAt: new Date(supabaseFloorPlan.updated_at).getTime(), // Track remote version for conflict detection
           synced: 1 as 0 | 1
         };
 
@@ -715,6 +716,7 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
           createdBy: supabasePoint.created_by,
           createdAt: new Date(supabasePoint.created_at).getTime(),
           updatedAt: new Date(supabasePoint.updated_at).getTime(),
+          remoteUpdatedAt: new Date(supabasePoint.updated_at).getTime(), // Track remote version for conflict detection
           synced: 1 as 0 | 1
         };
 

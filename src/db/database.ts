@@ -54,6 +54,14 @@ export interface Crossing {
   diametro?: string;
   dimensioni?: string;
   notes?: string;
+  inAsola?: boolean;  // true se l'attraversamento passa in un'asola
+  asolaB?: number;    // larghezza asola in cm
+  asolaH?: number;    // altezza asola in cm
+}
+
+// Calcola area asola in mq con minimo di 0,2 mq
+export function calcAsolaMq(b: number, h: number): number {
+  return Math.max(0.2, (b * h) / 10000);
 }
 
 export interface MappingEntry {
@@ -158,6 +166,7 @@ export interface FloorPlan {
   createdBy: string;
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
+  remoteUpdatedAt?: number; // timestamp of remote updated_at at last sync (for conflict detection)
   synced: 0 | 1; // 0 = not synced, 1 = synced
 }
 
@@ -176,6 +185,7 @@ export interface FloorPlanPoint {
   createdBy: string;
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
+  remoteUpdatedAt?: number; // timestamp of remote updated_at at last sync (for conflict detection)
   synced: 0 | 1;
 }
 
@@ -215,6 +225,18 @@ export interface StandaloneMap {
   createdAt: number;
   updatedAt: number;
   synced: 0 | 1;
+}
+
+// ============================================
+// TYPOLOGY PRICES INTERFACE
+// ============================================
+
+export interface TypologyPrice {
+  id: string;
+  projectId: string;
+  attraversamento: string;  // chiave: tipo attraversamento (es. "Tubo metallico NUDO", "Asola")
+  pricePerUnit: number;
+  unit: 'piece' | 'sqm';
 }
 
 // ============================================
@@ -259,6 +281,9 @@ export class MappingDatabase extends Dexie {
   // DROPDOWN OPTIONS CACHE
   dropdownOptionsCache!: Table<DropdownOptionCache, string>;
   productsCache!: Table<ProductCache, string>;
+
+  // TYPOLOGY PRICES
+  typologyPrices!: Table<TypologyPrice, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -339,6 +364,45 @@ export class MappingDatabase extends Dexie {
       dropdownOptionsCache: 'id, category, sortOrder',
       productsCache: 'id, brand, sortOrder'
     });
+
+    // Define schema v6 - add typologyPrices table
+    this.version(6).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      // TYPOLOGY PRICES
+      typologyPrices: 'id, projectId, tipologicoId, [projectId+tipologicoId]'
+    });
+
+    // Define schema v7 - change typologyPrices key from tipologicoId to attraversamento
+    this.version(7).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      // TYPOLOGY PRICES — keyed by attraversamento string
+      typologyPrices: 'id, projectId, attraversamento, [projectId+attraversamento]'
+    }).upgrade(tx => {
+      // Clear old tipologicoId-based price data (incompatible schema)
+      return tx.table('typologyPrices').clear();
+    });
   }
 }
 
@@ -389,6 +453,7 @@ export async function clearDatabase(): Promise<void> {
   await db.standaloneMaps.clear();
   await db.dropdownOptionsCache.clear();
   await db.productsCache.clear();
+  await db.typologyPrices.clear();
   // Keep metadata
   console.log('Database cleared');
 }
