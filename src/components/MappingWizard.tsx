@@ -80,6 +80,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
 
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
+  const [projectTypologies, setProjectTypologies] = useState(project?.typologies || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState('');
   const [error, setError] = useState('');
@@ -233,7 +234,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const generateLabelText = (): string[] => {
     const photoName = generatePhotoPrefix() + '01';
     const tipNumbers = crossings
-      .map(c => c.tipologicoId ? project?.typologies.find(t => t.id === c.tipologicoId)?.number : null)
+      .map(c => c.tipologicoId ? projectTypologies.find(t => t.id === c.tipologicoId)?.number : null)
       .filter((n): n is number => n !== null)
       .filter((v, i, a) => a.indexOf(v) === i)
       .sort((a, b) => a - b)
@@ -532,16 +533,16 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         {/* STEP 1: Crossings */}
         {step === 1 && (
           <div className="space-y-3">
-            {/* Typology viewer button */}
-            {project?.typologies && project.typologies.length > 0 && (
-              <button
-                onClick={() => setShowTypologyViewer(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
-              >
-                <Eye size={14} />
-                Visualizza tipologici ({project.typologies.length})
-              </button>
-            )}
+            {/* Typology viewer button - always visible to allow adding */}
+            <button
+              onClick={() => setShowTypologyViewer(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
+            >
+              <Eye size={14} />
+              {projectTypologies.length > 0
+                ? `Gestisci tipologici (${projectTypologies.length})`
+                : 'Aggiungi tipologici'}
+            </button>
 
             {crossings.map((crossing, i) => (
               <div key={crossing.id} className="bg-white rounded-2xl shadow-card p-4">
@@ -601,7 +602,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                   </div>
 
                   {/* Typology selector */}
-                  {project?.typologies && project.typologies.length > 0 && (
+                  {projectTypologies.length > 0 && (
                     <div>
                       <label className="block text-[11px] font-medium text-brand-500 mb-1">Tipologico</label>
                       <div className="relative">
@@ -612,7 +613,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                             const updated = [...crossings];
                             updated[i] = { ...updated[i], tipologicoId: tipId || undefined };
                             if (tipId) {
-                              const tip = project.typologies.find(t => t.id === tipId);
+                              const tip = projectTypologies.find(t => t.id === tipId);
                               if (tip) {
                                 updated[i].supporto = tip.supporto;
                                 updated[i].tipoSupporto = tip.tipoSupporto;
@@ -624,7 +625,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                           className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
                         >
                           <option value="">Nessuno</option>
-                          {project.typologies.sort((a, b) => a.number - b.number).map(t => {
+                          {[...projectTypologies].sort((a, b) => a.number - b.number).map(t => {
                             const products = t.prodottiSelezionati && t.prodottiSelezionati.length > 0
                               ? t.prodottiSelezionati.join(', ')
                               : '';
@@ -642,7 +643,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                       </div>
                       {/* Show linked typology info */}
                       {crossing.tipologicoId && (() => {
-                        const tip = project.typologies.find(t => t.id === crossing.tipologicoId);
+                        const tip = projectTypologies.find(t => t.id === crossing.tipologicoId);
                         if (!tip || (!tip.marcaProdottoUtilizzato && (!tip.prodottiSelezionati || tip.prodottiSelezionati.length === 0))) return null;
                         return (
                           <div className="mt-1.5 px-3 py-2 bg-accent/5 rounded-lg border border-accent/10">
@@ -907,11 +908,12 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         />
       )}
 
-      {/* Typology viewer modal */}
+      {/* Typology viewer/editor modal */}
       {showTypologyViewer && project && (
         <TypologyViewerModal
-          project={project}
+          project={{ ...project, typologies: projectTypologies }}
           onClose={() => setShowTypologyViewer(false)}
+          onTypologiesChanged={setProjectTypologies}
         />
       )}
     </div>

@@ -14,7 +14,7 @@ import {
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
   startAutoSync, stopAutoSync, lockedSync,
-  getSyncStats, manualSync, clearAndSync, SyncStats, onSyncComplete, offSyncComplete
+  getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
 } from './sync/syncEngine';
 import './App.css';
 
@@ -46,6 +46,7 @@ const App: React.FC = () => {
     lastSyncTime: null,
     isSyncing: false
   });
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
 
   // Floor plan editor state for maps tab
   const [editorFloorPlan, setEditorFloorPlan] = useState<FloorPlan | null>(null);
@@ -226,18 +227,27 @@ const App: React.FC = () => {
     if (!isSupabaseConfigured()) { alert('Supabase not configured.'); return; }
     try {
       setSyncStats(prev => ({ ...prev, isSyncing: true }));
+      setSyncProgress({ step: 0, totalSteps: 6, phase: 'Avvio sincronizzazione...' });
       const result = await manualSync({
         onPhotoDecisionNeeded: () => Promise.resolve(
           window.confirm('Sincronizzare anche le foto?')
         ),
+        onProgress: setSyncProgress,
       });
       await updateSyncStats();
-      const photosInfo = result.downloadResult.photosCount > 0
-        ? `, ${result.downloadResult.photosCount} foto` : '';
-      alert(`Sync completato!\nCaricati: ${result.uploadResult.processedCount}\nScaricati: ${result.downloadResult.projectsCount} prog., ${result.downloadResult.entriesCount} map., ${result.downloadResult.floorPlansCount} plan.${photosInfo}`);
+      const d = result.downloadResult;
+      const u = result.uploadResult;
+      setSyncProgress({
+        step: 6, totalSteps: 6,
+        phase: 'Sync completato',
+        detail: `${u.processedCount} caricati, ${d.projectsCount} prog., ${d.entriesCount} map., ${d.floorPlansCount} plan.${d.photosCount > 0 ? `, ${d.photosCount} foto` : ''}`
+      });
+      // Auto-dismiss after 4 seconds
+      setTimeout(() => setSyncProgress(null), 4000);
     } catch {
-      alert('Sync failed.');
+      setSyncProgress({ step: 0, totalSteps: 6, phase: 'Errore sincronizzazione', detail: 'Riprova più tardi' });
       setSyncStats(prev => ({ ...prev, isSyncing: false }));
+      setTimeout(() => setSyncProgress(null), 4000);
     }
   };
 
@@ -515,6 +525,7 @@ const App: React.FC = () => {
                 <Dashboard
                   currentUser={currentUser}
                   syncStats={syncStats}
+                  syncProgress={syncProgress}
                   isOnline={isOnline}
                   onNavigateToProject={handleViewProject}
                   onAddMapping={handleEnterMapping}
