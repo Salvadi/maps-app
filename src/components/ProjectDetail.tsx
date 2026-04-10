@@ -179,7 +179,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     { id: 'mappings', label: 'Mappature', icon: Camera, count: mappings.length },
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
     { id: 'info', label: 'Info', icon: Info },
-    { id: 'costs', label: 'Costi', icon: DollarSign },
+    { id: 'costs', label: 'Contabilità', icon: DollarSign },
   ];
 
   return (

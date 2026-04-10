@@ -3,7 +3,7 @@ import { Download, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
-  Project, MappingEntry, Typology, calcAsolaMq,
+  Project, MappingEntry, calcAsolaMq,
   getMappingEntriesForProject,
   getTypologyPrices, upsertTypologyPrice,
   TypologyPrice
@@ -17,16 +17,17 @@ type GroupBy = 'floor' | 'tipologico' | 'supporto' | 'attraversamento';
 
 interface AggregatedRow {
   floor: string;
-  tipologicoId: string;
   tipologicoLabel: string;
   supporto: string;
   tipoSupporto: string;
-  attraversamento: string;
+  attraversamento: string;      // display label
+  attraversamentoKey: string;   // price lookup key
   quantity: number;
   pricePerUnit: number;
   unit: 'piece' | 'sqm';
   total: number;
   mappingEntryId: string;
+  isAsola: boolean;
 }
 
 const GROUP_LABELS: Record<GroupBy, string> = {
@@ -35,6 +36,8 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   supporto: 'Supporto',
   attraversamento: 'Attraversamento',
 };
+
+const ASOLA_KEY = 'Asola';
 
 const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
@@ -52,10 +55,10 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
       setMappings(entries);
       setPrices(loadedPrices);
 
-      // Initialize local price state
+      // Initialize local price state keyed by attraversamento string
       const init: Record<string, { price: string; unit: 'piece' | 'sqm' }> = {};
       for (const lp of loadedPrices) {
-        init[lp.tipologicoId] = { price: String(lp.pricePerUnit), unit: lp.unit };
+        init[lp.attraversamento] = { price: String(lp.pricePerUnit), unit: lp.unit };
       }
       setLocalPrices(init);
     };
@@ -63,17 +66,18 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
   }, [project.id]);
 
   const typologyMap = React.useMemo(() => {
-    const map: Record<string, Typology> = {};
+    const map: Record<string, { number: number; label: string }> = {};
     for (const t of project.typologies || []) {
-      map[t.id] = t;
+      map[t.id] = { number: t.number, label: `#${t.number} – ${t.supporto} / ${t.tipoSupporto}` };
     }
     return map;
   }, [project.typologies]);
 
+  // priceMap keyed by attraversamento string
   const priceMap = React.useMemo(() => {
     const map: Record<string, TypologyPrice> = {};
     for (const p of prices) {
-      map[p.tipologicoId] = p;
+      map[p.attraversamento] = p;
     }
     return map;
   }, [prices]);
@@ -83,43 +87,58 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
     const result: AggregatedRow[] = [];
     for (const entry of mappings) {
       for (const crossing of entry.crossings || []) {
-        const tipologicoId = crossing.tipologicoId || '';
-        const typology = tipologicoId ? typologyMap[tipologicoId] : undefined;
-        const price = tipologicoId ? priceMap[tipologicoId] : undefined;
+        const attrDisplay = crossing.attraversamentoCustom || crossing.attraversamento || '';
+        const attrKey = attrDisplay; // price key = display value
+
+        const price = priceMap[attrKey];
         const pricePerUnit = price?.pricePerUnit ?? 0;
         const unit = price?.unit ?? 'piece';
         const quantity = crossing.quantita ?? 1;
+
+        const tipObj = crossing.tipologicoId ? typologyMap[crossing.tipologicoId] : undefined;
+        const tipologicoLabel = tipObj ? tipObj.label : 'Senza tipologico';
+
         result.push({
           floor: entry.floor,
-          tipologicoId,
-          tipologicoLabel: typology
-            ? `#${typology.number} – ${typology.supporto} / ${typology.tipoSupporto}`
-            : 'Senza tipologico',
-          supporto: crossing.supporto || typology?.supporto || '',
-          tipoSupporto: crossing.tipoSupporto || typology?.tipoSupporto || '',
-          attraversamento: crossing.attraversamentoCustom || crossing.attraversamento || typology?.attraversamento || '',
+          tipologicoLabel,
+          supporto: crossing.supporto || '',
+          tipoSupporto: crossing.tipoSupporto || '',
+          attraversamento: attrDisplay,
+          attraversamentoKey: attrKey,
           quantity,
           pricePerUnit,
           unit,
           total: pricePerUnit * quantity,
           mappingEntryId: entry.id,
+          isAsola: false,
         });
 
-        // Asola row — independent derived row with calculated sqm
-        if (crossing.inAsola && crossing.asolaB && crossing.asolaH) {
-          const asolaMq = calcAsolaMq(crossing.asolaB, crossing.asolaH);
+        // Asola row — always added when inAsola is true; B/H empty → 0.2 mq
+        if (crossing.inAsola) {
+          const hasSize = crossing.asolaB && crossing.asolaH;
+          const asolaMq = hasSize
+            ? calcAsolaMq(crossing.asolaB!, crossing.asolaH!)
+            : 0.2;
+          const asolaLabel = hasSize
+            ? `Asola (${crossing.asolaB}×${crossing.asolaH} cm)`
+            : 'Asola (dim. n.d.)';
+
+          const asolaPrice = priceMap[ASOLA_KEY];
+          const asolaPricePerUnit = asolaPrice?.pricePerUnit ?? 0;
+
           result.push({
             floor: entry.floor,
-            tipologicoId: '',
             tipologicoLabel: 'Asola',
-            supporto: crossing.supporto || typology?.supporto || '',
-            tipoSupporto: crossing.tipoSupporto || typology?.tipoSupporto || '',
-            attraversamento: `Asola (${crossing.asolaB}×${crossing.asolaH} cm)`,
+            supporto: crossing.supporto || '',
+            tipoSupporto: crossing.tipoSupporto || '',
+            attraversamento: asolaLabel,
+            attraversamentoKey: ASOLA_KEY,
             quantity: asolaMq,
-            pricePerUnit: 0,
+            pricePerUnit: asolaPricePerUnit,
             unit: 'sqm',
-            total: 0,
+            total: asolaPricePerUnit * asolaMq,
             mappingEntryId: entry.id,
+            isAsola: true,
           });
         }
       }
@@ -138,7 +157,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
         case 'floor': key = row.floor; break;
         case 'tipologico': key = row.tipologicoLabel; break;
         case 'supporto': key = row.supporto || 'N/D'; break;
-        case 'attraversamento': key = row.attraversamento || 'N/D'; break;
+        case 'attraversamento': key = row.attraversamentoKey || 'N/D'; break;
       }
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(row);
@@ -149,36 +168,49 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
   const formatCurrency = (n: number) =>
     n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 
-  const handlePriceChange = (tipologicoId: string, field: 'price' | 'unit', value: string) => {
+  // Unique attraversamento keys across all crossings (for price management panel)
+  const uniqueAttrKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    for (const entry of mappings) {
+      for (const crossing of entry.crossings || []) {
+        const key = crossing.attraversamentoCustom || crossing.attraversamento || '';
+        if (key) keys.add(key);
+        if (crossing.inAsola) keys.add(ASOLA_KEY);
+      }
+    }
+    return Array.from(keys).sort();
+  }, [mappings]);
+
+  const handlePriceChange = (key: string, field: 'price' | 'unit', value: string) => {
     setLocalPrices(prev => ({
       ...prev,
-      [tipologicoId]: {
-        price: prev[tipologicoId]?.price ?? '0',
-        unit: prev[tipologicoId]?.unit ?? 'piece',
+      [key]: {
+        price: prev[key]?.price ?? '0',
+        unit: prev[key]?.unit ?? 'piece',
         [field]: value,
       },
     }));
   };
 
-  const handlePriceSave = useCallback(async (tipologicoId: string) => {
-    const lp = localPrices[tipologicoId];
+  const handlePriceSave = useCallback(async (key: string) => {
+    const lp = localPrices[key];
     if (!lp) return;
     const parsed = parseFloat(lp.price.replace(',', '.'));
     if (isNaN(parsed)) return;
-    setSaving(prev => ({ ...prev, [tipologicoId]: true }));
+    setSaving(prev => ({ ...prev, [key]: true }));
     try {
-      await upsertTypologyPrice(project.id, tipologicoId, parsed, lp.unit);
+      await upsertTypologyPrice(project.id, key, parsed, lp.unit);
       const updated = await getTypologyPrices(project.id);
       setPrices(updated);
     } finally {
-      setSaving(prev => ({ ...prev, [tipologicoId]: false }));
+      setSaving(prev => ({ ...prev, [key]: false }));
     }
   }, [localPrices, project.id]);
 
   const handleExport = () => {
     // Sheet 1: Riepilogo
     const summaryData: any[][] = [
-      ['Piano', 'Tipologico', 'Supporto', 'Attraversamento', 'Quantità', 'Prezzo unit.', 'Totale'],
+      ['Piano', 'Tipologico', 'Supporto', 'Attraversamento', 'Quantità', 'Unità', 'Prezzo unit.', 'Totale'],
     ];
     for (const row of rows) {
       summaryData.push([
@@ -186,16 +218,17 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
         row.tipologicoLabel,
         row.supporto,
         row.attraversamento,
-        row.quantity,
+        row.unit === 'sqm' ? row.quantity.toFixed(2) : row.quantity,
+        row.unit === 'piece' ? 'pz' : 'mq',
         row.pricePerUnit,
         row.total,
       ]);
     }
-    summaryData.push(['', '', '', '', '', 'TOTALE', grandTotal]);
+    summaryData.push(['', '', '', '', '', '', 'TOTALE', grandTotal]);
 
-    // Sheet 2: Dettaglio (one row per mapping entry x crossing)
+    // Sheet 2: Dettaglio
     const detailData: any[][] = [
-      ['Progetto', 'Piano', 'Tipologico', 'ID Mappatura', 'Supporto', 'Tipo Supporto', 'Attraversamento', 'Quantità', 'Prezzo unit.', 'Unità', 'Totale'],
+      ['Progetto', 'Piano', 'Tipologico', 'ID Mappatura', 'Supporto', 'Tipo Supporto', 'Attraversamento', 'Quantità', 'Unità', 'Prezzo unit.', 'Totale'],
     ];
     for (const row of rows) {
       detailData.push([
@@ -206,9 +239,9 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
         row.supporto,
         row.tipoSupporto,
         row.attraversamento,
-        row.quantity,
+        row.unit === 'sqm' ? row.quantity.toFixed(2) : row.quantity,
+        row.unit === 'piece' ? 'pz' : 'mq',
         row.pricePerUnit,
-        row.unit === 'piece' ? 'al pezzo' : 'al mq',
         row.total,
       ]);
     }
@@ -219,15 +252,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
 
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
-    saveAs(blob, `costi_${project.title.replace(/\s+/g, '_')}.xlsx`);
+    saveAs(blob, `contabilita_${project.title.replace(/\s+/g, '_')}.xlsx`);
   };
-
-  const usedTypologyIds = Array.from(new Set(rows.map(r => r.tipologicoId).filter(Boolean)));
-  const unmappedTypologies = (project.typologies || []).filter(t => !usedTypologyIds.includes(t.id));
-  const allPriceTypologies = [
-    ...(project.typologies || []).filter(t => usedTypologyIds.includes(t.id)),
-    ...unmappedTypologies,
-  ].sort((a, b) => a.number - b.number);
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-5">
@@ -279,14 +305,14 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
                   </div>
                   <div className="divide-y divide-brand-50">
                     {groupRows.map((row, i) => (
-                      <div key={i} className="px-4 py-2.5 flex items-center justify-between gap-2">
+                      <div key={i} className={`px-4 py-2.5 flex items-center justify-between gap-2 ${row.isAsola ? 'pl-8 bg-warning/5' : ''}`}>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-brand-700 truncate">
+                            {row.isAsola ? <span className="text-warning">↳ </span> : null}
                             {row.attraversamento || 'N/D'}
                           </div>
                           <div className="text-[11px] text-brand-400 truncate">
-                            {row.tipologicoLabel} · ×{row.quantity}
-                            {row.unit === 'sqm' ? ' mq' : ''}
+                            {row.tipologicoLabel} · {row.unit === 'sqm' ? `${row.quantity.toFixed(2)} mq` : `×${row.quantity}`}
                           </div>
                         </div>
                         <div className="text-xs font-semibold text-brand-800 flex-shrink-0">
@@ -317,27 +343,28 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
         )}
       </div>
 
-      {/* Price management */}
+      {/* Price management — per attraversamento type */}
       <div className="bg-white rounded-2xl shadow-card overflow-hidden">
         <div className="px-4 py-3 border-b border-brand-100">
           <h3 className="text-sm font-bold text-brand-800">Gestione Prezzi</h3>
-          <p className="text-xs text-brand-400 mt-0.5">Prezzo unitario per tipologico</p>
+          <p className="text-xs text-brand-400 mt-0.5">Prezzo unitario per tipo di attraversamento</p>
         </div>
-        {allPriceTypologies.length === 0 ? (
+        {uniqueAttrKeys.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-brand-500">
-            Nessun tipologico configurato
+            Nessun attraversamento registrato
           </div>
         ) : (
           <div className="divide-y divide-brand-50">
-            {allPriceTypologies.map(typ => {
-              const lp = localPrices[typ.id] ?? { price: '', unit: 'piece' as const };
-              const isSavingNow = saving[typ.id];
+            {uniqueAttrKeys.map(key => {
+              const lp = localPrices[key] ?? { price: '', unit: (key === ASOLA_KEY ? 'sqm' : 'piece') as 'piece' | 'sqm' };
+              const isSavingNow = saving[key];
               return (
-                <div key={typ.id} className="px-4 py-3">
+                <div key={key} className="px-4 py-3">
                   <div className="text-xs font-medium text-brand-700 mb-2">
-                    <span className="text-accent font-bold">#{typ.number}</span>
-                    {' '}{typ.supporto} / {typ.tipoSupporto}
-                    <span className="text-brand-400"> · {typ.attraversamento}</span>
+                    {key === ASOLA_KEY
+                      ? <span className="text-warning font-bold">Asola</span>
+                      : key
+                    }
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center flex-1 bg-brand-50 border border-brand-200 rounded-xl overflow-hidden">
@@ -347,8 +374,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
                         min="0"
                         step="0.01"
                         value={lp.price}
-                        onChange={e => handlePriceChange(typ.id, 'price', e.target.value)}
-                        onBlur={() => handlePriceSave(typ.id)}
+                        onChange={e => handlePriceChange(key, 'price', e.target.value)}
+                        onBlur={() => handlePriceSave(key)}
                         className="flex-1 py-2 bg-transparent text-sm text-brand-800 focus:outline-none"
                         placeholder="0.00"
                       />
@@ -356,9 +383,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
                     <select
                       value={lp.unit}
                       onChange={e => {
-                        handlePriceChange(typ.id, 'unit', e.target.value);
-                        // Auto-save on unit change
-                        setTimeout(() => handlePriceSave(typ.id), 50);
+                        handlePriceChange(key, 'unit', e.target.value);
+                        setTimeout(() => handlePriceSave(key), 50);
                       }}
                       className="bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-700 px-2.5 py-2 focus:outline-none"
                     >

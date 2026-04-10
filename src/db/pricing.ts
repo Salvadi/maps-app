@@ -6,13 +6,13 @@ export async function getTypologyPrices(projectId: string): Promise<TypologyPric
 
 export async function upsertTypologyPrice(
   projectId: string,
-  tipologicoId: string,
+  attraversamento: string,
   pricePerUnit: number,
   unit: 'piece' | 'sqm'
 ): Promise<void> {
   const existing = await db.typologyPrices
-    .where('[projectId+tipologicoId]')
-    .equals([projectId, tipologicoId])
+    .where('[projectId+attraversamento]')
+    .equals([projectId, attraversamento])
     .first();
 
   if (existing) {
@@ -21,7 +21,7 @@ export async function upsertTypologyPrice(
     await db.typologyPrices.add({
       id: generateId(),
       projectId,
-      tipologicoId,
+      attraversamento,
       pricePerUnit,
       unit,
     });
