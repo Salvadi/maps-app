@@ -11,7 +11,7 @@ import {
   getMappingEntriesForProject, getPhotosForMapping, deleteMappingEntry,
   getFloorPlansByProject, getFloorPlanPoints, getAllUsers
 } from '../db';
-import { exportFloorPlanVectorPDF, buildFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
@@ -228,7 +228,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     return result;
   };
 
-  const { isExporting, handleExportZip, handleExportFloorPlan } = useMappingExports({
+  const { isExporting, handleExportZip } = useMappingExports({
     project,
     mappings,
     mappingPhotos,
