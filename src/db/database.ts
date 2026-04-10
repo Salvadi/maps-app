@@ -166,6 +166,7 @@ export interface FloorPlan {
   createdBy: string;
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
+  remoteUpdatedAt?: number; // timestamp of remote updated_at at last sync (for conflict detection)
   synced: 0 | 1; // 0 = not synced, 1 = synced
 }
 
@@ -184,6 +185,7 @@ export interface FloorPlanPoint {
   createdBy: string;
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
+  remoteUpdatedAt?: number; // timestamp of remote updated_at at last sync (for conflict detection)
   synced: 0 | 1;
 }
 

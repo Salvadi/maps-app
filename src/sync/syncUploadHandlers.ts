@@ -5,7 +5,7 @@
  * Ogni gestore gestisce CREATE, UPDATE e DELETE con conversione formato locale → remoto.
  */
 
-import { db, Project, MappingEntry, Photo, SyncQueueItem } from '../db/database';
+import { db, Project, MappingEntry, Photo, SyncQueueItem, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -391,6 +391,48 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       }
     }
 
+    // --- Conflict detection: check if remote has been modified since our last sync ---
+    if (localFloorPlan.remoteUpdatedAt != null) {
+      try {
+        const { data: remoteRecord } = await supabase
+          .from('floor_plans')
+          .select('updated_at')
+          .eq('id', localFloorPlan.id)
+          .single();
+
+        if (remoteRecord) {
+          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
+          // If remote has changed since our last sync, skip upload to avoid overwriting
+          if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
+            console.warn(
+              `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
+              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
+              `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
+              `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
+            );
+            // Log conflict to conflictHistory
+            await db.conflictHistory.add({
+              id: generateId(),
+              timestamp: Date.now(),
+              entityType: 'mapping_entry', // reuse closest type
+              entityId: localFloorPlan.id,
+              conflictType: 'timestamp',
+              localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
+              remoteVersion: { updatedAt: remoteUpdatedAt },
+              resolvedVersion: null,
+              strategy: 'skip_upload_floor_plan',
+              autoResolved: true,
+              userNotified: false,
+            });
+            return; // Do NOT upsert — user must sync first
+          }
+        }
+      } catch {
+        // Network error during check → proceed with upsert (best-effort)
+        console.warn(`⚠️  Could not check remote version for floor plan ${localFloorPlan.id}, proceeding with upload`);
+      }
+    }
+
     // Create/update floor plan record in Supabase
     const { error } = await supabase
       .from('floor_plans')
@@ -416,6 +458,12 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     if (error) {
       throw new Error(`Supabase floor plan upsert failed: ${error.message}`);
     }
+
+    // After successful upload, update remoteUpdatedAt to match what we just wrote
+    await db.floorPlans.update(localFloorPlan.id, {
+      remoteUpdatedAt: localFloorPlan.updatedAt,
+      synced: 1,
+    });
   } else if (item.operation === 'DELETE') {
     // Delete from Supabase
     const { error } = await supabase
@@ -448,6 +496,49 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
   const point = item.payload as any; // FloorPlanPoint type
 
   if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    // Get latest local point data (may have remoteUpdatedAt)
+    const localPoint = await db.floorPlanPoints.get(point.id);
+    const effectivePoint = localPoint || point;
+
+    // --- Conflict detection: check if remote has been modified since our last sync ---
+    if (effectivePoint.remoteUpdatedAt != null) {
+      try {
+        const { data: remoteRecord } = await supabase
+          .from('floor_plan_points')
+          .select('updated_at')
+          .eq('id', effectivePoint.id)
+          .single();
+
+        if (remoteRecord) {
+          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
+          if (remoteUpdatedAt > effectivePoint.remoteUpdatedAt + 5000) {
+            console.warn(
+              `⚠️  CONFLICT: Floor plan point ${effectivePoint.id} was modified remotely ` +
+              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
+              `our base: ${new Date(effectivePoint.remoteUpdatedAt).toISOString()}). ` +
+              `Skipping upload to avoid overwriting remote changes.`
+            );
+            await db.conflictHistory.add({
+              id: generateId(),
+              timestamp: Date.now(),
+              entityType: 'mapping_entry',
+              entityId: effectivePoint.id,
+              conflictType: 'timestamp',
+              localVersion: { updatedAt: effectivePoint.updatedAt, remoteUpdatedAt: effectivePoint.remoteUpdatedAt },
+              remoteVersion: { updatedAt: remoteUpdatedAt },
+              resolvedVersion: null,
+              strategy: 'skip_upload_floor_plan_point',
+              autoResolved: true,
+              userNotified: false,
+            });
+            return;
+          }
+        }
+      } catch {
+        console.warn(`⚠️  Could not check remote version for floor plan point ${effectivePoint.id}, proceeding with upload`);
+      }
+    }
+
     const { error } = await supabase
       .from('floor_plan_points')
       .upsert({
@@ -472,6 +563,12 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
     if (error) {
       throw new Error(`Supabase floor plan point upsert failed: ${error.message}`);
     }
+
+    // After successful upload, update remoteUpdatedAt
+    await db.floorPlanPoints.update(point.id, {
+      remoteUpdatedAt: point.updatedAt,
+      synced: 1,
+    });
   } else if (item.operation === 'DELETE') {
     const { error } = await supabase
       .from('floor_plan_points')

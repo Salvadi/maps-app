@@ -328,9 +328,11 @@ const App: React.FC = () => {
 
         if (data) {
           const remoteUpdatedAt = new Date(data.updated_at).getTime();
-          // Warn if remote is more than 5s newer than local (tolerance for clock skew)
-          if (remoteUpdatedAt > floorPlan.updatedAt + 5000) {
-            const localDate = new Date(floorPlan.updatedAt).toLocaleString('it-IT');
+          // Compare against remoteUpdatedAt (last synced base version) if available, otherwise updatedAt
+          const localBase = floorPlan.remoteUpdatedAt ?? floorPlan.updatedAt;
+          // Warn if remote is more than 5s newer than our base version (tolerance for clock skew)
+          if (remoteUpdatedAt > localBase + 5000) {
+            const localDate = new Date(localBase).toLocaleString('it-IT');
             const remoteDate = new Date(remoteUpdatedAt).toLocaleString('it-IT');
             const proceed = window.confirm(
               `⚠️ Attenzione: questa planimetria è stata modificata da un altro utente.\n\n` +
