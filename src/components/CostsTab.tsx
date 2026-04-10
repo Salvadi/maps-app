@@ -39,6 +39,20 @@ const GROUP_LABELS: Record<GroupBy, string> = {
 
 const ASOLA_KEY = 'Asola';
 
+/**
+ * Tenta di estrarre un valore in mq dal campo dimensioni (testo libero).
+ * Formati supportati: "0,2mq", "0,2 mq", "0.2", "0,2", "1", ".5", ecc.
+ * Restituisce null se il testo non contiene un numero valido.
+ */
+function parseDimensioniMq(dimensioni?: string): number | null {
+  if (!dimensioni) return null;
+  // Remove "mq" (case-insensitive), trim whitespace, replace comma with dot
+  const cleaned = dimensioni.replace(/mq/gi, '').trim().replace(',', '.');
+  const val = parseFloat(cleaned);
+  if (isNaN(val) || val <= 0) return null;
+  return val;
+}
+
 const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [prices, setPrices] = useState<TypologyPrice[]>([]);
@@ -100,9 +114,13 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
         let unit: 'piece' | 'sqm';
         let quantity: number;
         if (isAsolaType) {
-          // Old-style asola crossing: quantity = sqm (0.2 if no dimensions)
+          // Old-style asola crossing: try to parse mq from dimensioni field first,
+          // then fall back to asolaB×asolaH, then 0.2 mq minimum.
+          const parsedDim = parseDimensioniMq(crossing.dimensioni);
           const hasSize = crossing.asolaB && crossing.asolaH;
-          quantity = hasSize ? calcAsolaMq(crossing.asolaB!, crossing.asolaH!) : 0.2;
+          quantity = parsedDim !== null
+            ? parsedDim
+            : hasSize ? calcAsolaMq(crossing.asolaB!, crossing.asolaH!) : 0.2;
           unit = 'sqm';
         } else {
           unit = price?.unit ?? 'piece';
