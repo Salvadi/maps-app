@@ -90,10 +90,24 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
         const attrDisplay = crossing.attraversamentoCustom || crossing.attraversamento || '';
         const attrKey = attrDisplay; // price key = display value
 
-        const price = priceMap[attrKey];
+        // Detect if this crossing IS an asola type (old data: attraversamento = 'Asola',
+        // no inAsola flag) vs a crossing that passes THROUGH an asola (inAsola = true)
+        const isAsolaType = attrDisplay.toLowerCase().includes('asola') && !crossing.inAsola;
+
+        const price = priceMap[isAsolaType ? ASOLA_KEY : attrKey];
         const pricePerUnit = price?.pricePerUnit ?? 0;
-        const unit = price?.unit ?? 'piece';
-        const quantity = crossing.quantita ?? 1;
+
+        let unit: 'piece' | 'sqm';
+        let quantity: number;
+        if (isAsolaType) {
+          // Old-style asola crossing: quantity = sqm (0.2 if no dimensions)
+          const hasSize = crossing.asolaB && crossing.asolaH;
+          quantity = hasSize ? calcAsolaMq(crossing.asolaB!, crossing.asolaH!) : 0.2;
+          unit = 'sqm';
+        } else {
+          unit = price?.unit ?? 'piece';
+          quantity = crossing.quantita ?? 1;
+        }
 
         const tipObj = crossing.tipologicoId ? typologyMap[crossing.tipologicoId] : undefined;
         const tipologicoLabel = tipObj ? tipObj.label : 'Senza tipologico';
@@ -104,16 +118,17 @@ const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
           supporto: crossing.supporto || '',
           tipoSupporto: crossing.tipoSupporto || '',
           attraversamento: attrDisplay,
-          attraversamentoKey: attrKey,
+          attraversamentoKey: isAsolaType ? ASOLA_KEY : attrKey,
           quantity,
           pricePerUnit,
           unit,
           total: pricePerUnit * quantity,
           mappingEntryId: entry.id,
-          isAsola: false,
+          isAsola: isAsolaType,
         });
 
-        // Asola row — always added when inAsola is true; B/H empty → 0.2 mq
+        // Separate asola row — only for NEW crossings with inAsola flag
+        // (atraversamento is something else, e.g. a pipe passing through a slot)
         if (crossing.inAsola) {
           const hasSize = crossing.asolaB && crossing.asolaH;
           const asolaMq = hasSize
