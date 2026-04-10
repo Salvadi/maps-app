@@ -81,7 +81,7 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
         typologies: supabaseProject.typologies,
         ownerId: supabaseProject.owner_id,
         accessibleUsers: supabaseProject.accessible_users || [],
-        archived: supabaseProject.archived || 0,
+        archived: supabaseProject.archived ? 1 : 0,
         syncEnabled: 0, // Always default to 0 for newly downloaded projects (per-device preference)
         createdAt: new Date(supabaseProject.created_at).getTime(),
         updatedAt: new Date(supabaseProject.updated_at).getTime(),
