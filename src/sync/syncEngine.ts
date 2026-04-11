@@ -686,7 +686,7 @@ export async function phasedSyncFromSupabase(options?: {
  * This is useful to resolve data discrepancies between local and remote
  */
 export async function clearAndSync(): Promise<{
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; floorPlansCount: number; floorPlanPointsCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }
 }> {
   console.log('🗑️ Clear and sync triggered - clearing all local data...');
 
