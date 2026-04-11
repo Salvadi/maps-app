@@ -373,7 +373,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [imageUrl, points, onExportPDFProp]);
+  }, [imageUrl, points, onExportPDFProp, legendConfig, footerBoxConfig]);
 
   // Handle export to PNG
   const handleExportPNG = useCallback(() => {
