@@ -347,11 +347,12 @@ export function useMappingExports({
             perimeterPoints: point.perimeterPoints,
             labelBackgroundColor: point.metadata?.labelBackgroundColor,
             labelTextColor: point.metadata?.labelTextColor,
+            eiRating: point.metadata?.eiRating,
           };
         });
 
         try {
-          const pdfBytes = await buildFloorPlanVectorPDF(plan.imageBlob, exportPoints, plan.pdfBlobBase64, plan.metadata?.rotation || 0);
+          const pdfBytes = await buildFloorPlanVectorPDF(plan.imageBlob, exportPoints, plan.pdfBlobBase64, plan.metadata?.rotation || 0, plan.metadata?.legendConfig, plan.metadata?.footerBoxConfig);
           zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
         } catch (error) {
           console.error(`Error creating PDF for plan ${plan.floor}:`, error);

@@ -227,7 +227,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     const parts: string[] = [];
     if (project?.floors && project.floors.length > 1) parts.push(`P${floor}`);
     if (project?.useRoomNumbering && roomNumber) parts.push(`S${roomNumber}`);
-    if (project?.useInterventionNumbering && interventionNumber) parts.push(`Int${interventionNumber}`);
+    if (project?.useInterventionNumbering && interventionNumber) parts.push(`foto${interventionNumber}`);
     return parts.length > 0 ? parts.join('_') + '_' : '';
   };
 

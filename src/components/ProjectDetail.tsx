@@ -214,7 +214,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     const parts: string[] = [];
     if (project.floors && project.floors.length > 1) parts.push(`P${entry.floor}`);
     if (project.useRoomNumbering && entry.room) parts.push(`S${entry.room}`);
-    if (project.useInterventionNumbering && entry.intervention) parts.push(`Int${entry.intervention}`);
+    if (project.useInterventionNumbering && entry.intervention) parts.push(`foto${entry.intervention}`);
     let firstLine = parts.length > 0 ? parts.join('_') : 'Punto';
     if (parts.length > 0 && photoCount > 1) {
       firstLine += `_01-${photoCount.toString().padStart(2, '0')}`;
@@ -523,7 +523,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-sm font-medium text-brand-700">
                                         {entry.room ? `St. ${entry.room}` : 'Piano ' + entry.floor}
-                                        {entry.intervention && ` · Int. ${entry.intervention}`}
+                                        {entry.intervention && ` · foto n. ${entry.intervention}`}
                                       </span>
                                       {entry.toComplete && (
                                         <span className="w-2 h-2 rounded-full bg-warning flex-shrink-0" title="Da completare" />

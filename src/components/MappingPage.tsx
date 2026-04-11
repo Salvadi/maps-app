@@ -518,7 +518,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     }
 
     if (project?.useInterventionNumbering && intervention) {
-      parts.push(`Int${intervention}`);
+      parts.push(`foto${intervention}`);
     }
 
     return parts.length > 0 ? parts.join('_') + '_' : '';

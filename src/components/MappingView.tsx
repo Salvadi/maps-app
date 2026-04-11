@@ -520,9 +520,9 @@ const MappingView: React.FC<MappingViewProps> = ({
       firstLineParts.push(`S${mappingEntry.room}`);
     }
 
-    // Intervento (changed from "I" to "Int")
+    // Intervento (uses "foto" prefix for planimetry labels)
     if (project.useInterventionNumbering && mappingEntry.intervention) {
-      firstLineParts.push(`Int${mappingEntry.intervention}`);
+      firstLineParts.push(`foto${mappingEntry.intervention}`);
     }
 
     // Handle photo numbering - OPTION B: Range if multiple photos
@@ -689,6 +689,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             mappingEntryId: point.mappingEntryId, // Include to distinguish existing points from new ones
             labelBackgroundColor: point.metadata?.labelBackgroundColor, // Carica anche colore custom
             labelTextColor: point.metadata?.labelTextColor, // Carica anche colore testo custom
+            eiRating: point.metadata?.eiRating, // Carica resistenza al fuoco EI
           };
         })
       );
@@ -763,6 +764,7 @@ const MappingView: React.FC<MappingViewProps> = ({
               labelText: canvasPoint.labelText, // Salva labelText custom
               labelBackgroundColor: canvasPoint.labelBackgroundColor, // Salva anche colore custom
               labelTextColor: canvasPoint.labelTextColor, // Salva anche colore testo custom
+              eiRating: canvasPoint.eiRating, // Salva resistenza al fuoco EI
             },
           });
         } else {
@@ -1359,8 +1361,22 @@ const MappingView: React.FC<MappingViewProps> = ({
             mode="view-edit"
             unmappedEntries={editorUnmappedEntries}
             initialRotation={editorFloorPlan.metadata?.rotation || 0}
+            initialLegendConfig={editorFloorPlan.metadata?.legendConfig}
             onSave={handleSaveFloorPlanEditor}
             onRotationChange={handleFloorPlanRotationChange}
+            onLegendConfigChange={async (config) => {
+              if (!editorFloorPlan) return;
+              const updatedMetadata = { ...(editorFloorPlan.metadata || {}), legendConfig: config };
+              await updateFloorPlan(editorFloorPlan.id, { metadata: updatedMetadata });
+              setEditorFloorPlan(prev => prev ? { ...prev, metadata: updatedMetadata } : null);
+            }}
+            initialFooterBoxConfig={editorFloorPlan.metadata?.footerBoxConfig}
+            onFooterBoxConfigChange={async (config) => {
+              if (!editorFloorPlan) return;
+              const updatedMetadata = { ...(editorFloorPlan.metadata || {}), footerBoxConfig: config };
+              await updateFloorPlan(editorFloorPlan.id, { metadata: updatedMetadata });
+              setEditorFloorPlan(prev => prev ? { ...prev, metadata: updatedMetadata } : null);
+            }}
             onClose={handleCloseFloorPlanEditor}
             onOpenMappingEntry={(mappingEntryId) => {
               const mapping = mappings.find(m => m.id === mappingEntryId);

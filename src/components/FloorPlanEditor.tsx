@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle } from './FloorPlanCanvas';
 import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { EIRating, LegendConfig, FooterBoxConfig } from '../db/database';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
@@ -41,6 +42,10 @@ interface FloorPlanEditorProps {
   readOnlyPoints?: CanvasPoint[];
   initialRotation?: number; // 0, 90, 180, 270
   onRotationChange?: (rotation: number) => void;
+  initialLegendConfig?: LegendConfig;
+  onLegendConfigChange?: (config: LegendConfig) => void;
+  initialFooterBoxConfig?: FooterBoxConfig;
+  onFooterBoxConfigChange?: (config: FooterBoxConfig) => void;
 }
 
 const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
@@ -69,6 +74,10 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   readOnlyPoints,
   initialRotation = 0,
   onRotationChange,
+  initialLegendConfig,
+  onLegendConfigChange,
+  initialFooterBoxConfig,
+  onFooterBoxConfigChange,
 }) => {
   // Ref to FloorPlanCanvas imperative handle
   const canvasRef = useRef<FloorPlanCanvasHandle>(null);
@@ -91,6 +100,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showToolbarMenu, setShowToolbarMenu] = useState(false);
+  const [legendConfig, setLegendConfig] = useState<LegendConfig>(
+    initialLegendConfig || { visible: true, position: 'top-right' }
+  );
+  const [footerBoxConfig, setFooterBoxConfig] = useState<FooterBoxConfig>(
+    initialFooterBoxConfig || { visible: false, texts: ['', '', '', ''] }
+  );
   const [selectedUnmappedId, setSelectedUnmappedId] = useState<string | null>(null);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc' | 'recent'>('none');
@@ -251,6 +266,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     }));
   }, []);
 
+  // Handle EI rating change for a point
+  const handleEIChange = useCallback((pointId: string, eiRating: EIRating | undefined) => {
+    setPoints(prev => prev.map(p =>
+      p.id === pointId ? { ...p, eiRating } : p
+    ));
+    setHasUnsavedChanges(true);
+  }, []);
+
   // Handle point deletion
   const handleDeletePoint = useCallback(() => {
     if (selectedPointId) {
@@ -341,9 +364,10 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         perimeterPoints: p.perimeterPoints,
         labelBackgroundColor: p.labelBackgroundColor,
         labelTextColor: p.labelTextColor,
+        eiRating: p.eiRating,
       }));
 
-      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf');
+      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf', undefined, 0, legendConfig, footerBoxConfig);
       alert('✅ Planimetria esportata in PDF (vettoriale)');
     } catch (error) {
       console.error('Export PDF error:', error);
@@ -884,6 +908,104 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               )}
             </div>
 
+            {/* EI Legend settings */}
+            <div className="menu-section">
+              <h4>Legenda EI</h4>
+              <label className="menu-checkbox">
+                <input
+                  type="checkbox"
+                  checked={legendConfig.visible}
+                  onChange={(e) => {
+                    const updated = { ...legendConfig, visible: e.target.checked };
+                    setLegendConfig(updated);
+                    onLegendConfigChange?.(updated);
+                  }}
+                />
+                <span>Mostra legenda</span>
+              </label>
+              {legendConfig.visible && (
+                <div className="grid-settings" style={{ marginTop: '8px' }}>
+                  <div className="setting-row">
+                    <label>Posizione:</label>
+                    <select
+                      value={legendConfig.position}
+                      onChange={(e) => {
+                        const updated = { ...legendConfig, position: e.target.value as LegendConfig['position'] };
+                        setLegendConfig(updated);
+                        onLegendConfigChange?.(updated);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '4px 8px',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        color: 'var(--color-text)',
+                      }}
+                    >
+                      <option value="top-left">Alto sx</option>
+                      <option value="top-right">Alto dx</option>
+                      <option value="bottom-left">Basso sx</option>
+                      <option value="bottom-right">Basso dx</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer box settings */}
+            <div className="menu-section">
+              <h4>Casella piè pagina</h4>
+              <label className="menu-checkbox">
+                <input
+                  type="checkbox"
+                  checked={footerBoxConfig.visible}
+                  onChange={(e) => {
+                    const updated = { ...footerBoxConfig, visible: e.target.checked };
+                    setFooterBoxConfig(updated);
+                    onFooterBoxConfigChange?.(updated);
+                    setHasUnsavedChanges(true);
+                  }}
+                />
+                <span>Mostra casella</span>
+              </label>
+              {footerBoxConfig.visible && (
+                <div className="grid-settings" style={{ marginTop: '8px' }}>
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} className="setting-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                      <label style={{ fontSize: '12px', marginBottom: '2px' }}>Box {i + 1}:</label>
+                      <textarea
+                        rows={2}
+                        value={footerBoxConfig.texts[i]}
+                        placeholder={`Testo box ${i + 1}`}
+                        onChange={(e) => {
+                          const newTexts = [...footerBoxConfig.texts] as [string, string, string, string];
+                          newTexts[i] = e.target.value;
+                          const updated = { ...footerBoxConfig, texts: newTexts };
+                          setFooterBoxConfig(updated);
+                          onFooterBoxConfigChange?.(updated);
+                          setHasUnsavedChanges(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '4px 6px',
+                          background: 'var(--color-bg-secondary)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: 'var(--color-text)',
+                          resize: 'vertical',
+                          fontFamily: 'inherit',
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Export options - only in standalone mode (MappingView has its own export) */}
           </div>
         </div>
@@ -906,6 +1028,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             onCompletePerimeter={handleCompletePerimeter}
             onCancelPerimeter={handleCancelPerimeter}
             readOnlyPoints={readOnlyPoints}
+            legendConfig={legendConfig}
+            footerBoxConfig={footerBoxConfig}
           />
 
           {/* Perimeter control buttons (V/X) */}
@@ -1133,6 +1257,34 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                             point.labelText.map((line, i) => (
                               <div key={i} className="label-line">{line}</div>
                             ))
+                          )}
+                          {/* EI Rating selector - visible when point is selected */}
+                          {point.id === selectedPointId && mode !== 'view' && (
+                            <div className="ei-rating-selector" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                value={point.eiRating || ''}
+                                onChange={(e) => handleEIChange(point.id, (e.target.value || undefined) as EIRating | undefined)}
+                                style={{
+                                  width: '100%',
+                                  padding: '4px 8px',
+                                  marginTop: '4px',
+                                  background: 'var(--color-bg-secondary)',
+                                  border: `2px solid ${point.eiRating ? ({'EI 30':'#FFD700','EI 60':'#FF8C00','EI 90':'#FF6000','EI 120':'#E83000','EI 180':'#CC0000','EI 240':'#880044'} as Record<string,string>)[point.eiRating] || 'var(--color-border)' : 'var(--color-border)'}`,
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  color: 'var(--color-text)',
+                                }}
+                              >
+                                <option value="">Resistenza EI: nessuna</option>
+                                <option value="EI 30">EI 30</option>
+                                <option value="EI 60">EI 60</option>
+                                <option value="EI 90">EI 90</option>
+                                <option value="EI 120">EI 120</option>
+                                <option value="EI 180">EI 180</option>
+                                <option value="EI 240">EI 240</option>
+                              </select>
+                            </div>
                           )}
                         </div>
                         {onOpenMappingEntry && point.mappingEntryId && (

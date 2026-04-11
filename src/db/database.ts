@@ -43,6 +43,34 @@ export interface PhotoMetadata {
   compressed: boolean;
 }
 
+// Resistenza al fuoco (bordo etichetta planimetria)
+export type EIRating = 'EI 30' | 'EI 60' | 'EI 90' | 'EI 120' | 'EI 180' | 'EI 240';
+
+// Ordine EI per ordinamento legenda
+export const EI_RATINGS_ORDERED: EIRating[] = ['EI 30', 'EI 60', 'EI 90', 'EI 120', 'EI 180', 'EI 240'];
+
+// Colori bordo per ogni EI rating
+export const EI_COLORS: Record<EIRating, string> = {
+  'EI 30':  '#FFD700',
+  'EI 60':  '#FF8C00',
+  'EI 90':  '#FF6000',
+  'EI 120': '#E83000',
+  'EI 180': '#CC0000',
+  'EI 240': '#880044',
+};
+
+// Configurazione legenda EI sulla planimetria
+export interface LegendConfig {
+  visible: boolean;
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+}
+
+// Configurazione casella di testo a piè pagina (4 rettangoli)
+export interface FooterBoxConfig {
+  visible: boolean;
+  texts: [string, string, string, string];
+}
+
 export interface Crossing {
   id: string;
   supporto: string;

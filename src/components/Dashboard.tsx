@@ -72,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
         activities.push({
           type: 'mapping',
-          title: `Mappatura ${entry.floor}${entry.room ? ` / St. ${entry.room}` : ''}${entry.intervention ? ` / Int. ${entry.intervention}` : ''}`,
+          title: `Mappatura ${entry.floor}${entry.room ? ` / St. ${entry.room}` : ''}${entry.intervention ? ` / foto n. ${entry.intervention}` : ''}`,
           subtitle: project.title,
           timestamp: entry.timestamp,
           project,

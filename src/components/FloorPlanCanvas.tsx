@@ -4,6 +4,7 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { EIRating, EI_COLORS, EI_RATINGS_ORDERED, LegendConfig, FooterBoxConfig } from '../db/database';
 import './FloorPlanCanvas.css';
 
 // ============================================
@@ -24,6 +25,7 @@ export interface CanvasPoint {
   mappingEntryId?: string; // If linked to a mapping entry (for view-edit mode distinction)
   labelBackgroundColor?: string; // Custom background color for label (hex format "#RRGGBB")
   labelTextColor?: string; // Custom text color for label (hex format "#RRGGBB")
+  eiRating?: EIRating; // Fire resistance rating (determines label border color)
 }
 
 export interface GridConfig {
@@ -57,6 +59,8 @@ interface FloorPlanCanvasProps {
   onCompletePerimeter?: () => void; // External trigger to complete perimeter
   onCancelPerimeter?: () => void; // External trigger to cancel perimeter
   readOnlyPoints?: CanvasPoint[]; // Points to display as read-only (semi-transparent, no interaction)
+  legendConfig?: LegendConfig; // EI legend configuration
+  footerBoxConfig?: FooterBoxConfig; // Footer box configuration (4 editable rectangles)
 }
 
 const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(({
@@ -72,6 +76,8 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   zoomOutTrigger,
   onPerimeterDrawingChange,
   readOnlyPoints = [],
+  legendConfig,
+  footerBoxConfig,
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -310,10 +316,20 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
       }
     }
 
+    // Draw EI legend
+    if (legendConfig?.visible) {
+      drawLegend(ctx);
+    }
+
+    // Draw footer box
+    if (footerBoxConfig?.visible) {
+      drawFooterBox(ctx);
+    }
+
     // Restore context state
     ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints]);
+  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints, legendConfig, footerBoxConfig]);
 
   // Draw grid
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
@@ -411,11 +427,11 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     // Draw label background
     const defaultBgColor = isSelected ? '#FFF3CD' : '#FAFAF0';
     const bgColor = point.labelBackgroundColor || defaultBgColor;
-    const borderColor = isSelected ? '#FF0000' : '#333333';
+    const borderColor = isSelected ? '#FF0000' : getEIBorderColor(point.eiRating);
 
     ctx.fillStyle = bgColor;
     ctx.strokeStyle = borderColor;
-    ctx.lineWidth = (isSelected ? 2 : 1) * zoom;
+    ctx.lineWidth = (isSelected ? 2 : (point.eiRating ? 2 : 1)) * zoom;
 
     ctx.fillRect(x, y, labelWidth, labelHeight);
     ctx.strokeRect(x, y, labelWidth, labelHeight);
@@ -612,6 +628,139 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         return '#9933FF';
       default:
         return '#333333';
+    }
+  };
+
+  // Get label border color based on EI fire resistance rating
+  const getEIBorderColor = (eiRating?: EIRating): string => {
+    return eiRating ? EI_COLORS[eiRating] : '#333333';
+  };
+
+  // Draw EI legend box
+  const drawLegend = (ctx: CanvasRenderingContext2D) => {
+    if (!image) return;
+
+    // Collect unique EI ratings from all points (including read-only)
+    const allPoints = [...points, ...readOnlyPoints];
+    const usedRatings = EI_RATINGS_ORDERED.filter(ei =>
+      allPoints.some(p => p.eiRating === ei)
+    );
+    if (usedRatings.length === 0) return;
+
+    const fontSize = 12 * zoom;
+    const rowH = 20 * zoom;
+    const padding = 8 * zoom;
+    const swatchW = 24 * zoom;
+    const swatchH = 14 * zoom;
+    const gap = 6 * zoom;
+    const titleH = 18 * zoom;
+
+    ctx.font = `bold ${fontSize}px Arial`;
+    const maxTextW = Math.max(...usedRatings.map(r => ctx.measureText(r).width));
+    const boxW = padding * 2 + swatchW + gap + maxTextW;
+    const boxH = padding * 2 + titleH + usedRatings.length * rowH;
+
+    // Position based on legendConfig
+    const imgX = pan.x;
+    const imgY = pan.y;
+    const imgW = image.width * zoom;
+    const imgH = image.height * zoom;
+    const margin = 10 * zoom;
+
+    let boxX: number, boxY: number;
+    const pos = legendConfig?.position || 'top-right';
+    switch (pos) {
+      case 'top-left':     boxX = imgX + margin; boxY = imgY + margin; break;
+      case 'top-right':    boxX = imgX + imgW - boxW - margin; boxY = imgY + margin; break;
+      case 'bottom-left':  boxX = imgX + margin; boxY = imgY + imgH - boxH - margin; break;
+      case 'bottom-right': boxX = imgX + imgW - boxW - margin; boxY = imgY + imgH - boxH - margin; break;
+      default:             boxX = imgX + imgW - boxW - margin; boxY = imgY + margin;
+    }
+
+    // Background
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 1 * zoom;
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    // Title
+    ctx.fillStyle = '#000000';
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.textBaseline = 'top';
+    ctx.fillText('Legenda EI', boxX + padding, boxY + padding);
+
+    // Rows
+    usedRatings.forEach((rating, i) => {
+      const rowY = boxY + padding + titleH + i * rowH;
+      const color = EI_COLORS[rating];
+
+      // Color swatch (border-style to match label rendering)
+      ctx.fillStyle = '#FAFAF0';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2 * zoom;
+      ctx.fillRect(boxX + padding, rowY, swatchW, swatchH);
+      ctx.strokeRect(boxX + padding, rowY, swatchW, swatchH);
+
+      // Text
+      ctx.fillStyle = '#000000';
+      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.fillText(rating, boxX + padding + swatchW + gap, rowY + 1);
+    });
+  };
+
+  // Draw footer box (4 editable rectangles at bottom of image)
+  const drawFooterBox = (ctx: CanvasRenderingContext2D) => {
+    if (!image) return;
+
+    const imgX = pan.x;
+    const imgY = pan.y;
+    const imgW = image.width * zoom;
+    const imgH = image.height * zoom;
+
+    const boxH = 60 * zoom;
+    const boxTop = imgY + imgH + 4 * zoom; // Just below the image
+    const boxW = imgW / 4;
+    const fontSize = 10 * zoom;
+    const padding = 6 * zoom;
+
+    for (let i = 0; i < 4; i++) {
+      const x = imgX + i * boxW;
+
+      // Background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 1 * zoom;
+      ctx.fillRect(x, boxTop, boxW, boxH);
+      ctx.strokeRect(x, boxTop, boxW, boxH);
+
+      // Text (with word wrap)
+      const text = footerBoxConfig?.texts[i] || '';
+      if (text) {
+        ctx.fillStyle = '#000000';
+        ctx.font = `${fontSize}px Arial`;
+        ctx.textBaseline = 'top';
+
+        const maxTextW = boxW - padding * 2;
+        const words = text.split(' ');
+        let line = '';
+        let lineY = boxTop + padding;
+
+        for (const word of words) {
+          const testLine = line ? `${line} ${word}` : word;
+          if (ctx.measureText(testLine).width > maxTextW && line) {
+            ctx.fillText(line, x + padding, lineY);
+            line = word;
+            lineY += fontSize * 1.2;
+            if (lineY > boxTop + boxH - padding) break;
+          } else {
+            line = testLine;
+          }
+        }
+        if (lineY <= boxTop + boxH - padding) {
+          ctx.fillText(line, x + padding, lineY);
+        }
+      }
     }
   };
 

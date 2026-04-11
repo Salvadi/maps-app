@@ -5,6 +5,7 @@
 import jsPDF from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib';
+import { EIRating, EI_COLORS, EI_RATINGS_ORDERED, LegendConfig, FooterBoxConfig } from '../db/database';
 
 // Set up PDF.js worker - use unpkg CDN for better compatibility
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -140,6 +141,7 @@ export interface ExportPoint {
   perimeterPoints?: Array<{ x: number; y: number }>;
   labelBackgroundColor?: string;  // hex #RRGGBB
   labelTextColor?: string;        // hex #RRGGBB
+  eiRating?: EIRating;            // Fire resistance rating (label border color)
 }
 
 // Costanti canvas originale (in px, su immagine a risoluzione piena)
@@ -169,6 +171,11 @@ function getExportPointColor(type: string): string {
     case 'generico':  return '#9933FF';
     default:          return '#333333';
   }
+}
+
+/** Colore bordo etichetta in base alla resistenza al fuoco EI */
+function getEIBorderColor(eiRating?: EIRating): string {
+  return eiRating ? EI_COLORS[eiRating] : '#333333';
 }
 
 /** Calcola dimensioni etichetta usando i font pdf-lib.
@@ -278,6 +285,7 @@ function _drawAnnotationsOnPage(
   scale: number,
   fontBold: PDFFont,
   fontItalic: PDFFont,
+  legendConfig?: LegendConfig,
 ): void {
   const dynFontSize   = Math.max(3, CANVAS_FONT_SIZE   * scale);
   const dynLineHeight = CANVAS_LINE_HEIGHT * scale;
@@ -368,8 +376,8 @@ function _drawAnnotationsOnPage(
       width: lw,
       height: lh,
       color: bgColor,
-      borderColor: rgb(0.2, 0.2, 0.2),
-      borderWidth: 1,
+      borderColor: point.eiRating ? hexToRgbLib(getEIBorderColor(point.eiRating)) : rgb(0.2, 0.2, 0.2),
+      borderWidth: point.eiRating ? 2 : 1,
     });
 
     for (let i = 0; i < point.labelText.length; i++) {
@@ -392,6 +400,144 @@ function _drawAnnotationsOnPage(
       }
     }
   }
+
+  // 5. Legenda EI
+  if (legendConfig?.visible) {
+    _drawLegend(page, points, legendConfig, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold);
+  }
+}
+
+/** Disegna la legenda EI sulla pagina PDF */
+function _drawLegend(
+  page: ReturnType<PDFDocument['addPage']>,
+  points: ExportPoint[],
+  legendConfig: LegendConfig,
+  pageH: number,
+  effectiveW: number,
+  effectiveH: number,
+  offsetX: number,
+  offsetY: number,
+  scale: number,
+  fontBold: PDFFont,
+): void {
+  const usedRatings = EI_RATINGS_ORDERED.filter(ei =>
+    points.some(p => p.eiRating === ei)
+  );
+  if (usedRatings.length === 0) return;
+
+  const fontSize = Math.max(6, 12 * scale);
+  const rowH = 16 * scale;
+  const padding = 8 * scale;
+  const swatchW = 20 * scale;
+  const swatchH = 12 * scale;
+  const gap = 5 * scale;
+  const titleH = 16 * scale;
+
+  const maxTextW = Math.max(...usedRatings.map(r => fontBold.widthOfTextAtSize(r, fontSize)));
+  const boxW = padding * 2 + swatchW + gap + maxTextW;
+  const boxH = padding * 2 + titleH + usedRatings.length * rowH;
+
+  const margin = 10 * scale;
+  let boxX: number, boxY: number; // boxY = bottom-left of legend box (PDF coords)
+
+  const pos = legendConfig.position || 'top-right';
+  switch (pos) {
+    case 'top-left':
+      boxX = offsetX + margin;
+      boxY = (pageH - offsetY - margin) - boxH; // PDF y = bottom-up
+      break;
+    case 'top-right':
+      boxX = offsetX + effectiveW - boxW - margin;
+      boxY = (pageH - offsetY - margin) - boxH;
+      break;
+    case 'bottom-left':
+      boxX = offsetX + margin;
+      boxY = offsetY + margin;
+      break;
+    case 'bottom-right':
+      boxX = offsetX + effectiveW - boxW - margin;
+      boxY = offsetY + margin;
+      break;
+    default:
+      boxX = offsetX + effectiveW - boxW - margin;
+      boxY = (pageH - offsetY - margin) - boxH;
+  }
+
+  // Background
+  page.drawRectangle({
+    x: boxX, y: boxY, width: boxW, height: boxH,
+    color: rgb(1, 1, 1), borderColor: rgb(0.2, 0.2, 0.2), borderWidth: 1, opacity: 0.92,
+  });
+
+  // Title
+  const titleBaseline = boxY + boxH - padding - fontSize;
+  page.drawText('Legenda EI', { x: boxX + padding, y: titleBaseline, font: fontBold, size: fontSize, color: rgb(0, 0, 0) });
+
+  // Rows (top to bottom in visual order, but PDF y goes up)
+  usedRatings.forEach((rating, i) => {
+    const rowBaseline = titleBaseline - titleH - i * rowH;
+    const swatchY = rowBaseline - 1;
+
+    // Color swatch
+    page.drawRectangle({
+      x: boxX + padding, y: swatchY, width: swatchW, height: swatchH,
+      color: hexToRgbLib('#FAFAF0'),
+      borderColor: hexToRgbLib(EI_COLORS[rating]),
+      borderWidth: 2,
+    });
+
+    // Text
+    page.drawText(rating, {
+      x: boxX + padding + swatchW + gap, y: rowBaseline, font: fontBold, size: fontSize, color: rgb(0, 0, 0),
+    });
+  });
+}
+
+/**
+ * Disegna 4 rettangoli a piè pagina con campi form PDF editabili (AcroForm TextField).
+ */
+function _drawFooterBox(
+  pdfDoc: Awaited<ReturnType<typeof PDFDocument.create>>,
+  page: ReturnType<Awaited<ReturnType<typeof PDFDocument.create>>['addPage']>,
+  footerBoxConfig: FooterBoxConfig,
+  pageW: number,
+  pageH: number,
+  fontBold: PDFFont,
+  scale: number,
+): number {
+  const boxH = 50 * scale;
+  const margin = 10 * scale;
+  const boxTop = margin; // PDF coords: bottom of page
+  const totalW = pageW - margin * 2;
+  const cellW = totalW / 4;
+  const fontSize = Math.max(6, 9 * scale);
+
+  for (let i = 0; i < 4; i++) {
+    const x = margin + i * cellW;
+
+    // Draw cell rectangle
+    page.drawRectangle({
+      x, y: boxTop, width: cellW, height: boxH,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(0.2, 0.2, 0.2),
+      borderWidth: 1,
+    });
+
+    // Create editable AcroForm text field
+    const form = pdfDoc.getForm();
+    const fieldName = `footer_box_${Date.now()}_${i}`;
+    const field = form.createTextField(fieldName);
+    field.setText(footerBoxConfig.texts[i] || '');
+    field.addToPage(page, {
+      x: x + 2, y: boxTop + 2,
+      width: cellW - 4, height: boxH - 4,
+      borderWidth: 0,
+    });
+    field.setFontSize(fontSize);
+    field.enableMultiline();
+  }
+
+  return boxH + margin; // Return reserved height (for reducing image area)
 }
 
 /**
@@ -401,6 +547,8 @@ function _drawAnnotationsOnPage(
 async function _buildWithRasterBackground(
   imageBlob: Blob,
   points: ExportPoint[],
+  legendConfig?: LegendConfig,
+  footerBoxConfig?: FooterBoxConfig,
 ): Promise<Uint8Array> {
   const pdfDoc     = await PDFDocument.create();
   const fontBold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -418,16 +566,25 @@ async function _buildWithRasterBackground(
   const A4_H = 841.89;
   const [pageW, pageH] = aspectRatio > 1 ? [A4_H, A4_W] : [A4_W, A4_H];
 
-  const scale    = Math.min(pageW / imgW, pageH / imgH);
+  const page = pdfDoc.addPage([pageW, pageH]);
+
+  // Reserve space at bottom for footer box if visible
+  let footerReservedH = 0;
+  if (footerBoxConfig?.visible) {
+    const footerScale = Math.min(pageW / imgW, pageH / imgH);
+    footerReservedH = _drawFooterBox(pdfDoc, page, footerBoxConfig, pageW, pageH, fontBold, footerScale);
+  }
+
+  const availableH = pageH - footerReservedH;
+  const scale    = Math.min(pageW / imgW, availableH / imgH);
   const effectiveW = imgW * scale;
   const effectiveH = imgH * scale;
   const offsetX  = (pageW - effectiveW) / 2;
-  const offsetY  = (pageH - effectiveH) / 2;
+  const offsetY  = footerReservedH + (availableH - effectiveH) / 2;
 
-  const page = pdfDoc.addPage([pageW, pageH]);
   page.drawImage(embeddedImg, { x: offsetX, y: offsetY, width: effectiveW, height: effectiveH });
 
-  _drawAnnotationsOnPage(page, points, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold, fontItalic);
+  _drawAnnotationsOnPage(page, points, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold, fontItalic, legendConfig);
 
   return pdfDoc.save();
 }
@@ -442,6 +599,8 @@ async function _buildFromOriginalPDF(
   pdfBlobBase64: string,
   points: ExportPoint[],
   rotation: number = 0,
+  legendConfig?: LegendConfig,
+  footerBoxConfig?: FooterBoxConfig,
 ): Promise<Uint8Array> {
   // Decodifica Base64 → bytes
   const binaryStr = atob(pdfBlobBase64);
@@ -460,7 +619,10 @@ async function _buildFromOriginalPDF(
     outDoc.addPage(copiedPage);
     const pageW = copiedPage.getWidth();
     const pageH = copiedPage.getHeight();
-    _drawAnnotationsOnPage(copiedPage, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic);
+    if (footerBoxConfig?.visible) {
+      _drawFooterBox(outDoc, copiedPage, footerBoxConfig, pageW, pageH, fontBold, 0.5);
+    }
+    _drawAnnotationsOnPage(copiedPage, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic, legendConfig);
   } else {
     // Con rotazione: embed la pagina originale come XObject e ruotala sulla nuova pagina.
     // Le annotazioni sono già nel sistema di coordinate dell'immagine ruotata (0-1 norm.),
@@ -506,7 +668,10 @@ async function _buildFromOriginalPDF(
     });
 
     // Le annotazioni sono nel sistema di coordinate dell'immagine ruotata → pageW × pageH
-    _drawAnnotationsOnPage(page, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic);
+    if (footerBoxConfig?.visible) {
+      _drawFooterBox(outDoc, page, footerBoxConfig, pageW, pageH, fontBold, 0.5);
+    }
+    _drawAnnotationsOnPage(page, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic, legendConfig);
   }
 
   return outDoc.save();
@@ -550,12 +715,14 @@ export async function buildFloorPlanVectorPDF(
   points: ExportPoint[],
   pdfBlobBase64?: string,
   rotation: number = 0,
+  legendConfig?: LegendConfig,
+  footerBoxConfig?: FooterBoxConfig,
 ): Promise<Uint8Array> {
   if (pdfBlobBase64) {
-    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation);
+    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation, legendConfig, footerBoxConfig);
   }
   const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
-  return _buildWithRasterBackground(blob, points);
+  return _buildWithRasterBackground(blob, points, legendConfig, footerBoxConfig);
 }
 
 /**
@@ -569,8 +736,10 @@ export async function exportFloorPlanVectorPDF(
   filename: string,
   pdfBlobBase64?: string,
   rotation: number = 0,
+  legendConfig?: LegendConfig,
+  footerBoxConfig?: FooterBoxConfig,
 ): Promise<void> {
-  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation);
+  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation, legendConfig, footerBoxConfig);
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
