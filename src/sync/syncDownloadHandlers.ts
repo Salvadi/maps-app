@@ -82,7 +82,7 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin: bool
         ownerId: supabaseProject.owner_id,
         accessibleUsers: supabaseProject.accessible_users || [],
         archived: supabaseProject.archived ? 1 : 0,
-        syncEnabled: 0, // Always default to 0 for newly downloaded projects (per-device preference)
+        syncEnabled: 1, // Default to 1 so floor plans, points, and entries are downloaded
         createdAt: new Date(supabaseProject.created_at).getTime(),
         updatedAt: new Date(supabaseProject.updated_at).getTime(),
         version: supabaseProject.version || 1,

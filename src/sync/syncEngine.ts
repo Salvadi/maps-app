@@ -702,6 +702,14 @@ export async function clearAndSync(): Promise<{
   }
 
   try {
+    // Save syncEnabled state before clearing so we can restore it after download
+    const syncEnabledMap = new Map<string, number>();
+    const existingProjects = await db.projects.toArray();
+    for (const p of existingProjects) {
+      syncEnabledMap.set(p.id, p.syncEnabled);
+    }
+    console.log(`💾 Saved syncEnabled state for ${syncEnabledMap.size} projects`);
+
     // Clear all data from IndexedDB
     await db.projects.clear();
     await db.mappingEntries.clear();
@@ -725,7 +733,48 @@ export async function clearAndSync(): Promise<{
 
     // Download fresh data from Supabase
     console.log('⬇️ Downloading fresh data from Supabase...');
-    const downloadResult = await syncFromSupabase();
+
+    // Phase 1: Download projects first
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', currentSession!.user.id)
+      .single();
+    const isAdmin = profile?.role === 'admin';
+
+    const projectsCount = await downloadProjectsFromSupabase(currentSession!.user.id, isAdmin);
+
+    // Phase 2: Restore syncEnabled state — enable sync for all projects that had it before,
+    // AND enable it for all newly discovered projects (since clearAndSync implies full re-download)
+    const freshProjects = await db.projects.toArray();
+    for (const p of freshProjects) {
+      const previousState = syncEnabledMap.get(p.id);
+      // If project was previously synced, restore that. Otherwise enable sync for all
+      // (clearAndSync is an explicit request to re-download everything)
+      const newSyncEnabled = previousState !== undefined ? previousState : 1;
+      if (p.syncEnabled !== newSyncEnabled) {
+        await db.projects.update(p.id, { syncEnabled: newSyncEnabled });
+      }
+    }
+    console.log(`🔄 Restored/enabled syncEnabled for ${freshProjects.length} projects`);
+
+    // Phase 3: Now download everything else (will find syncEnabled=1 projects)
+    const entriesCount = await downloadMappingEntriesFromSupabase(currentSession!.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(currentSession!.user.id, isAdmin);
+    const floorPlansCount = await downloadFloorPlansFromSupabase(currentSession!.user.id, isAdmin);
+    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(currentSession!.user.id, isAdmin);
+    const salsCount = await downloadSalsFromSupabase(currentSession!.user.id, isAdmin);
+
+    const downloadResult = {
+      projectsCount,
+      entriesCount,
+      photosCount: photosResult.downloaded,
+      photosFailedCount: photosResult.failed,
+      floorPlansCount,
+      floorPlanPointsCount,
+      salsCount,
+    };
 
     console.log(`✅ Clear and sync complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 
