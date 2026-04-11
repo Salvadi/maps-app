@@ -5,7 +5,7 @@
  * Ogni gestore gestisce CREATE, UPDATE e DELETE con conversione formato locale → remoto.
  */
 
-import { db, Project, MappingEntry, Photo, SyncQueueItem, generateId } from '../db/database';
+import { db, Project, MappingEntry, Photo, Sal, SyncQueueItem, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -38,6 +38,10 @@ export async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
     case 'standalone_map':
       await syncStandaloneMap(item);
+      break;
+
+    case 'sal':
+      await syncSal(item);
       break;
 
     default:
@@ -660,6 +664,47 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
       } catch (err) {
         console.warn('Failed to delete standalone map from storage:', err);
       }
+    }
+  }
+}
+
+// ============================================
+// SEZIONE: Upload SAL (SAL Upload)
+// Gestisce CREATE/UPDATE/DELETE di SAL verso Supabase.
+// ============================================
+
+async function syncSal(item: SyncQueueItem): Promise<void> {
+  const sal = item.payload as Sal;
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    const supabaseSal = {
+      id: sal.id,
+      project_id: sal.projectId,
+      number: sal.number,
+      name: sal.name || null,
+      date: sal.date,
+      notes: sal.notes || null,
+      created_at: new Date(sal.createdAt).toISOString(),
+      synced: true,
+    };
+
+    const { error } = await supabase
+      .from('sals')
+      .upsert(supabaseSal, { onConflict: 'id' });
+
+    if (error) {
+      throw new Error(`Supabase SAL upsert failed: ${error.message}`);
+    }
+
+    await db.sals.update(sal.id, { synced: 1 });
+  } else if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('sals')
+      .delete()
+      .eq('id', sal.id);
+
+    if (error) {
+      throw new Error(`Supabase SAL delete failed: ${error.message}`);
     }
   }
 }

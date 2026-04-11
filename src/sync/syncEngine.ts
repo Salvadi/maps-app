@@ -16,6 +16,7 @@ import {
   downloadPhotosFromSupabase,
   downloadFloorPlansFromSupabase,
   downloadFloorPlanPointsFromSupabase,
+  downloadSalsFromSupabase,
   updateRemotePhotosFlags
 } from './syncDownloadHandlers';
 
@@ -378,17 +379,17 @@ export {
  * Sync data FROM Supabase TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
-export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
+export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 };
   }
 
   // Check if user is authenticated
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 };
   }
 
   console.log('⬇️  Starting sync FROM Supabase...');
@@ -419,14 +420,15 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
     const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
     const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
     const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
+    const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
 
     const photosCount = photosResult.downloaded;
     const photosFailedCount = photosResult.failed;
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points`);
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs`);
 
     await emitSyncComplete();
-    return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount };
+    return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Sync from Supabase failed:', errorMessage);
@@ -507,7 +509,7 @@ export async function manualSync(options?: {
   onPhotoDecisionNeeded?: () => Promise<boolean>;
 }): Promise<{
   uploadResult: SyncResult;
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }
 }> {
   console.log('🔄 Manual bidirectional sync triggered');
 
@@ -515,7 +517,7 @@ export async function manualSync(options?: {
     console.warn('⚠️  Sync already in progress, skipping');
     return {
       uploadResult: { success: false, processedCount: 0, failedCount: 0, errors: [] },
-      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 }
+      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 }
     };
   }
 
@@ -555,14 +557,14 @@ export async function manualSync(options?: {
 export async function phasedSyncFromSupabase(options?: {
   skipPhotos?: boolean;
   onPhotoDecisionNeeded?: () => Promise<boolean>;
-}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
+}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }> {
   if (!isSupabaseConfigured()) {
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 };
   }
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 };
   }
 
   const { data: profile } = await supabase
@@ -573,10 +575,11 @@ export async function phasedSyncFromSupabase(options?: {
 
   const isAdmin = profile?.role === 'admin';
 
-  // Phase 1: Data (projects + mapping entries)
+  // Phase 1: Data (projects + mapping entries + SALs)
   console.log('📦 Fase 1: Sincronizzazione dati...');
   const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
   const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+  const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
 
   // Phase 2: Floor plans + points
   console.log('🗺️ Fase 2: Sincronizzazione planimetrie...');
@@ -604,7 +607,7 @@ export async function phasedSyncFromSupabase(options?: {
     await updateRemotePhotosFlags(session.user.id, isAdmin);
   }
 
-  return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount };
+  return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount };
 }
 
 // ============================================
@@ -641,6 +644,7 @@ export async function clearAndSync(): Promise<{
     await db.floorPlans.clear();
     await db.floorPlanPoints.clear();
     await db.standaloneMaps.clear();
+    await db.sals.clear();
     await db.syncQueue.clear();
     // Don't clear users table - keep authentication data
 
