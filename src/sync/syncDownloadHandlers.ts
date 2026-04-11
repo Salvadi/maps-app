@@ -6,7 +6,7 @@
  * da Supabase Storage con parsing dinamico del bucket name.
  */
 
-import { db, Project, MappingEntry, Photo } from '../db/database';
+import { db, Project, MappingEntry, Photo, Sal } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -799,5 +799,87 @@ export async function updateRemotePhotosFlags(userId: string, isAdmin: boolean):
     console.log('📷 Remote photo flags aggiornati');
   } catch (err) {
     console.warn('Failed to update remote photo flags:', err);
+  }
+}
+
+// ============================================
+// SEZIONE: Download SAL (SAL Download)
+// Scarica i SAL per i progetti con syncEnabled=1.
+// ============================================
+
+export async function downloadSalsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
+  if (!isSupabaseConfigured()) return 0;
+  if (!navigator.onLine) return 0;
+
+  try {
+    // Prendi solo progetti con sync abilitato
+    let userProjects;
+    if (isAdmin) {
+      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
+    } else {
+      const allUserProjects = await db.projects
+        .where('ownerId')
+        .equals(userId)
+        .or('accessibleUsers')
+        .equals(userId)
+        .toArray();
+      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
+    }
+
+    if (userProjects.length === 0) return 0;
+
+    const projectIds = userProjects.map(p => p.id);
+
+    const { data: remoteSals, error } = await supabase
+      .from('sals')
+      .select('*')
+      .in('project_id', projectIds);
+
+    if (error) {
+      throw new Error(`Failed to download SALs: ${error.message}`);
+    }
+
+    if (!remoteSals || remoteSals.length === 0) return 0;
+
+    let downloadedCount = 0;
+
+    for (const remote of remoteSals) {
+      const sal: Sal = {
+        id: remote.id,
+        projectId: remote.project_id,
+        number: remote.number,
+        name: remote.name || undefined,
+        date: remote.date,
+        notes: remote.notes || undefined,
+        createdAt: new Date(remote.created_at).getTime(),
+        synced: 1,
+      };
+
+      const existing = await db.sals.get(sal.id);
+
+      if (existing) {
+        if (sal.createdAt > existing.createdAt || existing.synced === 0) {
+          // Il remoto e piu recente o il locale non e ancora sincronizzato: usa il remoto
+          if (existing.synced === 1) {
+            await db.sals.put(sal);
+            downloadedCount++;
+          }
+          // Se synced === 0, il locale ha modifiche pendenti: non sovrascrivere
+        }
+      } else {
+        await db.sals.put(sal);
+        downloadedCount++;
+      }
+    }
+
+    if (downloadedCount > 0) {
+      console.log(`✅ Downloaded ${downloadedCount} SALs from Supabase`);
+    }
+
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download SALs:', errorMessage);
+    throw err;
   }
 }

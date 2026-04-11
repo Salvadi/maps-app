@@ -693,7 +693,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
             {/* Costs Tab */}
             {activeTab === 'costs' && (
-              <CostsTab project={project} />
+              <CostsTab project={project} currentUser={currentUser} />
             )}
 
             {/* Info Tab */}

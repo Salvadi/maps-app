@@ -57,6 +57,7 @@ export interface Crossing {
   inAsola?: boolean;  // true se l'attraversamento passa in un'asola
   asolaB?: number;    // larghezza asola in cm
   asolaH?: number;    // altezza asola in cm
+  salId?: string;     // UUID del SAL a cui è assegnato (undefined = non contabilizzato)
 }
 
 // Calcola area asola in mq con minimo di 0,2 mq
@@ -101,7 +102,7 @@ export interface Photo {
 export interface SyncQueueItem {
   id: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
-  entityType: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map';
+  entityType: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal';
   entityId: string;
   payload: any; // The actual data to sync
   timestamp: number;
@@ -241,6 +242,21 @@ export interface TypologyPrice {
 }
 
 // ============================================
+// SAL (STATO AVANZAMENTO LAVORI) INTERFACE
+// ============================================
+
+export interface Sal {
+  id: string;
+  projectId: string;
+  number: number;       // Progressivo (1, 2, 3...)
+  name?: string;        // Es. "SAL 1 — Marzo 2026"
+  date: number;         // Timestamp data chiusura
+  notes?: string;
+  createdAt: number;
+  synced: 0 | 1;
+}
+
+// ============================================
 // DROPDOWN OPTIONS CACHE INTERFACES
 // ============================================
 
@@ -285,6 +301,9 @@ export class MappingDatabase extends Dexie {
 
   // TYPOLOGY PRICES
   typologyPrices!: Table<TypologyPrice, string>;
+
+  // SAL (STATO AVANZAMENTO LAVORI)
+  sals!: Table<Sal, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -404,6 +423,25 @@ export class MappingDatabase extends Dexie {
       // Clear old tipologicoId-based price data (incompatible schema)
       return tx.table('typologyPrices').clear();
     });
+
+    // Define schema v8 - add SAL (Stato Avanzamento Lavori) table
+    this.version(8).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, [projectId+attraversamento]',
+      // SAL (Stato Avanzamento Lavori)
+      sals: 'id, projectId, number, createdAt'
+    });
   }
 }
 
@@ -455,6 +493,7 @@ export async function clearDatabase(): Promise<void> {
   await db.dropdownOptionsCache.clear();
   await db.productsCache.clear();
   await db.typologyPrices.clear();
+  await db.sals.clear();
   // Keep metadata
   console.log('Database cleared');
 }
