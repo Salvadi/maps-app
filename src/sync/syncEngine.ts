@@ -38,6 +38,13 @@ export interface SyncStats {
   isSyncing: boolean;
 }
 
+export interface SyncProgress {
+  step: number;
+  totalSteps: number;
+  phase: string;
+  detail?: string;
+}
+
 // ============================================
 // SEZIONE: Deduplicazione coda di sync
 // Elimina operazioni ridondanti sulla stessa entità prima del processing.
@@ -253,10 +260,21 @@ export async function processSyncQueue(): Promise<SyncResult> {
 
   // Process items sequentially to maintain order
   for (const item of pendingItems) {
-    // Skip items that have exceeded retry limit
-    if ((item.retryCount || 0) >= MAX_RETRIES) {
-      console.warn(`⏭️ Skipping permanently failed item: ${item.entityType} ${item.entityId} (${item.retryCount} retries)`);
+    const retryCount = item.retryCount || 0;
+
+    // Mark permanently failed items (synced=2) so they stop appearing in future runs
+    if (retryCount >= MAX_RETRIES) {
+      await db.syncQueue.update(item.id, { synced: 2 });
+      console.warn(`🚫 Permanently failed: ${item.entityType} ${item.entityId} (${retryCount} retries) — removed from active queue`);
       continue;
+    }
+
+    // Exponential backoff: skip items that were retried too recently
+    if (retryCount > 0 && item.lastAttemptAt) {
+      const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 30000); // 2s, 4s, 8s, 16s, 30s
+      if (Date.now() - item.lastAttemptAt < backoffMs) {
+        continue; // Not ready for retry yet
+      }
     }
 
     try {
@@ -272,12 +290,14 @@ export async function processSyncQueue(): Promise<SyncResult> {
       const errorMessage = err instanceof Error ? err.message : String(err);
       errors.push({ item, error: errorMessage });
 
-      // Increment retry count
+      // Increment retry count and record attempt timestamp for backoff
       await db.syncQueue.update(item.id, {
-        retryCount: (item.retryCount || 0) + 1
+        retryCount: retryCount + 1,
+        lastAttemptAt: Date.now(),
+        lastError: errorMessage
       });
 
-      console.error(`❌ Failed to sync ${item.entityType} ${item.operation} (retry ${(item.retryCount || 0) + 1}/${MAX_RETRIES}):`, errorMessage);
+      console.error(`❌ Failed to sync ${item.entityType} ${item.operation} (retry ${retryCount + 1}/${MAX_RETRIES}):`, errorMessage);
     }
   }
 
@@ -495,6 +515,30 @@ export function stopAutoSync(): void {
 }
 
 // ============================================
+// SEZIONE: Sync con lock (per uso da handler esterni)
+// Wrappa processSyncQueue + syncFromSupabase con il lock di sync.
+// Usare al posto di chiamare direttamente processSyncQueue/syncFromSupabase
+// da event handler (online, service worker message, etc.)
+// ============================================
+
+/**
+ * Run a locked bidirectional sync (upload + download).
+ * Safe to call from event handlers - skips if a sync is already in progress.
+ */
+export async function lockedSync(): Promise<void> {
+  if (!await acquireSyncLock()) {
+    console.log('⏭️  lockedSync skipped: sync already in progress');
+    return;
+  }
+  try {
+    await processSyncQueue();
+    await syncFromSupabase();
+  } finally {
+    await releaseSyncLock();
+  }
+}
+
+// ============================================
 // SEZIONE: Sync manuale (manualSync)
 // Sync bidirezionale con lock atomico: prima upload locale, poi download remoto
 // con approccio a fasi. Aggiorna anche le cache dei dropdown al completamento.
@@ -507,6 +551,7 @@ export function stopAutoSync(): void {
 export async function manualSync(options?: {
   skipPhotos?: boolean;
   onPhotoDecisionNeeded?: () => Promise<boolean>;
+  onProgress?: (progress: SyncProgress) => void;
 }): Promise<{
   uploadResult: SyncResult;
   downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }
@@ -521,15 +566,22 @@ export async function manualSync(options?: {
     };
   }
 
+  const progress = options?.onProgress;
+  const totalSteps = 6;
+
   try {
     // Upload local changes FIRST
+    progress?.({ step: 1, totalSteps, phase: 'Caricamento modifiche locali...' });
     const uploadResult = await processSyncQueue();
+    progress?.({ step: 1, totalSteps, phase: 'Caricamento modifiche locali', detail: `${uploadResult.processedCount} elementi caricati` });
 
     // Download remote changes with phased approach
-    const downloadResult = await phasedSyncFromSupabase(options);
+    const downloadResult = await phasedSyncFromSupabase({ ...options, onProgress: progress });
 
     // Refresh dropdown option caches
+    progress?.({ step: 6, totalSteps, phase: 'Aggiornamento cache...' });
     await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed:', err));
+    progress?.({ step: 6, totalSteps, phase: 'Completato' });
 
     console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos${downloadResult.photosFailedCount > 0 ? ` (${downloadResult.photosFailedCount} failed)` : ''}, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 
@@ -557,7 +609,8 @@ export async function manualSync(options?: {
 export async function phasedSyncFromSupabase(options?: {
   skipPhotos?: boolean;
   onPhotoDecisionNeeded?: () => Promise<boolean>;
-}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }> {
+  onProgress?: (progress: SyncProgress) => void;
+}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
   if (!isSupabaseConfigured()) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 };
   }
@@ -574,19 +627,28 @@ export async function phasedSyncFromSupabase(options?: {
     .single();
 
   const isAdmin = profile?.role === 'admin';
+  const progress = options?.onProgress;
+  const totalSteps = 6;
 
-  // Phase 1: Data (projects + mapping entries + SALs)
+  // Phase 1: Projects
+  progress?.({ step: 2, totalSteps, phase: 'Download progetti...' });
   console.log('📦 Fase 1: Sincronizzazione dati...');
   const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
-  const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-  const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
+  progress?.({ step: 2, totalSteps, phase: 'Download progetti', detail: `${projectsCount} progetti` });
 
-  // Phase 2: Floor plans + points
+  // Phase 2: Mapping entries
+  progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
+  const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+  progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
+
+  // Phase 3: Floor plans + points
+  progress?.({ step: 4, totalSteps, phase: 'Download planimetrie...' });
   console.log('🗺️ Fase 2: Sincronizzazione planimetrie...');
   const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
   const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
+  progress?.({ step: 4, totalSteps, phase: 'Download planimetrie', detail: `${floorPlansCount} planimetrie, ${floorPlanPointsCount} punti` });
 
-  // Phase 3: Photos (optional)
+  // Phase 4: Photos (optional)
   let photosCount = 0;
   let photosFailedCount = 0;
 
@@ -597,13 +659,15 @@ export async function phasedSyncFromSupabase(options?: {
   }
 
   if (shouldDownloadPhotos) {
+    progress?.({ step: 5, totalSteps, phase: 'Download foto...' });
     console.log('📸 Fase 3: Sincronizzazione foto...');
     const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
     photosCount = photosResult.downloaded;
     photosFailedCount = photosResult.failed;
+    progress?.({ step: 5, totalSteps, phase: 'Download foto', detail: `${photosCount} foto${photosFailedCount > 0 ? ` (${photosFailedCount} fallite)` : ''}` });
   } else {
+    progress?.({ step: 5, totalSteps, phase: 'Foto saltate' });
     console.log('📸 Fase 3: Foto saltate (scelta utente)');
-    // Update hasRemotePhotos flags for entries that have photos on server but not locally
     await updateRemotePhotosFlags(session.user.id, isAdmin);
   }
 

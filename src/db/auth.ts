@@ -1,40 +1,21 @@
-import { db, now, User } from './database';
+import { db, User } from './database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { syncFromSupabase } from '../sync/syncEngine';
 
 /**
- * Phase 3: Supabase Authentication with offline-first fallback
+ * Supabase Authentication with offline-first fallback
  *
  * This module provides authentication using Supabase Auth.
- * If Supabase is not configured, it falls back to mock users for offline-only mode.
+ * Offline login only works for re-authentication of users who have
+ * previously logged in online (cached session in IndexedDB).
  */
-
-const MOCK_USERS: User[] = [
-  {
-    id: 'user-1',
-    email: 'admin@opifiresafe.com',
-    username: 'admin',
-    role: 'admin',
-    createdAt: now()
-  },
-  {
-    id: 'user-2',
-    email: 'user@opifiresafe.com',
-    username: 'user',
-    role: 'user',
-    createdAt: now()
-  }
-];
 
 /**
- * Initialize mock users in database (offline-only mode)
+ * Initialize users table (no-op, kept for backward compatibility)
  */
 export async function initializeMockUsers(): Promise<void> {
-  const count = await db.users.count();
-  if (count === 0) {
-    await db.users.bulkAdd(MOCK_USERS);
-    console.log('📦 Mock users initialized (offline-only mode)');
-  }
+  // No-op: users are now only created via Supabase Auth and cached locally on first login.
+  // This function is kept to avoid breaking callers.
 }
 
 /**
@@ -122,24 +103,41 @@ export async function login(email: string, password: string): Promise<User | nul
       return loginOffline(email, password);
     }
   } else {
-    // Offline-only mode with mock users
+    // Offline-only mode: only re-authenticate previously cached users
     return loginOffline(email, password);
   }
 }
 
 /**
- * Offline login fallback (mock users)
+ * Offline login fallback
+ * Only allows re-authentication for users who have previously logged in online.
+ * This prevents unauthorized access via mock users during Supabase outages.
  */
 async function loginOffline(email: string, password: string): Promise<User | null> {
   console.log('📦 Using offline login');
-  const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-  if (user) {
-    await db.metadata.put({ key: 'currentUser', value: user });
-    console.log('✅ User logged in (offline):', user.email);
-    return user;
+  // Check if this user has a cached session from a previous online login
+  const cachedMeta = await db.metadata.get('currentUser');
+  const cachedUser = cachedMeta?.value as User | null;
+
+  if (cachedUser && cachedUser.email.toLowerCase() === email.toLowerCase()) {
+    console.log('✅ User re-authenticated (offline, cached session):', cachedUser.email);
+    return cachedUser;
   }
 
+  // Also check if the user exists in local IndexedDB users table (synced from Supabase)
+  const localUser = await db.users
+    .where('email')
+    .equalsIgnoreCase(email)
+    .first();
+
+  if (localUser) {
+    await db.metadata.put({ key: 'currentUser', value: localUser });
+    console.log('✅ User re-authenticated (offline, local DB):', localUser.email);
+    return localUser;
+  }
+
+  console.warn('⚠️ Offline login failed: no cached session for', email);
   return null;
 }
 
