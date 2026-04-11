@@ -220,8 +220,6 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return rows.filter(r => r.salId && priorSalIds.has(r.salId)).reduce((s, r) => s + r.total, 0);
   }, [selectedSal, sals, rows]);
 
-  const allTotal = React.useMemo(() => rows.reduce((s, r) => s + r.total, 0), [rows]);
-
   // Unassigned rows count/total for create SAL preview
   const unassignedRows = React.useMemo(() => rows.filter(r => !r.salId), [rows]);
   const unassignedTotal = unassignedRows.reduce((s, r) => s + r.total, 0);

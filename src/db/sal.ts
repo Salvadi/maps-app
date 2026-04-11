@@ -142,13 +142,15 @@ export async function assignCrossingsToSal(
     const hasUnassigned = entry.crossings?.some(c => !c.salId);
     if (!hasUnassigned) continue;
 
+    let entryAssigned = 0;
     const updatedCrossings = entry.crossings.map(c => {
       if (!c.salId) {
-        assignedCount++;
+        entryAssigned++;
         return { ...c, salId };
       }
       return c;
     });
+    assignedCount += entryAssigned;
 
     await updateMappingEntry(entry.id, { crossings: updatedCrossings }, userId);
   }
