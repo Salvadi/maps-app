@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { ArrowLeft, Map, Upload, Database, FolderOpen, Trash2 } from 'lucide-react';
 import FloorPlanEditor from './FloorPlanEditor';
 import { CanvasPoint, GridConfig } from './FloorPlanCanvas';
 import { User, StandaloneMap, getStandaloneMaps, createStandaloneMap, updateStandaloneMap, deleteStandaloneMap, getFloorPlanBlobUrl } from '../db';
 import { exportCanvasToPDF, exportCanvasToPNG, convertPDFToImage } from '../utils/exportUtils';
+import './StandaloneFloorPlanEditor.css';
 
 interface StandaloneFloorPlanEditorProps {
   currentUser: User;
@@ -336,91 +336,24 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     }
   }, [currentUser.id]);
 
-  // Shared load dialog JSX
-  const LoadDialogContent = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-card-hover">
-        <div className="px-6 py-5 border-b border-brand-200">
-          <h3 className="text-lg font-bold text-brand-800">Apri Progetto</h3>
-        </div>
-        {availableMaps.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-12 px-6">
-            <Database size={40} className="text-brand-300 mb-3" />
-            <p className="text-brand-500 text-sm text-center">Nessun progetto salvato trovato.</p>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
-            {availableMaps.map(map => (
-              <div key={map.id} className="flex items-center gap-3 p-3 bg-brand-50 rounded-xl border border-brand-200 hover:border-accent/40 hover:bg-white transition-colors">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-brand-800 truncate">{map.name}</div>
-                  <div className="text-xs text-brand-500 mt-0.5">
-                    {new Date(map.updatedAt).toLocaleDateString('it-IT', {
-                      day: '2-digit', month: '2-digit', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })}
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleLoadMap(map)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-xl text-xs font-semibold"
-                  >
-                    <FolderOpen size={13} />
-                    Apri
-                  </button>
-                  <button
-                    onClick={() => handleDeleteMap(map.id)}
-                    className="w-8 h-8 flex items-center justify-center bg-danger/10 text-danger rounded-xl"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="px-6 py-4 border-t border-brand-200">
-          <button
-            onClick={() => setShowLoadDialog(false)}
-            className="w-full py-2.5 rounded-xl border border-brand-200 text-brand-700 text-sm font-semibold"
-          >
-            Chiudi
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   // Show initial load prompt
   if (!imageUrl) {
     return (
-      <div className="flex flex-col h-screen bg-brand-100">
-        {/* Header */}
-        <div className="bg-white border-b border-brand-200 px-5 py-4 flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center active:scale-95 transition-transform"
-          >
-            <ArrowLeft size={20} className="text-brand-700" />
+      <div className="standalone-editor-container">
+        <div className="standalone-header">
+          <button className="back-button" onClick={onBack}>
+            ← Home
           </button>
-          <h1 className="text-lg font-bold text-brand-800">Editor Planimetrie</h1>
+          <h1>Editor Planimetrie Standalone</h1>
         </div>
 
-        {/* Load prompt */}
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-sm text-center space-y-4">
-            <Map size={64} className="mx-auto text-brand-300" />
-            <div>
-              <h2 className="text-2xl font-bold text-brand-800">Carica una Planimetria</h2>
-              <p className="text-brand-500 text-sm mt-1">Seleziona un file immagine o PDF per iniziare ad annotare</p>
-            </div>
-            <button
-              onClick={handleLoadFloorPlan}
-              className="w-full flex items-center justify-center gap-2 bg-accent text-white rounded-2xl py-3 font-semibold active:scale-[0.98] transition-transform shadow-card"
-            >
-              <Upload size={18} />
-              Carica Planimetria
+        <div className="load-prompt">
+          <div className="load-prompt-content">
+            <div className="load-prompt-icon">📐</div>
+            <h2>Carica una Planimetria</h2>
+            <p>Seleziona un file immagine per iniziare ad annotare la planimetria</p>
+            <button className="load-button" onClick={handleLoadFloorPlan}>
+              📁 Carica Planimetria
             </button>
             <input
               ref={fileInputRef}
@@ -429,28 +362,72 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
               onChange={handleFileUpload}
               style={{ display: 'none' }}
             />
-            <div className="flex items-center gap-3 text-brand-400 text-xs">
-              <div className="flex-1 h-px bg-brand-200" />
+            <div className="divider">
               <span>oppure</span>
-              <div className="flex-1 h-px bg-brand-200" />
             </div>
-            <button
-              onClick={handleOpenFromDatabase}
-              className="w-full flex items-center justify-center gap-2 bg-white border border-brand-200 text-brand-700 rounded-2xl py-3 font-semibold active:scale-[0.98] transition-transform"
-            >
-              <Database size={18} />
-              Apri da Database
+            <button className="load-button secondary" onClick={handleOpenFromDatabase}>
+              🗄️ Apri da Database
             </button>
           </div>
         </div>
 
-        {showLoadDialog && <LoadDialogContent />}
+        {/* Load Dialog - anche nella vista iniziale */}
+        {showLoadDialog && (
+          <div className="name-dialog-overlay">
+            <div className="load-dialog">
+              <h3>Apri Progetto</h3>
+              {availableMaps.length === 0 ? (
+                <p className="no-maps-message">Nessun progetto salvato trovato.</p>
+              ) : (
+                <div className="maps-list">
+                  {availableMaps.map(map => (
+                    <div key={map.id} className="map-item">
+                      <div className="map-info">
+                        <div className="map-name">{map.name}</div>
+                        <div className="map-date">
+                          {new Date(map.updatedAt).toLocaleDateString('it-IT', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                      </div>
+                      <div className="map-actions">
+                        <button
+                          className="map-action-button load"
+                          onClick={() => handleLoadMap(map)}
+                          title="Apri progetto"
+                        >
+                          📂 Apri
+                        </button>
+                        <button
+                          className="map-action-button delete"
+                          onClick={() => handleDeleteMap(map.id)}
+                          title="Elimina progetto"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="dialog-buttons">
+                <button className="dialog-button cancel" onClick={() => setShowLoadDialog(false)}>
+                  Chiudi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-brand-100">
+    <div className="standalone-editor-container">
       <input
         ref={fileInputRef}
         type="file"
@@ -459,27 +436,18 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         style={{ display: 'none' }}
       />
 
-      {/* Header */}
-      <div className="bg-white border-b border-brand-200 px-5 py-4 flex items-center gap-3 flex-shrink-0">
-        <button
-          onClick={onBack}
-          className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center active:scale-95 transition-transform"
-          title="Torna alla Home"
-        >
-          <ArrowLeft size={20} className="text-brand-700" />
+      {/* Simple header with back button */}
+      <div className="standalone-editor-header">
+        <button className="header-back-button" onClick={onBack} title="Torna alla Home">
+          ← Home
         </button>
-        <div className="flex-1 flex items-center gap-2 min-w-0">
-          <h2 className="text-lg font-bold text-brand-800">Editor Planimetrie</h2>
-          {projectName && (
-            <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs font-semibold rounded-xl truncate max-w-[160px]">
-              {projectName}
-            </span>
-          )}
+        <div className="header-title">
+          <h2>Editor Planimetrie</h2>
+          {projectName && <span className="project-name-badge">{projectName}</span>}
         </div>
       </div>
 
-      {/* Editor */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="editor-wrapper">
         <FloorPlanEditor
           key={currentMapId || 'new'}
           imageUrl={imageUrl}
@@ -498,33 +466,23 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
 
       {/* Name Dialog */}
       {showNameDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
-            <div className="px-6 py-5 border-b border-brand-200">
-              <h3 className="text-lg font-bold text-brand-800">Salva Progetto</h3>
-              <p className="text-sm text-brand-500 mt-1">Inserisci un nome per il progetto</p>
-            </div>
-            <div className="px-6 py-4">
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="Nome progetto..."
-                autoFocus
-                className="w-full px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
-              />
-            </div>
-            <div className="px-6 py-4 border-t border-brand-200 flex gap-3">
-              <button
-                onClick={() => setShowNameDialog(false)}
-                className="flex-1 py-2.5 rounded-xl border border-brand-200 text-brand-700 text-sm font-semibold"
-              >
+        <div className="name-dialog-overlay">
+          <div className="name-dialog">
+            <h3>Salva Progetto</h3>
+            <p>Inserisci un nome per il progetto:</p>
+            <input
+              type="text"
+              className="name-input"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              placeholder="Nome progetto..."
+              autoFocus
+            />
+            <div className="dialog-buttons">
+              <button className="dialog-button cancel" onClick={() => setShowNameDialog(false)}>
                 Annulla
               </button>
-              <button
-                onClick={handleNameDialogConfirm}
-                className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold"
-              >
+              <button className="dialog-button confirm" onClick={handleNameDialogConfirm}>
                 Salva
               </button>
             </div>
@@ -533,7 +491,56 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
       )}
 
       {/* Load Dialog */}
-      {showLoadDialog && <LoadDialogContent />}
+      {showLoadDialog && (
+        <div className="name-dialog-overlay">
+          <div className="load-dialog">
+            <h3>Apri Progetto</h3>
+            {availableMaps.length === 0 ? (
+              <p className="no-maps-message">Nessun progetto salvato trovato.</p>
+            ) : (
+              <div className="maps-list">
+                {availableMaps.map(map => (
+                  <div key={map.id} className="map-item">
+                    <div className="map-info">
+                      <div className="map-name">{map.name}</div>
+                      <div className="map-date">
+                        {new Date(map.updatedAt).toLocaleDateString('it-IT', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                    </div>
+                    <div className="map-actions">
+                      <button
+                        className="map-action-button load"
+                        onClick={() => handleLoadMap(map)}
+                        title="Apri progetto"
+                      >
+                        📂 Apri
+                      </button>
+                      <button
+                        className="map-action-button delete"
+                        onClick={() => handleDeleteMap(map.id)}
+                        title="Elimina progetto"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="dialog-buttons">
+              <button className="dialog-button cancel" onClick={() => setShowLoadDialog(false)}>
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

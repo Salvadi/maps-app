@@ -1,79 +1,98 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Base styles - Minimalistic neutral palette */
+:root {
+  --color-bg-primary: #f5f0e8;
+  --color-bg-secondary: #ffffff;
+  --color-bg-input: #faf8f4;
+  --color-text-primary: #3a3a3a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-placeholder: #a8a8a8;
+  --color-border: #e5dfd5;
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  --color-shadow-hover: rgba(0, 0, 0, 0.12);
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+}
 
-/* ---- Custom layers on top of Tailwind ---- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-@layer base {
-  :root {
-    /* Legacy CSS vars kept for old components (ProjectForm, etc.) */
-    --color-bg-primary: #f5f0e8;
-    --color-bg-secondary: #ffffff;
-    --color-bg-input: #faf8f4;
-    --color-text-primary: #3a3a3a;
-    --color-text-secondary: #6b6b6b;
-    --color-text-placeholder: #a8a8a8;
-    --color-border: #e5dfd5;
-    --color-shadow: rgba(0, 0, 0, 0.08);
-    --color-shadow-hover: rgba(0, 0, 0, 0.12);
-    --radius-sm: 12px;
-    --radius-md: 16px;
-    --radius-lg: 20px;
-    --spacing-xs: 8px;
-    --spacing-sm: 12px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    --spacing-xl: 32px;
-  }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 1.6;
+}
 
-  html, body {
-    height: 100%;
-    width: 100%;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-  }
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #f5f0e8;
-    color: #3a3a3a;
-    font-size: 16px;
-    line-height: 1.5;
-  }
-
-  #root {
-    height: 100%;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  /* Tap highlight removal for mobile */
-  button, a {
-    -webkit-tap-highlight-color: transparent;
-  }
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* Focus styles */
 *:focus-visible {
-  outline: 2px solid #6b6b6b;
+  outline: 2px solid var(--color-text-secondary);
   outline-offset: 2px;
 }
 
-/* Legacy component overrides — keep existing .css files working */
-/* These selectors target old components that still use their own .css */
-.mapping-page,
-.project-form-page,
-.floor-plan-editor,
-.standalone-editor,
-.login-page,
-.password-reset-page {
-  overflow: auto;
+/* Button reset */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Input reset */
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  border: none;
+  outline: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Link styles */
+a {
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 /* Scrollbar styles */
@@ -81,13 +100,16 @@
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #e5dfd5;
+  background: var(--color-border);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b6b6b;
+  background: var(--color-text-secondary);
 }

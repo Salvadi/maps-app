@@ -7,9 +7,8 @@
  */
 
 import React from 'react';
-import { MappingEntry, Photo, calcAsolaMq } from '../db';
+import { MappingEntry, Photo } from '../db';
 import { EditIcon, DeleteIcon, ImageIcon } from './icons/MappingViewIcons';
-import { useBlobUrl } from '../hooks/useBlobUrl';
 
 export interface MappingEntryCardProps {
   mapping: MappingEntry;
@@ -111,14 +110,6 @@ const MappingEntryCard: React.FC<MappingEntryCardProps> = ({
                     {sig.notes && (
                       <><strong>Note:</strong> {sig.notes}<br /></>
                     )}
-                    {sig.inAsola && sig.asolaB && sig.asolaH && (
-                      <div style={{ marginTop: '4px', paddingLeft: '8px', borderLeft: '2px solid #d4cdc0', color: '#9c9385', fontSize: '0.8em' }}>
-                        ↳ <strong>Asola</strong> B×H: {sig.asolaB}×{sig.asolaH} cm → {calcAsolaMq(sig.asolaB, sig.asolaH).toFixed(2)} mq
-                        {(sig.asolaB * sig.asolaH) / 10000 < 0.2 && (
-                          <span style={{ marginLeft: '4px', color: '#FF9500' }}>(min applicato)</span>
-                        )}
-                      </div>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -128,39 +119,25 @@ const MappingEntryCard: React.FC<MappingEntryCardProps> = ({
           {/* Photo Gallery */}
           {photos.length > 0 && (
             <div className="photo-gallery">
-              {photos.map((photo, idx) => (
-                <PhotoItem
-                  key={photo.id}
-                  photo={photo}
-                  alt={`Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`}
-                  onPhotoPreview={onPhotoPreview}
-                />
-              ))}
+              {photos.map((photo, idx) => {
+                const photoUrl = URL.createObjectURL(photo.blob);
+                const photoAlt = `Floor ${mapping.floor} ${mapping.room ? `Room ${mapping.room}` : ''} ${mapping.intervention ? `Int ${mapping.intervention}` : ''} - ${idx + 1}`;
+                return (
+                  <div key={photo.id} className="photo-item">
+                    <img
+                      src={photoUrl}
+                      alt={photoAlt}
+                      loading="lazy"
+                      onClick={() => onPhotoPreview(photoUrl, photoAlt)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
-    </div>
-  );
-};
-
-/** Sub-component that manages Blob URL lifecycle for a single photo */
-const PhotoItem: React.FC<{
-  photo: Photo;
-  alt: string;
-  onPhotoPreview: (url: string, alt: string) => void;
-}> = ({ photo, alt, onPhotoPreview }) => {
-  const photoUrl = useBlobUrl(photo.blob);
-  if (!photoUrl) return null;
-  return (
-    <div className="photo-item">
-      <img
-        src={photoUrl}
-        alt={alt}
-        loading="lazy"
-        onClick={() => onPhotoPreview(photoUrl, alt)}
-        style={{ cursor: 'pointer' }}
-      />
     </div>
   );
 };
