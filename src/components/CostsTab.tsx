@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Download, ChevronDown, Plus, Trash2, X } from 'lucide-react';
+import { Download, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
-  Project, MappingEntry, User, Sal, calcAsolaMq,
+  Project, MappingEntry, calcAsolaMq,
   getMappingEntriesForProject,
   getTypologyPrices, upsertTypologyPrice,
-  TypologyPrice,
-  getSalsForProject, createSal, assignCrossingsToSal, deleteSal,
+  TypologyPrice
 } from '../db';
 
 interface CostsTabProps {
   project: Project;
-  currentUser: User;
 }
 
 type GroupBy = 'floor' | 'tipologico' | 'supporto' | 'attraversamento';
@@ -29,8 +27,6 @@ interface AggregatedRow {
   unit: 'piece' | 'sqm';
   total: number;
   mappingEntryId: string;
-  crossingId: string;
-  salId?: string;
   isAsola: boolean;
 }
 
@@ -57,49 +53,31 @@ function parseDimensioniMq(dimensioni?: string): number | null {
   return val;
 }
 
-const MONTH_NAMES = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-];
-
-const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
+const CostsTab: React.FC<CostsTabProps> = ({ project }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [prices, setPrices] = useState<TypologyPrice[]>([]);
   const [groupBy, setGroupBy] = useState<GroupBy>('floor');
   const [localPrices, setLocalPrices] = useState<Record<string, { price: string; unit: 'piece' | 'sqm' }>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
-  // SAL state
-  const [sals, setSals] = useState<Sal[]>([]);
-  const [selectedSalId, setSelectedSalId] = useState<string>('all');
-  const [showCreateSalModal, setShowCreateSalModal] = useState(false);
-  const [isCreatingSal, setIsCreatingSal] = useState(false);
-  const [salName, setSalName] = useState('');
-  const [salDate, setSalDate] = useState('');
-  const [salNotes, setSalNotes] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const loadData = useCallback(async () => {
-    const [entries, loadedPrices, loadedSals] = await Promise.all([
-      getMappingEntriesForProject(project.id),
-      getTypologyPrices(project.id),
-      getSalsForProject(project.id),
-    ]);
-    setMappings(entries);
-    setPrices(loadedPrices);
-    setSals(loadedSals);
-
-    // Initialize local price state keyed by attraversamento string
-    const init: Record<string, { price: string; unit: 'piece' | 'sqm' }> = {};
-    for (const lp of loadedPrices) {
-      init[lp.attraversamento] = { price: String(lp.pricePerUnit), unit: lp.unit };
-    }
-    setLocalPrices(init);
-  }, [project.id]);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const load = async () => {
+      const [entries, loadedPrices] = await Promise.all([
+        getMappingEntriesForProject(project.id),
+        getTypologyPrices(project.id),
+      ]);
+      setMappings(entries);
+      setPrices(loadedPrices);
+
+      // Initialize local price state keyed by attraversamento string
+      const init: Record<string, { price: string; unit: 'piece' | 'sqm' }> = {};
+      for (const lp of loadedPrices) {
+        init[lp.attraversamento] = { price: String(lp.pricePerUnit), unit: lp.unit };
+      }
+      setLocalPrices(init);
+    };
+    load();
+  }, [project.id]);
 
   const typologyMap = React.useMemo(() => {
     const map: Record<string, { number: number; label: string }> = {};
@@ -118,7 +96,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return map;
   }, [prices]);
 
-  // Build flat list of all crossing rows (with salId + crossingId)
+  // Build flat list of all crossing rows
   const rows: AggregatedRow[] = React.useMemo(() => {
     const result: AggregatedRow[] = [];
     for (const entry of mappings) {
@@ -126,6 +104,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         const attrDisplay = crossing.attraversamentoCustom || crossing.attraversamento || '';
         const attrKey = attrDisplay; // price key = display value
 
+        // Detect if this crossing IS an asola type (old data: attraversamento = 'Asola',
+        // no inAsola flag) vs a crossing that passes THROUGH an asola (inAsola = true)
         const isAsolaType = attrDisplay.toLowerCase().includes('asola') && !crossing.inAsola;
 
         const price = priceMap[isAsolaType ? ASOLA_KEY : attrKey];
@@ -134,6 +114,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         let unit: 'piece' | 'sqm';
         let quantity: number;
         if (isAsolaType) {
+          // Old-style asola crossing: try to parse mq from dimensioni field first,
+          // then fall back to asolaB×asolaH, then 0.2 mq minimum.
           const parsedDim = parseDimensioniMq(crossing.dimensioni);
           const hasSize = crossing.asolaB && crossing.asolaH;
           quantity = parsedDim !== null
@@ -160,11 +142,11 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           unit,
           total: pricePerUnit * quantity,
           mappingEntryId: entry.id,
-          crossingId: crossing.id,
-          salId: crossing.salId,
           isAsola: isAsolaType,
         });
 
+        // Separate asola row — only for NEW crossings with inAsola flag
+        // (atraversamento is something else, e.g. a pipe passing through a slot)
         if (crossing.inAsola) {
           const hasSize = crossing.asolaB && crossing.asolaH;
           const asolaMq = hasSize
@@ -189,8 +171,6 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             unit: 'sqm',
             total: asolaPricePerUnit * asolaMq,
             mappingEntryId: entry.id,
-            crossingId: crossing.id + '_asola',
-            salId: crossing.salId,
             isAsola: true,
           });
         }
@@ -199,35 +179,12 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return result;
   }, [mappings, typologyMap, priceMap]);
 
-  // Filtered rows based on SAL selection
-  const filteredRows = React.useMemo(() => {
-    if (selectedSalId === 'all') return rows;
-    if (selectedSalId === 'unassigned') return rows.filter(r => !r.salId);
-    return rows.filter(r => r.salId === selectedSalId);
-  }, [rows, selectedSalId]);
-
-  const grandTotal = filteredRows.reduce((s, r) => s + r.total, 0);
-
-  // Cumulative total from prior SALs (only when viewing a specific SAL)
-  const selectedSal = React.useMemo(
-    () => sals.find(s => s.id === selectedSalId),
-    [sals, selectedSalId]
-  );
-
-  const cumulativePriorTotal = React.useMemo(() => {
-    if (!selectedSal) return 0;
-    const priorSalIds = new Set(sals.filter(s => s.number < selectedSal.number).map(s => s.id));
-    return rows.filter(r => r.salId && priorSalIds.has(r.salId)).reduce((s, r) => s + r.total, 0);
-  }, [selectedSal, sals, rows]);
-
-  // Unassigned rows count/total for create SAL preview
-  const unassignedRows = React.useMemo(() => rows.filter(r => !r.salId), [rows]);
-  const unassignedTotal = unassignedRows.reduce((s, r) => s + r.total, 0);
+  const grandTotal = rows.reduce((s, r) => s + r.total, 0);
 
   // Group rows by selected dimension
   const grouped = React.useMemo(() => {
     const map = new Map<string, AggregatedRow[]>();
-    for (const row of filteredRows) {
+    for (const row of rows) {
       let key: string;
       switch (groupBy) {
         case 'floor': key = row.floor; break;
@@ -239,7 +196,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       map.get(key)!.push(row);
     }
     return map;
-  }, [filteredRows, groupBy]);
+  }, [rows, groupBy]);
 
   const formatCurrency = (n: number) =>
     n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
@@ -284,24 +241,11 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   }, [localPrices, project.id]);
 
   const handleExport = () => {
-    const exportRows = filteredRows;
-    const exportTotal = grandTotal;
-
     // Sheet 1: Riepilogo
-    const summaryData: any[][] = [];
-
-    // Se stiamo esportando un SAL specifico, aggiungi header
-    if (selectedSal) {
-      summaryData.push(['Progetto', project.title]);
-      summaryData.push(['SAL', `SAL ${selectedSal.number}${selectedSal.name ? ' — ' + selectedSal.name : ''}`]);
-      summaryData.push(['Data', new Date(selectedSal.date).toLocaleDateString('it-IT')]);
-      summaryData.push([]);
-    }
-
-    summaryData.push(
+    const summaryData: any[][] = [
       ['Piano', 'Tipologico', 'Supporto', 'Attraversamento', 'Quantità', 'Unità', 'Prezzo unit.', 'Totale'],
-    );
-    for (const row of exportRows) {
+    ];
+    for (const row of rows) {
       summaryData.push([
         row.floor,
         row.tipologicoLabel,
@@ -313,19 +257,13 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         row.total,
       ]);
     }
-    summaryData.push(['', '', '', '', '', '', 'TOTALE', exportTotal]);
-
-    if (selectedSal) {
-      summaryData.push([]);
-      summaryData.push(['', '', '', '', '', '', 'Cumulativo precedenti', cumulativePriorTotal]);
-      summaryData.push(['', '', '', '', '', '', 'TOTALE PROGETTO', cumulativePriorTotal + exportTotal]);
-    }
+    summaryData.push(['', '', '', '', '', '', 'TOTALE', grandTotal]);
 
     // Sheet 2: Dettaglio
     const detailData: any[][] = [
       ['Progetto', 'Piano', 'Tipologico', 'ID Mappatura', 'Supporto', 'Tipo Supporto', 'Attraversamento', 'Quantità', 'Unità', 'Prezzo unit.', 'Totale'],
     ];
-    for (const row of exportRows) {
+    for (const row of rows) {
       detailData.push([
         project.title,
         row.floor,
@@ -347,46 +285,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
 
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
-
-    const filename = selectedSal
-      ? `SAL_${selectedSal.number}_${project.title.replace(/\s+/g, '_')}.xlsx`
-      : `contabilita_${project.title.replace(/\s+/g, '_')}.xlsx`;
-    saveAs(blob, filename);
-  };
-
-  // ---- SAL handlers ----
-
-  const openCreateSalModal = () => {
-    const nextNumber = sals.length > 0 ? Math.max(...sals.map(s => s.number)) + 1 : 1;
-    const now = new Date();
-    const monthName = MONTH_NAMES[now.getMonth()];
-    setSalName(`SAL ${nextNumber} — ${monthName} ${now.getFullYear()}`);
-    setSalDate(now.toISOString().split('T')[0]);
-    setSalNotes('');
-    setShowCreateSalModal(true);
-  };
-
-  const handleCreateSal = async () => {
-    if (isCreatingSal) return;
-    setIsCreatingSal(true);
-    try {
-      const dateTs = new Date(salDate).getTime();
-      const newSal = await createSal(project.id, salName || undefined, dateTs, salNotes || undefined);
-      await assignCrossingsToSal(project.id, newSal.id, currentUser.id);
-      await loadData();
-      setSelectedSalId(newSal.id);
-      setShowCreateSalModal(false);
-    } finally {
-      setIsCreatingSal(false);
-    }
-  };
-
-  const handleDeleteSal = async () => {
-    if (!selectedSal) return;
-    await deleteSal(selectedSal.id, project.id, currentUser.id);
-    setSelectedSalId('all');
-    setShowDeleteConfirm(false);
-    await loadData();
+    saveAs(blob, `contabilita_${project.title.replace(/\s+/g, '_')}.xlsx`);
   };
 
   return (
@@ -417,67 +316,14 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         </button>
       </div>
 
-      {/* SAL selector row */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-brand-500 font-medium">Vista SAL</span>
-        <div className="relative">
-          <select
-            value={selectedSalId}
-            onChange={e => setSelectedSalId(e.target.value)}
-            className="appearance-none text-xs font-semibold text-accent bg-accent/10 pl-3 pr-7 py-1.5 rounded-full border-0 focus:outline-none"
-          >
-            <option value="all">Tutto</option>
-            <option value="unassigned">Non contabilizzato</option>
-            {sals.map(s => (
-              <option key={s.id} value={s.id}>
-                SAL {s.number}{s.name ? ` — ${s.name}` : ''}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-accent pointer-events-none" />
-        </div>
-
-        <button
-          onClick={openCreateSalModal}
-          disabled={unassignedRows.length === 0}
-          className="flex items-center gap-1 text-xs font-semibold text-white bg-accent px-3 py-1.5 rounded-full active:scale-95 transition-transform disabled:opacity-40 disabled:pointer-events-none"
-        >
-          <Plus size={13} />
-          Crea SAL
-        </button>
-
-        {selectedSal && (
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-1 text-xs font-semibold text-danger bg-danger/10 px-3 py-1.5 rounded-full active:scale-95 transition-transform"
-          >
-            <Trash2 size={13} />
-            Elimina
-          </button>
-        )}
-      </div>
-
       {/* Summary table */}
       <div className="bg-white rounded-2xl shadow-card overflow-hidden">
         <div className="px-4 py-3 border-b border-brand-100">
-          <h3 className="text-sm font-bold text-brand-800">
-            {selectedSal
-              ? `SAL ${selectedSal.number}${selectedSal.name ? ` — ${selectedSal.name}` : ''}`
-              : 'Riepilogo Attraversamenti'
-            }
-          </h3>
-          {selectedSal && (
-            <p className="text-xs text-brand-400 mt-0.5">
-              {new Date(selectedSal.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-          )}
+          <h3 className="text-sm font-bold text-brand-800">Riepilogo Attraversamenti</h3>
         </div>
-        {filteredRows.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-brand-500">
-            {selectedSalId === 'unassigned'
-              ? 'Tutti gli attraversamenti sono già contabilizzati in un SAL'
-              : 'Nessun attraversamento registrato'
-            }
+            Nessun attraversamento registrato
           </div>
         ) : (
           <>
@@ -521,35 +367,11 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             })}
             {/* Grand total */}
             <div className="px-4 py-3.5 flex justify-between bg-accent/5">
-              <span className="text-sm font-bold text-brand-800">
-                {selectedSal ? `TOTALE SAL ${selectedSal.number}` : 'TOTALE PROGETTO'}
-              </span>
+              <span className="text-sm font-bold text-brand-800">TOTALE PROGETTO</span>
               <span className="text-sm font-bold text-accent">
                 {grandTotal > 0 ? formatCurrency(grandTotal) : '—'}
               </span>
             </div>
-
-            {/* Cumulative totals (only for specific SAL view) */}
-            {selectedSal && (
-              <>
-                <div className="px-4 py-2.5 flex justify-between border-t border-brand-100">
-                  <span className="text-xs text-brand-500">
-                    Cumulativo SAL precedenti
-                  </span>
-                  <span className="text-xs font-semibold text-brand-600">
-                    {cumulativePriorTotal > 0 ? formatCurrency(cumulativePriorTotal) : '—'}
-                  </span>
-                </div>
-                <div className="px-4 py-2.5 flex justify-between bg-accent/10">
-                  <span className="text-xs font-bold text-brand-800">
-                    TOTALE COMPLESSIVO
-                  </span>
-                  <span className="text-xs font-bold text-accent">
-                    {(grandTotal + cumulativePriorTotal) > 0 ? formatCurrency(grandTotal + cumulativePriorTotal) : '—'}
-                  </span>
-                </div>
-              </>
-            )}
           </>
         )}
       </div>
@@ -612,98 +434,6 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           </div>
         )}
       </div>
-
-      {/* ---- Create SAL Modal ---- */}
-      {showCreateSalModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowCreateSalModal(false)}>
-          <div
-            className="bg-white w-full max-w-lg rounded-t-2xl p-5 space-y-4 animate-slide-up"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-brand-800">Crea SAL</h3>
-              <button onClick={() => setShowCreateSalModal(false)} className="p-1 text-brand-400">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-brand-600 mb-1 block">Nome</label>
-                <input
-                  type="text"
-                  value={salName}
-                  onChange={e => setSalName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-brand-200 rounded-xl focus:outline-none focus:border-accent"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-brand-600 mb-1 block">Data</label>
-                <input
-                  type="date"
-                  value={salDate}
-                  onChange={e => setSalDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-brand-200 rounded-xl focus:outline-none focus:border-accent"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-brand-600 mb-1 block">Note (opzionale)</label>
-                <textarea
-                  value={salNotes}
-                  onChange={e => setSalNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 text-sm border border-brand-200 rounded-xl focus:outline-none focus:border-accent resize-none"
-                />
-              </div>
-            </div>
-
-            {/* Preview */}
-            <div className="bg-accent/5 rounded-xl px-4 py-3">
-              <p className="text-xs text-brand-600">
-                Verranno contabilizzati <span className="font-bold text-accent">{unassignedRows.length}</span> attraversamenti
-                per un totale di <span className="font-bold text-accent">{formatCurrency(unassignedTotal)}</span>
-              </p>
-            </div>
-
-            <button
-              onClick={handleCreateSal}
-              disabled={isCreatingSal || unassignedRows.length === 0}
-              className="w-full py-3 bg-accent text-white text-sm font-bold rounded-xl active:scale-[0.98] transition-transform disabled:opacity-40"
-            >
-              {isCreatingSal ? 'Creazione...' : 'Conferma'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ---- Delete SAL Confirm Dialog ---- */}
-      {showDeleteConfirm && selectedSal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteConfirm(false)}>
-          <div
-            className="bg-white mx-4 max-w-sm w-full rounded-2xl p-5 space-y-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 className="text-base font-bold text-brand-800">Elimina SAL {selectedSal.number}?</h3>
-            <p className="text-sm text-brand-600">
-              Gli attraversamenti contenuti torneranno nello stato &quot;non contabilizzato&quot; e potranno essere assegnati a un nuovo SAL.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2.5 text-sm font-semibold text-brand-600 bg-brand-100 rounded-xl"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleDeleteSal}
-                className="flex-1 py-2.5 text-sm font-bold text-white bg-danger rounded-xl"
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

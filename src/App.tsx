@@ -1,32 +1,29 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import PasswordReset from './components/PasswordReset';
 import Dashboard from './components/Dashboard';
 import ProjectList from './components/ProjectList';
+import ProjectForm from './components/ProjectForm';
+import ProjectDetail from './components/ProjectDetail';
+import MappingWizard from './components/MappingWizard';
+import MapsOverview from './components/MapsOverview';
+import SettingsPage from './components/SettingsPage';
+import StandaloneFloorPlanEditor from './components/StandaloneFloorPlanEditor';
+import FloorPlanEditor from './components/FloorPlanEditor';
 import UpdateNotification from './components/UpdateNotification';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, db,
-  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint
+  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint, getFloorPlanPoints
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
-  startAutoSync, stopAutoSync, lockedSync,
-  getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
+  startAutoSync, stopAutoSync, processSyncQueue, syncFromSupabase,
+  getSyncStats, manualSync, clearAndSync, SyncStats, onSyncComplete, offSyncComplete
 } from './sync/syncEngine';
 import './App.css';
-
-// Lazy-loaded components: these pull in heavy libraries (jsPDF, pdf-lib, pdfjs-dist, xlsx)
-// and are only needed when the user navigates to specific views
-const ProjectForm = React.lazy(() => import('./components/ProjectForm'));
-const ProjectDetail = React.lazy(() => import('./components/ProjectDetail'));
-const MappingWizard = React.lazy(() => import('./components/MappingWizard'));
-const MapsOverview = React.lazy(() => import('./components/MapsOverview'));
-const SettingsPage = React.lazy(() => import('./components/SettingsPage'));
-const StandaloneFloorPlanEditor = React.lazy(() => import('./components/StandaloneFloorPlanEditor'));
-const FloorPlanEditor = React.lazy(() => import('./components/FloorPlanEditor'));
 
 type View = 'login' | 'passwordReset' | 'tabs' | 'projectForm' | 'projectEdit' | 'mapping' | 'projectDetail' | 'standaloneEditor' | 'floorPlanEditor';
 
@@ -46,12 +43,12 @@ const App: React.FC = () => {
     lastSyncTime: null,
     isSyncing: false
   });
-  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
 
   // Floor plan editor state for maps tab
   const [editorFloorPlan, setEditorFloorPlan] = useState<FloorPlan | null>(null);
   const [editorImageUrl, setEditorImageUrl] = useState<string | null>(null);
   const [editorProject, setEditorProject] = useState<Project | null>(null);
+  const [editorInitialPoints, setEditorInitialPoints] = useState<import('./components/FloorPlanCanvas').CanvasPoint[]>([]);
 
   // Handle browser back button
   useEffect(() => {
@@ -144,7 +141,8 @@ const App: React.FC = () => {
       setIsOnline(true);
       if (isSupabaseConfigured()) {
         try {
-          await lockedSync();
+          await processSyncQueue();
+          await syncFromSupabase();
           await updateSyncStats();
         } catch (err) {
           console.error('Sync after reconnection failed:', err);
@@ -174,7 +172,8 @@ const App: React.FC = () => {
     const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'BACKGROUND_SYNC') {
         try {
-          await lockedSync();
+          await processSyncQueue();
+          await syncFromSupabase();
           await updateSyncStats();
         } catch {}
       }
@@ -227,27 +226,18 @@ const App: React.FC = () => {
     if (!isSupabaseConfigured()) { alert('Supabase not configured.'); return; }
     try {
       setSyncStats(prev => ({ ...prev, isSyncing: true }));
-      setSyncProgress({ step: 0, totalSteps: 6, phase: 'Avvio sincronizzazione...' });
       const result = await manualSync({
         onPhotoDecisionNeeded: () => Promise.resolve(
           window.confirm('Sincronizzare anche le foto?')
         ),
-        onProgress: setSyncProgress,
       });
       await updateSyncStats();
-      const d = result.downloadResult;
-      const u = result.uploadResult;
-      setSyncProgress({
-        step: 6, totalSteps: 6,
-        phase: 'Sync completato',
-        detail: `${u.processedCount} caricati, ${d.projectsCount} prog., ${d.entriesCount} map., ${d.floorPlansCount} plan.${d.photosCount > 0 ? `, ${d.photosCount} foto` : ''}`
-      });
-      // Auto-dismiss after 4 seconds
-      setTimeout(() => setSyncProgress(null), 4000);
+      const photosInfo = result.downloadResult.photosCount > 0
+        ? `, ${result.downloadResult.photosCount} foto` : '';
+      alert(`Sync completato!\nCaricati: ${result.uploadResult.processedCount}\nScaricati: ${result.downloadResult.projectsCount} prog., ${result.downloadResult.entriesCount} map., ${result.downloadResult.floorPlansCount} plan.${photosInfo}`);
     } catch {
-      setSyncProgress({ step: 0, totalSteps: 6, phase: 'Errore sincronizzazione', detail: 'Riprova più tardi' });
+      alert('Sync failed.');
       setSyncStats(prev => ({ ...prev, isSyncing: false }));
-      setTimeout(() => setSyncProgress(null), 4000);
     }
   };
 
@@ -362,12 +352,28 @@ const App: React.FC = () => {
 
     setEditorProject(project);
     setEditorFloorPlan(floorPlan);
-    // Revoke previous blob URL before creating a new one
-    if (editorImageUrl) {
-      URL.revokeObjectURL(editorImageUrl);
-    }
     if (floorPlan.imageBlob) {
       setEditorImageUrl(getFloorPlanBlobUrl(floorPlan.imageBlob));
+    }
+    try {
+      const dbPoints = await getFloorPlanPoints(floorPlan.id);
+      const canvasPoints = dbPoints.map(p => ({
+        id: p.id,
+        type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
+        pointX: p.pointX,
+        pointY: p.pointY,
+        labelX: p.labelX,
+        labelY: p.labelY,
+        labelText: p.metadata?.labelText || ['Punto'],
+        perimeterPoints: p.perimeterPoints,
+        mappingEntryId: p.mappingEntryId,
+        labelBackgroundColor: p.metadata?.labelBackgroundColor,
+        labelTextColor: p.metadata?.labelTextColor,
+      }));
+      setEditorInitialPoints(canvasPoints);
+    } catch (err) {
+      console.warn('Could not load floor plan points:', err);
+      setEditorInitialPoints([]);
     }
     setCurrentView('floorPlanEditor');
   };
@@ -379,13 +385,10 @@ const App: React.FC = () => {
       setCurrentView('tabs');
       setActiveTab('maps');
     }
-    // Revoke blob URL to prevent memory leak
-    if (editorImageUrl) {
-      URL.revokeObjectURL(editorImageUrl);
-    }
     setEditorFloorPlan(null);
     setEditorImageUrl(null);
     setEditorProject(null);
+    setEditorInitialPoints([]);
   };
 
   const handleOpenStandaloneEditor = () => {
@@ -479,6 +482,7 @@ const App: React.FC = () => {
           return (
             <FloorPlanEditor
               imageUrl={editorImageUrl}
+              initialPoints={editorInitialPoints}
               mode="view-edit"
               initialGridConfig={editorFloorPlan.gridEnabled ? {
                 enabled: editorFloorPlan.gridEnabled,
@@ -525,7 +529,6 @@ const App: React.FC = () => {
                 <Dashboard
                   currentUser={currentUser}
                   syncStats={syncStats}
-                  syncProgress={syncProgress}
                   isOnline={isOnline}
                   onNavigateToProject={handleViewProject}
                   onAddMapping={handleEnterMapping}
@@ -586,13 +589,7 @@ const App: React.FC = () => {
       )}
 
       <ErrorBoundary>
-        <Suspense fallback={
-          <div className="flex items-center justify-center h-64">
-            <div className="w-8 h-8 border-3 border-accent border-t-transparent rounded-full animate-spin" />
-          </div>
-        }>
-          {renderContent()}
-        </Suspense>
+        {renderContent()}
       </ErrorBoundary>
 
       <UpdateNotification registration={swRegistration} />

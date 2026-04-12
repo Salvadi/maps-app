@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useBlobUrl } from '../hooks/useBlobUrl';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
@@ -507,6 +506,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                           {group.entries.map(entry => {
                             const photos = mappingPhotos[entry.id] || [];
                             const isExpanded = expandedMappings.has(entry.id);
+                            const firstPhotoUrl = photos.length > 0 ? URL.createObjectURL(photos[0].blob) : null;
 
                             return (
                               <div key={entry.id} className="bg-white rounded-xl shadow-card overflow-hidden">
@@ -517,7 +517,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                 >
                                   {/* Thumbnail */}
                                   <div className="w-12 h-12 rounded-lg bg-brand-50 flex-shrink-0 overflow-hidden">
-                                    <EntryThumbnail blob={photos.length > 0 ? photos[0].blob : undefined} />
+                                    {firstPhotoUrl ? (
+                                      <img src={firstPhotoUrl} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Camera size={16} className="text-brand-300" />
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
@@ -592,14 +598,18 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                     {/* Photo grid */}
                                     {photos.length > 0 && (
                                       <div className="grid grid-cols-4 gap-1.5 mb-3">
-                                        {photos.map((photo, pi) => (
-                                          <PhotoGridItem
-                                            key={photo.id || pi}
-                                            blob={photo.blob}
-                                            alt={`Foto ${pi + 1}`}
-                                            onSelect={(url) => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
-                                          />
-                                        ))}
+                                        {photos.map((photo, pi) => {
+                                          const url = URL.createObjectURL(photo.blob);
+                                          return (
+                                            <button
+                                              key={pi}
+                                              onClick={() => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
+                                              className="aspect-square rounded-lg overflow-hidden bg-brand-50"
+                                            >
+                                              <img src={url} alt="" className="w-full h-full object-cover" />
+                                            </button>
+                                          );
+                                        })}
                                       </div>
                                     )}
 
@@ -667,7 +677,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                           className="w-full active:scale-[0.98] transition-transform"
                         >
                           <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
-                            <PlanThumbnail blob={plan.thumbnailBlob} alt={`Piano ${plan.floor}`} />
+                            {plan.thumbnailBlob ? (
+                              <img
+                                src={URL.createObjectURL(plan.thumbnailBlob)}
+                                alt={`Piano ${plan.floor}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Map size={28} className="text-brand-300" />
+                            )}
                           </div>
                         </button>
                         <div className="px-3 py-2.5 flex items-center justify-between">
@@ -693,7 +711,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
             {/* Costs Tab */}
             {activeTab === 'costs' && (
-              <CostsTab project={project} currentUser={currentUser} />
+              <CostsTab project={project} />
             )}
 
             {/* Info Tab */}
@@ -808,44 +826,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       )}
     </div>
   );
-};
-
-/** Sub-component: entry thumbnail from first photo blob */
-const EntryThumbnail: React.FC<{ blob: Blob | undefined }> = ({ blob }) => {
-  const url = useBlobUrl(blob);
-  if (!url) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <Camera size={16} className="text-brand-300" />
-      </div>
-    );
-  }
-  return <img src={url} alt="" className="w-full h-full object-cover" />;
-};
-
-/** Sub-component: single photo in the grid */
-const PhotoGridItem: React.FC<{
-  blob: Blob;
-  alt: string;
-  onSelect: (url: string) => void;
-}> = ({ blob, alt, onSelect }) => {
-  const url = useBlobUrl(blob);
-  if (!url) return null;
-  return (
-    <button
-      onClick={() => onSelect(url)}
-      className="aspect-square rounded-lg overflow-hidden bg-brand-50"
-    >
-      <img src={url} alt={alt} className="w-full h-full object-cover" />
-    </button>
-  );
-};
-
-/** Sub-component: floor plan thumbnail */
-const PlanThumbnail: React.FC<{ blob: Blob | undefined; alt: string }> = ({ blob, alt }) => {
-  const url = useBlobUrl(blob);
-  if (!url) return <Map size={28} className="text-brand-300" />;
-  return <img src={url} alt={alt} className="w-full h-full object-cover" />;
 };
 
 export default ProjectDetail;

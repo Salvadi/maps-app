@@ -5,7 +5,6 @@ import {
   getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints
 } from '../db';
 import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
-import { useBlobUrl } from '../hooks/useBlobUrl';
 
 interface MapsOverviewProps {
   currentUser: User;
@@ -119,7 +118,15 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
                       className="w-full active:scale-[0.98] transition-transform"
                     >
                       <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
-                        <ThumbnailImage blob={plan.thumbnailBlob} alt={`Piano ${plan.floor}`} />
+                        {plan.thumbnailBlob ? (
+                          <img
+                            src={URL.createObjectURL(plan.thumbnailBlob)}
+                            alt={`Piano ${plan.floor}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Map size={32} className="text-brand-300" />
+                        )}
                       </div>
                     </button>
                     <div className="px-3 py-2.5 flex items-center justify-between">
@@ -183,13 +190,6 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
       <div className="h-4" />
     </div>
   );
-};
-
-/** Sub-component that manages Blob URL lifecycle for a thumbnail */
-const ThumbnailImage: React.FC<{ blob: Blob | undefined; alt: string }> = ({ blob, alt }) => {
-  const url = useBlobUrl(blob);
-  if (!url) return <Map size={32} className="text-brand-300" />;
-  return <img src={url} alt={alt} className="w-full h-full object-cover" />;
 };
 
 export default MapsOverview;
