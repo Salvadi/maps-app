@@ -289,6 +289,7 @@ function _drawAnnotationsOnPage(
   scale: number,
   fontBold: PDFFont,
   fontItalic: PDFFont,
+  eiLegendPosition?: { x: number; y: number } | null,
 ): void {
   const dynFontSize   = Math.max(3, CANVAS_FONT_SIZE   * scale);
   const dynLineHeight = CANVAS_LINE_HEIGHT * scale;
@@ -418,6 +419,114 @@ function _drawAnnotationsOnPage(
       }
     }
   }
+
+  // 5. EI Legend (if position is set and there are points with EI ratings)
+  if (eiLegendPosition) {
+    // Get unique EI ratings used
+    const usedRatings = Array.from(new Set(
+      points.filter(p => p.eiRating).map(p => p.eiRating!)
+    )).sort((a, b) => a - b) as (30 | 60 | 90 | 120 | 180 | 240)[];
+
+    if (usedRatings.length > 0) {
+      const legendPadding = 8 * scale;
+      const legendFontSize = 10 * scale;
+      const legendLineHeight = 14 * scale;
+      const legendTitleHeight = 16 * scale;
+      const colorBoxSize = 12 * scale;
+      const colorBoxBorder = 2.5 * scale;
+      const gap = 5 * scale;
+
+      // Calculate legend dimensions
+      const titleWidth = fontBold.widthOfTextAtSize('Legenda EI', legendFontSize);
+      let maxTextWidth = titleWidth;
+      for (const ei of usedRatings) {
+        const textWidth = fontBold.widthOfTextAtSize(`EI ${ei}`, legendFontSize);
+        maxTextWidth = Math.max(maxTextWidth, colorBoxSize + gap + textWidth);
+      }
+      const legendWidth = maxTextWidth + (legendPadding * 2);
+      const legendHeight = legendTitleHeight + (usedRatings.length * legendLineHeight) + (legendPadding * 2);
+
+      // Convert normalized position to page coordinates
+      const legendX = toX(eiLegendPosition.x);
+      const legendTopY = toY(eiLegendPosition.y);
+      const legendBottomY = legendTopY - legendHeight;
+
+      // Draw legend background
+      page.drawRectangle({
+        x: legendX,
+        y: legendBottomY,
+        width: legendWidth,
+        height: legendHeight,
+        color: rgb(1, 1, 1),
+        borderColor: rgb(0.2, 0.2, 0.2),
+        borderWidth: 1,
+      });
+
+      // Draw title
+      page.drawText('Legenda EI', {
+        x: legendX + legendPadding,
+        y: legendTopY - legendPadding - legendFontSize,
+        font: fontBold,
+        size: legendFontSize,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+
+      // Draw separator line
+      page.drawLine({
+        start: { x: legendX + legendPadding, y: legendTopY - legendPadding - legendTitleHeight + 2 * scale },
+        end: { x: legendX + legendWidth - legendPadding, y: legendTopY - legendPadding - legendTitleHeight + 2 * scale },
+        color: rgb(0.88, 0.88, 0.88),
+        thickness: 0.5,
+      });
+
+      // Draw each EI rating
+      let yOffset = legendPadding + legendTitleHeight;
+      for (const ei of usedRatings) {
+        const boxX = legendX + legendPadding;
+        const boxY = legendTopY - yOffset - colorBoxSize;
+
+        // Draw color box background
+        page.drawRectangle({
+          x: boxX,
+          y: boxY,
+          width: colorBoxSize,
+          height: colorBoxSize,
+          color: hexToRgbLib('#FAFAF0'),
+        });
+
+        // Draw EI colored border
+        page.drawRectangle({
+          x: boxX,
+          y: boxY,
+          width: colorBoxSize,
+          height: colorBoxSize,
+          borderColor: hexToRgbLib(EI_COLORS[ei]),
+          borderWidth: colorBoxBorder,
+        });
+
+        // Draw inner border
+        page.drawRectangle({
+          x: boxX + colorBoxBorder / 2,
+          y: boxY + colorBoxBorder / 2,
+          width: colorBoxSize - colorBoxBorder,
+          height: colorBoxSize - colorBoxBorder,
+          borderColor: rgb(0.2, 0.2, 0.2),
+          borderWidth: 0.3,
+        });
+
+        // Draw text
+        page.drawText(`EI ${ei}`, {
+          x: boxX + colorBoxSize + gap,
+          y: boxY + colorBoxSize / 2 - legendFontSize / 3,
+          font: fontBold,
+          size: legendFontSize,
+          color: rgb(0.2, 0.2, 0.2),
+        });
+
+        yOffset += legendLineHeight;
+      }
+    }
+  }
 }
 
 /**
@@ -427,6 +536,7 @@ function _drawAnnotationsOnPage(
 async function _buildWithRasterBackground(
   imageBlob: Blob,
   points: ExportPoint[],
+  eiLegendPosition?: { x: number; y: number } | null,
 ): Promise<Uint8Array> {
   const pdfDoc     = await PDFDocument.create();
   const fontBold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -453,7 +563,7 @@ async function _buildWithRasterBackground(
   const page = pdfDoc.addPage([pageW, pageH]);
   page.drawImage(embeddedImg, { x: offsetX, y: offsetY, width: effectiveW, height: effectiveH });
 
-  _drawAnnotationsOnPage(page, points, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold, fontItalic);
+  _drawAnnotationsOnPage(page, points, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold, fontItalic, eiLegendPosition);
 
   return pdfDoc.save();
 }
@@ -468,6 +578,7 @@ async function _buildFromOriginalPDF(
   pdfBlobBase64: string,
   points: ExportPoint[],
   rotation: number = 0,
+  eiLegendPosition?: { x: number; y: number } | null,
 ): Promise<Uint8Array> {
   // Decodifica Base64 → bytes
   const binaryStr = atob(pdfBlobBase64);
@@ -486,7 +597,7 @@ async function _buildFromOriginalPDF(
     outDoc.addPage(copiedPage);
     const pageW = copiedPage.getWidth();
     const pageH = copiedPage.getHeight();
-    _drawAnnotationsOnPage(copiedPage, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic);
+    _drawAnnotationsOnPage(copiedPage, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic, eiLegendPosition);
   } else {
     // Con rotazione: embed la pagina originale come XObject e ruotala sulla nuova pagina.
     // Le annotazioni sono già nel sistema di coordinate dell'immagine ruotata (0-1 norm.),
@@ -532,7 +643,7 @@ async function _buildFromOriginalPDF(
     });
 
     // Le annotazioni sono nel sistema di coordinate dell'immagine ruotata → pageW × pageH
-    _drawAnnotationsOnPage(page, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic);
+    _drawAnnotationsOnPage(page, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic, eiLegendPosition);
   }
 
   return outDoc.save();
@@ -576,12 +687,13 @@ export async function buildFloorPlanVectorPDF(
   points: ExportPoint[],
   pdfBlobBase64?: string,
   rotation: number = 0,
+  eiLegendPosition?: { x: number; y: number } | null,
 ): Promise<Uint8Array> {
   if (pdfBlobBase64) {
-    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation);
+    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation, eiLegendPosition);
   }
   const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
-  return _buildWithRasterBackground(blob, points);
+  return _buildWithRasterBackground(blob, points, eiLegendPosition);
 }
 
 /**
@@ -595,8 +707,9 @@ export async function exportFloorPlanVectorPDF(
   filename: string,
   pdfBlobBase64?: string,
   rotation: number = 0,
+  eiLegendPosition?: { x: number; y: number } | null,
 ): Promise<void> {
-  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation);
+  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation, eiLegendPosition);
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

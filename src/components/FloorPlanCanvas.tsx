@@ -70,6 +70,9 @@ interface FloorPlanCanvasProps {
   onCompletePerimeter?: () => void; // External trigger to complete perimeter
   onCancelPerimeter?: () => void; // External trigger to cancel perimeter
   readOnlyPoints?: CanvasPoint[]; // Points to display as read-only (semi-transparent, no interaction)
+  // EI Legend
+  eiLegendPosition?: { x: number; y: number } | null; // Normalized 0-1 position, null = hidden
+  onEiLegendMove?: (x: number, y: number) => void; // Callback when legend is dragged
 }
 
 const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(({
@@ -85,6 +88,8 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   zoomOutTrigger,
   onPerimeterDrawingChange,
   readOnlyPoints = [],
+  eiLegendPosition,
+  onEiLegendMove,
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,6 +108,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   const [perimeterPoints, setPerimeterPoints] = useState<Array<{ x: number; y: number }>>([]);
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
   const [currentMousePos, setCurrentMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingLegend, setIsDraggingLegend] = useState(false);
 
   // ============================================
   // SEZIONE: Cache e costanti
@@ -323,10 +329,13 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
       }
     }
 
+    // Draw EI Legend (on top of everything)
+    drawEiLegend(ctx);
+
     // Restore context state
     ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints]);
+  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints, eiLegendPosition]);
 
   // Draw grid
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
@@ -480,6 +489,129 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
       }
     });
   };
+
+  // Get unique EI ratings used in points
+  const getUsedEiRatings = useCallback((): EiRating[] => {
+    const usedRatings = new Set<EiRating>();
+    for (const point of points) {
+      if (point.eiRating) {
+        usedRatings.add(point.eiRating);
+      }
+    }
+    return Array.from(usedRatings).sort((a, b) => a - b);
+  }, [points]);
+
+  // Calculate EI legend dimensions
+  const getEiLegendDimensions = useCallback((ctx: CanvasRenderingContext2D, usedRatings: EiRating[]): { width: number; height: number } => {
+    if (usedRatings.length === 0) return { width: 0, height: 0 };
+
+    const padding = 8 * zoom;
+    const fontSize = 12 * zoom;
+    const lineHeight = 18 * zoom;
+    const titleHeight = 20 * zoom;
+    const colorBoxSize = 14 * zoom;
+    const gap = 6 * zoom;
+    const font = `bold ${fontSize}px Arial`;
+    ctx.font = font;
+
+    // Calculate width based on longest text
+    const titleWidth = cachedMeasureText(ctx, 'Legenda EI', font);
+    let maxTextWidth = titleWidth;
+    for (const ei of usedRatings) {
+      const textWidth = cachedMeasureText(ctx, `EI ${ei}`, font);
+      maxTextWidth = Math.max(maxTextWidth, colorBoxSize + gap + textWidth);
+    }
+
+    const width = maxTextWidth + (padding * 2);
+    const height = titleHeight + (usedRatings.length * lineHeight) + (padding * 2);
+
+    return { width, height };
+  }, [zoom, cachedMeasureText]);
+
+  // Draw EI Legend
+  const drawEiLegend = (ctx: CanvasRenderingContext2D) => {
+    if (!eiLegendPosition) return;
+
+    const usedRatings = getUsedEiRatings();
+    if (usedRatings.length === 0) return;
+
+    const { x, y } = normalizedToCanvas(eiLegendPosition.x, eiLegendPosition.y);
+
+    const padding = 8 * zoom;
+    const fontSize = 12 * zoom;
+    const lineHeight = 18 * zoom;
+    const titleHeight = 20 * zoom;
+    const colorBoxSize = 14 * zoom;
+    const colorBoxBorder = 3 * zoom;
+    const gap = 6 * zoom;
+
+    const { width: legendWidth, height: legendHeight } = getEiLegendDimensions(ctx, usedRatings);
+
+    // Draw background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 1 * zoom;
+    ctx.fillRect(x, y, legendWidth, legendHeight);
+    ctx.strokeRect(x, y, legendWidth, legendHeight);
+
+    // Draw title
+    const boldFont = `bold ${fontSize}px Arial`;
+    ctx.font = boldFont;
+    ctx.fillStyle = '#333333';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Legenda EI', x + padding, y + padding);
+
+    // Draw separator line
+    ctx.strokeStyle = '#E0E0E0';
+    ctx.lineWidth = 1 * zoom;
+    ctx.beginPath();
+    ctx.moveTo(x + padding, y + padding + titleHeight - 4 * zoom);
+    ctx.lineTo(x + legendWidth - padding, y + padding + titleHeight - 4 * zoom);
+    ctx.stroke();
+
+    // Draw each EI rating
+    let yOffset = padding + titleHeight;
+    for (const ei of usedRatings) {
+      const boxX = x + padding;
+      const boxY = y + yOffset;
+
+      // Draw color box with EI border
+      ctx.fillStyle = '#FAFAF0';
+      ctx.fillRect(boxX, boxY, colorBoxSize, colorBoxSize);
+      ctx.strokeStyle = EI_COLORS[ei];
+      ctx.lineWidth = colorBoxBorder;
+      ctx.strokeRect(boxX, boxY, colorBoxSize, colorBoxSize);
+
+      // Draw inner border
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 0.5 * zoom;
+      ctx.strokeRect(boxX + colorBoxBorder/2, boxY + colorBoxBorder/2, colorBoxSize - colorBoxBorder, colorBoxSize - colorBoxBorder);
+
+      // Draw text
+      ctx.font = boldFont;
+      ctx.fillStyle = '#333333';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`EI ${ei}`, boxX + colorBoxSize + gap, boxY + colorBoxSize / 2);
+
+      yOffset += lineHeight;
+    }
+  };
+
+  // Check if point is on EI legend
+  const isPointOnEiLegend = useCallback((cx: number, cy: number): boolean => {
+    if (!eiLegendPosition) return false;
+
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return false;
+
+    const usedRatings = getUsedEiRatings();
+    if (usedRatings.length === 0) return false;
+
+    const { x, y } = normalizedToCanvas(eiLegendPosition.x, eiLegendPosition.y);
+    const { width, height } = getEiLegendDimensions(ctx, usedRatings);
+
+    return cx >= x && cx <= x + width && cy >= y && cy <= y + height;
+  }, [eiLegendPosition, getUsedEiRatings, getEiLegendDimensions, normalizedToCanvas]);
 
   // Helper function to find closest point on a line segment to a given point
   const getClosestPointOnSegment = (
@@ -657,9 +789,17 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
       setIsDragging(true);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     } else if (activeTool === 'move') {
+      // Check if clicking on EI legend first
+      if (isPointOnEiLegend(x, y)) {
+        setIsDraggingLegend(true);
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+        return;
+      }
+
       // Check if clicking on a point or label
       const clickedPoint = findPointAt(x, y);
-      
+
       if (clickedPoint) {
         setDraggedPoint(clickedPoint);
         setIsDragging(true);
@@ -717,6 +857,20 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
+    } else if (activeTool === 'move' && isDraggingLegend && eiLegendPosition) {
+      // Handle legend dragging
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+
+      if (image) {
+        const newX = eiLegendPosition.x + (deltaX / (image.width * zoom));
+        const newY = eiLegendPosition.y + (deltaY / (image.height * zoom));
+        onEiLegendMove?.(
+          Math.max(0, Math.min(1, newX)),
+          Math.max(0, Math.min(1, newY))
+        );
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
     } else if (activeTool === 'move' && draggedPoint) {
       const normalized = canvasToNormalized(x, y);
 
@@ -738,6 +892,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   const handleMouseUp = () => {
     setIsDragging(false);
     setDraggedPoint(null);
+    setIsDraggingLegend(false);
   };
 
   // Handle double click to complete perimeter
@@ -926,6 +1081,14 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         setIsDragging(true);
         setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
       } else if (activeTool === 'move') {
+        // Check if touching EI legend first
+        if (isPointOnEiLegend(x, y)) {
+          setIsDraggingLegend(true);
+          setIsDragging(true);
+          setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+          return;
+        }
+
         // Check if touching a point or label
         const clickedPoint = findPointAt(x, y);
 
@@ -987,6 +1150,20 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
           x: e.touches[0].clientX - dragStart.x,
           y: e.touches[0].clientY - dragStart.y,
         });
+      } else if (activeTool === 'move' && isDraggingLegend && eiLegendPosition) {
+        // Handle legend dragging on touch
+        const deltaX = e.touches[0].clientX - dragStart.x;
+        const deltaY = e.touches[0].clientY - dragStart.y;
+
+        if (image) {
+          const newX = eiLegendPosition.x + (deltaX / (image.width * zoom));
+          const newY = eiLegendPosition.y + (deltaY / (image.height * zoom));
+          onEiLegendMove?.(
+            Math.max(0, Math.min(1, newX)),
+            Math.max(0, Math.min(1, newY))
+          );
+          setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        }
       } else if (activeTool === 'move' && draggedPoint) {
         const normalized = canvasToNormalized(x, y);
 
@@ -1008,6 +1185,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   const handleTouchEnd = () => {
     setIsDragging(false);
     setDraggedPoint(null);
+    setIsDraggingLegend(false);
     setLastTouchDistance(null);
     setLastTouchCenter(null);
   };

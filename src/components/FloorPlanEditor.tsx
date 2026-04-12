@@ -158,11 +158,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
   }, [recentTextColors]);
 
-  // EI Legend state
-  const [showEiLegend, setShowEiLegend] = useState(true);
-  const [eiLegendPosition, setEiLegendPosition] = useState({ x: 20, y: 20 });
-  const [isDraggingLegend, setIsDraggingLegend] = useState(false);
-  const [legendDragOffset, setLegendDragOffset] = useState({ x: 0, y: 0 });
+  // EI Legend state (normalized 0-1 coordinates, null = hidden)
+  const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>({ x: 0.02, y: 0.02 });
+
+  // Handle EI legend move
+  const handleEiLegendMove = useCallback((x: number, y: number) => {
+    setEiLegendPosition({ x, y });
+    setHasUnsavedChanges(true);
+  }, []);
 
   // ============================================
   // SEZIONE: Gestione punti
@@ -347,15 +350,16 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         perimeterPoints: p.perimeterPoints,
         labelBackgroundColor: p.labelBackgroundColor,
         labelTextColor: p.labelTextColor,
+        eiRating: p.eiRating,
       }));
 
-      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf');
+      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf', undefined, 0, eiLegendPosition);
       alert('✅ Planimetria esportata in PDF (vettoriale)');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [imageUrl, points, onExportPDFProp]);
+  }, [imageUrl, points, onExportPDFProp, eiLegendPosition]);
 
   // Handle export to PNG
   const handleExportPNG = useCallback(() => {
@@ -972,6 +976,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             onCompletePerimeter={handleCompletePerimeter}
             onCancelPerimeter={handleCancelPerimeter}
             readOnlyPoints={readOnlyPoints}
+            eiLegendPosition={(mode === 'standalone' || mode === 'view-edit') ? eiLegendPosition : null}
+            onEiLegendMove={(mode === 'standalone' || mode === 'view-edit') ? handleEiLegendMove : undefined}
           />
 
           {/* Perimeter control buttons (V/X) */}
@@ -994,113 +1000,28 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             </div>
           )}
 
-          {/* Draggable EI Legend */}
+          {/* EI Legend toggle button */}
           {(mode === 'standalone' || mode === 'view-edit') && (
-            <>
-              {/* Toggle button for legend */}
-              <button
-                className="ei-legend-toggle"
-                onClick={() => setShowEiLegend(!showEiLegend)}
-                title={showEiLegend ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
-                style={{
-                  position: 'absolute',
-                  bottom: '10px',
-                  left: '10px',
-                  zIndex: 100,
-                  padding: '6px 10px',
-                  background: 'white',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                }}
-              >
-                {showEiLegend ? '🔥 Nascondi Legenda' : '🔥 Legenda EI'}
-              </button>
-
-              {showEiLegend && (
-                <div
-                  className="ei-legend"
-                  style={{
-                    position: 'absolute',
-                    left: eiLegendPosition.x,
-                    top: eiLegendPosition.y,
-                    zIndex: 99,
-                    background: 'white',
-                    border: '1px solid #ccc',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    cursor: isDraggingLegend ? 'grabbing' : 'grab',
-                    userSelect: 'none',
-                    minWidth: '100px',
-                  }}
-                  onMouseDown={(e) => {
-                    setIsDraggingLegend(true);
-                    setLegendDragOffset({
-                      x: e.clientX - eiLegendPosition.x,
-                      y: e.clientY - eiLegendPosition.y,
-                    });
-                  }}
-                  onMouseMove={(e) => {
-                    if (isDraggingLegend) {
-                      setEiLegendPosition({
-                        x: e.clientX - legendDragOffset.x,
-                        y: e.clientY - legendDragOffset.y,
-                      });
-                    }
-                  }}
-                  onMouseUp={() => setIsDraggingLegend(false)}
-                  onMouseLeave={() => setIsDraggingLegend(false)}
-                  onTouchStart={(e) => {
-                    const touch = e.touches[0];
-                    setIsDraggingLegend(true);
-                    setLegendDragOffset({
-                      x: touch.clientX - eiLegendPosition.x,
-                      y: touch.clientY - eiLegendPosition.y,
-                    });
-                  }}
-                  onTouchMove={(e) => {
-                    if (isDraggingLegend) {
-                      const touch = e.touches[0];
-                      setEiLegendPosition({
-                        x: touch.clientX - legendDragOffset.x,
-                        y: touch.clientY - legendDragOffset.y,
-                      });
-                    }
-                  }}
-                  onTouchEnd={() => setIsDraggingLegend(false)}
-                >
-                  <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '12px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
-                    Legenda EI
-                  </div>
-                  {([30, 60, 90, 120, 180, 240] as EiRating[]).map(ei => (
-                    <div
-                      key={ei}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '3px 0',
-                        fontSize: '12px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '20px',
-                          height: '14px',
-                          border: `3px solid ${EI_COLORS[ei]}`,
-                          borderRadius: '2px',
-                          background: '#FAFAF0',
-                        }}
-                      />
-                      <span>EI {ei}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            <button
+              className="ei-legend-toggle"
+              onClick={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
+              title={eiLegendPosition ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '10px',
+                zIndex: 100,
+                padding: '6px 10px',
+                background: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
+            >
+              {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda EI'}
+            </button>
           )}
         </div>
 
