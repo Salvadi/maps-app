@@ -515,7 +515,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     ctx.font = font;
 
     // Calculate width based on longest text
-    const titleWidth = cachedMeasureText(ctx, 'Legenda EI', font);
+    const titleWidth = cachedMeasureText(ctx, 'Legenda PPA', font);
     let maxTextWidth = titleWidth;
     for (const ei of usedRatings) {
       const textWidth = cachedMeasureText(ctx, `EI ${ei}`, font);
@@ -559,7 +559,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     ctx.font = boldFont;
     ctx.fillStyle = '#333333';
     ctx.textBaseline = 'top';
-    ctx.fillText('Legenda EI', x + padding, y + padding);
+    ctx.fillText('Legenda PPA', x + padding, y + padding);
 
     // Draw separator line
     ctx.strokeStyle = '#E0E0E0';

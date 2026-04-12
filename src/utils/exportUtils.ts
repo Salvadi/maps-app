@@ -1,4 +1,5 @@
 /**
+ * 
  * Export utilities for floor plans
  */
 
@@ -437,7 +438,7 @@ function _drawAnnotationsOnPage(
       const gap = 5 * scale;
 
       // Calculate legend dimensions
-      const titleWidth = fontBold.widthOfTextAtSize('Legenda EI', legendFontSize);
+      const titleWidth = fontBold.widthOfTextAtSize('Legenda PPA', legendFontSize);
       let maxTextWidth = titleWidth;
       for (const ei of usedRatings) {
         const textWidth = fontBold.widthOfTextAtSize(`EI ${ei}`, legendFontSize);
@@ -463,7 +464,7 @@ function _drawAnnotationsOnPage(
       });
 
       // Draw title
-      page.drawText('Legenda EI', {
+      page.drawText('Legenda PPA', {
         x: legendX + legendPadding,
         y: legendTopY - legendPadding - legendFontSize,
         font: fontBold,
