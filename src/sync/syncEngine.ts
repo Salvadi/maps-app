@@ -609,16 +609,8 @@ export async function manualSync(options?: {
 export async function phasedSyncFromSupabase(options?: {
   skipPhotos?: boolean;
   onPhotoDecisionNeeded?: () => Promise<boolean>;
-<<<<<<< HEAD
   onProgress?: (progress: SyncProgress) => void;
-<<<<<<< HEAD
 }): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }> {
-=======
-}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number }> {
->>>>>>> c00a70d (Feat: barra progresso sync in Dashboard e tipologici editabili da MappingWizard)
-=======
-}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }> {
->>>>>>> fc35d1c (Feat: SAL (Stato Avanzamento Lavori) nella contabilità)
   if (!isSupabaseConfigured()) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0 };
   }
@@ -638,30 +630,16 @@ export async function phasedSyncFromSupabase(options?: {
   const progress = options?.onProgress;
   const totalSteps = 6;
 
-<<<<<<< HEAD
   // Phase 1: Projects
   progress?.({ step: 2, totalSteps, phase: 'Download progetti...' });
   console.log('📦 Fase 1: Sincronizzazione dati...');
   const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 2, totalSteps, phase: 'Download progetti', detail: `${projectsCount} progetti` });
-=======
-  // Phase 1: Data (projects + mapping entries + SALs)
-  console.log('📦 Fase 1: Sincronizzazione dati...');
-  const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
-  const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-  const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
->>>>>>> fc35d1c (Feat: SAL (Stato Avanzamento Lavori) nella contabilità)
 
-<<<<<<< HEAD
   // Phase 2: Mapping entries + SALs
   progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
   const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
   const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
-=======
-  // Phase 2: Mapping entries
-  progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
-  const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
->>>>>>> c00a70d (Feat: barra progresso sync in Dashboard e tipologici editabili da MappingWizard)
   progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
 
   // Phase 3: Floor plans + points
