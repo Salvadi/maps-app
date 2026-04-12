@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle } from './FloorPlanCanvas';
+import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle, EI_COLORS, EiRating } from './FloorPlanCanvas';
 import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
@@ -157,6 +157,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   useEffect(() => {
     localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
   }, [recentTextColors]);
+
+  // EI Legend state
+  const [showEiLegend, setShowEiLegend] = useState(true);
+  const [eiLegendPosition, setEiLegendPosition] = useState({ x: 20, y: 20 });
+  const [isDraggingLegend, setIsDraggingLegend] = useState(false);
+  const [legendDragOffset, setLegendDragOffset] = useState({ x: 0, y: 0 });
 
   // ============================================
   // SEZIONE: Gestione punti
@@ -571,6 +577,18 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     // NON chiudere modal - permetti di cambiare tab e colorare anche l'altro elemento
   }, [selectedPointIds]);
 
+
+  // Handle apply EI rating to selected points
+  const handleApplyEiRating = useCallback((eiRating: EiRating | undefined) => {
+    setPoints(prev => prev.map(p => {
+      if (selectedPointIds.has(p.id)) {
+        return { ...p, eiRating };
+      }
+      return p;
+    }));
+    setHasUnsavedChanges(true);
+  }, [selectedPointIds]);
+
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
 
@@ -695,6 +713,54 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                       <span className="tool-icon">🎨</span>
                       Colora
                     </button>
+                  </div>
+
+                  {/* EI Rating selector */}
+                  <div className="toolbar-divider"></div>
+                  <div className="toolbar-section">
+                    <span className="toolbar-label">EI:</span>
+                    <div className="ei-buttons">
+                      {([30, 60, 90, 120, 180, 240] as EiRating[]).map(ei => (
+                        <button
+                          key={ei}
+                          className="ei-btn"
+                          style={{
+                            borderColor: EI_COLORS[ei],
+                            borderWidth: '3px',
+                            borderStyle: 'solid',
+                            opacity: selectedPointIds.size === 0 ? 0.5 : 1,
+                          }}
+                          onClick={() => {
+                            if (selectedPointIds.size === 0) {
+                              alert('Seleziona almeno un punto dal menu di destra');
+                              return;
+                            }
+                            handleApplyEiRating(ei);
+                          }}
+                          disabled={selectedPointIds.size === 0}
+                          title={`Imposta EI ${ei}`}
+                        >
+                          {ei}
+                        </button>
+                      ))}
+                      <button
+                        className="ei-btn ei-btn-clear"
+                        style={{
+                          opacity: selectedPointIds.size === 0 ? 0.5 : 1,
+                        }}
+                        onClick={() => {
+                          if (selectedPointIds.size === 0) {
+                            alert('Seleziona almeno un punto dal menu di destra');
+                            return;
+                          }
+                          handleApplyEiRating(undefined);
+                        }}
+                        disabled={selectedPointIds.size === 0}
+                        title="Rimuovi EI"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -926,6 +992,115 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 ✕
               </button>
             </div>
+          )}
+
+          {/* Draggable EI Legend */}
+          {(mode === 'standalone' || mode === 'view-edit') && (
+            <>
+              {/* Toggle button for legend */}
+              <button
+                className="ei-legend-toggle"
+                onClick={() => setShowEiLegend(!showEiLegend)}
+                title={showEiLegend ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
+                style={{
+                  position: 'absolute',
+                  bottom: '10px',
+                  left: '10px',
+                  zIndex: 100,
+                  padding: '6px 10px',
+                  background: 'white',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                }}
+              >
+                {showEiLegend ? '🔥 Nascondi Legenda' : '🔥 Legenda EI'}
+              </button>
+
+              {showEiLegend && (
+                <div
+                  className="ei-legend"
+                  style={{
+                    position: 'absolute',
+                    left: eiLegendPosition.x,
+                    top: eiLegendPosition.y,
+                    zIndex: 99,
+                    background: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    cursor: isDraggingLegend ? 'grabbing' : 'grab',
+                    userSelect: 'none',
+                    minWidth: '100px',
+                  }}
+                  onMouseDown={(e) => {
+                    setIsDraggingLegend(true);
+                    setLegendDragOffset({
+                      x: e.clientX - eiLegendPosition.x,
+                      y: e.clientY - eiLegendPosition.y,
+                    });
+                  }}
+                  onMouseMove={(e) => {
+                    if (isDraggingLegend) {
+                      setEiLegendPosition({
+                        x: e.clientX - legendDragOffset.x,
+                        y: e.clientY - legendDragOffset.y,
+                      });
+                    }
+                  }}
+                  onMouseUp={() => setIsDraggingLegend(false)}
+                  onMouseLeave={() => setIsDraggingLegend(false)}
+                  onTouchStart={(e) => {
+                    const touch = e.touches[0];
+                    setIsDraggingLegend(true);
+                    setLegendDragOffset({
+                      x: touch.clientX - eiLegendPosition.x,
+                      y: touch.clientY - eiLegendPosition.y,
+                    });
+                  }}
+                  onTouchMove={(e) => {
+                    if (isDraggingLegend) {
+                      const touch = e.touches[0];
+                      setEiLegendPosition({
+                        x: touch.clientX - legendDragOffset.x,
+                        y: touch.clientY - legendDragOffset.y,
+                      });
+                    }
+                  }}
+                  onTouchEnd={() => setIsDraggingLegend(false)}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '12px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
+                    Legenda EI
+                  </div>
+                  {([30, 60, 90, 120, 180, 240] as EiRating[]).map(ei => (
+                    <div
+                      key={ei}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '3px 0',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '20px',
+                          height: '14px',
+                          border: `3px solid ${EI_COLORS[ei]}`,
+                          borderRadius: '2px',
+                          background: '#FAFAF0',
+                        }}
+                      />
+                      <span>EI {ei}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 

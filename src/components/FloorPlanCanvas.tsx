@@ -24,6 +24,7 @@ export interface CanvasPoint {
   mappingEntryId?: string; // If linked to a mapping entry (for view-edit mode distinction)
   labelBackgroundColor?: string; // Custom background color for label (hex format "#RRGGBB")
   labelTextColor?: string; // Custom text color for label (hex format "#RRGGBB")
+  eiRating?: 30 | 60 | 90 | 120 | 180 | 240; // Fire resistance rating (EI)
 }
 
 export interface GridConfig {
@@ -35,6 +36,18 @@ export interface GridConfig {
 }
 
 export type Tool = 'pan' | 'move' | 'parete' | 'solaio' | 'perimetro' | 'generico' | 'zoom-in' | 'zoom-out' | 'color-picker';
+
+// EI (Fire Resistance) rating colors - distinct colors for each rating level
+export const EI_COLORS: Record<number, string> = {
+  30: '#4CAF50',   // Green
+  60: '#2196F3',   // Blue
+  90: '#FF9800',   // Orange
+  120: '#9C27B0',  // Purple
+  180: '#F44336',  // Red
+  240: '#795548',  // Brown
+};
+
+export type EiRating = 30 | 60 | 90 | 120 | 180 | 240;
 
 /** Methods exposed by FloorPlanCanvas via ref (useImperativeHandle) */
 export interface FloorPlanCanvasHandle {
@@ -398,6 +411,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     const lineHeight = 18 * zoom;
     const minWidth = 70 * zoom;
     const minHeight = 36 * zoom;
+    const eiBorderWidth = 3 * zoom; // EI rating border thickness
 
     const boldFont = `bold ${fontSize}px Arial`;
     const italicFont = `italic ${fontSize}px Arial`;
@@ -407,6 +421,16 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     const maxWidth = Math.max(...point.labelText.map(line => cachedMeasureText(ctx, line, boldFont)));
     const labelWidth = Math.max(maxWidth + (padding * 2), minWidth);
     const labelHeight = Math.max((point.labelText.length * lineHeight) + (padding * 2), minHeight);
+
+    // Draw EI rating outer border if set (colored vector border)
+    if (point.eiRating && EI_COLORS[point.eiRating]) {
+      const eiColor = EI_COLORS[point.eiRating];
+      ctx.strokeStyle = eiColor;
+      ctx.lineWidth = eiBorderWidth;
+      // Draw outer border with offset for the EI border
+      const offset = eiBorderWidth / 2;
+      ctx.strokeRect(x - offset, y - offset, labelWidth + eiBorderWidth, labelHeight + eiBorderWidth);
+    }
 
     // Draw label background
     const defaultBgColor = isSelected ? '#FFF3CD' : '#FAFAF0';

@@ -6,6 +6,16 @@ import jsPDF from 'jspdf';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument, StandardFonts, rgb, PDFFont, degrees } from 'pdf-lib';
 
+// EI (Fire Resistance) rating colors - must match FloorPlanCanvas.tsx
+const EI_COLORS: Record<number, string> = {
+  30: '#4CAF50',   // Green
+  60: '#2196F3',   // Blue
+  90: '#FF9800',   // Orange
+  120: '#9C27B0',  // Purple
+  180: '#F44336',  // Red
+  240: '#795548',  // Brown
+};
+
 // Set up PDF.js worker - use unpkg CDN for better compatibility
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -140,6 +150,7 @@ export interface ExportPoint {
   perimeterPoints?: Array<{ x: number; y: number }>;
   labelBackgroundColor?: string;  // hex #RRGGBB
   labelTextColor?: string;        // hex #RRGGBB
+  eiRating?: 30 | 60 | 90 | 120 | 180 | 240;  // Fire resistance rating (EI)
 }
 
 // Costanti canvas originale (in px, su immagine a risoluzione piena)
@@ -285,6 +296,7 @@ function _drawAnnotationsOnPage(
   const dynMinLabelW  = CANVAS_MIN_LABEL_W * scale;
   const dynMinLabelH  = CANVAS_MIN_LABEL_H * scale;
   const dynPointR     = Math.max(2, CANVAS_POINT_R * scale);
+  const eiBorderWidth = 3 * scale;  // EI border thickness
 
   const toX    = (nx: number) => offsetX + nx * effectiveW;
   const toY    = (ny: number) => offsetY + (1 - ny) * effectiveH;
@@ -361,6 +373,20 @@ function _drawAnnotationsOnPage(
 
     const bgColor   = point.labelBackgroundColor ? hexToRgbLib(point.labelBackgroundColor) : hexToRgbLib(EXPORT_DEFAULT_BG);
     const textColor = point.labelTextColor       ? hexToRgbLib(point.labelTextColor)       : rgb(0, 0, 0);
+
+    // Draw EI rating outer border if set
+    if (point.eiRating && EI_COLORS[point.eiRating]) {
+      const eiColor = hexToRgbLib(EI_COLORS[point.eiRating]);
+      const offset = eiBorderWidth / 2;
+      page.drawRectangle({
+        x: labelTopX - offset,
+        y: labelBottomY - offset,
+        width: lw + eiBorderWidth,
+        height: lh + eiBorderWidth,
+        borderColor: eiColor,
+        borderWidth: eiBorderWidth,
+      });
+    }
 
     page.drawRectangle({
       x: labelTopX,
