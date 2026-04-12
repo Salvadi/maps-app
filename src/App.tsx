@@ -16,7 +16,7 @@ import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, db,
-  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint
+  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint, getFloorPlanPoints
 } from './db';
 import { isSupabaseConfigured } from './lib/supabase';
 import {
@@ -48,6 +48,7 @@ const App: React.FC = () => {
   const [editorFloorPlan, setEditorFloorPlan] = useState<FloorPlan | null>(null);
   const [editorImageUrl, setEditorImageUrl] = useState<string | null>(null);
   const [editorProject, setEditorProject] = useState<Project | null>(null);
+  const [editorInitialPoints, setEditorInitialPoints] = useState<import('./components/FloorPlanCanvas').CanvasPoint[]>([]);
 
   // Handle browser back button
   useEffect(() => {
@@ -316,11 +317,31 @@ const App: React.FC = () => {
     }
   };
 
-  const handleOpenFloorPlanEditor = (project: Project, floorPlan: FloorPlan) => {
+  const handleOpenFloorPlanEditor = async (project: Project, floorPlan: FloorPlan) => {
     setEditorProject(project);
     setEditorFloorPlan(floorPlan);
     if (floorPlan.imageBlob) {
       setEditorImageUrl(getFloorPlanBlobUrl(floorPlan.imageBlob));
+    }
+    try {
+      const dbPoints = await getFloorPlanPoints(floorPlan.id);
+      const canvasPoints = dbPoints.map(p => ({
+        id: p.id,
+        type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
+        pointX: p.pointX,
+        pointY: p.pointY,
+        labelX: p.labelX,
+        labelY: p.labelY,
+        labelText: p.metadata?.labelText || ['Punto'],
+        perimeterPoints: p.perimeterPoints,
+        mappingEntryId: p.mappingEntryId,
+        labelBackgroundColor: p.metadata?.labelBackgroundColor,
+        labelTextColor: p.metadata?.labelTextColor,
+      }));
+      setEditorInitialPoints(canvasPoints);
+    } catch (err) {
+      console.warn('Could not load floor plan points:', err);
+      setEditorInitialPoints([]);
     }
     setCurrentView('floorPlanEditor');
   };
@@ -335,6 +356,7 @@ const App: React.FC = () => {
     setEditorFloorPlan(null);
     setEditorImageUrl(null);
     setEditorProject(null);
+    setEditorInitialPoints([]);
   };
 
   const handleOpenStandaloneEditor = () => {
@@ -428,6 +450,7 @@ const App: React.FC = () => {
           return (
             <FloorPlanEditor
               imageUrl={editorImageUrl}
+              initialPoints={editorInitialPoints}
               mode="view-edit"
               initialGridConfig={editorFloorPlan.gridEnabled ? {
                 enabled: editorFloorPlan.gridEnabled,
