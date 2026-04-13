@@ -8,7 +8,6 @@ import {
   assignCrossingsToSal,
   getMappingEntriesForProject,
 } from '../db';
-import { format } from 'date-fns';
 import { PlusCircle, ClipboardList, Edit, Link, Trash, Check, X, Info } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 
@@ -42,12 +41,13 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
     setSals(projectSals.sort((a, b) => (b.date || 0) - (a.date || 0)));
 
     const allMappings = mappings; // already filtered by project.id by useLiveQuery
-    const unassigned = allMappings.filter(m => !m.salId).length;
+    const allCrossings = allMappings.flatMap(m => m.crossings || []);
+    const unassigned = allCrossings.filter(c => !c.salId).length;
     setUnassignedCount(unassigned);
 
     const salMap: Record<string, number> = {};
     for (const sal of projectSals) {
-      salMap[sal.id] = allMappings.filter(m => m.salId === sal.id).length;
+      salMap[sal.id] = allCrossings.filter(c => c.salId === sal.id).length;
     }
     setSalCrossingsMap(salMap);
     setLoading(false);
@@ -74,14 +74,13 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
           name: formName,
           date: dateTimestamp,
           notes: formNotes,
-        }, currentUser.id);
+        });
       } else {
         await createSal(
           project.id,
-          formName,
+          formName || undefined,
           dateTimestamp,
-          formNotes,
-          currentUser.id
+          formNotes || undefined
         );
       }
       resetForm();
@@ -97,7 +96,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   const handleEditClick = (sal: Sal) => {
     setEditingId(sal.id);
     setFormName(sal.name || '');
-    setFormDate(sal.date ? format(new Date(sal.date), 'yyyy-MM-dd') : '');
+    setFormDate(sal.date ? new Date(sal.date).toISOString().split('T')[0] : '');
     setFormNotes(sal.notes || '');
     setShowForm(true);
   };
@@ -229,7 +228,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
         {sals.map((sal) => (
           <div key={sal.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
-              <h4 className="text-base font-bold">SAL {sal.salNum}</h4>
+              <h4 className="text-base font-bold">SAL {sal.number}</h4>
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleEditClick(sal)}
@@ -265,7 +264,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
               <p className="text-sm">
                 Data:{' '}
                 {sal.date
-                  ? format(new Date(sal.date), 'dd/MM/yyyy')
+                  ? new Date(sal.date).toLocaleDateString('it-IT')
                   : 'Non specificata'}
               </p>
               <p className="text-sm">
@@ -276,7 +275,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
               {confirmDeleteId === sal.id && (
                 <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
                   <p className="text-sm text-red-800">
-                    Eliminare SAL {sal.salNum}? I crossing assegnati torneranno non
+                    Eliminare SAL {sal.number}? I crossing assegnati torneranno non
                     contabilizzati.
                   </p>
                   <div className="flex space-x-2">
