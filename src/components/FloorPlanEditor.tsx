@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle } from './FloorPlanCanvas';
+import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle, EI_COLORS, EiRating } from './FloorPlanCanvas';
 import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
@@ -157,6 +157,15 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   useEffect(() => {
     localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
   }, [recentTextColors]);
+
+  // EI Legend state (normalized 0-1 coordinates, null = hidden)
+  const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>({ x: 0.02, y: 0.02 });
+
+  // Handle EI legend move
+  const handleEiLegendMove = useCallback((x: number, y: number) => {
+    setEiLegendPosition({ x, y });
+    setHasUnsavedChanges(true);
+  }, []);
 
   // ============================================
   // SEZIONE: Gestione punti
@@ -341,15 +350,16 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         perimeterPoints: p.perimeterPoints,
         labelBackgroundColor: p.labelBackgroundColor,
         labelTextColor: p.labelTextColor,
+        eiRating: p.eiRating,
       }));
 
-      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf');
+      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf', undefined, 0, eiLegendPosition);
       alert('✅ Planimetria esportata in PDF (vettoriale)');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [imageUrl, points, onExportPDFProp]);
+  }, [imageUrl, points, onExportPDFProp, eiLegendPosition]);
 
   // Handle export to PNG
   const handleExportPNG = useCallback(() => {
@@ -571,6 +581,18 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     // NON chiudere modal - permetti di cambiare tab e colorare anche l'altro elemento
   }, [selectedPointIds]);
 
+
+  // Handle apply EI rating to selected points
+  const handleApplyEiRating = useCallback((eiRating: EiRating | undefined) => {
+    setPoints(prev => prev.map(p => {
+      if (selectedPointIds.has(p.id)) {
+        return { ...p, eiRating };
+      }
+      return p;
+    }));
+    setHasUnsavedChanges(true);
+  }, [selectedPointIds]);
+
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
 
@@ -695,6 +717,54 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                       <span className="tool-icon">🎨</span>
                       Colora
                     </button>
+                  </div>
+
+                  {/* EI Rating selector */}
+                  <div className="toolbar-divider"></div>
+                  <div className="toolbar-section">
+                    <span className="toolbar-label">EI:</span>
+                    <div className="ei-buttons">
+                      {([30, 60, 90, 120, 180, 240] as EiRating[]).map(ei => (
+                        <button
+                          key={ei}
+                          className="ei-btn"
+                          style={{
+                            borderColor: EI_COLORS[ei],
+                            borderWidth: '3px',
+                            borderStyle: 'solid',
+                            opacity: selectedPointIds.size === 0 ? 0.5 : 1,
+                          }}
+                          onClick={() => {
+                            if (selectedPointIds.size === 0) {
+                              alert('Seleziona almeno un punto dal menu di destra');
+                              return;
+                            }
+                            handleApplyEiRating(ei);
+                          }}
+                          disabled={selectedPointIds.size === 0}
+                          title={`Imposta EI ${ei}`}
+                        >
+                          {ei}
+                        </button>
+                      ))}
+                      <button
+                        className="ei-btn ei-btn-clear"
+                        style={{
+                          opacity: selectedPointIds.size === 0 ? 0.5 : 1,
+                        }}
+                        onClick={() => {
+                          if (selectedPointIds.size === 0) {
+                            alert('Seleziona almeno un punto dal menu di destra');
+                            return;
+                          }
+                          handleApplyEiRating(undefined);
+                        }}
+                        disabled={selectedPointIds.size === 0}
+                        title="Rimuovi EI"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -906,6 +976,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             onCompletePerimeter={handleCompletePerimeter}
             onCancelPerimeter={handleCancelPerimeter}
             readOnlyPoints={readOnlyPoints}
+            eiLegendPosition={(mode === 'standalone' || mode === 'view-edit') ? eiLegendPosition : null}
+            onEiLegendMove={(mode === 'standalone' || mode === 'view-edit') ? handleEiLegendMove : undefined}
           />
 
           {/* Perimeter control buttons (V/X) */}
@@ -926,6 +998,30 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 ✕
               </button>
             </div>
+          )}
+
+          {/* EI Legend toggle button */}
+          {(mode === 'standalone' || mode === 'view-edit') && (
+            <button
+              className="ei-legend-toggle"
+              onClick={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
+              title={eiLegendPosition ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '10px',
+                zIndex: 100,
+                padding: '6px 10px',
+                background: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
+            >
+              {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda PPA'}
+            </button>
           )}
         </div>
 

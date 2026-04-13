@@ -183,6 +183,7 @@ export interface FloorPlanPoint {
   labelY: number; // Normalized 0-1
   perimeterPoints?: Array<{ x: number; y: number }>; // For 'perimetro' type
   customText?: string; // For 'generico' type
+  eiRating?: 30 | 60 | 90 | 120 | 180 | 240; // Fire resistance rating (EI)
   metadata?: Record<string, any>;
   createdBy: string;
   createdAt: number; // timestamp
