@@ -8,7 +8,7 @@ import {
   assignCrossingsToSal,
   getMappingEntriesForProject,
 } from '../db';
-import { PlusCircle, Edit, Link, Trash, Info } from 'lucide-react';
+import { PlusCircle, Edit, Link, Trash, Info, AlertTriangle } from 'lucide-react';
 
 interface SalTabProps {
   project: Project;
@@ -18,6 +18,7 @@ interface SalTabProps {
 const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   const [sals, setSals] = useState<Sal[]>([]);
   const [unassignedCount, setUnassignedCount] = useState(0);
+  const [toCompleteUnassignedCount, setToCompleteUnassignedCount] = useState(0);
   const [salCrossingsMap, setSalCrossingsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -38,8 +39,16 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
     setSals(projectSals.sort((a, b) => (b.date || 0) - (a.date || 0)));
 
     const allCrossings = allMappings.flatMap(m => m.crossings || []);
-    const unassigned = allCrossings.filter(c => !c.salId).length;
+    const unassigned = allMappings
+      .filter(m => !m.toComplete)
+      .flatMap(m => m.crossings || [])
+      .filter(c => !c.salId).length;
+    const toCompleteUnassigned = allMappings
+      .filter(m => m.toComplete)
+      .flatMap(m => m.crossings || [])
+      .filter(c => !c.salId).length;
     setUnassignedCount(unassigned);
+    setToCompleteUnassignedCount(toCompleteUnassigned);
 
     const salMap: Record<string, number> = {};
     for (const sal of projectSals) {
@@ -118,7 +127,18 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
       await loadData();
     } catch (error) {
       console.error('Error assigning crossings:', error);
-      // TODO: show error message to user
+    } finally {
+      setAssigning(null);
+    }
+  };
+
+  const handleAssignToComplete = async (salId: string) => {
+    setAssigning(salId + '_tc');
+    try {
+      await assignCrossingsToSal(project.id, salId, currentUser.id, true);
+      await loadData();
+    } catch (error) {
+      console.error('Error assigning to-complete crossings:', error);
     } finally {
       setAssigning(null);
     }
@@ -136,9 +156,17 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
     <div className="px-4 pt-4 pb-24 space-y-4">
       {unassignedCount > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center space-x-2">
-          <Info size={20} className="text-yellow-600" />
+          <Info size={20} className="text-yellow-600 flex-shrink-0" />
           <p className="text-sm text-yellow-800">
             {unassignedCount} crossing non contabilizzati
+          </p>
+        </div>
+      )}
+      {toCompleteUnassignedCount > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 flex items-center space-x-2">
+          <AlertTriangle size={18} className="text-orange-500 flex-shrink-0" />
+          <p className="text-sm text-orange-800">
+            {toCompleteUnassignedCount} crossing "da completare" esclusi dall'assegnazione automatica
           </p>
         </div>
       )}
@@ -235,7 +263,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                 </button>
                 <button
                   onClick={() => handleAssignCrossings(sal.id)}
-                  disabled={unassignedCount === 0 || assigning === sal.id}
+                  disabled={unassignedCount === 0 || assigning !== null}
                   className="px-3 py-2 text-accent hover:bg-brand-50 rounded-xl text-sm flex items-center space-x-1 disabled:opacity-50"
                 >
                   {assigning === sal.id ? (
@@ -247,6 +275,22 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                     </>
                   )}
                 </button>
+                {toCompleteUnassignedCount > 0 && (
+                  <button
+                    onClick={() => handleAssignToComplete(sal.id)}
+                    disabled={assigning !== null}
+                    className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-xl text-sm flex items-center space-x-1 disabled:opacity-50"
+                  >
+                    {assigning === sal.id + '_tc' ? (
+                      'Assegnazione...'
+                    ) : (
+                      <>
+                        <AlertTriangle size={14} />
+                        <span>Da completare</span>
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() => setConfirmDeleteId(sal.id)}
                   className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-xl text-sm flex items-center space-x-1"

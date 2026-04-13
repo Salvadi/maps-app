@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Download, ChevronDown, Plus, Trash2, X } from 'lucide-react';
+import { Download, ChevronDown, Plus, Trash2, X, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -32,6 +32,7 @@ interface AggregatedRow {
   crossingId: string;
   salId?: string;
   isAsola: boolean;
+  toComplete: boolean;
 }
 
 const GROUP_LABELS: Record<GroupBy, string> = {
@@ -163,6 +164,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           crossingId: crossing.id,
           salId: crossing.salId,
           isAsola: isAsolaType,
+          toComplete: entry.toComplete || false,
         });
 
         if (crossing.inAsola) {
@@ -192,6 +194,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             crossingId: crossing.id + '_asola',
             salId: crossing.salId,
             isAsola: true,
+            toComplete: entry.toComplete || false,
           });
         }
       }
@@ -494,9 +497,15 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                     {groupRows.map((row, i) => (
                       <div key={i} className={`px-4 py-2.5 flex items-center justify-between gap-2 ${row.isAsola ? 'pl-8 bg-warning/5' : ''}`}>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-brand-700 truncate">
-                            {row.isAsola ? <span className="text-warning">↳ </span> : null}
-                            {row.attraversamento || 'N/D'}
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-brand-700">
+                            {row.isAsola ? <span className="text-warning flex-shrink-0">↳ </span> : null}
+                            <span className="truncate">{row.attraversamento || 'N/D'}</span>
+                            {row.toComplete && (
+                              <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-semibold text-warning bg-warning/10 px-1.5 py-0.5 rounded-full">
+                                <AlertTriangle size={9} />
+                                da completare
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-brand-400 truncate">
                             {row.tipologicoLabel} · {row.unit === 'sqm' ? `${row.quantity.toFixed(2)} mq` : `×${row.quantity}`}
