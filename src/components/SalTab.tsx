@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Project, User, Sal, MappingEntry } from '../db';
+import { Project, User, Sal } from '../db';
 import {
   getSalsForProject,
   createSal,
@@ -8,8 +8,7 @@ import {
   assignCrossingsToSal,
   getMappingEntriesForProject,
 } from '../db';
-import { PlusCircle, ClipboardList, Edit, Link, Trash, Check, X, Info } from 'lucide-react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { PlusCircle, Edit, Link, Trash, Info } from 'lucide-react';
 
 interface SalTabProps {
   project: Project;
@@ -30,17 +29,14 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   const [assigning, setAssigning] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const mappings = useLiveQuery(
-    () => getMappingEntriesForProject(project.id),
-    [project.id]
-  ) || [];
-
   const loadData = useCallback(async () => {
     setLoading(true);
-    const projectSals = await getSalsForProject(project.id);
+    const [projectSals, allMappings] = await Promise.all([
+      getSalsForProject(project.id),
+      getMappingEntriesForProject(project.id),
+    ]);
     setSals(projectSals.sort((a, b) => (b.date || 0) - (a.date || 0)));
 
-    const allMappings = mappings; // already filtered by project.id by useLiveQuery
     const allCrossings = allMappings.flatMap(m => m.crossings || []);
     const unassigned = allCrossings.filter(c => !c.salId).length;
     setUnassignedCount(unassigned);
@@ -51,7 +47,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
     }
     setSalCrossingsMap(salMap);
     setLoading(false);
-  }, [project.id, mappings]);
+  }, [project.id]);
 
   useEffect(() => {
     loadData();
