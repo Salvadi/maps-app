@@ -326,7 +326,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex px-4 gap-1">
+        <div className="flex overflow-x-auto px-4 gap-1 [&::-webkit-scrollbar]:hidden">
           {subTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -334,7 +334,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
+                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
                   isActive
                     ? 'border-accent text-accent'
                     : 'border-transparent text-brand-500 hover:text-brand-700'
