@@ -335,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Sync project selection modal */}
       {showSyncModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-4 pb-24 sm:pb-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
             <div className="px-5 py-4 border-b border-brand-200">
               <h3 className="text-base font-bold text-brand-800">Seleziona progetti</h3>
