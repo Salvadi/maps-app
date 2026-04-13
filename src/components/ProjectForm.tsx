@@ -3,8 +3,8 @@ import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check } from 'lucide-r
 import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry } from '../db';
 import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
 import ProductSelector from './ProductSelector';
-import { validateFileSignature } from '../utils/validation';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
+import { validateFileSignature } from '../utils/validation';
 
 /**
  * ProjectForm
@@ -155,6 +155,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const handleFloorPlanUpload = async (floor: string, file: File) => {
     if (!project) return;
 
+    // Validate file signature (magic bytes)
     const { valid } = await validateFileSignature(file);
     if (!valid) {
       alert('Formato file non valido. Sono accettati solo immagini (JPEG, PNG, WebP) e PDF.');
