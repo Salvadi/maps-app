@@ -128,17 +128,21 @@ export async function deleteSal(
 
 /**
  * Assegna tutti i crossing non contabilizzati di un progetto a un SAL.
+ * Per default esclude le mappature marcate come "da completare".
+ * Passare includeToComplete=true per assegnare anche quelle.
  * Ritorna il conteggio degli attraversamenti assegnati.
  */
 export async function assignCrossingsToSal(
   projectId: string,
   salId: string,
-  userId: string
+  userId: string,
+  includeToComplete = false
 ): Promise<number> {
   const entries = await getMappingEntriesForProject(projectId);
   let assignedCount = 0;
 
   for (const entry of entries) {
+    if (!includeToComplete && entry.toComplete) continue;
     const hasUnassigned = entry.crossings?.some(c => !c.salId);
     if (!hasUnassigned) continue;
 

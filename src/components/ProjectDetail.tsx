@@ -3,7 +3,7 @@ import { useBlobUrl } from '../hooks/useBlobUrl';
 import {
   ArrowLeft, Camera, Map, Info, Plus,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
-  RefreshCw, Tag, Package, Filter, X, DollarSign, Download, FileDown
+  RefreshCw, Tag, Package, Filter, X, DollarSign, Download, FileDown, ClipboardList
 } from 'lucide-react';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
@@ -16,6 +16,7 @@ import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
+import SalTab from './SalTab';
 
 interface ProjectDetailProps {
   project: Project;
@@ -29,7 +30,7 @@ interface ProjectDetailProps {
   isSyncing?: boolean;
 }
 
-type SubTab = 'mappings' | 'plans' | 'info' | 'costs';
+type SubTab = 'mappings' | 'plans' | 'info' | 'costs' | 'sal';
 
 const ProjectDetail: React.FC<ProjectDetailProps> = ({
   project,
@@ -282,6 +283,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
     { id: 'info', label: 'Info', icon: Info },
     { id: 'costs', label: 'Contabilità', icon: DollarSign },
+    { id: 'sal', label: 'SAL', icon: ClipboardList },
   ];
 
   return (
@@ -324,7 +326,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex px-4 gap-1">
+        <div className="flex overflow-x-auto px-4 gap-1 [&::-webkit-scrollbar]:hidden">
           {subTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -332,7 +334,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
+                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
                   isActive
                     ? 'border-accent text-accent'
                     : 'border-transparent text-brand-500 hover:text-brand-700'
@@ -696,46 +698,51 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               <CostsTab project={project} currentUser={currentUser} />
             )}
 
+            {/* SAL Tab */}
+            {activeTab === 'sal' && (
+              <SalTab project={project} currentUser={currentUser} />
+            )}
+
             {/* Info Tab */}
             {activeTab === 'info' && (
               <div className="px-4 pt-4 space-y-4">
-                <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
+                    <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
                   <div className="px-4 py-3.5">
                     <div className="text-xs text-brand-500 mb-0.5">Titolo</div>
                     <div className="text-sm font-medium text-brand-800">{project.title}</div>
-                  </div>
+                          </div>
                   {project.client && (
                     <div className="px-4 py-3.5">
                       <div className="text-xs text-brand-500 mb-0.5">Cliente</div>
                       <div className="text-sm font-medium text-brand-800">{project.client}</div>
-                    </div>
-                  )}
+                            </div>
+                          )}
                   {project.address && (
                     <div className="px-4 py-3.5">
                       <div className="text-xs text-brand-500 mb-0.5">Indirizzo</div>
                       <div className="text-sm font-medium text-brand-800">{project.address}</div>
-                    </div>
-                  )}
+                            </div>
+                          )}
                   <div className="px-4 py-3.5">
                     <div className="text-xs text-brand-500 mb-0.5">Piani</div>
                     <div className="text-sm font-medium text-brand-800">
                       {project.floors?.join(', ') || 'Nessuno'}
-                    </div>
+                        </div>
                   </div>
                   {project.notes && (
                     <div className="px-4 py-3.5">
                       <div className="text-xs text-brand-500 mb-0.5">Note</div>
                       <div className="text-sm text-brand-700 whitespace-pre-wrap">{project.notes}</div>
                     </div>
-                  )}
+                )}
                   <div className="px-4 py-3.5">
                     <div className="text-xs text-brand-500 mb-0.5">Creato</div>
                     <div className="text-sm text-brand-700">
                       {new Date(project.createdAt).toLocaleDateString('it-IT', {
                         day: 'numeric', month: 'long', year: 'numeric'
                       })}
-                    </div>
-                  </div>
+              </div>
+      </div>
                   <div className="px-4 py-3.5">
                     <div className="text-xs text-brand-500 mb-0.5">Sincronizzazione</div>
                     <div className="flex items-center gap-2">
@@ -743,7 +750,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                       <span className="text-sm text-brand-700">
                         {project.syncEnabled === 1 ? 'Completa' : 'Solo metadati'}
                       </span>
-                    </div>
+    </div>
                   </div>
                 </div>
 
@@ -849,3 +856,4 @@ const PlanThumbnail: React.FC<{ blob: Blob | undefined; alt: string }> = ({ blob
 };
 
 export default ProjectDetail;
+
