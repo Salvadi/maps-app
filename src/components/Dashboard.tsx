@@ -142,6 +142,50 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex-1 overflow-auto pb-20 bg-brand-100">
+      {/* Sync Progress Bar — sticky so it stays visible while scrolling */}
+      {syncProgress && (
+        <div className="sticky top-0 z-20 px-4 pt-2 pb-1 bg-brand-100">
+          <div className={`bg-white rounded-2xl px-4 py-3 shadow-card border-l-4 ${
+            syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato'
+              ? 'border-l-success'
+              : syncProgress.phase.startsWith('Errore')
+              ? 'border-l-danger'
+              : 'border-l-accent'
+          }`}>
+            <div className="flex items-center gap-3 mb-2">
+              {syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato' ? (
+                <CheckCircle size={18} className="text-success flex-shrink-0" />
+              ) : syncProgress.phase.startsWith('Errore') ? (
+                <AlertCircle size={18} className="text-danger flex-shrink-0" />
+              ) : (
+                <RefreshCw size={18} className="text-accent animate-spin flex-shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-brand-700">{syncProgress.phase}</div>
+                {syncProgress.detail && (
+                  <div className="text-xs text-brand-500 mt-0.5">{syncProgress.detail}</div>
+                )}
+              </div>
+              <span className="text-xs text-brand-400 flex-shrink-0">
+                {syncProgress.step}/{syncProgress.totalSteps}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-brand-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ease-out ${
+                  syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato'
+                    ? 'bg-success'
+                    : syncProgress.phase.startsWith('Errore')
+                    ? 'bg-danger'
+                    : 'bg-accent'
+                }`}
+                style={{ width: `${Math.round((syncProgress.step / syncProgress.totalSteps) * 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-5 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-brand-800">
@@ -225,51 +269,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           )}
         </div>
       </div>
-
-      {/* Sync Progress Box */}
-      {syncProgress && (
-        <div className="px-5 mt-3">
-          <div className={`bg-white rounded-2xl p-4 shadow-card border-l-4 ${
-            syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato'
-              ? 'border-l-success'
-              : syncProgress.phase.startsWith('Errore')
-              ? 'border-l-danger'
-              : 'border-l-accent'
-          }`}>
-            <div className="flex items-center gap-3 mb-2">
-              {syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato' ? (
-                <CheckCircle size={18} className="text-success flex-shrink-0" />
-              ) : syncProgress.phase.startsWith('Errore') ? (
-                <AlertCircle size={18} className="text-danger flex-shrink-0" />
-              ) : (
-                <RefreshCw size={18} className="text-accent animate-spin flex-shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-brand-700">{syncProgress.phase}</div>
-                {syncProgress.detail && (
-                  <div className="text-xs text-brand-500 mt-0.5">{syncProgress.detail}</div>
-                )}
-              </div>
-              <span className="text-xs text-brand-400 flex-shrink-0">
-                {syncProgress.step}/{syncProgress.totalSteps}
-              </span>
-            </div>
-            {/* Progress bar */}
-            <div className="w-full h-1.5 bg-brand-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ease-out ${
-                  syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato'
-                    ? 'bg-success'
-                    : syncProgress.phase.startsWith('Errore')
-                    ? 'bg-danger'
-                    : 'bg-accent'
-                }`}
-                style={{ width: `${Math.round((syncProgress.step / syncProgress.totalSteps) * 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quick Actions */}
       <div className="px-5 mt-5">
