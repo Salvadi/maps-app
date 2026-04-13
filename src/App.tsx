@@ -3,6 +3,7 @@ import Login from './components/Login';
 import PasswordReset from './components/PasswordReset';
 import Dashboard from './components/Dashboard';
 import ProjectList from './components/ProjectList';
+import CertSearch from './components/CertSearch';
 import UpdateNotification from './components/UpdateNotification';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
@@ -575,6 +576,9 @@ const App: React.FC = () => {
                   onOpenStandaloneEditor={handleOpenStandaloneEditor}
                   onNavigateToProject={handleViewProject}
                 />
+              )}
+              {activeTab === 'certSearch' && (
+                <CertSearch currentUser={currentUser} />
               )}
               {activeTab === 'settings' && (
                 <SettingsPage

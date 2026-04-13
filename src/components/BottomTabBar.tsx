@@ -1,7 +1,7 @@
 import React from 'react';
-import { Home, FolderOpen, Map, Settings } from 'lucide-react';
+import { Home, FolderOpen, Map, Settings, Search } from 'lucide-react';
 
-export type TabId = 'dashboard' | 'projects' | 'maps' | 'settings';
+export type TabId = 'dashboard' | 'projects' | 'maps' | 'settings' | 'certSearch';
 
 interface BottomTabBarProps {
   activeTab: TabId;
@@ -13,6 +13,7 @@ const tabs: { id: TabId; label: string; icon: typeof Home }[] = [
   { id: 'dashboard', label: 'Home', icon: Home },
   { id: 'projects', label: 'Progetti', icon: FolderOpen },
   { id: 'maps', label: 'Mappe', icon: Map },
+  { id: 'certSearch', label: 'Certificati', icon: Search },
   { id: 'settings', label: 'Impostazioni', icon: Settings },
 ];
 
