@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, FolderOpen, ChevronRight, ChevronDown, Plus, RefreshCw, Check } from 'lucide-react';
-import { Project, User, getAllProjects, getProjectsForUser, getMappingEntriesForProject, updateProject } from '../db';
-import { SyncStats } from '../sync/syncEngine';
+import { Camera, FolderOpen, ChevronRight, ChevronDown, Plus, RefreshCw, Check, CheckCircle, AlertCircle } from 'lucide-react';
+import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
+import { SyncStats, SyncProgress } from '../sync/syncEngine';
 
 interface DashboardProps {
   currentUser: User;
   syncStats: SyncStats;
+  syncProgress: SyncProgress | null;
   isOnline: boolean;
   onNavigateToProject: (project: Project) => void;
   onAddMapping: (project: Project) => void;
@@ -24,6 +25,7 @@ interface RecentActivity {
 const Dashboard: React.FC<DashboardProps> = ({
   currentUser,
   syncStats,
+  syncProgress,
   isOnline,
   onNavigateToProject,
   onAddMapping,
@@ -47,33 +49,38 @@ const Dashboard: React.FC<DashboardProps> = ({
       const activeProjects = loadedProjects.filter(p => p.archived === 0);
       setProjects(activeProjects);
 
+      // Single bulk query for ALL mapping entries instead of N+1 per-project queries
+      const allEntries = await db.mappingEntries.toArray();
+      const projectMap = new Map(activeProjects.map(p => [p.id, p]));
+
       let total = 0;
       let toComplete = 0;
       const activities: RecentActivity[] = [];
       let mostRecentProject: Project | null = null;
       let mostRecentTime = 0;
 
-      for (const project of activeProjects) {
-        const entries = await getMappingEntriesForProject(project.id);
-        total += entries.length;
-        toComplete += entries.filter(e => e.toComplete).length;
+      for (const entry of allEntries) {
+        const project = projectMap.get(entry.projectId);
+        if (!project) continue; // Entry belongs to archived/inaccessible project
 
-        // Track recent mapping activities
-        for (const entry of entries) {
-          if (entry.timestamp > mostRecentTime) {
-            mostRecentTime = entry.timestamp;
-            mostRecentProject = project;
-          }
-          activities.push({
-            type: 'mapping',
-            title: `Mappatura ${entry.floor}${entry.room ? ` / St. ${entry.room}` : ''}${entry.intervention ? ` / Int. ${entry.intervention}` : ''}`,
-            subtitle: project.title,
-            timestamp: entry.timestamp,
-            project,
-          });
+        total++;
+        if (entry.toComplete) toComplete++;
+
+        if (entry.timestamp > mostRecentTime) {
+          mostRecentTime = entry.timestamp;
+          mostRecentProject = project;
         }
+        activities.push({
+          type: 'mapping',
+          title: `Mappatura ${entry.floor}${entry.room ? ` / St. ${entry.room}` : ''}${entry.intervention ? ` / Int. ${entry.intervention}` : ''}`,
+          subtitle: project.title,
+          timestamp: entry.timestamp,
+          project,
+        });
+      }
 
-        // Track project creation
+      // Track project creation activities
+      for (const project of activeProjects) {
         activities.push({
           type: 'project',
           title: `Progetto "${project.title}"`,
@@ -135,6 +142,50 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex-1 overflow-auto pb-20 bg-brand-100">
+      {/* Sync Progress Bar — sticky so it stays visible while scrolling */}
+      {syncProgress && (
+        <div className="sticky top-0 z-20 px-4 pt-2 pb-1 bg-brand-100">
+          <div className={`bg-white rounded-2xl px-4 py-3 shadow-card border-l-4 ${
+            syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato'
+              ? 'border-l-success'
+              : syncProgress.phase.startsWith('Errore')
+              ? 'border-l-danger'
+              : 'border-l-accent'
+          }`}>
+            <div className="flex items-center gap-3 mb-2">
+              {syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato' ? (
+                <CheckCircle size={18} className="text-success flex-shrink-0" />
+              ) : syncProgress.phase.startsWith('Errore') ? (
+                <AlertCircle size={18} className="text-danger flex-shrink-0" />
+              ) : (
+                <RefreshCw size={18} className="text-accent animate-spin flex-shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-brand-700">{syncProgress.phase}</div>
+                {syncProgress.detail && (
+                  <div className="text-xs text-brand-500 mt-0.5">{syncProgress.detail}</div>
+                )}
+              </div>
+              <span className="text-xs text-brand-400 flex-shrink-0">
+                {syncProgress.step}/{syncProgress.totalSteps}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-brand-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ease-out ${
+                  syncProgress.phase === 'Completato' || syncProgress.phase === 'Sync completato'
+                    ? 'bg-success'
+                    : syncProgress.phase.startsWith('Errore')
+                    ? 'bg-danger'
+                    : 'bg-accent'
+                }`}
+                style={{ width: `${Math.round((syncProgress.step / syncProgress.totalSteps) * 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-5 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-brand-800">
@@ -284,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Sync project selection modal */}
       {showSyncModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-4 pb-24 sm:pb-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
             <div className="px-5 py-4 border-b border-brand-200">
               <h3 className="text-base font-bold text-brand-800">Seleziona progetti</h3>

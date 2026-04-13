@@ -4,6 +4,7 @@ import {
   ArrowLeft, ArrowRight, Check, Camera, MapPin,
   Plus, X, ChevronDown, Image, AlertTriangle, Eye
 } from 'lucide-react';
+import { validateFileSignature } from '../utils/validation';
 import {
   Project, Crossing, User, MappingEntry, calcAsolaMq,
   createMappingEntry, getMappingEntriesForProject,
@@ -79,7 +80,9 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
 
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
+  const [projectTypologies, setProjectTypologies] = useState(project?.typologies || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState('');
   const [error, setError] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState('');
 
@@ -159,10 +162,23 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
-    const files = Array.from(e.target.files);
-    setPhotoFiles(prev => [...prev, ...files]);
-    setPhotoIds(prev => [...prev, ...files.map(() => null)]);
-    const previews = await Promise.all(files.map(f => new Promise<string>(r => {
+    const allFiles = Array.from(e.target.files);
+
+    // Validate file signatures (magic bytes) to prevent disguised file uploads
+    const validFiles: File[] = [];
+    for (const file of allFiles) {
+      const { valid } = await validateFileSignature(file);
+      if (valid) {
+        validFiles.push(file);
+      } else {
+        console.warn(`File rifiutato (tipo non valido): ${file.name}`);
+      }
+    }
+    if (validFiles.length === 0) return;
+
+    setPhotoFiles(prev => [...prev, ...validFiles]);
+    setPhotoIds(prev => [...prev, ...validFiles.map(() => null)]);
+    const previews = await Promise.all(validFiles.map(f => new Promise<string>(r => {
       const reader = new FileReader();
       reader.onload = () => r(reader.result as string);
       reader.readAsDataURL(f);
@@ -218,7 +234,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const generateLabelText = (): string[] => {
     const photoName = generatePhotoPrefix() + '01';
     const tipNumbers = crossings
-      .map(c => c.tipologicoId ? project?.typologies.find(t => t.id === c.tipologicoId)?.number : null)
+      .map(c => c.tipologicoId ? projectTypologies.find(t => t.id === c.tipologicoId)?.number : null)
       .filter((n): n is number => n !== null)
       .filter((v, i, a) => a.indexOf(v) === i)
       .sort((a, b) => a - b)
@@ -318,13 +334,14 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
       if (photosToCompress.length > 0) {
         const results: Blob[] = [];
-        for (let i = 0; i < photosToCompress.length; i += 3) {
-          const batch = photosToCompress.slice(i, i + 3);
-          const batchResults = await Promise.all(
-            batch.map(f => imageCompression(f, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }) as Promise<Blob>)
-          );
-          results.push(...batchResults);
+        for (let i = 0; i < photosToCompress.length; i++) {
+          setCompressionProgress(`Compressione foto ${i + 1}/${photosToCompress.length}...`);
+          const compressed = await imageCompression(photosToCompress[i], {
+            maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true
+          }) as Blob;
+          results.push(compressed);
         }
+        setCompressionProgress('');
         compressedBlobs = results;
       }
 
@@ -516,16 +533,16 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         {/* STEP 1: Crossings */}
         {step === 1 && (
           <div className="space-y-3">
-            {/* Typology viewer button */}
-            {project?.typologies && project.typologies.length > 0 && (
-              <button
-                onClick={() => setShowTypologyViewer(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
-              >
-                <Eye size={14} />
-                Visualizza tipologici ({project.typologies.length})
-              </button>
-            )}
+            {/* Typology viewer button - always visible to allow adding */}
+            <button
+              onClick={() => setShowTypologyViewer(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
+            >
+              <Eye size={14} />
+              {projectTypologies.length > 0
+                ? `Gestisci tipologici (${projectTypologies.length})`
+                : 'Aggiungi tipologici'}
+            </button>
 
             {crossings.map((crossing, i) => (
               <div key={crossing.id} className="bg-white rounded-2xl shadow-card p-4">
@@ -585,7 +602,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                   </div>
 
                   {/* Typology selector */}
-                  {project?.typologies && project.typologies.length > 0 && (
+                  {projectTypologies.length > 0 && (
                     <div>
                       <label className="block text-[11px] font-medium text-brand-500 mb-1">Tipologico</label>
                       <div className="relative">
@@ -596,7 +613,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                             const updated = [...crossings];
                             updated[i] = { ...updated[i], tipologicoId: tipId || undefined };
                             if (tipId) {
-                              const tip = project.typologies.find(t => t.id === tipId);
+                              const tip = projectTypologies.find(t => t.id === tipId);
                               if (tip) {
                                 updated[i].supporto = tip.supporto;
                                 updated[i].tipoSupporto = tip.tipoSupporto;
@@ -608,7 +625,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                           className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
                         >
                           <option value="">Nessuno</option>
-                          {project.typologies.sort((a, b) => a.number - b.number).map(t => {
+                          {[...projectTypologies].sort((a, b) => a.number - b.number).map(t => {
                             const products = t.prodottiSelezionati && t.prodottiSelezionati.length > 0
                               ? t.prodottiSelezionati.join(', ')
                               : '';
@@ -626,7 +643,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                       </div>
                       {/* Show linked typology info */}
                       {crossing.tipologicoId && (() => {
-                        const tip = project.typologies.find(t => t.id === crossing.tipologicoId);
+                        const tip = projectTypologies.find(t => t.id === crossing.tipologicoId);
                         if (!tip || (!tip.marcaProdottoUtilizzato && (!tip.prodottiSelezionati || tip.prodottiSelezionati.length === 0))) return null;
                         return (
                           <div className="mt-1.5 px-3 py-2 bg-accent/5 rounded-lg border border-accent/10">
@@ -876,7 +893,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
               className="flex-1 py-3.5 bg-success text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
             >
               <Check size={16} />
-              {isSubmitting ? 'Salvataggio...' : editingEntry ? 'Aggiorna' : 'Salva'}
+              {compressionProgress || (isSubmitting ? 'Salvataggio...' : editingEntry ? 'Aggiorna' : 'Salva')}
             </button>
           )}
         </div>
@@ -891,11 +908,12 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         />
       )}
 
-      {/* Typology viewer modal */}
+      {/* Typology viewer/editor modal */}
       {showTypologyViewer && project && (
         <TypologyViewerModal
-          project={project}
+          project={{ ...project, typologies: projectTypologies }}
           onClose={() => setShowTypologyViewer(false)}
+          onTypologiesChanged={setProjectTypologies}
         />
       )}
     </div>

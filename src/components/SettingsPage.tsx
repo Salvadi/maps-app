@@ -384,26 +384,28 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
 
                   {/* Add form */}
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <input
                       value={ddLabel}
                       onChange={e => setDdLabel(e.target.value)}
                       placeholder="Etichetta *"
-                      className="flex-1 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
+                      className="w-full px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
                     />
-                    <input
-                      value={ddValue}
-                      onChange={e => setDdValue(e.target.value)}
-                      placeholder="Value (opt.)"
-                      className="w-28 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
-                    />
-                    <button
-                      onClick={handleAddDropdown}
-                      disabled={!ddLabel.trim() || ddSaving}
-                      className="w-10 h-10 flex items-center justify-center bg-accent text-white rounded-xl disabled:opacity-40 flex-shrink-0"
-                    >
-                      <Plus size={18} />
-                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        value={ddValue}
+                        onChange={e => setDdValue(e.target.value)}
+                        placeholder="Value (opzionale)"
+                        className="flex-1 min-w-0 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
+                      />
+                      <button
+                        onClick={handleAddDropdown}
+                        disabled={!ddLabel.trim() || ddSaving}
+                        className="w-10 h-10 flex items-center justify-center bg-accent text-white rounded-xl disabled:opacity-40 flex-shrink-0"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* List */}
@@ -435,24 +437,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 <div className="p-4 space-y-4">
                   {/* Add form */}
                   <div className="space-y-2">
+                    <input
+                      value={prodBrand}
+                      onChange={e => setProdBrand(e.target.value)}
+                      placeholder="Marca *"
+                      list="brand-suggestions"
+                      className="w-full px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
+                    />
+                    <datalist id="brand-suggestions">
+                      {Array.from(new Set(prodItems.map(p => p.brand))).map(b => (
+                        <option key={b} value={b} />
+                      ))}
+                    </datalist>
                     <div className="flex gap-2">
-                      <input
-                        value={prodBrand}
-                        onChange={e => setProdBrand(e.target.value)}
-                        placeholder="Marca *"
-                        list="brand-suggestions"
-                        className="flex-1 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
-                      />
-                      <datalist id="brand-suggestions">
-                        {Array.from(new Set(prodItems.map(p => p.brand))).map(b => (
-                          <option key={b} value={b} />
-                        ))}
-                      </datalist>
                       <input
                         value={prodName}
                         onChange={e => setProdName(e.target.value)}
                         placeholder="Nome prodotto *"
-                        className="flex-1 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
+                        className="flex-1 min-w-0 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
                       />
                       <button
                         onClick={handleAddProduct}
