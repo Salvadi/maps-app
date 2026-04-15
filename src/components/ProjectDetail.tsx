@@ -10,7 +10,7 @@ import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMapping, deleteMappingEntry,
-  getFloorPlansByProject, getFloorPlanPoints, getFloorPlanPointsForPlans, getAllUsers
+  getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers
 } from '../db';
 import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
