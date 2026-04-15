@@ -1,4 +1,4 @@
-import { db, User, clearDatabase } from './database';
+import { db, User } from './database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { syncFromSupabase } from '../sync/syncEngine';
 
@@ -255,9 +255,9 @@ export async function logout(): Promise<void> {
     }
   }
 
-  // Clear all IndexedDB data to prevent cross-user data leakage on shared devices
-  await clearDatabase();
-  console.log('✅ User logged out (local, database cleared)');
+  // Clear IndexedDB session
+  await db.metadata.put({ key: 'currentUser', value: null });
+  console.log('✅ User logged out (local)');
 }
 
 /**

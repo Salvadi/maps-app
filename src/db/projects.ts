@@ -95,10 +95,10 @@ export async function getProjectsForUser(userId: string): Promise<Project[]> {
 
       const pendingIds = await getPendingEntityIds('project');
 
-      await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
+      const mergedProjects = await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
 
       const results = await applyPendingWrites<Project>(
-        converted,
+        mergedProjects,
         'project',
         () => true
       );
@@ -141,10 +141,10 @@ export async function getAllProjects(): Promise<Project[]> {
 
       const pendingIds = await getPendingEntityIds('project');
 
-      await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
+      const mergedProjects = await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
 
       const results = await applyPendingWrites<Project>(
-        converted,
+        mergedProjects,
         'project',
         () => true
       );

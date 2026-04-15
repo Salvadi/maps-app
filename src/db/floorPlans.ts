@@ -262,10 +262,10 @@ export async function getFloorPlansByProject(projectId: string): Promise<FloorPl
         (item) => (item.payload as FloorPlan)?.projectId === projectId
       );
 
-      await writeThroughCache(remoteFloorPlans, pendingIds, db.floorPlans, mergeFloorPlanLocalFields);
+      const mergedFloorPlans = await writeThroughCache(remoteFloorPlans, pendingIds, db.floorPlans, mergeFloorPlanLocalFields);
 
       const results = await applyPendingWrites<FloorPlan>(
-        remoteFloorPlans,
+        mergedFloorPlans,
         'floor_plan',
         (item) => (item.payload as FloorPlan)?.projectId === projectId
       );
@@ -455,7 +455,7 @@ export async function getFloorPlanPoints(floorPlanId: string): Promise<FloorPlan
         (item) => (item.payload as FloorPlanPoint)?.floorPlanId === floorPlanId
       );
 
-      await writeThroughCache(
+      const mergedPoints = await writeThroughCache(
         remotePoints,
         pendingIds,
         db.floorPlanPoints,
@@ -463,7 +463,7 @@ export async function getFloorPlanPoints(floorPlanId: string): Promise<FloorPlan
       );
 
       return await applyPendingWrites<FloorPlanPoint>(
-        remotePoints,
+        mergedPoints,
         'floor_plan_point',
         (item) => (item.payload as FloorPlanPoint)?.floorPlanId === floorPlanId
       );
@@ -499,7 +499,7 @@ export async function getFloorPlanPointsForPlans(
 
       const pendingIds = await getPendingEntityIds('floor_plan_point');
 
-      await writeThroughCache(
+      const mergedPoints = await writeThroughCache(
         remotePoints,
         pendingIds,
         db.floorPlanPoints,
@@ -507,7 +507,7 @@ export async function getFloorPlanPointsForPlans(
       );
 
       const withOverlay = await applyPendingWrites<FloorPlanPoint>(
-        remotePoints,
+        mergedPoints,
         'floor_plan_point',
         (item) => floorPlanIds.includes((item.payload as FloorPlanPoint)?.floorPlanId)
       );

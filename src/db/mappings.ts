@@ -128,10 +128,10 @@ export async function getMappingEntriesForProject(
         (item) => (item.payload as MappingEntry)?.projectId === projectId
       );
 
-      await writeThroughCache(remoteEntries, pendingIds, db.mappingEntries);
+      const mergedEntries = await writeThroughCache<MappingEntry>(remoteEntries, pendingIds, db.mappingEntries);
 
       let results = await applyPendingWrites<MappingEntry>(
-        remoteEntries,
+        mergedEntries,
         'mapping_entry',
         (item) => (item.payload as MappingEntry)?.projectId === projectId
       );

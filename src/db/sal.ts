@@ -48,10 +48,10 @@ export async function getSalsForProject(projectId: string): Promise<Sal[]> {
         (item) => (item.payload as Sal)?.projectId === projectId
       );
 
-      await writeThroughCache(remoteSals, pendingIds, db.sals);
+      const mergedSals = await writeThroughCache<Sal>(remoteSals, pendingIds, db.sals);
 
       const results = await applyPendingWrites<Sal>(
-        remoteSals,
+        mergedSals,
         'sal',
         (item) => (item.payload as Sal)?.projectId === projectId
       );

@@ -112,20 +112,27 @@ export async function writeThroughCache<T extends { id: string }>(
   pendingIds: Set<string>,
   table: any,
   mergeLocalFields?: (remote: T, existing: T | undefined) => T
-): Promise<void> {
-  for (const remoteItem of remoteItems) {
-    // Non sovrascrivere record con scritture locali pendenti
-    if (pendingIds.has(remoteItem.id)) continue;
+): Promise<T[]> {
+  const mergedItems: T[] = [];
 
+  for (const remoteItem of remoteItems) {
     let itemToSave = remoteItem;
 
     if (mergeLocalFields) {
+      // Leggi il record locale (se esiste) per preservare i campi local-only
       const existing: T | undefined = await table.get(remoteItem.id);
       itemToSave = mergeLocalFields(remoteItem, existing);
     }
 
-    await table.put(itemToSave);
+    mergedItems.push(itemToSave);
+
+    // Non sovrascrivere record con scritture locali pendenti
+    if (!pendingIds.has(remoteItem.id)) {
+      await table.put(itemToSave);
+    }
   }
+
+  return mergedItems;
 }
 
 /**

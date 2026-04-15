@@ -26,6 +26,7 @@ import {
   deleteFloorPlanPoint,
 } from '../db';
 import { useMappingExports } from './useMappingExports';
+import { downloadFloorPlanImage } from '../utils/floorPlanUtils';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import {
   DownloadIcon, PlusIcon, EyeIcon,
@@ -608,23 +609,33 @@ const MappingView: React.FC<MappingViewProps> = ({
   };
   // Handle open floor plan editor
   const handleOpenFloorPlanEditor = async (floorPlanId: string) => {
-    const plan = floorPlans.find(p => p.id === floorPlanId);
+    let plan = floorPlans.find(p => p.id === floorPlanId);
     if (!plan) return;
 
     try {
-      // Check if imageBlob is available
+      // Ensure imageBlob is available — download from Storage if missing
       if (!plan.imageBlob) {
-        // If no blob but we have an imageUrl, try to fetch it
-        if (plan.imageUrl) {
-          alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
-        } else {
+        if (!plan.imageUrl) {
           alert('Errore: immagine della planimetria non disponibile. Prova a ricaricare la planimetria.');
+          return;
         }
-        return;
+        try {
+          const blob = await downloadFloorPlanImage(plan.imageUrl);
+          plan = { ...plan, imageBlob: blob };
+          // Cache blob in IndexedDB and local state for subsequent opens
+          await import('../db').then(({ db: idb }) => idb.floorPlans.update(plan!.id, { imageBlob: blob }));
+          setFloorPlans(prev => prev.map(p => p.id === plan!.id ? plan! : p));
+        } catch {
+          alert('Errore nel download della planimetria. Controlla la connessione e riprova.');
+          return;
+        }
       }
 
+      // plan is guaranteed non-null here (we returned if undefined/no-url/download-failed above)
+      const resolvedPlan = plan as FloorPlan;
+
       // Get all points for this floor plan
-      const points = floorPlanPoints[plan.id] || [];
+      const points = floorPlanPoints[resolvedPlan.id] || [];
 
       // Get IDs of mapping entries that are already placed on this floor plan
       const placedMappingIds = new Set(points.map(p => p.mappingEntryId).filter(Boolean));
@@ -633,7 +644,7 @@ const MappingView: React.FC<MappingViewProps> = ({
       const unmappedEntries: UnmappedEntry[] = mappings
         .filter(m => {
           // Match floor
-          if (m.floor !== plan.floor) return false;
+          if (m.floor !== resolvedPlan.floor) return false;
           // Not already placed on this floor plan
           if (placedMappingIds.has(m.id)) return false;
           return true;
@@ -687,9 +698,9 @@ const MappingView: React.FC<MappingViewProps> = ({
       );
 
       // Prefer local blob; fallback to remote URL when blob not yet downloaded
-      const imageUrl = getFloorPlanBlobUrl(plan.imageBlob, plan.imageUrl);
+      const imageUrl = getFloorPlanBlobUrl(resolvedPlan.imageBlob, resolvedPlan.imageUrl);
 
-      setEditorFloorPlan(plan);
+      setEditorFloorPlan(resolvedPlan);
       setEditorImageUrl(imageUrl);
       setEditorPoints(canvasPoints);
       setEditorUnmappedEntries(unmappedEntries);
