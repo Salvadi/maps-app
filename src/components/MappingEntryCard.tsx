@@ -150,7 +150,8 @@ const PhotoItem: React.FC<{
   alt: string;
   onPhotoPreview: (url: string, alt: string) => void;
 }> = ({ photo, alt, onPhotoPreview }) => {
-  const photoUrl = useBlobUrl(photo.blob);
+  const blobUrl = useBlobUrl(photo.blob);
+  const photoUrl = blobUrl ?? photo.remoteUrl ?? null;
   if (!photoUrl) return null;
   return (
     <div className="photo-item">

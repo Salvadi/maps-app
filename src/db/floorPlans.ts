@@ -8,6 +8,14 @@
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
 import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap, blobToBase64 } from '../utils/floorPlanUtils';
 import { triggerImmediateUpload } from '../sync/syncEngine';
+import { supabase } from '../lib/supabase';
+import {
+  isOnlineAndConfigured,
+  getPendingEntityIds,
+  applyPendingWrites,
+  writeThroughCache,
+  isAuthError,
+} from './onlineFirst';
 
 // ============================================
 // SEZIONE: CRUD Planimetrie
@@ -102,12 +110,129 @@ export async function getFloorPlan(id: string): Promise<FloorPlan | undefined> {
 }
 
 /**
- * Get floor plan for a specific project and floor
+ * Converte un record FloorPlan da formato Supabase a formato locale.
+ * NON include i blob (imageBlob, thumbnailBlob, pdfBlobBase64): troppo pesanti
+ * per una lettura inline. I blob vengono scaricati dalla sync periodica.
+ */
+function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
+  return {
+    id: remote.id,
+    projectId: remote.project_id,
+    floor: remote.floor,
+    imageUrl: remote.image_url || undefined,
+    thumbnailUrl: remote.thumbnail_url || undefined,
+    pdfUrl: remote.pdf_url || undefined,
+    imageBlob: undefined as any, // sarà preservato dal merge se già presente localmente
+    thumbnailBlob: undefined as any,
+    pdfBlobBase64: undefined,
+    originalFilename: remote.original_filename || '',
+    originalFormat: remote.original_format || 'image',
+    width: remote.width || 0,
+    height: remote.height || 0,
+    metadata: remote.metadata || {},
+    gridConfig: undefined, // campo local-only, preservato dal merge
+    gridEnabled: undefined, // campo local-only, preservato dal merge
+    createdBy: remote.created_by,
+    createdAt: new Date(remote.created_at).getTime(),
+    updatedAt: new Date(remote.updated_at).getTime(),
+    remoteUpdatedAt: new Date(remote.updated_at).getTime(),
+    synced: 1,
+  };
+}
+
+/**
+ * Preserva i campi local-only di un FloorPlan: blob binari e configurazione griglia.
+ */
+function mergeFloorPlanLocalFields(remote: FloorPlan, existing: FloorPlan | undefined): FloorPlan {
+  return {
+    ...remote,
+    imageBlob: existing?.imageBlob ?? remote.imageBlob,
+    thumbnailBlob: existing?.thumbnailBlob ?? remote.thumbnailBlob,
+    pdfBlobBase64: existing?.pdfBlobBase64 ?? remote.pdfBlobBase64,
+    gridConfig: existing?.gridConfig ?? remote.gridConfig,
+    gridEnabled: existing?.gridEnabled ?? remote.gridEnabled,
+  };
+}
+
+/**
+ * Converte un record FloorPlanPoint da formato Supabase a formato locale.
+ */
+function convertRemoteToLocalFloorPlanPoint(remote: any): FloorPlanPoint {
+  return {
+    id: remote.id,
+    floorPlanId: remote.floor_plan_id,
+    mappingEntryId: remote.mapping_entry_id || undefined,
+    pointType: remote.point_type,
+    pointX: remote.point_x,
+    pointY: remote.point_y,
+    labelX: remote.label_x,
+    labelY: remote.label_y,
+    perimeterPoints: remote.perimeter_points || undefined,
+    customText: remote.custom_text || undefined,
+    eiRating: undefined, // campo local-only non presente in Supabase
+    metadata: remote.metadata || {},
+    createdBy: remote.created_by,
+    createdAt: new Date(remote.created_at).getTime(),
+    updatedAt: new Date(remote.updated_at).getTime(),
+    remoteUpdatedAt: new Date(remote.updated_at).getTime(),
+    synced: 1,
+  };
+}
+
+/**
+ * Preserva il campo eiRating (local-only) durante il write-through cache dei punti.
+ */
+function mergeFloorPlanPointLocalFields(
+  remote: FloorPlanPoint,
+  existing: FloorPlanPoint | undefined
+): FloorPlanPoint {
+  return {
+    ...remote,
+    eiRating: existing?.eiRating ?? remote.eiRating,
+  };
+}
+
+/**
+ * Get floor plan for a specific project and floor.
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
  */
 export async function getFloorPlanByProjectAndFloor(
   projectId: string,
   floor: string
 ): Promise<FloorPlan | undefined> {
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('floor_plans')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('floor', floor)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return undefined; // Not found
+        throw error;
+      }
+
+      const remote = convertRemoteToLocalFloorPlan(data);
+      const pendingIds = await getPendingEntityIds('floor_plan');
+
+      const [merged] = await Promise.all([
+        (async () => {
+          const existing = await db.floorPlans.get(remote.id);
+          const item = mergeFloorPlanLocalFields(remote, existing);
+          if (!pendingIds.has(remote.id)) await db.floorPlans.put(item);
+          return item;
+        })(),
+      ]);
+
+      return merged;
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getFloorPlanByProjectAndFloor: fallback su IndexedDB', err);
+    }
+  }
+
   return await db.floorPlans
     .where('[projectId+floor]')
     .equals([projectId, floor])
@@ -115,9 +240,43 @@ export async function getFloorPlanByProjectAndFloor(
 }
 
 /**
- * Get all floor plans for a project
+ * Get all floor plans for a project.
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
+ * I blob (imageBlob, thumbnailBlob, pdfBlobBase64) vengono preservati dall'IndexedDB locale
+ * se già presenti — non vengono riscaricati inline (lo fa la sync periodica).
  */
 export async function getFloorPlansByProject(projectId: string): Promise<FloorPlan[]> {
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('floor_plans')
+        .select('*')
+        .eq('project_id', projectId);
+
+      if (error) throw error;
+
+      const remoteFloorPlans = (data || []).map(convertRemoteToLocalFloorPlan);
+
+      const pendingIds = await getPendingEntityIds(
+        'floor_plan',
+        (item) => (item.payload as FloorPlan)?.projectId === projectId
+      );
+
+      await writeThroughCache(remoteFloorPlans, pendingIds, db.floorPlans, mergeFloorPlanLocalFields);
+
+      const results = await applyPendingWrites<FloorPlan>(
+        remoteFloorPlans,
+        'floor_plan',
+        (item) => (item.payload as FloorPlan)?.projectId === projectId
+      );
+
+      return results;
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getFloorPlansByProject: fallback su IndexedDB', err);
+    }
+  }
+
   return await db.floorPlans.where('projectId').equals(projectId).toArray();
 }
 
@@ -276,10 +435,104 @@ export async function getFloorPlanPointByMappingEntry(
 }
 
 /**
- * Get all points for a floor plan
+ * Get all points for a floor plan.
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
  */
 export async function getFloorPlanPoints(floorPlanId: string): Promise<FloorPlanPoint[]> {
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('floor_plan_points')
+        .select('*')
+        .eq('floor_plan_id', floorPlanId);
+
+      if (error) throw error;
+
+      const remotePoints = (data || []).map(convertRemoteToLocalFloorPlanPoint);
+
+      const pendingIds = await getPendingEntityIds(
+        'floor_plan_point',
+        (item) => (item.payload as FloorPlanPoint)?.floorPlanId === floorPlanId
+      );
+
+      await writeThroughCache(
+        remotePoints,
+        pendingIds,
+        db.floorPlanPoints,
+        mergeFloorPlanPointLocalFields
+      );
+
+      return await applyPendingWrites<FloorPlanPoint>(
+        remotePoints,
+        'floor_plan_point',
+        (item) => (item.payload as FloorPlanPoint)?.floorPlanId === floorPlanId
+      );
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getFloorPlanPoints: fallback su IndexedDB', err);
+    }
+  }
+
   return await db.floorPlanPoints.where('floorPlanId').equals(floorPlanId).toArray();
+}
+
+/**
+ * Get points for multiple floor plans in a single query.
+ * Usa .in() per evitare N chiamate Supabase sequenziali nei loop dei componenti.
+ * Online-first con fallback IndexedDB.
+ */
+export async function getFloorPlanPointsForPlans(
+  floorPlanIds: string[]
+): Promise<Record<string, FloorPlanPoint[]>> {
+  if (floorPlanIds.length === 0) return {};
+
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('floor_plan_points')
+        .select('*')
+        .in('floor_plan_id', floorPlanIds);
+
+      if (error) throw error;
+
+      const remotePoints = (data || []).map(convertRemoteToLocalFloorPlanPoint);
+
+      const pendingIds = await getPendingEntityIds('floor_plan_point');
+
+      await writeThroughCache(
+        remotePoints,
+        pendingIds,
+        db.floorPlanPoints,
+        mergeFloorPlanPointLocalFields
+      );
+
+      const withOverlay = await applyPendingWrites<FloorPlanPoint>(
+        remotePoints,
+        'floor_plan_point',
+        (item) => floorPlanIds.includes((item.payload as FloorPlanPoint)?.floorPlanId)
+      );
+
+      // Raggruppa per floorPlanId
+      const result: Record<string, FloorPlanPoint[]> = {};
+      for (const id of floorPlanIds) result[id] = [];
+      for (const point of withOverlay) {
+        if (result[point.floorPlanId]) {
+          result[point.floorPlanId].push(point);
+        }
+      }
+      return result;
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getFloorPlanPointsForPlans: fallback su IndexedDB', err);
+    }
+  }
+
+  // Offline fallback
+  const result: Record<string, FloorPlanPoint[]> = {};
+  for (const id of floorPlanIds) {
+    result[id] = await db.floorPlanPoints.where('floorPlanId').equals(id).toArray();
+  }
+  return result;
 }
 
 /**
@@ -523,10 +776,18 @@ export async function hasFloorPlan(projectId: string, floor: string): Promise<bo
 }
 
 /**
- * Get blob URL for a floor plan image
+ * Get a displayable URL for a floor plan image.
+ * Preferisce il blob locale (createObjectURL), ma se assente cade in fallback
+ * sull'URL remoto Supabase Storage (visibile solo quando online).
+ * Ritorna null se né blob né URL sono disponibili.
  */
-export function getFloorPlanBlobUrl(imageBlob: Blob): string {
-  return URL.createObjectURL(imageBlob);
+export function getFloorPlanBlobUrl(
+  imageBlob: Blob | null | undefined,
+  imageUrl?: string | null
+): string | null {
+  if (imageBlob) return URL.createObjectURL(imageBlob);
+  if (imageUrl) return imageUrl;
+  return null;
 }
 
 /**

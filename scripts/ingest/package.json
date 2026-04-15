@@ -1,0 +1,16 @@
+{
+  "name": "fps-ingest",
+  "version": "1.0.0",
+  "description": "Fire Prevention Search - PDF ingestion pipeline",
+  "type": "module",
+  "scripts": {
+    "ingest": "node --env-file=.env ingest.js",
+    "ingest:dry": "node --env-file=.env ingest.js --dry-run",
+    "extract-rules": "node --env-file=.env extract-rules.js"
+  },
+  "dependencies": {
+    "llamaindex": "^0.8.0",
+    "@qdrant/js-client-rest": "^1.12.0",
+    "@supabase/supabase-js": "^2.86.0"
+  }
+}

@@ -10,7 +10,7 @@ import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMapping, deleteMappingEntry,
-  getFloorPlansByProject, getFloorPlanPoints, getAllUsers
+  getFloorPlansByProject, getFloorPlanPoints, getFloorPlanPointsForPlans, getAllUsers
 } from '../db';
 import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
@@ -151,10 +151,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     // Load floor plans + their points
     const plans = await getFloorPlansByProject(project.id);
     setFloorPlans(plans);
-    const pointsMap: Record<string, FloorPlanPoint[]> = {};
-    for (const plan of plans) {
-      pointsMap[plan.id] = await getFloorPlanPoints(plan.id);
-    }
+    const pointsMap = await getFloorPlanPointsForPlans(plans.map(p => p.id));
     setFloorPlanPoints(pointsMap);
 
     // Load users for export labels
@@ -519,7 +516,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                 >
                                   {/* Thumbnail */}
                                   <div className="w-12 h-12 rounded-lg bg-brand-50 flex-shrink-0 overflow-hidden">
-                                    <EntryThumbnail blob={photos.length > 0 ? photos[0].blob : undefined} />
+                                    <EntryThumbnail blob={photos.length > 0 ? photos[0].blob : undefined} remoteUrl={photos.length > 0 ? photos[0].remoteUrl : undefined} />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
@@ -598,6 +595,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                           <PhotoGridItem
                                             key={photo.id || pi}
                                             blob={photo.blob}
+                                            remoteUrl={photo.remoteUrl}
                                             alt={`Foto ${pi + 1}`}
                                             onSelect={(url) => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
                                           />
@@ -818,8 +816,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 };
 
 /** Sub-component: entry thumbnail from first photo blob */
-const EntryThumbnail: React.FC<{ blob: Blob | undefined }> = ({ blob }) => {
-  const url = useBlobUrl(blob);
+const EntryThumbnail: React.FC<{ blob: Blob | undefined; remoteUrl?: string }> = ({ blob, remoteUrl }) => {
+  const blobUrl = useBlobUrl(blob);
+  const url = blobUrl ?? remoteUrl ?? null;
   if (!url) {
     return (
       <div className="w-full h-full flex items-center justify-center">
@@ -833,10 +832,12 @@ const EntryThumbnail: React.FC<{ blob: Blob | undefined }> = ({ blob }) => {
 /** Sub-component: single photo in the grid */
 const PhotoGridItem: React.FC<{
   blob: Blob;
+  remoteUrl?: string;
   alt: string;
   onSelect: (url: string) => void;
-}> = ({ blob, alt, onSelect }) => {
-  const url = useBlobUrl(blob);
+}> = ({ blob, remoteUrl, alt, onSelect }) => {
+  const blobUrl = useBlobUrl(blob);
+  const url = blobUrl ?? remoteUrl ?? null;
   if (!url) return null;
   return (
     <button

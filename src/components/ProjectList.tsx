@@ -270,11 +270,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       ? 'bg-green-50 text-success'
                       : 'bg-brand-50 text-brand-400'
                   }`}
-                  title={project.syncEnabled === 1 ? 'Sync completa attiva' : 'Sync disabilitata - tap per attivare'}
+                  title={project.syncEnabled === 1 ? 'Disponibile offline' : 'Non disponibile offline - tap per attivare'}
                 >
                   <RefreshCw size={12} />
                   <span className="text-[11px] font-medium">
-                    {project.syncEnabled === 1 ? 'Sync' : 'Off'}
+                    {project.syncEnabled === 1 ? 'Offline' : 'Online'}
                   </span>
                 </button>
                 <span className="text-[11px] text-brand-400">{formatDate(project.updatedAt)}</span>
@@ -284,16 +284,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
               <div className="border-t border-brand-100 flex">
                 <button
                   onClick={() => onEnterMapping(project)}
-                  disabled={project.syncEnabled === 0}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-medium text-sm transition-colors ${
-                    project.syncEnabled === 0
-                      ? 'text-brand-400 cursor-not-allowed'
-                      : 'text-accent hover:bg-blue-50 active:bg-blue-100'
-                  }`}
-                  title={project.syncEnabled === 0 ? 'Attiva la sincronizzazione per aggiungere mappature' : ''}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-3 font-medium text-sm transition-colors text-accent hover:bg-blue-50 active:bg-blue-100"
                 >
                   <Camera size={15} />
-                  <span>{project.syncEnabled === 0 ? 'Sync off' : 'Mappatura'}</span>
+                  <span>Mappatura</span>
                 </button>
                 <div className="w-px bg-brand-100" />
                 <button

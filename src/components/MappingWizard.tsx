@@ -130,11 +130,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     (async () => {
       const fp = await getFloorPlanByProjectAndFloor(project.id, floor);
       setCurrentFloorPlan(fp || null);
-      if (fp?.imageBlob) {
-        setFloorPlanImageUrl(getFloorPlanBlobUrl(fp.imageBlob));
-      } else {
-        setFloorPlanImageUrl(null);
-      }
+      setFloorPlanImageUrl(fp ? getFloorPlanBlobUrl(fp.imageBlob, fp.imageUrl) : null);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floor, project?.id]);

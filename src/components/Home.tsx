@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
 import './Home.css';
 
@@ -148,7 +148,9 @@ const Home: React.FC<HomeProps> = ({
   const [showSyncMenu, setShowSyncMenu] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
 
-  // Load projects from IndexedDB
+  const prevIsSyncingRef = useRef(isSyncing ?? false);
+
+  // Load projects from IndexedDB/Supabase
   useEffect(() => {
     const loadProjects = async () => {
       try {
@@ -173,6 +175,25 @@ const Home: React.FC<HomeProps> = ({
 
     loadProjects();
   }, [currentUser]);
+
+  // Reload projects after sync completes
+  useEffect(() => {
+    const currentIsSyncing = isSyncing ?? false;
+    if (prevIsSyncingRef.current === true && currentIsSyncing === false) {
+      const reload = async () => {
+        try {
+          const loadedProjects = currentUser.role === 'admin'
+            ? await getAllProjects()
+            : await getProjectsForUser(currentUser.id);
+          setProjects(loadedProjects);
+        } catch (error) {
+          console.error('Failed to reload projects after sync:', error);
+        }
+      };
+      reload();
+    }
+    prevIsSyncingRef.current = currentIsSyncing;
+  }, [isSyncing, currentUser]);
 
   // Filter and sort projects
   const filteredAndSortedProjects = useMemo(() => {
@@ -227,14 +248,6 @@ const Home: React.FC<HomeProps> = ({
   };
 
   const handleEnterMappingWithCheck = (project: Project) => {
-    if (project.syncEnabled === 0) {
-      // Show warning if sync is disabled
-      alert('⚠️ Impossibile aggiungere mappatura, prima sincronizza il progetto.\n\nAttiva la sincronizzazione completa cliccando sull\'icona di sync nell\'angolo della card del progetto.');
-      setActiveProject(null);
-      return;
-    }
-
-    // Proceed normally if sync is enabled
     onEnterMapping(project);
     setActiveProject(null);
   };
@@ -495,7 +508,7 @@ const Home: React.FC<HomeProps> = ({
                   <div
                     className="project-sync-toggle"
                     onClick={(e) => e.stopPropagation()}
-                    title={project.syncEnabled === 1 ? "Sincronizzazione completa attiva" : "Solo metadati (click per attivare sync completa)"}
+                    title={project.syncEnabled === 1 ? "Disponibile offline" : "Non disponibile offline (clicca per attivare)"}
                   >
                     <input
                       type="checkbox"
@@ -543,10 +556,10 @@ const Home: React.FC<HomeProps> = ({
                       <PencilIcon className="action-icon" />
                     </button>
                     <button
-                      className={`action-btn action-map ${project.syncEnabled === 0 ? 'disabled' : ''}`}
+                      className="action-btn action-map"
                       onClick={() => handleEnterMappingWithCheck(project)}
                       aria-label="Enter mapping"
-                      title={project.syncEnabled === 0 ? "Attiva prima la sincronizzazione completa" : "Aggiungi mappatura"}
+                      title="Aggiungi mappatura"
                     >
                       <MapIcon className="action-icon" />
                     </button>

@@ -285,7 +285,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         alert('Errore: immagine della mappa non disponibile');
         return;
       }
-      const blobUrl = getFloorPlanBlobUrl(map.imageBlob);
+      const blobUrl = getFloorPlanBlobUrl(map.imageBlob, map.imageUrl);
       setImageUrl(blobUrl);
       setProjectName(map.name);
       setCurrentMapId(map.id);

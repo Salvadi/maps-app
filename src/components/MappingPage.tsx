@@ -308,13 +308,11 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
 
       if (floorPlan) {
         // Check if imageBlob is available
-        if (floorPlan.imageBlob) {
-          // Create blob URL for display
-          const url = getFloorPlanBlobUrl(floorPlan.imageBlob);
+        {
+          // Prefer local blob; fallback to remote URL when blob not yet downloaded
+          const url = getFloorPlanBlobUrl(floorPlan.imageBlob, floorPlan.imageUrl);
+          if (!url) console.warn('Floor plan found but no image available (blob e imageUrl assenti)');
           setFloorPlanImageUrl(url);
-        } else {
-          console.warn('Floor plan found but imageBlob is missing');
-          setFloorPlanImageUrl(null);
         }
       } else {
         setFloorPlanImageUrl(null);

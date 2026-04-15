@@ -191,7 +191,7 @@ export async function resolveProjectConflict(
 /**
  * Convert remote mapping entry to local format
  */
-function convertRemoteToLocalMapping(remote: any): MappingEntry {
+export function convertRemoteToLocalMapping(remote: any): MappingEntry {
   return {
     id: remote.id,
     projectId: remote.project_id,
@@ -213,7 +213,7 @@ function convertRemoteToLocalMapping(remote: any): MappingEntry {
 /**
  * Convert remote project to local format
  */
-function convertRemoteToLocalProject(remote: any): Project {
+export function convertRemoteToLocalProject(remote: any): Project {
   return {
     id: remote.id,
     title: remote.title,

@@ -1,5 +1,14 @@
 import { db, generateId, now, MappingEntry, Photo, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
+import { supabase } from '../lib/supabase';
+import {
+  isOnlineAndConfigured,
+  getPendingEntityIds,
+  applyPendingWrites,
+  writeThroughCache,
+  isAuthError,
+} from './onlineFirst';
+import { convertRemoteToLocalMapping } from '../sync/conflictResolution';
 
 /**
  * Create a new mapping entry with photos
@@ -84,7 +93,9 @@ export async function getMappingEntry(id: string): Promise<MappingEntry | undefi
 }
 
 /**
- * Get all mapping entries for a project
+ * Get all mapping entries for a project.
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
+ * Pending local writes (sync queue) are always overlaid on top of remote data.
  */
 export async function getMappingEntriesForProject(
   projectId: string,
@@ -94,6 +105,55 @@ export async function getMappingEntriesForProject(
     limit?: number;
   }
 ): Promise<MappingEntry[]> {
+
+  // ── ONLINE-FIRST ─────────────────────────────────────────────────────────
+  if (isOnlineAndConfigured()) {
+    try {
+      let query = supabase
+        .from('mapping_entries')
+        .select('*')
+        .eq('project_id', projectId);
+
+      if (options?.floor) {
+        query = query.eq('floor', options.floor);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const remoteEntries = (data || []).map(convertRemoteToLocalMapping);
+
+      const pendingIds = await getPendingEntityIds(
+        'mapping_entry',
+        (item) => (item.payload as MappingEntry)?.projectId === projectId
+      );
+
+      await writeThroughCache(remoteEntries, pendingIds, db.mappingEntries);
+
+      let results = await applyPendingWrites<MappingEntry>(
+        remoteEntries,
+        'mapping_entry',
+        (item) => (item.payload as MappingEntry)?.projectId === projectId
+      );
+
+      if (options?.sortBy === 'timestamp') {
+        results.sort((a, b) => b.timestamp - a.timestamp);
+      } else if (options?.sortBy === 'floor') {
+        results.sort((a, b) => a.floor.localeCompare(b.floor));
+      }
+
+      if (options?.limit) {
+        results = results.slice(0, options.limit);
+      }
+
+      return results;
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getMappingEntriesForProject: fallback su IndexedDB', err);
+    }
+  }
+
+  // ── OFFLINE FALLBACK ──────────────────────────────────────────────────────
   let query = db.mappingEntries.where('projectId').equals(projectId);
 
   if (options?.floor) {

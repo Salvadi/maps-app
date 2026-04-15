@@ -1,5 +1,14 @@
 import { db, generateId, now, Project, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
+import { supabase } from '../lib/supabase';
+import {
+  isOnlineAndConfigured,
+  getPendingEntityIds,
+  applyPendingWrites,
+  writeThroughCache,
+  isAuthError,
+} from './onlineFirst';
+import { convertRemoteToLocalProject } from '../sync/conflictResolution';
 
 /**
  * Create a new project
@@ -52,9 +61,61 @@ export async function getProject(id: string): Promise<Project | undefined> {
 }
 
 /**
- * Get all projects for a user
+ * Preserva i campi local-only di un Project durante il write-through cache.
+ * syncEnabled è una preferenza per-device e non deve essere sovrascritta
+ * dai dati remoti.
+ */
+function mergeProjectLocalFields(remote: Project, existing: Project | undefined): Project {
+  return {
+    ...remote,
+    syncEnabled: existing?.syncEnabled ?? 0,
+  };
+}
+
+/**
+ * Get all projects for a user.
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
  */
 export async function getProjectsForUser(userId: string): Promise<Project[]> {
+  if (isOnlineAndConfigured()) {
+    try {
+      // Fetch-all + filtro client-side: PostgREST non supporta query su array JSONB
+      const { data: allProjects, error } = await supabase
+        .from('projects')
+        .select('*');
+
+      if (error) throw error;
+
+      const userProjects = (allProjects || []).filter((p: any) =>
+        p.owner_id === userId ||
+        (Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
+      );
+
+      const converted = userProjects.map(convertRemoteToLocalProject);
+
+      const pendingIds = await getPendingEntityIds('project');
+
+      await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
+
+      const results = await applyPendingWrites<Project>(
+        converted,
+        'project',
+        () => true
+      );
+
+      // Filtra solo i progetti dell'utente anche dopo l'overlay
+      const userResult = results.filter(
+        (p) => p.ownerId === userId || (p.accessibleUsers || []).includes(userId)
+      );
+
+      return userResult.sort((a, b) => b.updatedAt - a.updatedAt);
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getProjectsForUser: fallback su IndexedDB', err);
+    }
+  }
+
+  // Offline fallback
   return await db.projects
     .where('ownerId')
     .equals(userId)
@@ -64,9 +125,38 @@ export async function getProjectsForUser(userId: string): Promise<Project[]> {
 }
 
 /**
- * Get all projects (for admin)
+ * Get all projects (for admin).
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
  */
 export async function getAllProjects(): Promise<Project[]> {
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data: allProjects, error } = await supabase
+        .from('projects')
+        .select('*');
+
+      if (error) throw error;
+
+      const converted = (allProjects || []).map(convertRemoteToLocalProject);
+
+      const pendingIds = await getPendingEntityIds('project');
+
+      await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
+
+      const results = await applyPendingWrites<Project>(
+        converted,
+        'project',
+        () => true
+      );
+
+      return results.sort((a, b) => b.updatedAt - a.updatedAt);
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getAllProjects: fallback su IndexedDB', err);
+    }
+  }
+
+  // Offline fallback
   return await db.projects
     .orderBy('updatedAt')
     .reverse()

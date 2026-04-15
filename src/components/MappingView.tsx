@@ -17,6 +17,7 @@ import {
   FloorPlanPoint,
   getFloorPlansByProject,
   getFloorPlanPoints,
+  getFloorPlanPointsForPlans,
   getFloorPlanBlobUrl,
   updateFloorPlan,
   updateFloorPlanPoint,
@@ -184,12 +185,8 @@ const MappingView: React.FC<MappingViewProps> = ({
         });
         setFloorPlans(sortedPlans);
 
-        // Load points for each floor plan
-        const pointsMap: Record<string, FloorPlanPoint[]> = {};
-        for (const plan of plans) {
-          const points = await getFloorPlanPoints(plan.id);
-          pointsMap[plan.id] = points;
-        }
+        // Load points for all floor plans in a single batch query
+        const pointsMap = await getFloorPlanPointsForPlans(plans.map(p => p.id));
         setFloorPlanPoints(pointsMap);
       } catch (error) {
         console.error('Failed to load mappings:', error);
@@ -219,12 +216,8 @@ const MappingView: React.FC<MappingViewProps> = ({
           });
           setFloorPlans(sortedPlans);
 
-          // Reload points for each floor plan
-          const pointsMap: Record<string, FloorPlanPoint[]> = {};
-          for (const plan of plans) {
-            const points = await getFloorPlanPoints(plan.id);
-            pointsMap[plan.id] = points;
-          }
+          // Reload points for all floor plans in a single batch query
+          const pointsMap = await getFloorPlanPointsForPlans(plans.map(p => p.id));
           setFloorPlanPoints(pointsMap);
 
           // Also reload mappings in case they changed
@@ -693,8 +686,8 @@ const MappingView: React.FC<MappingViewProps> = ({
         })
       );
 
-      // Create blob URL for the image
-      const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
+      // Prefer local blob; fallback to remote URL when blob not yet downloaded
+      const imageUrl = getFloorPlanBlobUrl(plan.imageBlob, plan.imageUrl);
 
       setEditorFloorPlan(plan);
       setEditorImageUrl(imageUrl);
@@ -809,12 +802,8 @@ const MappingView: React.FC<MappingViewProps> = ({
         }
       }
 
-      // Refresh floor plan points
-      const pointsMap: Record<string, FloorPlanPoint[]> = {};
-      for (const plan of floorPlans) {
-        const points = await getFloorPlanPoints(plan.id);
-        pointsMap[plan.id] = points;
-      }
+      // Refresh floor plan points in a single batch query
+      const pointsMap = await getFloorPlanPointsForPlans(floorPlans.map(p => p.id));
       setFloorPlanPoints(pointsMap);
 
       alert('Modifiche salvate con successo!');

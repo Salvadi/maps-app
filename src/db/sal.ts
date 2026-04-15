@@ -1,11 +1,69 @@
 import { db, Sal, generateId, now, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { updateMappingEntry, getMappingEntriesForProject } from './mappings';
+import { supabase } from '../lib/supabase';
+import {
+  isOnlineAndConfigured,
+  getPendingEntityIds,
+  applyPendingWrites,
+  writeThroughCache,
+  isAuthError,
+} from './onlineFirst';
 
 /**
- * Ottieni tutti i SAL di un progetto ordinati per numero
+ * Converte un record SAL da formato Supabase a formato locale
+ */
+function convertRemoteToLocalSal(remote: any): Sal {
+  return {
+    id: remote.id,
+    projectId: remote.project_id,
+    number: remote.number,
+    name: remote.name || undefined,
+    date: remote.date,
+    notes: remote.notes || undefined,
+    createdAt: new Date(remote.created_at).getTime(),
+    synced: 1,
+  };
+}
+
+/**
+ * Ottieni tutti i SAL di un progetto ordinati per numero.
+ * Online-first: reads from Supabase when connected, falls back to IndexedDB when offline.
  */
 export async function getSalsForProject(projectId: string): Promise<Sal[]> {
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('sals')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('number', { ascending: true });
+
+      if (error) throw error;
+
+      const remoteSals = (data || []).map(convertRemoteToLocalSal);
+
+      const pendingIds = await getPendingEntityIds(
+        'sal',
+        (item) => (item.payload as Sal)?.projectId === projectId
+      );
+
+      await writeThroughCache(remoteSals, pendingIds, db.sals);
+
+      const results = await applyPendingWrites<Sal>(
+        remoteSals,
+        'sal',
+        (item) => (item.payload as Sal)?.projectId === projectId
+      );
+
+      return results.sort((a, b) => a.number - b.number);
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getSalsForProject: fallback su IndexedDB', err);
+    }
+  }
+
+  // Offline fallback
   return db.sals.where('projectId').equals(projectId).sortBy('number');
 }
 

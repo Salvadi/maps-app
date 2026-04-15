@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera, FolderOpen, ChevronRight, ChevronDown, Plus, RefreshCw, Check, CheckCircle, AlertCircle } from 'lucide-react';
 import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
 import { SyncStats, SyncProgress } from '../sync/syncEngine';
@@ -39,9 +39,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [lastProject, setLastProject] = useState<Project | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [modalProjects, setModalProjects] = useState<Project[]>([]);
+  const prevIsSyncingRef = useRef(syncStats.isSyncing ?? false);
 
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = useCallback(async () => {
       const loadedProjects = currentUser.role === 'admin'
         ? await getAllProjects()
         : await getProjectsForUser(currentUser.id);
@@ -95,10 +95,20 @@ const Dashboard: React.FC<DashboardProps> = ({
       setTotalMappings(total);
       setToCompleteMappings(toComplete);
       setLastProject(mostRecentProject);
-    };
-
-    loadData();
   }, [currentUser]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Reload after sync completes
+  useEffect(() => {
+    const currentIsSyncing = syncStats.isSyncing ?? false;
+    if (prevIsSyncingRef.current === true && currentIsSyncing === false) {
+      loadData();
+    }
+    prevIsSyncingRef.current = currentIsSyncing;
+  }, [syncStats.isSyncing, loadData]);
 
   const formatTimeAgo = (timestamp: number) => {
     const diff = Date.now() - timestamp;
@@ -118,11 +128,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleSyncClick = () => {
-    if (projects.some(p => p.syncEnabled === 1)) {
-      onManualSync();
-    } else {
-      openSyncModal();
-    }
+    onManualSync();
   };
 
   const handleSyncConfirm = async () => {
@@ -236,8 +242,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
             <div className="text-xs text-brand-500">
               {syncStats.lastSyncTime
-                ? `Ultima sync: ${formatTimeAgo(syncStats.lastSyncTime)}`
-                : 'Mai sincronizzato'}
+                ? `Modifiche caricate: ${formatTimeAgo(syncStats.lastSyncTime)}`
+                : 'Nessuna modifica caricata'}
               {syncStats.pendingCount > 0 && (
                 <span className="text-warning font-medium"> · {syncStats.pendingCount} in coda</span>
               )}
@@ -338,9 +344,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-4 pb-24 sm:pb-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
             <div className="px-5 py-4 border-b border-brand-200">
-              <h3 className="text-base font-bold text-brand-800">Seleziona progetti</h3>
+              <h3 className="text-base font-bold text-brand-800">Disponibilità offline</h3>
               <p className="text-xs text-brand-500 mt-0.5">
-                Scegli quali progetti sincronizzare completamente
+                Scegli quali progetti rendere disponibili offline
               </p>
             </div>
             <div className="overflow-y-auto max-h-64 divide-y divide-brand-100">

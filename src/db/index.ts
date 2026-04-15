@@ -23,6 +23,7 @@ export {
   getFloorPlanPoint,
   getFloorPlanPointByMappingEntry,
   getFloorPlanPoints,
+  getFloorPlanPointsForPlans,
   updateFloorPlanPoint,
   deleteFloorPlanPoint,
   updateFloorPlanLabelsForMapping,
