@@ -287,16 +287,37 @@ export async function getPhotosForMapping(mappingEntryId: string): Promise<Photo
 
       if (error) throw error;
 
+      const rows = data || [];
+
+      // The 'photos' bucket is private: publicUrl stored in the DB won't load.
+      // Generate short-lived signed URLs in a single batch call.
+      let signedByPath = new Map<string, string>();
+      if (rows.length > 0) {
+        const paths = rows
+          .map((r: any) => r.storage_path)
+          .filter((p: string | null | undefined): p is string => !!p);
+        if (paths.length > 0) {
+          const { data: signed, error: signErr } = await supabase.storage
+            .from('photos')
+            .createSignedUrls(paths, 60 * 60); // 1 hour
+          if (signErr) throw signErr;
+          for (const s of signed || []) {
+            if (s.path && s.signedUrl) signedByPath.set(s.path, s.signedUrl);
+          }
+        }
+      }
+
       const remotePhotos: Photo[] = [];
-      for (const row of data || []) {
+      for (const row of rows) {
         const localPhoto = await db.photos.get(row.id);
+        const signedUrl = row.storage_path ? signedByPath.get(row.storage_path) : undefined;
         remotePhotos.push({
           id: row.id,
           mappingEntryId: row.mapping_entry_id,
           blob: localPhoto?.blob,
           metadata: row.metadata,
           uploaded: true,
-          remoteUrl: row.url,
+          remoteUrl: signedUrl ?? row.url,
         });
       }
 
