@@ -332,6 +332,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         mappingEntryId: p.mappingEntryId,
         labelBackgroundColor: p.metadata?.labelBackgroundColor,
         labelTextColor: p.metadata?.labelTextColor,
+        eiRating: p.eiRating,
       })));
     } catch { setReadOnlyPoints([]); }
     setShowFloorPlanEditor(true);
@@ -349,12 +350,12 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           pointType: point.type, pointX: point.pointX, pointY: point.pointY,
           labelX: point.labelX, labelY: point.labelY,
           perimeterPoints: point.perimeterPoints, customText: point.customText,
-          eiRating: eiRating,
+          eiRating: point.eiRating,
         });
       } else {
         await createFloorPlanPoint(currentFloorPlan.id, entry.id, point.type,
           point.pointX, point.pointY, point.labelX, point.labelY, currentUser.id,
-          { perimeterPoints: point.perimeterPoints, customText: point.customText, eiRating });
+          { perimeterPoints: point.perimeterPoints, customText: point.customText, eiRating: point.eiRating });
       }
       await updateFloorPlan(currentFloorPlan.id, { gridEnabled: gridConfig.enabled, gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY } });
       alert('Punto salvato sulla planimetria!');
