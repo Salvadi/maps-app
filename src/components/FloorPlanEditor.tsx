@@ -41,6 +41,7 @@ interface FloorPlanEditorProps {
   readOnlyPoints?: CanvasPoint[];
   initialRotation?: number; // 0, 90, 180, 270
   onRotationChange?: (rotation: number) => void;
+  initialActiveTool?: Tool;
 }
 
 const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
@@ -69,6 +70,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   readOnlyPoints,
   initialRotation = 0,
   onRotationChange,
+  initialActiveTool,
 }) => {
   // Ref to FloorPlanCanvas imperative handle
   const canvasRef = useRef<FloorPlanCanvasHandle>(null);
@@ -81,7 +83,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [points, setPoints] = useState<CanvasPoint[]>(initialPoints);
   const [gridConfig, setGridConfig] = useState<GridConfig>(initialGridConfig);
   const [unmappedEntries, setUnmappedEntries] = useState<UnmappedEntry[]>(unmappedEntriesProp);
-  const [activeTool, setActiveTool] = useState<Tool>('pan');
+  const [activeTool, setActiveTool] = useState<Tool>(initialActiveTool ?? 'pan');
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [showLeftMenu, setShowLeftMenu] = useState(false);
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -157,6 +159,13 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   useEffect(() => {
     localStorage.setItem('floorplan-recent-text-colors', JSON.stringify(recentTextColors));
   }, [recentTextColors]);
+
+  // Local string state for grid row/col inputs — allows intermediate typing values before blur-commit
+  const [rowsInput, setRowsInput] = useState(String(initialGridConfig.rows));
+  const [colsInput, setColsInput] = useState(String(initialGridConfig.cols));
+  // Keep local strings in sync if gridConfig is reset externally
+  useEffect(() => { setRowsInput(String(gridConfig.rows)); }, [gridConfig.rows]);
+  useEffect(() => { setColsInput(String(gridConfig.cols)); }, [gridConfig.cols]);
 
   // EI Legend state (normalized 0-1 coordinates, null = hidden)
   const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>({ x: 0.02, y: 0.02 });
@@ -910,12 +919,18 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 <div className="grid-settings">
                   <div className="setting-row">
                     <label>Righe:</label>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      max="50" 
-                      value={gridConfig.rows}
-                      onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 50) handleGridConfigChange('rows', v); }}
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={rowsInput}
+                      onChange={(e) => setRowsInput(e.target.value)}
+                      onBlur={(e) => {
+                        const v = parseInt(e.target.value);
+                        const clamped = isNaN(v) ? 1 : Math.min(Math.max(v, 1), 50);
+                        setRowsInput(String(clamped));
+                        handleGridConfigChange('rows', clamped);
+                      }}
                     />
                   </div>
                   <div className="setting-row">
@@ -924,8 +939,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                       type="number"
                       min="1"
                       max="50"
-                      value={gridConfig.cols}
-                      onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 50) handleGridConfigChange('cols', v); }}
+                      value={colsInput}
+                      onChange={(e) => setColsInput(e.target.value)}
+                      onBlur={(e) => {
+                        const v = parseInt(e.target.value);
+                        const clamped = isNaN(v) ? 1 : Math.min(Math.max(v, 1), 50);
+                        setColsInput(String(clamped));
+                        handleGridConfigChange('cols', clamped);
+                      }}
                     />
                   </div>
                   <div className="setting-row">

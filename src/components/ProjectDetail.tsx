@@ -42,7 +42,30 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   onSync,
   isSyncing,
 }) => {
-  const [activeTab, setActiveTab] = useState<SubTab>('mappings');
+  const [activeTab, setActiveTabRaw] = useState<SubTab>('mappings');
+
+  const setActiveTab = (tab: SubTab) => {
+    setActiveTabRaw(tab);
+    window.history.pushState(
+      { ...(window.history.state || {}), __subTab: tab },
+      ''
+    );
+  };
+
+  // Handle browser back to navigate between sub-tabs
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { view?: string; __subTab?: SubTab } | null;
+      if (state?.view === 'projectDetail') {
+        // Restore the sub-tab that was active at this history entry (default to 'mappings')
+        setActiveTabRaw(state.__subTab ?? 'mappings');
+      }
+      // If view changed away from 'projectDetail', App.tsx handles it and unmounts this component
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
