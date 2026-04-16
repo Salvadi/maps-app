@@ -831,7 +831,7 @@ const EntryThumbnail: React.FC<{ blob: Blob | undefined; remoteUrl?: string }> =
 
 /** Sub-component: single photo in the grid */
 const PhotoGridItem: React.FC<{
-  blob: Blob;
+  blob: Blob | undefined;
   remoteUrl?: string;
   alt: string;
   onSelect: (url: string) => void;

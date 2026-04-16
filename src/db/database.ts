@@ -85,7 +85,7 @@ export interface MappingEntry {
 
 export interface Photo {
   id: string;
-  blob: Blob;
+  blob?: Blob; // Optional: remote-only photos (viewed by other users) have no local blob
   mappingEntryId: string;
   metadata: {
     width: number;
@@ -523,7 +523,7 @@ export async function getDatabaseStats() {
 
   // Calculate approximate storage size
   const photos = await db.photos.toArray();
-  const totalPhotoSize = photos.reduce((sum, photo) => sum + photo.blob.size, 0);
+  const totalPhotoSize = photos.reduce((sum, photo) => sum + (photo.blob?.size || 0), 0);
 
   const floorPlans = await db.floorPlans.toArray();
   const totalFloorPlanSize = floorPlans.reduce((sum, fp) =>

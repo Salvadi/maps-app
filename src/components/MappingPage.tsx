@@ -170,7 +170,10 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     const loadExistingPhotos = async () => {
       if (editingEntry) {
         try {
-          const photos = await getPhotosForMapping(editingEntry.id);
+          const allPhotos = await getPhotosForMapping(editingEntry.id);
+          // Editing requires local blobs. Remote-only photos (no blob) can't be re-attached
+          // as File objects, but still keep their ids so they're preserved via remoteUrl.
+          const photos = allPhotos.filter(p => p.blob);
 
           // Convert photos to previews and files
           const previews = await Promise.all(
@@ -178,14 +181,14 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
               return new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
-                reader.readAsDataURL(photo.blob);
+                reader.readAsDataURL(photo.blob!);
               });
             })
           );
 
           // Convert Blobs to Files for consistency
           const files = photos.map((photo, idx) =>
-            new File([photo.blob], `photo-${idx}.jpg`, { type: photo.blob.type })
+            new File([photo.blob!], `photo-${idx}.jpg`, { type: photo.blob!.type })
           );
 
           // Track photo IDs for deletion

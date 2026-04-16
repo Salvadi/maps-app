@@ -93,15 +93,16 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   useEffect(() => {
     if (editingEntry) {
       (async () => {
-        const photos = await getPhotosForMapping(editingEntry.id);
+        const allPhotos = await getPhotosForMapping(editingEntry.id);
+        const photos = allPhotos.filter(p => p.blob);
         const previews = await Promise.all(
           photos.map(p => new Promise<string>(resolve => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
-            reader.readAsDataURL(p.blob);
+            reader.readAsDataURL(p.blob!);
           }))
         );
-        const files = photos.map((p, i) => new File([p.blob], `photo-${i}.jpg`, { type: p.blob.type }));
+        const files = photos.map((p, i) => new File([p.blob!], `photo-${i}.jpg`, { type: p.blob!.type }));
         setPhotoPreviews(previews);
         setPhotoFiles(files);
         setPhotoIds(photos.map(p => p.id));

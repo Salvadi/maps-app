@@ -307,6 +307,7 @@ export function useMappingExports({
 
         for (let i = 0; i < photos.length; i++) {
           const photo = photos[i];
+          if (!photo.blob) continue; // skip remote-only photos without a local blob
           const photoNum = (i + 1).toString().padStart(2, '0');
           const filename = `${prefix}${photoNum}.jpg`;
           const fullPath = folderPath + filename;

@@ -271,13 +271,55 @@ export async function deleteMappingEntry(id: string): Promise<void> {
 }
 
 /**
- * Get photos for a mapping entry
+ * Get photos for a mapping entry.
+ * Online-first: query the Supabase `photos` metadata table and return Photo-like
+ * objects with `remoteUrl` populated. When a local blob exists in IndexedDB, it's
+ * merged in so the UI can show the crisp local version. Falls back to IndexedDB
+ * when offline or on network errors.
  */
 export async function getPhotosForMapping(mappingEntryId: string): Promise<Photo[]> {
-  return await db.photos
-    .where('mappingEntryId')
-    .equals(mappingEntryId)
-    .toArray();
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('mapping_entry_id', mappingEntryId);
+
+      if (error) throw error;
+
+      const remotePhotos: Photo[] = [];
+      for (const row of data || []) {
+        const localPhoto = await db.photos.get(row.id);
+        remotePhotos.push({
+          id: row.id,
+          mappingEntryId: row.mapping_entry_id,
+          blob: localPhoto?.blob,
+          metadata: row.metadata,
+          uploaded: true,
+          remoteUrl: row.url,
+        });
+      }
+
+      // Overlay local-only photos not yet uploaded (no remote record yet)
+      const localOnly = await db.photos
+        .where('mappingEntryId')
+        .equals(mappingEntryId)
+        .and((p) => !p.uploaded)
+        .toArray();
+
+      const seen = new Set(remotePhotos.map((p) => p.id));
+      for (const local of localOnly) {
+        if (!seen.has(local.id)) remotePhotos.push(local);
+      }
+
+      return remotePhotos;
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[online-first] getPhotosForMapping: fallback su IndexedDB', err);
+    }
+  }
+
+  return db.photos.where('mappingEntryId').equals(mappingEntryId).toArray();
 }
 
 /**
