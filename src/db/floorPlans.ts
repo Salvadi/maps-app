@@ -141,6 +141,60 @@ function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
 }
 
 /**
+ * Estrae il path dentro al bucket 'planimetrie' da un URL Supabase
+ * (public o signed). Restituisce null se non matcha.
+ */
+function extractPlanimetriePath(url: string | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/\/planimetrie\/([^?]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Il bucket 'planimetrie' è privato: i publicUrl salvati in floor_plans
+ * restituiscono 403. Sostituiamo imageUrl/thumbnailUrl/pdfUrl con signed URL
+ * generate in un'unica chiamata batch (TTL 1h).
+ */
+async function signFloorPlanUrls(plans: FloorPlan[]): Promise<FloorPlan[]> {
+  const paths = new Set<string>();
+  for (const p of plans) {
+    const a = extractPlanimetriePath(p.imageUrl);
+    const b = extractPlanimetriePath(p.thumbnailUrl);
+    const c = extractPlanimetriePath(p.pdfUrl);
+    if (a) paths.add(a);
+    if (b) paths.add(b);
+    if (c) paths.add(c);
+  }
+  if (paths.size === 0) return plans;
+
+  const pathList = Array.from(paths);
+  const { data: signed, error } = await supabase.storage
+    .from('planimetrie')
+    .createSignedUrls(pathList, 60 * 60);
+  if (error) {
+    console.warn('[online-first] signFloorPlanUrls: createSignedUrls failed', error);
+    return plans;
+  }
+
+  const byPath = new Map<string, string>();
+  for (const s of signed || []) {
+    if (s.path && s.signedUrl) byPath.set(s.path, s.signedUrl);
+  }
+
+  return plans.map((p) => {
+    const imgPath = extractPlanimetriePath(p.imageUrl);
+    const thumbPath = extractPlanimetriePath(p.thumbnailUrl);
+    const pdfPath = extractPlanimetriePath(p.pdfUrl);
+    return {
+      ...p,
+      imageUrl: (imgPath && byPath.get(imgPath)) || p.imageUrl,
+      thumbnailUrl: (thumbPath && byPath.get(thumbPath)) || p.thumbnailUrl,
+      pdfUrl: (pdfPath && byPath.get(pdfPath)) || p.pdfUrl,
+    };
+  });
+}
+
+/**
  * Preserva i campi local-only di un FloorPlan: blob binari e configurazione griglia.
  */
 function mergeFloorPlanLocalFields(remote: FloorPlan, existing: FloorPlan | undefined): FloorPlan {
@@ -214,14 +268,15 @@ export async function getFloorPlanByProjectAndFloor(
         throw error;
       }
 
-      const remote = convertRemoteToLocalFloorPlan(data);
+      const rawRemote = convertRemoteToLocalFloorPlan(data);
+      const [signedRemote] = await signFloorPlanUrls([rawRemote]);
       const pendingIds = await getPendingEntityIds('floor_plan');
 
       const [merged] = await Promise.all([
         (async () => {
-          const existing = await db.floorPlans.get(remote.id);
-          const item = mergeFloorPlanLocalFields(remote, existing);
-          if (!pendingIds.has(remote.id)) await db.floorPlans.put(item);
+          const existing = await db.floorPlans.get(signedRemote.id);
+          const item = mergeFloorPlanLocalFields(signedRemote, existing);
+          if (!pendingIds.has(signedRemote.id)) await db.floorPlans.put(item);
           return item;
         })(),
       ]);
@@ -255,7 +310,8 @@ export async function getFloorPlansByProject(projectId: string): Promise<FloorPl
 
       if (error) throw error;
 
-      const remoteFloorPlans = (data || []).map(convertRemoteToLocalFloorPlan);
+      const rawFloorPlans = (data || []).map(convertRemoteToLocalFloorPlan);
+      const remoteFloorPlans = await signFloorPlanUrls(rawFloorPlans);
 
       const pendingIds = await getPendingEntityIds(
         'floor_plan',
