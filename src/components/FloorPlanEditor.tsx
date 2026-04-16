@@ -42,6 +42,7 @@ interface FloorPlanEditorProps {
   initialRotation?: number; // 0, 90, 180, 270
   onRotationChange?: (rotation: number) => void;
   initialActiveTool?: Tool;
+  initialEiRating?: EiRating;
 }
 
 const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
@@ -71,6 +72,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   initialRotation = 0,
   onRotationChange,
   initialActiveTool,
+  initialEiRating,
 }) => {
   // Ref to FloorPlanCanvas imperative handle
   const canvasRef = useRef<FloorPlanCanvasHandle>(null);
@@ -228,12 +230,15 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     const point: CanvasPoint = {
       ...newPoint,
       id: `point-${Date.now()}-${Math.random()}`,
+      eiRating: newPoint.eiRating ?? initialEiRating,
     };
 
     setPoints(prev => [...prev, point]);
     setHasUnsavedChanges(true);
     setSelectedPointId(point.id);
-  }, [maxPoints, points.length, mode, selectedUnmappedId, handlePlaceUnmappedEntry]);
+    // Automatically select the new point in the multi-select set so the EI dropdown reflects it
+    setSelectedPointIds(new Set([point.id]));
+  }, [maxPoints, points.length, mode, selectedUnmappedId, handlePlaceUnmappedEntry, initialEiRating]);
 
   // Handle moving point or label
   const handlePointMove = useCallback((pointId: string, newX: number, newY: number, isLabel: boolean) => {
@@ -605,6 +610,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Get selected point
   const selectedPoint = points.find(p => p.id === selectedPointId);
 
+  // Derive the EI rating shown in the dropdown: common rating of all selected points, or '' if mixed/none
+  const selectedEiValue = (() => {
+    if (selectedPointIds.size === 0) return '';
+    const ratings = points.filter(p => selectedPointIds.has(p.id)).map(p => p.eiRating ?? '');
+    const first = ratings[0];
+    return ratings.every(r => r === first) ? String(first) : '';
+  })();
+
   // ============================================
   // SEZIONE: Render principale
   // JSX principale dell'editor con canvas, pannelli laterali e toolbar.
@@ -728,52 +741,25 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                     </button>
                   </div>
 
-                  {/* EI Rating selector */}
+                  {/* EI Rating dropdown */}
                   <div className="toolbar-divider"></div>
                   <div className="toolbar-section">
                     <span className="toolbar-label">EI:</span>
-                    <div className="ei-buttons">
+                    <select
+                      className="ei-select"
+                      value={selectedEiValue}
+                      disabled={selectedPointIds.size === 0}
+                      title={selectedPointIds.size === 0 ? 'Seleziona un punto per impostare EI' : 'Resistenza al fuoco'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleApplyEiRating(val ? Number(val) as EiRating : undefined);
+                      }}
+                    >
+                      <option value="">— nessuna</option>
                       {([30, 60, 90, 120, 180, 240] as EiRating[]).map(ei => (
-                        <button
-                          key={ei}
-                          className="ei-btn"
-                          style={{
-                            borderColor: EI_COLORS[ei],
-                            borderWidth: '3px',
-                            borderStyle: 'solid',
-                            opacity: selectedPointIds.size === 0 ? 0.5 : 1,
-                          }}
-                          onClick={() => {
-                            if (selectedPointIds.size === 0) {
-                              alert('Seleziona almeno un punto dal menu di destra');
-                              return;
-                            }
-                            handleApplyEiRating(ei);
-                          }}
-                          disabled={selectedPointIds.size === 0}
-                          title={`Imposta EI ${ei}`}
-                        >
-                          {ei}
-                        </button>
+                        <option key={ei} value={String(ei)}>EI {ei}</option>
                       ))}
-                      <button
-                        className="ei-btn ei-btn-clear"
-                        style={{
-                          opacity: selectedPointIds.size === 0 ? 0.5 : 1,
-                        }}
-                        onClick={() => {
-                          if (selectedPointIds.size === 0) {
-                            alert('Seleziona almeno un punto dal menu di destra');
-                            return;
-                          }
-                          handleApplyEiRating(undefined);
-                        }}
-                        disabled={selectedPointIds.size === 0}
-                        title="Rimuovi EI"
-                      >
-                        ✕
-                      </button>
-                    </div>
+                    </select>
                   </div>
                 </>
               )}
@@ -922,12 +908,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                     <input
                       type="number"
                       min="1"
-                      max="50"
                       value={rowsInput}
                       onChange={(e) => setRowsInput(e.target.value)}
                       onBlur={(e) => {
                         const v = parseInt(e.target.value);
-                        const clamped = isNaN(v) ? 1 : Math.min(Math.max(v, 1), 50);
+                        const clamped = isNaN(v) || v < 1 ? 1 : v;
                         setRowsInput(String(clamped));
                         handleGridConfigChange('rows', clamped);
                       }}
@@ -938,12 +923,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                     <input
                       type="number"
                       min="1"
-                      max="50"
                       value={colsInput}
                       onChange={(e) => setColsInput(e.target.value)}
                       onBlur={(e) => {
                         const v = parseInt(e.target.value);
-                        const clamped = isNaN(v) ? 1 : Math.min(Math.max(v, 1), 50);
+                        const clamped = isNaN(v) || v < 1 ? 1 : v;
                         setColsInput(String(clamped));
                         handleGridConfigChange('cols', clamped);
                       }}

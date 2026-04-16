@@ -456,6 +456,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         onSave={handleSaveFloorPlanPoint}
         onClose={() => setShowFloorPlanEditor(false)}
         initialActiveTool={currentFloorPlanPoint ? undefined : determineSuggestedTool(crossings)}
+        initialEiRating={eiRating}
       />
     );
   }
