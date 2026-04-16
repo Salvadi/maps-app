@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle, EI_COLORS, EiRating } from './FloorPlanCanvas';
+import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle, EiRating } from './FloorPlanCanvas';
 import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
