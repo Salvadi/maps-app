@@ -38,12 +38,12 @@ const STEP_LABELS = ['Posizione', 'Attraversamenti', 'Foto'];
 const EI_RATING_VALUES: EiRating[] = [30, 60, 90, 120, 180, 240];
 
 function determineSuggestedTool(crossings: Crossing[]): Tool {
-  const values = crossings.map(c => c.supporto?.toLowerCase().trim()).filter(Boolean);
+  const values = crossings.map(c => c.supporto?.toLowerCase().trim()).filter(Boolean) as string[];
   if (values.length === 0) return 'parete';
-  const unique = new Set(values);
-  if (unique.size > 1) return 'generico';
-  const val = [...unique][0];
-  if (val === 'solaio') return 'solaio';
+  const first = values[0];
+  const allSame = values.every(v => v === first);
+  if (!allSame) return 'generico';
+  if (first === 'solaio') return 'solaio';
   return 'parete';
 }
 
