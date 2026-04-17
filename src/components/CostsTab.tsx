@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Download, ChevronDown, Plus, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Download, ChevronDown, Plus, Trash2, X, AlertTriangle, Tag, Package } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -21,6 +21,10 @@ interface AggregatedRow {
   floor: string;
   tipologicoId?: string;
   tipologicoLabel: string;
+  tipologicoNumber?: number;
+  tipologicoSupporto?: string;
+  tipologicoBrand?: string;
+  tipologicoProducts?: string[];
   supporto: string;
   tipoSupporto: string;
   attraversamento: string;      // display label
@@ -62,6 +66,52 @@ function formatTypologyMaterials(brand?: string, products?: string[]): string {
   ];
 
   return items.join(', ');
+}
+
+function renderTypologySummary(options: {
+  number?: number;
+  supporto?: string;
+  brand?: string;
+  products?: string[];
+  fallbackLabel?: string;
+  compact?: boolean;
+}) {
+  const { number, supporto, brand, products, fallbackLabel, compact = false } = options;
+
+  if (!number) {
+    return fallbackLabel ? (
+      <div className={`${compact ? 'text-[11px]' : 'text-xs'} text-brand-400 truncate`}>
+        {fallbackLabel}
+      </div>
+    ) : null;
+  }
+
+  return (
+    <div className={`min-w-0 ${compact ? 'space-y-1' : 'space-y-1.5'}`}>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-[10px] font-bold text-white bg-accent px-2 py-0.5 rounded-full flex-shrink-0">
+          #{number}
+        </span>
+        {supporto && (
+          <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-medium text-brand-700 truncate`}>
+            {supporto}
+          </span>
+        )}
+      </div>
+      {brand && (
+        <div className={`flex items-center gap-1.5 text-brand-500 min-w-0 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+          <Tag size={compact ? 10 : 11} className="text-brand-400 flex-shrink-0" />
+          <span className="truncate">{brand}</span>
+        </div>
+      )}
+      {!!products?.length && (
+        <div className={`flex items-start gap-1.5 text-brand-500 min-w-0 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+          <Package size={compact ? 10 : 11} className="text-brand-400 flex-shrink-0 mt-0.5" />
+          <span className="truncate">{products.join(', ')}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -131,22 +181,20 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     const map: Record<string, {
       number: number;
       supporto: string;
+      brand: string;
+      products: string[];
       materialsLabel: string;
       listLabel: string;
-      priceFormLabel: string;
     }> = {};
     for (const t of project.typologies || []) {
       const materialsLabel = formatTypologyMaterials(t.marcaProdottoUtilizzato, t.prodottiSelezionati);
       map[t.id] = {
         number: t.number,
         supporto: t.supporto,
+        brand: t.marcaProdottoUtilizzato,
+        products: t.prodottiSelezionati,
         materialsLabel,
         listLabel: joinLabelParts([`Tip. ${t.number}`, t.supporto, materialsLabel]) || `Tip. ${t.number}`,
-        priceFormLabel: joinLabelParts([
-          t.attraversamentoCustom || t.attraversamento,
-          t.supporto,
-          materialsLabel,
-        ]) || (t.attraversamentoCustom || t.attraversamento),
       };
     }
     return map;
@@ -207,6 +255,10 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           floor: entry.floor,
           tipologicoId: crossing.tipologicoId,
           tipologicoLabel,
+          tipologicoNumber: tipObj?.number,
+          tipologicoSupporto: tipObj?.supporto,
+          tipologicoBrand: tipObj?.brand,
+          tipologicoProducts: tipObj?.products,
           supporto: crossing.supporto || '',
           tipoSupporto: crossing.tipoSupporto || '',
           attraversamento: attrDisplay,
@@ -238,6 +290,10 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           result.push({
             floor: entry.floor,
             tipologicoLabel: 'Asola',
+            tipologicoNumber: undefined,
+            tipologicoSupporto: undefined,
+            tipologicoBrand: undefined,
+            tipologicoProducts: undefined,
             supporto: crossing.supporto || '',
             tipoSupporto: crossing.tipoSupporto || '',
             attraversamento: asolaLabel,
@@ -310,6 +366,10 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       attraversamento: string;
       tipologicoId?: string;
       tipologicoLabel: string;
+      tipologicoNumber?: number;
+      tipologicoSupporto?: string;
+      tipologicoBrand?: string;
+      tipologicoProducts?: string[];
       isAsola: boolean;
       defaultUnit: 'piece' | 'sqm';
     }>();
@@ -325,7 +385,11 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
               key,
               attraversamento,
               tipologicoId: crossing.tipologicoId,
-              tipologicoLabel: tipObj?.priceFormLabel || joinLabelParts([attraversamento, crossing.supporto]) || attraversamento,
+              tipologicoLabel: tipObj?.listLabel || 'Senza tipologico',
+              tipologicoNumber: tipObj?.number,
+              tipologicoSupporto: tipObj?.supporto,
+              tipologicoBrand: tipObj?.brand,
+              tipologicoProducts: tipObj?.products,
               isAsola: false,
               defaultUnit: 'piece',
             });
@@ -337,6 +401,10 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             key: ASOLA_KEY,
             attraversamento: ASOLA_KEY,
             tipologicoLabel: 'Prezzo generale asola',
+            tipologicoNumber: undefined,
+            tipologicoSupporto: undefined,
+            tipologicoBrand: undefined,
+            tipologicoProducts: undefined,
             isAsola: true,
             defaultUnit: 'sqm',
           });
@@ -612,8 +680,18 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-brand-400 truncate">
-                            {row.tipologicoLabel} · {row.unit === 'sqm' ? `${row.quantity.toFixed(2)} mq` : `×${row.quantity}`}
+                          <div className="mt-1">
+                            {renderTypologySummary({
+                              number: row.tipologicoNumber,
+                              supporto: row.tipologicoSupporto,
+                              brand: row.tipologicoBrand,
+                              products: row.tipologicoProducts,
+                              fallbackLabel: row.tipologicoLabel,
+                              compact: true,
+                            })}
+                          </div>
+                          <div className="text-[11px] text-brand-400 mt-1">
+                            {row.unit === 'sqm' ? `${row.quantity.toFixed(2)} mq` : `×${row.quantity}`}
                           </div>
                         </div>
                         <div className="text-xs font-semibold text-brand-800 flex-shrink-0">
@@ -697,11 +775,13 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                       : row.attraversamento
                     }
                   </div>
-                  {!row.isAsola && (
-                    <div className="text-[11px] text-brand-400 mb-2">
-                      Sigillato con: {row.tipologicoLabel}
-                    </div>
-                  )}
+                  {!row.isAsola && renderTypologySummary({
+                    number: row.tipologicoNumber,
+                    supporto: row.tipologicoSupporto,
+                    brand: row.tipologicoBrand,
+                    products: row.tipologicoProducts,
+                    fallbackLabel: row.tipologicoLabel,
+                  })}
                   <div className="flex items-center gap-2">
                     <div className="flex items-center flex-1 bg-brand-50 border border-brand-200 rounded-xl overflow-hidden">
                       <span className="px-3 text-sm text-brand-500 select-none">€</span>
