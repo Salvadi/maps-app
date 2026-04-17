@@ -51,6 +51,19 @@ function buildPriceConfigKey(attraversamento: string, tipologicoId?: string): st
   return `${attraversamento}::${tipologicoId ?? NO_TIPOLOGICO_KEY}`;
 }
 
+function joinLabelParts(parts: Array<string | undefined>): string {
+  return parts.map(part => part?.trim()).filter(Boolean).join(' · ');
+}
+
+function formatTypologyMaterials(brand?: string, products?: string[]): string {
+  const items = [
+    brand?.trim(),
+    ...(products ?? []).map(product => product.trim()).filter(Boolean),
+  ];
+
+  return items.join(', ');
+}
+
 /**
  * Tenta di estrarre un valore in mq dal campo dimensioni (testo libero).
  * Formati supportati: "0,2mq", "0,2 mq", "0.2", "0,2", "1", ".5", ecc.
@@ -115,9 +128,26 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   }, [loadData]);
 
   const typologyMap = React.useMemo(() => {
-    const map: Record<string, { number: number; label: string }> = {};
+    const map: Record<string, {
+      number: number;
+      supporto: string;
+      materialsLabel: string;
+      listLabel: string;
+      priceFormLabel: string;
+    }> = {};
     for (const t of project.typologies || []) {
-      map[t.id] = { number: t.number, label: `#${t.number} – ${t.supporto} / ${t.tipoSupporto}` };
+      const materialsLabel = formatTypologyMaterials(t.marcaProdottoUtilizzato, t.prodottiSelezionati);
+      map[t.id] = {
+        number: t.number,
+        supporto: t.supporto,
+        materialsLabel,
+        listLabel: joinLabelParts([`Tip. ${t.number}`, t.supporto, materialsLabel]) || `Tip. ${t.number}`,
+        priceFormLabel: joinLabelParts([
+          t.attraversamentoCustom || t.attraversamento,
+          t.supporto,
+          materialsLabel,
+        ]) || (t.attraversamentoCustom || t.attraversamento),
+      };
     }
     return map;
   }, [project.typologies]);
@@ -171,7 +201,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         }
 
         const tipObj = crossing.tipologicoId ? typologyMap[crossing.tipologicoId] : undefined;
-        const tipologicoLabel = tipObj ? tipObj.label : 'Senza tipologico';
+        const tipologicoLabel = tipObj ? tipObj.listLabel : 'Senza tipologico';
 
         result.push({
           floor: entry.floor,
@@ -289,14 +319,13 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         const attraversamento = crossing.attraversamentoCustom || crossing.attraversamento || '';
         if (attraversamento) {
           const tipObj = crossing.tipologicoId ? typologyMap[crossing.tipologicoId] : undefined;
-          const tipologicoLabel = tipObj ? tipObj.label : 'Senza tipologico';
           const key = buildPriceConfigKey(attraversamento, crossing.tipologicoId);
           if (!uniqueRows.has(key)) {
             uniqueRows.set(key, {
               key,
               attraversamento,
               tipologicoId: crossing.tipologicoId,
-              tipologicoLabel,
+              tipologicoLabel: tipObj?.priceFormLabel || joinLabelParts([attraversamento, crossing.supporto]) || attraversamento,
               isAsola: false,
               defaultUnit: 'piece',
             });
