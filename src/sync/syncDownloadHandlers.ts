@@ -712,6 +712,7 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
           labelY: supabasePoint.label_y,
           perimeterPoints: supabasePoint.perimeter_points,
           customText: supabasePoint.custom_text,
+          eiRating: supabasePoint.metadata?.eiRating ?? supabasePoint.ei_rating,
           metadata: supabasePoint.metadata || {},
           createdBy: supabasePoint.created_by,
           createdAt: new Date(supabasePoint.created_at).getTime(),

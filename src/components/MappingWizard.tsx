@@ -19,7 +19,8 @@ import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import TypologyViewerModal from './TypologyViewerModal';
 import FloorPlanEditor from './FloorPlanEditor';
-import type { CanvasPoint, GridConfig } from './FloorPlanCanvas';
+import type { CanvasPoint, GridConfig, Tool } from './FloorPlanCanvas';
+import { EI_COLORS, EiRating } from './FloorPlanCanvas';
 
 interface MappingWizardProps {
   project: Project | null;
@@ -34,6 +35,18 @@ type Step = 0 | 1 | 2;
 
 const STEP_LABELS = ['Posizione', 'Attraversamenti', 'Foto'];
 
+const EI_RATING_VALUES: EiRating[] = [30, 60, 90, 120, 180, 240];
+
+function determineSuggestedTool(crossings: Crossing[]): Tool {
+  const values = crossings.map(c => c.supporto?.toLowerCase().trim()).filter(Boolean) as string[];
+  if (values.length === 0) return 'parete';
+  const first = values[0];
+  const allSame = values.every(v => v === first);
+  if (!allSame) return 'generico';
+  if (first === 'solaio') return 'solaio';
+  return 'parete';
+}
+
 const MappingWizard: React.FC<MappingWizardProps> = ({
   project, currentUser, onBack, editingEntry, onSync, isSyncing
 }) => {
@@ -42,6 +55,27 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
 
   const [step, setStep] = useState<Step>(0);
+
+  // Push history on step change so Android back steps backward within the wizard
+  useEffect(() => {
+    window.history.pushState(
+      { ...(window.history.state || {}), __wizardStep: step },
+      ''
+    );
+  }, [step]);
+
+  // Handle browser back within wizard steps
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { view?: string; __wizardStep?: number } | null;
+      if (state?.view === 'mapping' && state.__wizardStep !== undefined) {
+        setStep(state.__wizardStep as Step);
+      }
+      // If view changed away from 'mapping', App.tsx handles it and unmounts this component
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Position fields
   const getLastUsedFloor = () => {
@@ -70,6 +104,9 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [initialPhotoCount, setInitialPhotoCount] = useState(0);
   const [photosToRemove, setPhotosToRemove] = useState<string[]>([]);
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<{ url: string; alt: string } | null>(null);
+
+  // EI Rating per il punto sulla planimetria
+  const [eiRating, setEiRating] = useState<EiRating | undefined>(undefined);
 
   // Floor plan
   const [showFloorPlanEditor, setShowFloorPlanEditor] = useState(false);
@@ -283,6 +320,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     if (entryToCheck) {
       const pt = await getFloorPlanPointByMappingEntry(entryToCheck.id);
       setCurrentFloorPlanPoint(pt || null);
+      if (pt?.eiRating) setEiRating(pt.eiRating as EiRating);
     }
     try {
       const allPts = await getFloorPlanPoints(currentFloorPlan.id);
@@ -294,6 +332,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         mappingEntryId: p.mappingEntryId,
         labelBackgroundColor: p.metadata?.labelBackgroundColor,
         labelTextColor: p.metadata?.labelTextColor,
+        eiRating: p.eiRating,
       })));
     } catch { setReadOnlyPoints([]); }
     setShowFloorPlanEditor(true);
@@ -311,11 +350,12 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           pointType: point.type, pointX: point.pointX, pointY: point.pointY,
           labelX: point.labelX, labelY: point.labelY,
           perimeterPoints: point.perimeterPoints, customText: point.customText,
+          eiRating: point.eiRating,
         });
       } else {
         await createFloorPlanPoint(currentFloorPlan.id, entry.id, point.type,
           point.pointX, point.pointY, point.labelX, point.labelY, currentUser.id,
-          { perimeterPoints: point.perimeterPoints, customText: point.customText });
+          { perimeterPoints: point.perimeterPoints, customText: point.customText, eiRating: point.eiRating });
       }
       await updateFloorPlan(currentFloorPlan.id, { gridEnabled: gridConfig.enabled, gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY } });
       alert('Punto salvato sulla planimetria!');
@@ -397,6 +437,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       mappingEntryId: currentFloorPlanPoint.mappingEntryId,
       labelBackgroundColor: currentFloorPlanPoint.metadata?.labelBackgroundColor,
       labelTextColor: currentFloorPlanPoint.metadata?.labelTextColor,
+      eiRating: currentFloorPlanPoint.eiRating,
     }] : [];
 
     return (
@@ -415,6 +456,8 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         readOnlyPoints={readOnlyPoints}
         onSave={handleSaveFloorPlanPoint}
         onClose={() => setShowFloorPlanEditor(false)}
+        initialActiveTool={currentFloorPlanPoint ? undefined : determineSuggestedTool(crossings)}
+        initialEiRating={eiRating}
       />
     );
   }
@@ -847,6 +890,31 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                   <div className="text-xs text-brand-500">Piano {floor}</div>
                 </div>
               </button>
+            )}
+
+            {/* EI Rating selector */}
+            {currentFloorPlan && (
+              <div className="bg-white rounded-2xl shadow-card p-4">
+                <div className="text-sm font-medium text-brand-700 mb-3">Resistenza al fuoco (EI)</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setEiRating(undefined)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${!eiRating ? 'border-brand-400 bg-brand-100 text-brand-700' : 'border-brand-200 bg-white text-brand-400'}`}
+                  >
+                    Nessuna
+                  </button>
+                  {EI_RATING_VALUES.map(val => (
+                    <button
+                      key={val}
+                      onClick={() => setEiRating(val)}
+                      style={{ borderColor: EI_COLORS[val], backgroundColor: eiRating === val ? EI_COLORS[val] : 'white', color: eiRating === val ? 'white' : EI_COLORS[val] }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all"
+                    >
+                      EI {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* To complete checkbox */}
