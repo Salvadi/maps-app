@@ -86,27 +86,44 @@ function renderTypologySummary(options: {
     ) : null;
   }
 
+  if (compact) {
+    const materialsLabel = formatTypologyMaterials(brand, products);
+    const compactLabel = joinLabelParts([supporto, materialsLabel]) || fallbackLabel;
+    return (
+      <div className="flex items-center gap-2 min-w-0 text-[11px]">
+        <span className="text-[10px] font-bold text-white bg-accent px-2 py-0.5 rounded-full flex-shrink-0">
+          #{number}
+        </span>
+        {compactLabel && (
+          <span className="truncate min-w-0 text-brand-600">
+            {compactLabel}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className={`min-w-0 ${compact ? 'space-y-1' : 'space-y-1.5'}`}>
+    <div className="min-w-0 space-y-1.5">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] font-bold text-white bg-accent px-2 py-0.5 rounded-full flex-shrink-0">
           #{number}
         </span>
         {supporto && (
-          <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-medium text-brand-700 truncate`}>
+          <span className="text-xs font-medium text-brand-700 truncate">
             {supporto}
           </span>
         )}
       </div>
       {brand && (
-        <div className={`flex items-center gap-1.5 text-brand-500 min-w-0 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
-          <Tag size={compact ? 10 : 11} className="text-brand-400 flex-shrink-0" />
+        <div className="flex items-center gap-1.5 text-brand-500 min-w-0 text-[11px]">
+          <Tag size={11} className="text-brand-400 flex-shrink-0" />
           <span className="truncate">{brand}</span>
         </div>
       )}
       {!!products?.length && (
-        <div className={`flex items-start gap-1.5 text-brand-500 min-w-0 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
-          <Package size={compact ? 10 : 11} className="text-brand-400 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-1.5 text-brand-500 min-w-0 text-[11px]">
+          <Package size={11} className="text-brand-400 flex-shrink-0 mt-0.5" />
           <span className="truncate">{products.join(', ')}</span>
         </div>
       )}
@@ -132,6 +149,50 @@ const MONTH_NAMES = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
 ];
+
+const CURRENCY_XLS_FORMAT = '#,##0.00 [$€-it-IT]';
+const QUANTITY_XLS_FORMAT = '#,##0.00';
+
+function formatDateTime(value: number): string {
+  return new Date(value).toLocaleString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDateOnly(value: number): string {
+  return new Date(value).toLocaleDateString('it-IT');
+}
+
+function formatUnitLabel(unit: 'piece' | 'sqm'): string {
+  return unit === 'piece' ? 'pz' : 'mq';
+}
+
+function applyColumnFormats(
+  worksheet: XLSX.WorkSheet,
+  columns: number[],
+  format: string,
+  startRow: number,
+) {
+  if (!worksheet['!ref']) return;
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  for (let row = startRow; row <= range.e.r; row += 1) {
+    for (const col of columns) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = worksheet[cellAddress];
+      if (cell && typeof cell.v === 'number') {
+        cell.z = format;
+      }
+    }
+  }
+}
+
+function setColumnWidths(worksheet: XLSX.WorkSheet, widths: number[]) {
+  worksheet['!cols'] = widths.map(width => ({ wch: width }));
+}
 
 const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
@@ -462,64 +523,132 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const handleExport = () => {
     const exportRows = filteredRows;
     const exportTotal = grandTotal;
+    const exportedAt = Date.now();
+    const reportTitle = selectedSal
+      ? `Contabilita SAL ${selectedSal.number}`
+      : 'Contabilita progetto';
+    const salLabel = selectedSal
+      ? `SAL ${selectedSal.number}${selectedSal.name ? ` — ${selectedSal.name}` : ''}`
+      : 'Tutte le contabilizzazioni';
+    const projectTotal = selectedSal ? exportTotal + cumulativePriorTotal : exportTotal;
 
-    // Sheet 1: Riepilogo
-    const summaryData: any[][] = [];
+    const formatExportTypology = (row: AggregatedRow) => (
+      joinLabelParts([
+        row.tipologicoNumber ? `#${row.tipologicoNumber}` : undefined,
+        row.tipologicoSupporto,
+        formatTypologyMaterials(row.tipologicoBrand, row.tipologicoProducts),
+      ]) || row.tipologicoLabel
+    );
 
-    // Se stiamo esportando un SAL specifico, aggiungi header
+    const summaryData: any[][] = [
+      [reportTitle],
+      [project.title],
+      [],
+      ['Documento', selectedSal ? 'Stato Avanzamento Lavori' : 'Report contabilita'],
+      ['Progetto', project.title],
+      ['Vista export', salLabel],
+      ['Data export', formatDateTime(exportedAt)],
+    ];
+
     if (selectedSal) {
-      summaryData.push(['Progetto', project.title]);
-      summaryData.push(['SAL', `SAL ${selectedSal.number}${selectedSal.name ? ' — ' + selectedSal.name : ''}`]);
-      summaryData.push(['Data', new Date(selectedSal.date).toLocaleDateString('it-IT')]);
-      summaryData.push([]);
+      summaryData.push(
+        ['Data SAL', formatDateOnly(selectedSal.date)],
+        ['Note SAL', selectedSal.notes?.trim() || '—'],
+      );
     }
 
     summaryData.push(
-      ['Piano', 'Tipologico', 'Supporto', 'Attraversamento', 'Quantità', 'Unità', 'Prezzo unit.', 'Totale'],
+      [],
+      ['Riepilogo economico', 'Valore'],
+      ['Attraversamenti esportati', exportRows.length],
+      ['Totale documento', exportTotal],
     );
+
+    if (selectedSal) {
+      summaryData.push(
+        ['Cumulativo SAL precedenti', cumulativePriorTotal],
+        ['Totale complessivo progetto', projectTotal],
+      );
+    }
+
+    summaryData.push(
+      [],
+      ['Dettaglio attraversamenti'],
+      ['Piano', 'Tipologico', 'Supporto', 'Attraversamento', 'Quantita', 'Unita', 'Prezzo unit.', 'Totale'],
+    );
+
     for (const row of exportRows) {
       summaryData.push([
         row.floor,
-        row.tipologicoLabel,
+        formatExportTypology(row),
         row.supporto,
         row.attraversamento,
-        row.unit === 'sqm' ? row.quantity.toFixed(2) : row.quantity,
-        row.unit === 'piece' ? 'pz' : 'mq',
+        row.unit === 'sqm' ? Number(row.quantity.toFixed(2)) : row.quantity,
+        formatUnitLabel(row.unit),
         row.pricePerUnit,
         row.total,
       ]);
     }
+
     summaryData.push(['', '', '', '', '', '', 'TOTALE', exportTotal]);
 
-    if (selectedSal) {
-      summaryData.push([]);
-      summaryData.push(['', '', '', '', '', '', 'Cumulativo precedenti', cumulativePriorTotal]);
-      summaryData.push(['', '', '', '', '', '', 'TOTALE PROGETTO', cumulativePriorTotal + exportTotal]);
-    }
-
-    // Sheet 2: Dettaglio
     const detailData: any[][] = [
-      ['Progetto', 'Piano', 'Tipologico', 'ID Mappatura', 'Supporto', 'Tipo Supporto', 'Attraversamento', 'Quantità', 'Unità', 'Prezzo unit.', 'Totale'],
+      ['Report contabilita'],
+      [project.title],
+      [],
+      ['Progetto', 'Vista export', 'Data export'],
+      [project.title, salLabel, formatDateTime(exportedAt)],
+      [],
+      ['Progetto', 'Piano', 'Tipologico', 'ID Mappatura', 'ID Attraversamento', 'Supporto', 'Tipo Supporto', 'Attraversamento', 'Quantita', 'Unita', 'Prezzo unit.', 'Totale', 'SAL'],
     ];
+
     for (const row of exportRows) {
       detailData.push([
         project.title,
         row.floor,
-        row.tipologicoLabel,
+        formatExportTypology(row),
         row.mappingEntryId,
+        row.crossingId,
         row.supporto,
         row.tipoSupporto,
         row.attraversamento,
-        row.unit === 'sqm' ? row.quantity.toFixed(2) : row.quantity,
-        row.unit === 'piece' ? 'pz' : 'mq',
+        row.unit === 'sqm' ? Number(row.quantity.toFixed(2)) : row.quantity,
+        formatUnitLabel(row.unit),
         row.pricePerUnit,
         row.total,
+        selectedSal ? salLabel : (row.salId ? 'Contabilizzato' : 'Non contabilizzato'),
       ]);
     }
 
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    const detailSheet = XLSX.utils.aoa_to_sheet(detailData);
+    const summaryDetailTitleRow = summaryData.findIndex(row => row[0] === 'Dettaglio attraversamenti') + 1;
+    const summaryTableHeaderRow = summaryDetailTitleRow + 1;
+
+    summarySheet['!merges'] = [
+      XLSX.utils.decode_range('A1:H1'),
+      XLSX.utils.decode_range('A2:H2'),
+      XLSX.utils.decode_range(`A${summaryDetailTitleRow}:H${summaryDetailTitleRow}`),
+    ];
+    detailSheet['!merges'] = [
+      XLSX.utils.decode_range('A1:M1'),
+      XLSX.utils.decode_range('A2:M2'),
+    ];
+
+    setColumnWidths(summarySheet, [14, 34, 20, 26, 12, 10, 14, 14]);
+    setColumnWidths(detailSheet, [24, 12, 34, 18, 22, 18, 20, 28, 12, 10, 14, 14, 20]);
+
+    summarySheet['!autofilter'] = { ref: `A${summaryTableHeaderRow}:H${Math.max(summaryData.length, summaryTableHeaderRow)}` };
+    detailSheet['!autofilter'] = { ref: `A7:M${Math.max(detailData.length, 7)}` };
+
+    applyColumnFormats(summarySheet, [6, 7], CURRENCY_XLS_FORMAT, summaryTableHeaderRow);
+    applyColumnFormats(detailSheet, [10, 11], CURRENCY_XLS_FORMAT, 7);
+    applyColumnFormats(summarySheet, [4], QUANTITY_XLS_FORMAT, summaryTableHeaderRow);
+    applyColumnFormats(detailSheet, [8], QUANTITY_XLS_FORMAT, 7);
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Riepilogo');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailData), 'Dettaglio');
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Riepilogo');
+    XLSX.utils.book_append_sheet(wb, detailSheet, 'Dettaglio');
 
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
