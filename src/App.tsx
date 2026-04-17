@@ -384,6 +384,7 @@ const App: React.FC = () => {
         mappingEntryId: p.mappingEntryId,
         labelBackgroundColor: p.metadata?.labelBackgroundColor,
         labelTextColor: p.metadata?.labelTextColor,
+        eiRating: p.eiRating,
       }));
       setEditorInitialPoints(canvasPoints);
     } catch (err) {
