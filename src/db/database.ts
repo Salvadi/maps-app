@@ -238,6 +238,7 @@ export interface TypologyPrice {
   id: string;
   projectId: string;
   attraversamento: string;  // chiave: tipo attraversamento (es. "Tubo metallico NUDO", "Asola")
+  tipologicoId?: string;
   pricePerUnit: number;
   unit: 'piece' | 'sqm';
 }
@@ -441,6 +442,24 @@ export class MappingDatabase extends Dexie {
       productsCache: 'id, brand, sortOrder',
       typologyPrices: 'id, projectId, attraversamento, [projectId+attraversamento]',
       // SAL (Stato Avanzamento Lavori)
+      sals: 'id, projectId, number, createdAt'
+    });
+
+    // Define schema v9 - allow prices specific to attraversamento + tipologico
+    this.version(9).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
       sals: 'id, projectId, number, createdAt'
     });
   }
