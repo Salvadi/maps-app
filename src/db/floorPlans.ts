@@ -144,10 +144,23 @@ function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
  * Estrae il path dentro al bucket 'planimetrie' da un URL Supabase
  * (public o signed). Restituisce null se non matcha.
  */
-function extractPlanimetriePath(url: string | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/\/planimetrie\/([^?]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+function extractPlanimetriePath(urlOrPath: string | undefined): string | null {
+  if (!urlOrPath) return null;
+
+  // Caso 1: è già un path storage puro (senza protocollo e senza prefisso bucket)
+  if (!urlOrPath.includes('://') && !urlOrPath.includes('/planimetrie/')) {
+    return urlOrPath.split('?')[0].replace(/^\/+/, '') || null;
+  }
+
+  // Caso 2: URL Supabase public/signed (contiene /planimetrie/<path>)
+  const marker = '/planimetrie/';
+  const markerIdx = urlOrPath.indexOf(marker);
+  if (markerIdx >= 0) {
+    const rawPath = urlOrPath.slice(markerIdx + marker.length).split('?')[0];
+    return rawPath ? decodeURIComponent(rawPath) : null;
+  }
+
+  return null;
 }
 
 /**

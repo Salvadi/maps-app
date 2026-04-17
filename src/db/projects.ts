@@ -79,17 +79,29 @@ function mergeProjectLocalFields(remote: Project, existing: Project | undefined)
 export async function getProjectsForUser(userId: string): Promise<Project[]> {
   if (isOnlineAndConfigured()) {
     try {
-      // Fetch-all + filtro client-side: PostgREST non supporta query su array JSONB
-      const { data: allProjects, error } = await supabase
+      // Query server-side per ridurre payload e latenza della tab Progetti.
+      // accessible_users è un array uuid[]: usiamo il filtro contains (cs).
+      const { data: scopedProjects, error: scopedError } = await supabase
         .from('projects')
-        .select('*');
+        .select('*')
+        .or(`owner_id.eq.${userId},accessible_users.cs.{${userId}}`);
 
-      if (error) throw error;
+      let userProjects = scopedProjects || [];
 
-      const userProjects = (allProjects || []).filter((p: any) =>
-        p.owner_id === userId ||
-        (Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
-      );
+      // Fallback di compatibilità: se il filtro server-side non è supportato,
+      // torniamo alla strategia fetch-all + filtro client-side.
+      if (scopedError) {
+        console.warn('[online-first] getProjectsForUser: scoped query failed, fallback fetch-all', scopedError);
+        const { data: allProjects, error } = await supabase
+          .from('projects')
+          .select('*');
+        if (error) throw error;
+
+        userProjects = (allProjects || []).filter((p: any) =>
+          p.owner_id === userId ||
+          (Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
+        );
+      }
 
       const converted = userProjects.map(convertRemoteToLocalProject);
 
@@ -116,12 +128,14 @@ export async function getProjectsForUser(userId: string): Promise<Project[]> {
   }
 
   // Offline fallback
-  return await db.projects
+  const offlineProjects = await db.projects
     .where('ownerId')
     .equals(userId)
     .or('accessibleUsers')
     .equals(userId)
-    .sortBy('updatedAt');
+    .toArray();
+
+  return offlineProjects.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /**
