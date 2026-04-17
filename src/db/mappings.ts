@@ -293,40 +293,63 @@ export async function getPhotosForMapping(mappingEntryId: string): Promise<Photo
       // Generate short-lived signed URLs in a single batch call.
       let signedByPath = new Map<string, string>();
       if (rows.length > 0) {
-        const paths = rows
-          .map((r: any) => r.storage_path)
-          .filter((p: string | null | undefined): p is string => !!p);
-        if (paths.length > 0) {
+        const uniquePaths = Array.from(new Set(
+          rows
+            .map((r: any) => r.storage_path)
+            .filter((p: string | null | undefined): p is string => !!p)
+        ));
+
+        if (uniquePaths.length > 0) {
           const { data: signed, error: signErr } = await supabase.storage
             .from('photos')
-            .createSignedUrls(paths, 60 * 60); // 1 hour
-          if (signErr) throw signErr;
-          for (const s of signed || []) {
-            if (s.path && s.signedUrl) signedByPath.set(s.path, s.signedUrl);
+            .createSignedUrls(uniquePaths, 60 * 60); // 1 hour
+
+          // Non fallire tutta la lettura se la firma URL non riesce:
+          // usiamo comunque i row.url come best-effort fallback.
+          if (signErr) {
+            console.warn('[online-first] getPhotosForMapping: createSignedUrls failed, using fallback URLs', signErr);
+          } else {
+            for (const s of signed || []) {
+              if (s.path && s.signedUrl) signedByPath.set(s.path, s.signedUrl);
+            }
           }
         }
       }
 
+      const localPhotos = await db.photos
+        .where('mappingEntryId')
+        .equals(mappingEntryId)
+        .toArray();
+      const localById = new Map(localPhotos.map((photo) => [photo.id, photo]));
+
       const remotePhotos: Photo[] = [];
-      for (const row of rows) {
-        const localPhoto = await db.photos.get(row.id);
+      for (const row of rows as any[]) {
+        const localPhoto = localById.get(row.id);
         const signedUrl = row.storage_path ? signedByPath.get(row.storage_path) : undefined;
-        remotePhotos.push({
+
+        // Priorità URL:
+        // 1) signed URL appena generata
+        // 2) URL cache locale ancora valida
+        // 3) URL raw dal DB (best-effort)
+        const remoteUrl = signedUrl ?? localPhoto?.remoteUrl ?? row.url;
+
+        const mergedPhoto: Photo = {
           id: row.id,
           mappingEntryId: row.mapping_entry_id,
           blob: localPhoto?.blob,
           metadata: row.metadata,
           uploaded: true,
-          remoteUrl: signedUrl ?? row.url,
-        });
+          remoteUrl,
+        };
+
+        remotePhotos.push(mergedPhoto);
+
+        // Write-through locale: conserva blob esistente e aggiorna metadata/url
+        await db.photos.put(mergedPhoto);
       }
 
       // Overlay local-only photos not yet uploaded (no remote record yet)
-      const localOnly = await db.photos
-        .where('mappingEntryId')
-        .equals(mappingEntryId)
-        .and((p) => !p.uploaded)
-        .toArray();
+      const localOnly = localPhotos.filter((p) => !p.uploaded);
 
       const seen = new Set(remotePhotos.map((p) => p.id));
       for (const local of localOnly) {

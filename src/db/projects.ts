@@ -116,12 +116,14 @@ export async function getProjectsForUser(userId: string): Promise<Project[]> {
   }
 
   // Offline fallback
-  return await db.projects
+  const offlineProjects = await db.projects
     .where('ownerId')
     .equals(userId)
     .or('accessibleUsers')
     .equals(userId)
-    .sortBy('updatedAt');
+    .toArray();
+
+  return offlineProjects.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /**
