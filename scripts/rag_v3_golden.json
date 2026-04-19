@@ -1,0 +1,46 @@
+{
+  "name": "certsearch-v3-af-baseline",
+  "notes": "Baseline AF Systems sul corpus realmente presente in v3. Query mirate a retrieval primario su collari, giunti e sacchetti antifuoco.",
+  "queries": [
+    {
+      "query": "AF Systems collare EI 120 tubo metallico",
+      "manufacturer": "AF_SYSTEMS",
+      "products": ["AF MULTICOLLAR", "AF COLLAR"],
+      "expectedDocumentTitles": [
+        "CSI2398FR",
+        "IG 390120-4188FR",
+        "IG 338324-3824FR"
+      ],
+      "expectedDocumentIds": [],
+      "sourceTypes": ["certificate"]
+    },
+    {
+      "query": "AF Systems AF JOINT EI 120 giunto lineare",
+      "manufacturer": "AF_SYSTEMS",
+      "products": ["AF JOINT"],
+      "expectedDocumentTitles": ["ETA 19_0096"],
+      "expectedDocumentIds": [],
+      "sourceTypes": ["certificate"]
+    },
+    {
+      "query": "AF Systems sacchetto antifuoco cavi EI 120",
+      "manufacturer": "AF_SYSTEMS",
+      "products": ["AF BAGS"],
+      "expectedDocumentTitles": ["ETA 16-0733"],
+      "expectedDocumentIds": [],
+      "sourceTypes": ["certificate"]
+    },
+    {
+      "query": "AF Systems sigillante acrilico EI 120 giunto parete solaio",
+      "manufacturer": "AF_SYSTEMS",
+      "products": ["AF SEAL", "AF JOINT"],
+      "expectedDocumentTitles": [
+        "IG 260411-3148FR",
+        "IG 294977-3412FR",
+        "IG 329947-3759FR"
+      ],
+      "expectedDocumentIds": [],
+      "sourceTypes": ["certificate"]
+    }
+  ]
+}

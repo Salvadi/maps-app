@@ -25,6 +25,7 @@ const ProjectDetail = React.lazy(() => import('./components/ProjectDetail'));
 const MappingWizard = React.lazy(() => import('./components/MappingWizard'));
 const MapsOverview = React.lazy(() => import('./components/MapsOverview'));
 const SettingsPage = React.lazy(() => import('./components/SettingsPage'));
+const CertSearch = React.lazy(() => import('./components/CertSearch'));
 const StandaloneFloorPlanEditor = React.lazy(() => import('./components/StandaloneFloorPlanEditor'));
 const FloorPlanEditor = React.lazy(() => import('./components/FloorPlanEditor'));
 
@@ -584,6 +585,9 @@ const App: React.FC = () => {
                   onManualSync={handleManualSync}
                   isSyncing={syncStats.isSyncing}
                 />
+              )}
+              {activeTab === 'certSearch' && (
+                <CertSearch />
               )}
               {activeTab === 'maps' && (
                 <MapsOverview

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Home, FolderOpen, Map, Settings } from 'lucide-react';
+import { Home, FolderOpen, Map, Search, Settings } from 'lucide-react';
 
-export type TabId = 'dashboard' | 'projects' | 'maps' | 'settings';
+export type TabId = 'dashboard' | 'projects' | 'certSearch' | 'maps' | 'settings';
 
 interface BottomTabBarProps {
   activeTab: TabId;
@@ -12,6 +12,7 @@ interface BottomTabBarProps {
 const tabs: { id: TabId; label: string; icon: typeof Home }[] = [
   { id: 'dashboard', label: 'Home', icon: Home },
   { id: 'projects', label: 'Progetti', icon: FolderOpen },
+  { id: 'certSearch', label: 'Cert', icon: Search },
   { id: 'maps', label: 'Mappe', icon: Map },
   { id: 'settings', label: 'Impostazioni', icon: Settings },
 ];
@@ -19,7 +20,7 @@ const tabs: { id: TabId; label: string; icon: typeof Home }[] = [
 const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onTabChange, pendingSyncCount }) => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-brand-200 shadow-nav pb-safe-bottom">
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+      <div className="flex items-center justify-around h-16 max-w-xl mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
