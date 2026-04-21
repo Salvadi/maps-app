@@ -346,16 +346,19 @@ export async function getPhotosForMappings(
 
   if (isOnlineAndConfigured()) {
     try {
-      const { data, error } = await supabase
-        .from('photos')
-        .select('*')
-        .in('mapping_entry_id', mappingEntryIds);
+      const rows: RemotePhotoRow[] = [];
+      for (const batch of chunkArray(mappingEntryIds, 100)) {
+        const { data, error } = await supabase
+          .from('photos')
+          .select('*')
+          .in('mapping_entry_id', batch);
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        rows.push(...((data as RemotePhotoRow[] | null) || []));
       }
-
-      const rows: RemotePhotoRow[] = data || [];
       const localPhotos = await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).toArray();
       const localById = new Map(localPhotos.map((photo) => [photo.id, photo]));
       const pendingPhotoIds = await getPendingEntityIds('photo');
