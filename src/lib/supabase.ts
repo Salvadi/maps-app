@@ -326,44 +326,6 @@ export interface Database {
           updated_at?: string;
         };
       };
-      sync_queue: {
-        Row: {
-          id: string;
-          operation: 'CREATE' | 'UPDATE' | 'DELETE';
-          entity_type: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
-          entity_id: string;
-          data: any; // JSONB
-          timestamp: number;
-          synced: boolean;
-          user_id: string;
-          created_at: string;
-          processed_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          operation: 'CREATE' | 'UPDATE' | 'DELETE';
-          entity_type: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
-          entity_id: string;
-          data?: any;
-          timestamp: number;
-          synced?: boolean;
-          user_id: string;
-          created_at?: string;
-          processed_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          operation?: 'CREATE' | 'UPDATE' | 'DELETE';
-          entity_type?: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
-          entity_id?: string;
-          data?: any;
-          timestamp?: number;
-          synced?: boolean;
-          user_id?: string;
-          created_at?: string;
-          processed_at?: string | null;
-        };
-      };
       dropdown_options: {
         Row: {
           id: string;
