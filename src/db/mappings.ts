@@ -516,17 +516,22 @@ export async function removePhotoFromMapping(
   const photo = await db.photos.get(photoId);
   await db.photos.delete(photoId);
 
-  if (photo) {
-    const syncItem: SyncQueueItem = {
-      id: generateId(),
-      operation: 'DELETE',
-      entityType: 'photo',
-      entityId: photoId,
-      payload: photo,
-      timestamp: now(),
-      retryCount: 0,
-      synced: 0,
-    };
+    if (photo) {
+      const syncItem: SyncQueueItem = {
+        id: generateId(),
+        operation: 'DELETE',
+        entityType: 'photo',
+        entityId: photoId,
+        payload: {
+          id: photo.id,
+          mappingEntryId: photo.mappingEntryId,
+          storagePath: photo.storagePath,
+          thumbnailStoragePath: photo.thumbnailStoragePath,
+        },
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      };
     await db.syncQueue.add(syncItem);
     triggerImmediateUpload();
   }

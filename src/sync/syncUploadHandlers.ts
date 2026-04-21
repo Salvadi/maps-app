@@ -82,7 +82,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       typologies: project.typologies,
       owner_id: project.ownerId,
       accessible_users: project.accessibleUsers,
-      archived: project.archived,
+      archived: Boolean(project.archived),
       // NOTE: syncEnabled is NOT synced - it's a per-device preference
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
@@ -93,7 +93,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
 
     const { error } = await supabase
       .from('projects')
-      .insert(supabaseProject);
+      .upsert(supabaseProject, { onConflict: 'id' });
 
     if (error) throw new Error(error.message);
   }
@@ -127,7 +127,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       use_intervention_numbering: project.useInterventionNumbering,
       typologies: project.typologies,
       accessible_users: project.accessibleUsers,
-      archived: project.archived,
+      archived: Boolean(project.archived),
       // NOTE: syncEnabled is NOT synced - it's a per-device preference
       updated_at: new Date(project.updatedAt).toISOString(),
       version: project.version || 1, // Add version for conflict detection
@@ -153,6 +153,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       .eq('id', project.id);
 
     if (error) throw new Error(error.message);
+    return;
   }
 
   // Mark local as synced
@@ -311,20 +312,26 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
     // Mark local photo as uploaded
     await db.photos.update(photoMeta.id, { uploaded: true });
   } else if (item.operation === 'DELETE') {
-    // Use photoMeta from sync queue payload instead of querying database
-    // (photo was already deleted locally in removePhotoFromMapping)
-    const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
+    // Use explicit storage paths from the sync queue payload because
+    // the photo may already be gone from IndexedDB when DELETE runs.
+    const storagePaths = [
+      photoMeta.storagePath,
+      photoMeta.thumbnailStoragePath,
+      photoMeta.mappingEntryId ? `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg` : undefined,
+    ].filter((path, index, array): path is string => Boolean(path) && array.indexOf(path) === index);
 
     // Delete from storage
-    const { error: storageError } = await supabase.storage
-      .from('photos')
-      .remove([fileName]);
+    if (storagePaths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from('photos')
+        .remove(storagePaths);
 
-    if (storageError) {
-      console.warn(`Failed to delete photo from storage: ${storageError.message}`);
-      // Continue with metadata deletion even if storage deletion fails
-    } else {
-      console.log(`🗑️ Deleted photo from storage: ${fileName}`);
+      if (storageError) {
+        console.warn(`Failed to delete photo from storage: ${storageError.message}`);
+        // Continue with metadata deletion even if storage deletion fails
+      } else {
+        console.log(`🗑️ Deleted photo from storage: ${storagePaths.join(', ')}`);
+      }
     }
 
     // Delete metadata from database

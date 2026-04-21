@@ -401,7 +401,7 @@ export async function checkForConflicts(
     }
   } catch (err) {
     console.error('Error checking for conflicts:', err);
-    return { hasConflict: false, remote: null };
+    throw err;
   }
 }
 

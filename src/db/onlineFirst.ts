@@ -15,7 +15,9 @@ export async function getPendingEntityIds(
     .and((item) => item.synced === 0)
     .toArray();
 
-  const relevant = filter ? pending.filter(filter) : pending;
+  const relevant = filter
+    ? pending.filter((item) => item.operation === 'DELETE' || filter(item))
+    : pending;
   return new Set(relevant.map((item) => item.entityId));
 }
 
@@ -30,7 +32,9 @@ export async function applyPendingWrites<T extends { id: string }>(
     .and((item) => item.synced === 0)
     .toArray();
 
-  const relevant = pending.filter(filter).sort((a, b) => a.timestamp - b.timestamp);
+  const relevant = pending
+    .filter((item) => item.operation === 'DELETE' || filter(item))
+    .sort((a, b) => a.timestamp - b.timestamp);
   if (relevant.length === 0) {
     return remoteItems;
   }

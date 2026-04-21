@@ -155,11 +155,7 @@ export function triggerImmediateUpload(): void {
   uploadDebounceTimer = setTimeout(async () => {
     try {
       if (!navigator.onLine || !isSupabaseConfigured()) return;
-      const isSyncingMeta = await db.metadata.get('isSyncing');
-      // Check timestamp-based lock
-      const LOCK_TIMEOUT = 3 * 60 * 1000;
-      if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < LOCK_TIMEOUT) return;
-      await processSyncQueue();
+      await lockedSync();
     } catch (err) {
       console.error('Debounced upload failed:', err);
     }
@@ -175,12 +171,14 @@ export function triggerImmediateUpload(): void {
 const SYNC_LOCK_TIMEOUT = 3 * 60 * 1000; // 3 minutes
 
 async function acquireSyncLock(): Promise<boolean> {
-  const isSyncingMeta = await db.metadata.get('isSyncing');
-  if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < SYNC_LOCK_TIMEOUT) {
-    return false; // Lock is held and not expired
-  }
-  await db.metadata.put({ key: 'isSyncing', value: Date.now() });
-  return true;
+  return db.transaction('rw', db.metadata, async () => {
+    const isSyncingMeta = await db.metadata.get('isSyncing');
+    if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < SYNC_LOCK_TIMEOUT) {
+      return false; // Lock is held and not expired
+    }
+    await db.metadata.put({ key: 'isSyncing', value: Date.now() });
+    return true;
+  });
 }
 
 async function releaseSyncLock(): Promise<void> {
@@ -483,32 +481,16 @@ export function startAutoSync(intervalMs: number = 30000): void {
   console.log(`🔄 Starting auto-sync (bidirectional) every ${intervalMs / 1000}s`);
 
   // Sync immediately (both upload and download)
-  Promise.all([
-    processSyncQueue().catch(err => {
-      console.error('❌ Initial upload sync failed:', err);
-    }),
-    syncFromSupabase().catch(err => {
-      console.error('❌ Initial download sync failed:', err);
-    })
-  ]);
+  lockedSync().catch(err => {
+    console.error('❌ Initial auto-sync failed:', err);
+  });
 
   // Then sync on interval (bidirectional with timestamp lock)
   syncInterval = setInterval(async () => {
     try {
-      if (!await acquireSyncLock()) {
-        console.log('⏭️  Auto-sync skipped: sync already in progress');
-        return;
-      }
-
-      try {
-        await processSyncQueue();
-        await syncFromSupabase();
-      } finally {
-        await releaseSyncLock();
-      }
+      await lockedSync();
     } catch (err) {
       console.error('❌ Auto-sync failed:', err);
-      await releaseSyncLock();
     }
   }, intervalMs);
 }
@@ -712,6 +694,10 @@ export async function clearAndSync(): Promise<{
     throw new Error('User not authenticated. Please log in to sync data.');
   }
 
+  if (!await acquireSyncLock()) {
+    throw new Error('Sync already in progress. Please retry in a moment.');
+  }
+
   try {
     // Clear all data from IndexedDB
     await db.projects.clear();
@@ -747,5 +733,7 @@ export async function clearAndSync(): Promise<{
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Clear and sync failed:', errorMessage);
     throw err;
+  } finally {
+    await releaseSyncLock();
   }
 }

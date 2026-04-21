@@ -260,6 +260,10 @@ export async function getFloorPlanByProjectAndFloor(
         return existing;
       }
 
+      if (pendingIds.has(signedRemote.id) && !existing) {
+        return undefined;
+      }
+
       if (!pendingIds.has(signedRemote.id)) {
         await db.floorPlans.put(merged);
       }
@@ -434,7 +438,13 @@ export async function deleteFloorPlan(id: string): Promise<void> {
       operation: 'DELETE',
       entityType: 'floor_plan',
       entityId: id,
-      payload: { id },
+      payload: {
+        id,
+        projectId: floorPlan.projectId,
+        imageUrl: floorPlan.imageUrl,
+        thumbnailUrl: floorPlan.thumbnailUrl,
+        pdfUrl: floorPlan.pdfUrl,
+      },
       timestamp: now(),
       retryCount: 0,
       synced: 0,

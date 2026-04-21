@@ -3,6 +3,8 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
 import { getPendingEntityIds } from '../db/onlineFirst';
 
+const SUPABASE_IN_BATCH_SIZE = 150;
+
 function ensureOnline(): void {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured');
@@ -10,6 +12,14 @@ function ensureOnline(): void {
   if (!navigator.onLine) {
     throw new Error('No internet connection');
   }
+}
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
 }
 
 async function getAccessibleProjectsFromRemote(userId: string, isAdmin: boolean): Promise<any[]> {
@@ -197,20 +207,27 @@ export async function downloadPhotosFromSupabase(
     return { downloaded: 0, failed: 0 };
   }
 
-  const { data, error } = await supabase
-    .from('photos')
-    .select('*')
-    .in('mapping_entry_id', mappingEntryIds);
+  const photoRows: any[] = [];
+  const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
 
-  if (error) {
-    throw new Error(`Failed to download photos: ${error.message}`);
+  for (const batch of mappingEntryIdBatches) {
+    const { data, error } = await supabase
+      .from('photos')
+      .select('*')
+      .in('mapping_entry_id', batch);
+
+    if (error) {
+      throw new Error(`Failed to download photos: ${error.message}`);
+    }
+
+    photoRows.push(...(data || []));
   }
 
   const pendingIds = await getPendingEntityIds('photo');
   let downloaded = 0;
   let failed = 0;
 
-  for (const remotePhoto of data || []) {
+  for (const remotePhoto of photoRows) {
     try {
       if (pendingIds.has(remotePhoto.id)) {
         continue;
