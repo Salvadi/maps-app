@@ -12,6 +12,17 @@ import { convertRemoteToLocalProject } from '../sync/conflictResolution';
 import { getMappingEntriesForProject, getPhotosForMappings, ensurePhotoBlob } from './mappings';
 import { getFloorPlansByProject, ensureFloorPlanAsset } from './floorPlans';
 
+async function processInBatches<T>(
+  items: T[],
+  batchSize: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    await Promise.all(batch.map((item) => worker(item)));
+  }
+}
+
 export async function createProject(
   projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'archived' | 'syncEnabled'>
 ): Promise<Project> {
@@ -176,29 +187,127 @@ export async function updateProject(
 
 export async function deleteProject(id: string): Promise<void> {
   try {
-    await db.projects.delete(id);
+    await db.transaction(
+      'rw',
+      [
+        db.projects,
+        db.mappingEntries,
+        db.photos,
+        db.floorPlans,
+        db.floorPlanPoints,
+        db.sals,
+        db.typologyPrices,
+        db.projectCachePrefs,
+        db.syncQueue,
+      ],
+      async () => {
+        const mappingEntries = await db.mappingEntries.where('projectId').equals(id).toArray();
+        const mappingEntryIds = mappingEntries.map((entry) => entry.id);
 
-    const mappingEntries = await db.mappingEntries
-      .where('projectId')
-      .equals(id)
-      .toArray();
+        const photos = mappingEntryIds.length > 0
+          ? await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).toArray()
+          : [];
+        const photoIds = photos.map((photo) => photo.id);
 
-    for (const entry of mappingEntries) {
-      await db.photos.where('mappingEntryId').equals(entry.id).delete();
-      await db.mappingEntries.delete(entry.id);
-    }
+        const floorPlans = await db.floorPlans.where('projectId').equals(id).toArray();
+        const floorPlanIds = floorPlans.map((floorPlan) => floorPlan.id);
 
-    const syncItem: SyncQueueItem = {
-      id: generateId(),
-      operation: 'DELETE',
-      entityType: 'project',
-      entityId: id,
-      payload: { id },
-      timestamp: now(),
-      retryCount: 0,
-      synced: 0,
-    };
-    await db.syncQueue.add(syncItem);
+        const floorPlanPoints = floorPlanIds.length > 0
+          ? await db.floorPlanPoints.where('floorPlanId').anyOf(floorPlanIds).toArray()
+          : [];
+        const floorPlanPointIds = floorPlanPoints.map((point) => point.id);
+
+        const sals = await db.sals.where('projectId').equals(id).toArray();
+        const salIds = sals.map((sal) => sal.id);
+
+        const typologyPrices = await db.typologyPrices.where('projectId').equals(id).toArray();
+        const typologyPriceIds = typologyPrices.map((price) => price.id);
+
+        const queueItems = await db.syncQueue.where('synced').equals(0).toArray();
+        const hadPendingProjectCreate = queueItems.some(
+          (item) =>
+            item.entityType === 'project' &&
+            item.entityId === id &&
+            item.operation === 'CREATE'
+        );
+
+        const queueIdsToRemove = queueItems
+          .filter((item) => {
+            if (item.entityType === 'project' && item.entityId === id) {
+              return true;
+            }
+            if (item.entityType === 'mapping_entry' && mappingEntryIds.includes(item.entityId)) {
+              return true;
+            }
+            if (
+              item.entityType === 'photo' &&
+              (photoIds.includes(item.entityId) ||
+                mappingEntryIds.includes((item.payload as { mappingEntryId?: string })?.mappingEntryId || ''))
+            ) {
+              return true;
+            }
+            if (item.entityType === 'floor_plan' && floorPlanIds.includes(item.entityId)) {
+              return true;
+            }
+            if (
+              item.entityType === 'floor_plan_point' &&
+              (floorPlanPointIds.includes(item.entityId) ||
+                floorPlanIds.includes((item.payload as { floorPlanId?: string })?.floorPlanId || ''))
+            ) {
+              return true;
+            }
+            if (item.entityType === 'sal' && salIds.includes(item.entityId)) {
+              return true;
+            }
+            if (item.entityType === 'typology_price' && typologyPriceIds.includes(item.entityId)) {
+              return true;
+            }
+            return false;
+          })
+          .map((item) => item.id);
+
+        if (queueIdsToRemove.length > 0) {
+          await db.syncQueue.bulkDelete(queueIdsToRemove);
+        }
+
+        if (photoIds.length > 0) {
+          await db.photos.bulkDelete(photoIds);
+        }
+        if (mappingEntryIds.length > 0) {
+          await db.mappingEntries.bulkDelete(mappingEntryIds);
+        }
+        if (floorPlanPointIds.length > 0) {
+          await db.floorPlanPoints.bulkDelete(floorPlanPointIds);
+        }
+        if (floorPlanIds.length > 0) {
+          await db.floorPlans.bulkDelete(floorPlanIds);
+        }
+        if (salIds.length > 0) {
+          await db.sals.bulkDelete(salIds);
+        }
+        if (typologyPriceIds.length > 0) {
+          await db.typologyPrices.bulkDelete(typologyPriceIds);
+        }
+
+        await db.projectCachePrefs.delete(id);
+        await db.projects.delete(id);
+
+        if (!hadPendingProjectCreate) {
+          const syncItem: SyncQueueItem = {
+            id: generateId(),
+            operation: 'DELETE',
+            entityType: 'project',
+            entityId: id,
+            payload: { id },
+            timestamp: now(),
+            retryCount: 0,
+            synced: 0,
+          };
+          await db.syncQueue.add(syncItem);
+        }
+      }
+    );
+
     triggerImmediateUpload();
   } catch (error) {
     console.error('Failed to delete project:', error);
@@ -248,7 +357,9 @@ export async function hydrateProjectForOffline(projectId: string): Promise<Proje
   if (mappingIds.length > 0) {
     const groupedPhotos = await getPhotosForMappings(mappingIds);
     const allPhotos = Object.values(groupedPhotos).flat();
-    await Promise.all(allPhotos.map((photo) => ensurePhotoBlob(photo.id)));
+    await processInBatches(allPhotos, 8, async (photo) => {
+      await ensurePhotoBlob(photo.id);
+    });
   }
 
   const floorPlans = await getFloorPlansByProject(projectId);

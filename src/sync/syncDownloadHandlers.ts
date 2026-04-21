@@ -22,6 +22,30 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+async function fetchRowsByIds(
+  table: string,
+  column: string,
+  ids: string[]
+): Promise<any[]> {
+  const rows: any[] = [];
+  const batches = chunkArray(ids, SUPABASE_IN_BATCH_SIZE);
+
+  for (const batch of batches) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .in(column, batch);
+
+    if (error) {
+      throw new Error(`Failed to download ${table}: ${error.message}`);
+    }
+
+    rows.push(...(data || []));
+  }
+
+  return rows;
+}
+
 async function getAccessibleProjectsFromRemote(userId: string, isAdmin: boolean): Promise<any[]> {
   const { data: allProjects, error } = await supabase
     .from('projects')
@@ -163,14 +187,7 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
     return 0;
   }
 
-  const { data, error } = await supabase
-    .from('mapping_entries')
-    .select('*')
-    .in('project_id', projectIds);
-
-  if (error) {
-    throw new Error(`Failed to download mapping entries: ${error.message}`);
-  }
+  const data = await fetchRowsByIds('mapping_entries', 'project_id', projectIds);
 
   const pendingIds = await getPendingEntityIds('mapping_entry');
   let downloadedCount = 0;
@@ -285,14 +302,7 @@ export async function downloadFloorPlansFromSupabase(
     return 0;
   }
 
-  const { data, error } = await supabase
-    .from('floor_plans')
-    .select('*')
-    .in('project_id', projectIds);
-
-  if (error) {
-    throw new Error(`Failed to download floor plans: ${error.message}`);
-  }
+  const data = await fetchRowsByIds('floor_plans', 'project_id', projectIds);
 
   const pendingIds = await getPendingEntityIds('floor_plan');
   let downloadedCount = 0;
@@ -377,14 +387,7 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
     return 0;
   }
 
-  const { data, error } = await supabase
-    .from('floor_plan_points')
-    .select('*')
-    .in('floor_plan_id', floorPlanIds);
-
-  if (error) {
-    throw new Error(`Failed to download floor plan points: ${error.message}`);
-  }
+  const data = await fetchRowsByIds('floor_plan_points', 'floor_plan_id', floorPlanIds);
 
   const pendingIds = await getPendingEntityIds('floor_plan_point');
   let downloadedCount = 0;
@@ -460,14 +463,7 @@ export async function downloadSalsFromSupabase(userId: string, isAdmin = false):
     return 0;
   }
 
-  const { data, error } = await supabase
-    .from('sals')
-    .select('*')
-    .in('project_id', projectIds);
-
-  if (error) {
-    throw new Error(`Failed to download SALs: ${error.message}`);
-  }
+  const data = await fetchRowsByIds('sals', 'project_id', projectIds);
 
   const pendingIds = await getPendingEntityIds('sal');
   let downloadedCount = 0;
@@ -504,14 +500,7 @@ export async function downloadTypologyPricesFromSupabase(userId: string, isAdmin
     return 0;
   }
 
-  const { data, error } = await supabase
-    .from('typology_prices')
-    .select('*')
-    .in('project_id', projectIds);
-
-  if (error) {
-    throw new Error(`Failed to download typology prices: ${error.message}`);
-  }
+  const data = await fetchRowsByIds('typology_prices', 'project_id', projectIds);
 
   const pendingIds = await getPendingEntityIds('typology_price');
   let downloadedCount = 0;

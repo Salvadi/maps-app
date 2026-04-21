@@ -92,7 +92,10 @@ async function deduplicateSyncQueue(): Promise<{ before: number; after: number }
       }
     } else if (hasCreate) {
       // CREATE + UPDATEs: keep CREATE with latest payload
-      const latestPayload = lastItem.payload;
+      const latestPayload = {
+        ...(hasCreate.payload || {}),
+        ...(lastItem.payload || {}),
+      };
       await db.syncQueue.update(hasCreate.id, { payload: latestPayload });
       for (const item of items) {
         if (item.id !== hasCreate.id) {

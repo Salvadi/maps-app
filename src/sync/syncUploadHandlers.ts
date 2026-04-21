@@ -225,8 +225,14 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
     for (const photo of photos) {
       if (!photo.uploaded) {
         // Add photo to sync queue if not already uploaded
+        const photoSyncItemId = `${entry.id}-photo-${photo.id}`;
+        const existingPhotoSyncItem = await db.syncQueue.get(photoSyncItemId);
+        if (existingPhotoSyncItem?.synced === 2 || existingPhotoSyncItem?.synced === 0) {
+          continue;
+        }
+
         const photoSyncItem: SyncQueueItem = {
-          id: `${entry.id}-photo-${photo.id}`,
+          id: photoSyncItemId,
           operation: 'CREATE',
           entityType: 'photo',
           entityId: photo.id,
@@ -236,7 +242,6 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
           synced: 0
         };
 
-        // Idempotent put - avoids race condition with check-then-add
         await db.syncQueue.put(photoSyncItem);
         console.log(`📸 Added photo ${photo.id} to sync queue`);
       }
@@ -364,13 +369,15 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       throw new Error(`Floor plan not found: ${floorPlan.id}`);
     }
 
-    // Upload blobs to Supabase Storage if not already uploaded
+    // Upload blobs to Supabase Storage when missing or when local assets changed.
     let imageUrl = localFloorPlan.imageUrl;
     let thumbnailUrl = localFloorPlan.thumbnailUrl;
-
+    const previousImageUrl = localFloorPlan.imageUrl;
+    const previousThumbnailUrl = localFloorPlan.thumbnailUrl;
     let pdfUrl = localFloorPlan.pdfUrl;
+    const previousPdfUrl = localFloorPlan.pdfUrl;
 
-    if (!imageUrl && localFloorPlan.imageBlob) {
+    if ((!imageUrl || localFloorPlan.assetDirty === 1) && localFloorPlan.imageBlob) {
       const { uploadFloorPlan } = await import('../utils/floorPlanUtils');
       const urls = await uploadFloorPlan(
         localFloorPlan.projectId,
@@ -386,7 +393,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
 
     // Upload PDF originale indipendentemente dall'imageUrl (il PDF può esistere
     // anche quando le immagini sono già state caricate in un ciclo precedente)
-    if (!pdfUrl && localFloorPlan.pdfBlobBase64) {
+    if ((!pdfUrl || localFloorPlan.assetDirty === 1) && localFloorPlan.pdfBlobBase64) {
       try {
         const { uploadFloorPlanPDF } = await import('../utils/floorPlanUtils');
         const binaryStr = atob(localFloorPlan.pdfBlobBase64);
@@ -403,6 +410,19 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
         console.log(`📄 Uploaded PDF originale for floor plan ${floorPlan.id}`);
       } catch (pdfErr) {
         console.warn(`⚠️  Failed to upload PDF for floor plan ${floorPlan.id}:`, pdfErr);
+      }
+    }
+
+    if (
+      (previousImageUrl && previousImageUrl !== imageUrl) ||
+      (previousThumbnailUrl && previousThumbnailUrl !== thumbnailUrl) ||
+      (previousPdfUrl && previousPdfUrl !== pdfUrl)
+    ) {
+      const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
+      try {
+        await deleteFloorPlan(previousImageUrl, previousThumbnailUrl, previousPdfUrl);
+      } catch (cleanupError) {
+        console.warn(`Failed to clean previous floor plan assets for ${floorPlan.id}:`, cleanupError);
       }
     }
 
@@ -429,7 +449,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
             await db.conflictHistory.add({
               id: generateId(),
               timestamp: Date.now(),
-              entityType: 'mapping_entry', // reuse closest type
+              entityType: 'floor_plan',
               entityId: localFloorPlan.id,
               conflictType: 'timestamp',
               localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
@@ -477,6 +497,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     // After successful upload, update remoteUpdatedAt to match what we just wrote
     await db.floorPlans.update(localFloorPlan.id, {
       remoteUpdatedAt: localFloorPlan.updatedAt,
+      assetDirty: 0,
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
@@ -491,10 +512,10 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     }
 
     // Delete from Storage if URLs exist
-    if (floorPlan.imageUrl || floorPlan.thumbnailUrl) {
+    if (floorPlan.imageUrl || floorPlan.thumbnailUrl || floorPlan.pdfUrl) {
       const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
       try {
-        await deleteFloorPlan(floorPlan.imageUrl, floorPlan.thumbnailUrl);
+        await deleteFloorPlan(floorPlan.imageUrl, floorPlan.thumbnailUrl, floorPlan.pdfUrl);
       } catch (err) {
         console.warn('Failed to delete floor plan from storage:', err);
       }
@@ -536,7 +557,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
             await db.conflictHistory.add({
               id: generateId(),
               timestamp: Date.now(),
-              entityType: 'mapping_entry',
+              entityType: 'floor_plan_point',
               entityId: effectivePoint.id,
               conflictType: 'timestamp',
               localVersion: { updatedAt: effectivePoint.updatedAt, remoteUpdatedAt: effectivePoint.remoteUpdatedAt },

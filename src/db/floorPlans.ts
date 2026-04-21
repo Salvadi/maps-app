@@ -34,6 +34,7 @@ function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
     remoteUpdatedAt: new Date(remote.updated_at).getTime(),
+    assetDirty: 0,
     synced: 1,
   };
 }
@@ -68,6 +69,7 @@ function mergeFloorPlanLocalFields(remote: FloorPlan, existing: FloorPlan | unde
     pdfBlobBase64: existing?.pdfBlobBase64 ?? remote.pdfBlobBase64,
     gridEnabled: existing?.gridEnabled ?? remote.gridEnabled,
     gridConfig: existing?.gridConfig ?? remote.gridConfig,
+    assetDirty: existing?.assetDirty ?? remote.assetDirty,
   };
 }
 
@@ -201,7 +203,8 @@ export async function createFloorPlan(
       createdBy: userId,
       createdAt: now(),
       updatedAt: now(),
-      synced: imageUrl ? 1 : 0,
+      assetDirty: imageUrl && !pdfBlobBase64 ? 0 : 1,
+      synced: imageUrl && !pdfBlobBase64 ? 1 : 0,
     };
 
     await db.floorPlans.add(floorPlan);
@@ -397,24 +400,43 @@ export async function updateFloorPlan(
   updates: Partial<FloorPlan>
 ): Promise<void> {
   try {
+    const touchesAsset =
+      updates.imageBlob !== undefined ||
+      updates.thumbnailBlob !== undefined ||
+      updates.pdfBlobBase64 !== undefined;
+
     await db.floorPlans.update(id, {
       ...updates,
+      ...(touchesAsset ? { assetDirty: 1 } : {}),
       updatedAt: now(),
       synced: 0,
     });
 
     const floorPlan = await db.floorPlans.get(id);
     if (floorPlan) {
-      await db.syncQueue.add({
-        id: generateId(),
-        operation: 'UPDATE',
-        entityType: 'floor_plan',
-        entityId: id,
-        payload: floorPlan,
-        timestamp: now(),
-        retryCount: 0,
-        synced: 0,
-      });
+      const existingSyncItem = await db.syncQueue
+        .where('entityType')
+        .equals('floor_plan')
+        .and((item) => item.entityId === id && item.synced === 0 && item.operation !== 'DELETE')
+        .first();
+
+      if (existingSyncItem) {
+        await db.syncQueue.update(existingSyncItem.id, {
+          payload: floorPlan,
+          timestamp: now(),
+        });
+      } else {
+        await db.syncQueue.add({
+          id: generateId(),
+          operation: 'UPDATE',
+          entityType: 'floor_plan',
+          entityId: id,
+          payload: floorPlan,
+          timestamp: now(),
+          retryCount: 0,
+          synced: 0,
+        });
+      }
       triggerImmediateUpload();
     }
   } catch (error) {
@@ -787,6 +809,29 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
 }
 
 export async function hasFloorPlan(projectId: string, floor: string): Promise<boolean> {
+  if (isOnlineAndConfigured()) {
+    try {
+      const { count, error } = await supabase
+        .from('floor_plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+        .eq('floor', floor);
+
+      if (error) {
+        throw error;
+      }
+
+      if ((count || 0) > 0) {
+        return true;
+      }
+    } catch (err) {
+      if (isAuthError(err)) {
+        throw err;
+      }
+      console.warn('[online-first] hasFloorPlan fallback to IndexedDB', err);
+    }
+  }
+
   const count = await db.floorPlans
     .where('[projectId+floor]')
     .equals([projectId, floor])

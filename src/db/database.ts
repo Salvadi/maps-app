@@ -139,7 +139,7 @@ export interface ProjectCachePref {
 export interface ConflictHistory {
   id: string;
   timestamp: number;
-  entityType: 'project' | 'mapping_entry';
+  entityType: 'project' | 'mapping_entry' | 'floor_plan' | 'floor_plan_point';
   entityId: string;
   conflictType: 'version' | 'timestamp' | 'both';
   localVersion: any;
@@ -180,6 +180,7 @@ export interface FloorPlan {
   createdAt: number; // timestamp
   updatedAt: number; // timestamp
   remoteUpdatedAt?: number; // timestamp of remote updated_at at last sync (for conflict detection)
+  assetDirty?: 0 | 1; // 1 when blobs changed locally and storage upload must be refreshed
   synced: 0 | 1; // 0 = not synced, 1 = synced
 }
 

@@ -331,7 +331,11 @@ export async function uploadFloorPlanPDF(
 /**
  * Delete floor plan from Supabase Storage
  */
-export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string): Promise<void> {
+export async function deleteFloorPlan(
+  imageUrl?: string,
+  thumbnailUrl?: string,
+  pdfUrl?: string
+): Promise<void> {
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
@@ -344,15 +348,24 @@ export async function deleteFloorPlan(imageUrl: string, thumbnailUrl?: string): 
     return match ? match[1] : null;
   };
 
-  const fullResPath = extractPath(imageUrl);
-  if (fullResPath) {
-    paths.push(fullResPath);
+  if (imageUrl) {
+    const fullResPath = extractPath(imageUrl);
+    if (fullResPath) {
+      paths.push(fullResPath);
+    }
   }
 
   if (thumbnailUrl) {
     const thumbPath = extractPath(thumbnailUrl);
     if (thumbPath) {
       paths.push(thumbPath);
+    }
+  }
+
+  if (pdfUrl) {
+    const pdfPath = extractPath(pdfUrl);
+    if (pdfPath) {
+      paths.push(pdfPath);
     }
   }
 
