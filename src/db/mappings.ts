@@ -278,17 +278,31 @@ export async function updateMappingEntry(
   try {
     await db.mappingEntries.put(updatedEntry);
 
-    const syncItem: SyncQueueItem = {
-      id: generateId(),
-      operation: 'UPDATE',
-      entityType: 'mapping_entry',
-      entityId: id,
-      payload: updatedEntry,
-      timestamp: now(),
-      retryCount: 0,
-      synced: 0,
-    };
-    await db.syncQueue.add(syncItem);
+    const existingSyncItem = await db.syncQueue
+      .where('entityType')
+      .equals('mapping_entry')
+      .and((item) => item.entityId === id && item.synced === 0 && item.operation !== 'DELETE')
+      .first();
+
+    if (existingSyncItem) {
+      await db.syncQueue.update(existingSyncItem.id, {
+        payload: updatedEntry,
+        timestamp: now(),
+      });
+    } else {
+      const syncItem: SyncQueueItem = {
+        id: generateId(),
+        operation: 'UPDATE',
+        entityType: 'mapping_entry',
+        entityId: id,
+        payload: updatedEntry,
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      };
+      await db.syncQueue.add(syncItem);
+    }
+
     triggerImmediateUpload();
 
     return updatedEntry;

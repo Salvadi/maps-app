@@ -1,6 +1,6 @@
-import { db, Sal, generateId, now, SyncQueueItem } from './database';
+import { db, MappingEntry, Sal, generateId, now, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { updateMappingEntry, getMappingEntriesForProject } from './mappings';
+import { getMappingEntriesForProject } from './mappings';
 import { supabase } from '../lib/supabase';
 import {
   applyPendingWrites,
@@ -21,6 +21,33 @@ function convertRemoteToLocalSal(remote: any): Sal {
     createdAt: new Date(remote.created_at).getTime(),
     synced: 1,
   };
+}
+
+async function enqueueMappingEntryUpdate(entry: MappingEntry): Promise<void> {
+  const existingSyncItem = await db.syncQueue
+    .where('entityType')
+    .equals('mapping_entry')
+    .and((item) => item.entityId === entry.id && item.synced === 0 && item.operation !== 'DELETE')
+    .first();
+
+  if (existingSyncItem) {
+    await db.syncQueue.update(existingSyncItem.id, {
+      payload: entry,
+      timestamp: now(),
+    });
+    return;
+  }
+
+  await db.syncQueue.add({
+    id: generateId(),
+    operation: 'UPDATE',
+    entityType: 'mapping_entry',
+    entityId: entry.id,
+    payload: entry,
+    timestamp: now(),
+    retryCount: 0,
+    synced: 0,
+  });
 }
 
 export async function getSalsForProject(projectId: string): Promise<Sal[]> {
@@ -136,34 +163,52 @@ export async function deleteSal(
   const entries = await getMappingEntriesForProject(projectId);
   let unassignedCount = 0;
 
-  for (const entry of entries) {
-    const hasSalCrossings = entry.crossings?.some((crossing) => crossing.salId === salId);
-    if (!hasSalCrossings) {
-      continue;
+  await db.transaction('rw', [db.mappingEntries, db.sals, db.syncQueue], async () => {
+    for (const entry of entries) {
+      const hasSalCrossings = entry.crossings?.some((crossing) => crossing.salId === salId);
+      if (!hasSalCrossings) {
+        continue;
+      }
+
+      let entryUnassigned = 0;
+      const updatedCrossings = entry.crossings.map((crossing) => {
+        if (crossing.salId === salId) {
+          entryUnassigned += 1;
+          return { ...crossing, salId: undefined };
+        }
+        return crossing;
+      });
+      unassignedCount += entryUnassigned;
+
+      const updatedEntry: MappingEntry = {
+        ...entry,
+        crossings: updatedCrossings,
+        modifiedBy: userId,
+        lastModified: now(),
+        version: (entry.version ?? 0) + 1,
+        synced: 0,
+      };
+
+      await db.mappingEntries.put(updatedEntry);
+      await enqueueMappingEntryUpdate(updatedEntry);
     }
 
-    const updatedCrossings = entry.crossings.map((crossing) =>
-      crossing.salId === salId ? { ...crossing, salId: undefined } : crossing
-    );
-    unassignedCount += entry.crossings.filter((crossing) => crossing.salId === salId).length;
+    const sal = await db.sals.get(salId);
+    await db.sals.delete(salId);
 
-    await updateMappingEntry(entry.id, { crossings: updatedCrossings }, userId);
-  }
+    const syncItem: SyncQueueItem = {
+      id: generateId(),
+      operation: 'DELETE',
+      entityType: 'sal',
+      entityId: salId,
+      payload: sal || { id: salId, projectId },
+      timestamp: now(),
+      retryCount: 0,
+      synced: 0,
+    };
+    await db.syncQueue.add(syncItem);
+  });
 
-  const sal = await db.sals.get(salId);
-  await db.sals.delete(salId);
-
-  const syncItem: SyncQueueItem = {
-    id: generateId(),
-    operation: 'DELETE',
-    entityType: 'sal',
-    entityId: salId,
-    payload: sal || { id: salId, projectId },
-    timestamp: now(),
-    retryCount: 0,
-    synced: 0,
-  };
-  await db.syncQueue.add(syncItem);
   triggerImmediateUpload();
 
   return unassignedCount;
@@ -178,27 +223,44 @@ export async function assignCrossingsToSal(
   const entries = await getMappingEntriesForProject(projectId);
   let assignedCount = 0;
 
-  for (const entry of entries) {
-    if (!includeToComplete && entry.toComplete) {
-      continue;
-    }
-
-    const hasUnassigned = entry.crossings?.some((crossing) => !crossing.salId);
-    if (!hasUnassigned) {
-      continue;
-    }
-
-    let entryAssigned = 0;
-    const updatedCrossings = entry.crossings.map((crossing) => {
-      if (!crossing.salId) {
-        entryAssigned += 1;
-        return { ...crossing, salId };
+  await db.transaction('rw', [db.mappingEntries, db.syncQueue], async () => {
+    for (const entry of entries) {
+      if (!includeToComplete && entry.toComplete) {
+        continue;
       }
-      return crossing;
-    });
 
-    assignedCount += entryAssigned;
-    await updateMappingEntry(entry.id, { crossings: updatedCrossings }, userId);
+      const hasUnassigned = entry.crossings?.some((crossing) => !crossing.salId);
+      if (!hasUnassigned) {
+        continue;
+      }
+
+      let entryAssigned = 0;
+      const updatedCrossings = entry.crossings.map((crossing) => {
+        if (!crossing.salId) {
+          entryAssigned += 1;
+          return { ...crossing, salId };
+        }
+        return crossing;
+      });
+
+      assignedCount += entryAssigned;
+
+      const updatedEntry: MappingEntry = {
+        ...entry,
+        crossings: updatedCrossings,
+        modifiedBy: userId,
+        lastModified: now(),
+        version: (entry.version ?? 0) + 1,
+        synced: 0,
+      };
+
+      await db.mappingEntries.put(updatedEntry);
+      await enqueueMappingEntryUpdate(updatedEntry);
+    }
+  });
+
+  if (assignedCount > 0) {
+    triggerImmediateUpload();
   }
 
   return assignedCount;
