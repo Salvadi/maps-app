@@ -12,7 +12,7 @@ export async function getPendingEntityIds(
   const pending = await db.syncQueue
     .where('entityType')
     .equals(entityType)
-    .and((item) => item.synced === 0)
+    .and((item) => item.synced === 0 && (item.retryCount || 0) < 5)
     .toArray();
 
   const relevant = filter
@@ -29,7 +29,7 @@ export async function applyPendingWrites<T extends { id: string }>(
   const pending = await db.syncQueue
     .where('entityType')
     .equals(entityType)
-    .and((item) => item.synced === 0)
+    .and((item) => item.synced === 0 && (item.retryCount || 0) < 5)
     .toArray();
 
   const relevant = pending

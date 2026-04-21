@@ -11,6 +11,15 @@ import {
 import { convertRemoteToLocalMapping } from '../sync/conflictResolution';
 
 type RemotePhotoRow = Database['public']['Tables']['photos']['Row'];
+const PHOTO_SIGN_BATCH_SIZE = 500;
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
 
 function getRemotePhotoTimestamp(metadata: any): number {
   const rawTimestamp = metadata?.captureTimestamp ?? metadata?.capture_timestamp;
@@ -62,25 +71,29 @@ async function signPhotoPaths(rows: RemotePhotoRow[]): Promise<{
   const signedThumbByPath = new Map<string, string>();
 
   if (fullPaths.length > 0) {
-    const { data, error } = await supabase.storage.from('photos').createSignedUrls(fullPaths, 60 * 60);
-    if (error) {
-      throw error;
-    }
-    for (const item of data || []) {
-      if (item.path && item.signedUrl) {
-        signedByPath.set(item.path, item.signedUrl);
+    for (const batch of chunkArray(fullPaths, PHOTO_SIGN_BATCH_SIZE)) {
+      const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
+      if (error) {
+        throw error;
+      }
+      for (const item of data || []) {
+        if (item.path && item.signedUrl) {
+          signedByPath.set(item.path, item.signedUrl);
+        }
       }
     }
   }
 
   if (thumbPaths.length > 0) {
-    const { data, error } = await supabase.storage.from('photos').createSignedUrls(thumbPaths, 60 * 60);
-    if (error) {
-      throw error;
-    }
-    for (const item of data || []) {
-      if (item.path && item.signedUrl) {
-        signedThumbByPath.set(item.path, item.signedUrl);
+    for (const batch of chunkArray(thumbPaths, PHOTO_SIGN_BATCH_SIZE)) {
+      const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
+      if (error) {
+        throw error;
+      }
+      for (const item of data || []) {
+        if (item.path && item.signedUrl) {
+          signedThumbByPath.set(item.path, item.signedUrl);
+        }
       }
     }
   }

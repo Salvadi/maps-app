@@ -537,19 +537,41 @@ export async function initializeDatabase(): Promise<void> {
 
 // Clear all data (for testing or reset)
 export async function clearDatabase(): Promise<void> {
-  await db.projects.clear();
-  await db.mappingEntries.clear();
-  await db.photos.clear();
-  await db.syncQueue.clear();
-  await db.users.clear();
-  await db.projectCachePrefs.clear();
-  await db.floorPlans.clear();
-  await db.floorPlanPoints.clear();
-  await db.standaloneMaps.clear();
-  await db.dropdownOptionsCache.clear();
-  await db.productsCache.clear();
-  await db.typologyPrices.clear();
-  await db.sals.clear();
+  await db.transaction(
+    'rw',
+    [
+      db.projects,
+      db.mappingEntries,
+      db.photos,
+      db.syncQueue,
+      db.users,
+      db.projectCachePrefs,
+      db.conflictHistory,
+      db.floorPlans,
+      db.floorPlanPoints,
+      db.standaloneMaps,
+      db.dropdownOptionsCache,
+      db.productsCache,
+      db.typologyPrices,
+      db.sals,
+    ],
+    async () => {
+      await db.projects.clear();
+      await db.mappingEntries.clear();
+      await db.photos.clear();
+      await db.syncQueue.clear();
+      await db.users.clear();
+      await db.projectCachePrefs.clear();
+      await db.conflictHistory.clear();
+      await db.floorPlans.clear();
+      await db.floorPlanPoints.clear();
+      await db.standaloneMaps.clear();
+      await db.dropdownOptionsCache.clear();
+      await db.productsCache.clear();
+      await db.typologyPrices.clear();
+      await db.sals.clear();
+    }
+  );
   // Keep metadata
   console.log('Database cleared');
 }

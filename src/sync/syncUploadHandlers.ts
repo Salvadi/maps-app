@@ -289,11 +289,6 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       throw new Error(`Supabase photo upload failed: ${uploadError.message}`);
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('photos')
-      .getPublicUrl(fileName);
-
     // Create photo metadata record in Supabase
     const { error: metaError } = await supabase
       .from('photos')
@@ -301,7 +296,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
         id: photoMeta.id,
         mapping_entry_id: photoMeta.mappingEntryId,
         storage_path: fileName,
-        url: publicUrl,
+        url: null,
         metadata: photoMeta.metadata,
         uploaded: true,
         created_at: new Date(photoMeta.metadata.captureTimestamp).toISOString(),
