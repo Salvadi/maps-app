@@ -368,11 +368,10 @@ export async function checkForConflicts(
         return { hasConflict: false, remote };
       }
 
-      // Compare versions and timestamps
-      const remoteTime = new Date(remote.updated_at).getTime();
+      // Compare versions
       const remoteVersion = remote.version ?? 0;
       const localVersion = local.version ?? 0;
-      const hasConflict = localVersion !== remoteVersion || local.updatedAt !== remoteTime;
+      const hasConflict = localVersion !== remoteVersion;
 
       return { hasConflict, remote };
     } else {
@@ -394,8 +393,7 @@ export async function checkForConflicts(
         return { hasConflict: false, remote };
       }
 
-      const hasConflict = local.version !== remote.version ||
-                         local.lastModified !== remote.last_modified;
+      const hasConflict = (local.version ?? 0) !== (remote.version ?? 0);
 
       return { hasConflict, remote };
     }
