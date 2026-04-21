@@ -57,18 +57,20 @@ export async function writeThroughCache<T extends { id: string }>(
   remoteItems: T[],
   pendingIds: Set<string>,
   table: any,
-  mergeLocalFields?: (remote: T, existing: T | undefined) => T
+  mergeLocalFields?: (remote: T, existing: T | undefined) => T,
+  stripForPersistence?: (remote: T) => T
 ): Promise<T[]> {
   const mergedItems: T[] = [];
 
   for (const remoteItem of remoteItems) {
     const existing = mergeLocalFields ? await table.get(remoteItem.id) : undefined;
-    const itemToSave = mergeLocalFields ? mergeLocalFields(remoteItem, existing) : remoteItem;
+    const itemToReturn = mergeLocalFields ? mergeLocalFields(remoteItem, existing) : remoteItem;
 
-    mergedItems.push(itemToSave);
+    mergedItems.push(itemToReturn);
 
     if (!pendingIds.has(remoteItem.id)) {
-      await table.put(itemToSave);
+      const itemToPersist = stripForPersistence ? stripForPersistence(itemToReturn) : itemToReturn;
+      await table.put(itemToPersist);
     }
   }
 

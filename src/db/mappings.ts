@@ -376,7 +376,11 @@ export async function getPhotosForMappings(
           buildLocalPhotoFromRemoteRow(row, localById.get(row.id), signedByPath, signedThumbByPath)
         );
 
-      await writeThroughCache(remotePhotos, pendingPhotoIds, db.photos);
+      await writeThroughCache(remotePhotos, pendingPhotoIds, db.photos, undefined, (photo) => ({
+        ...photo,
+        remoteUrl: undefined,
+        thumbnailRemoteUrl: undefined,
+      }));
 
       const remoteIds = new Set(remotePhotos.map((photo: Photo) => photo.id));
       const mergedPhotos = [...remotePhotos];

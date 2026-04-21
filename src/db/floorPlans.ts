@@ -279,7 +279,13 @@ export async function getFloorPlanByProjectAndFloor(
       }
 
       if (!pendingIds.has(signedRemote.id)) {
-        await db.floorPlans.put(merged);
+        const toPersist = {
+          ...merged,
+          imageUrl: undefined,
+          thumbnailUrl: undefined,
+          pdfUrl: undefined,
+        };
+        await db.floorPlans.put(toPersist);
       }
 
       return merged;
@@ -314,7 +320,13 @@ export async function getFloorPlansByProject(projectId: string): Promise<FloorPl
         'floor_plan',
         (item) => (item.payload as FloorPlan)?.projectId === projectId
       );
-      const cached = await writeThroughCache(remotePlans, pendingIds, db.floorPlans, mergeFloorPlanLocalFields);
+      const cached = await writeThroughCache(
+        remotePlans,
+        pendingIds,
+        db.floorPlans,
+        mergeFloorPlanLocalFields,
+        (fp) => ({ ...fp, imageUrl: undefined, thumbnailUrl: undefined, pdfUrl: undefined })
+      );
       return applyPendingWrites<FloorPlan>(
         cached,
         'floor_plan',
