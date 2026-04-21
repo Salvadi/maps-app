@@ -9,7 +9,7 @@ import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, db,
-  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint, getFloorPlanPoints
+  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
@@ -384,6 +384,7 @@ const App: React.FC = () => {
         mappingEntryId: p.mappingEntryId,
         labelBackgroundColor: p.metadata?.labelBackgroundColor,
         labelTextColor: p.metadata?.labelTextColor,
+        eiRating: p.eiRating,
       }));
       setEditorInitialPoints(canvasPoints);
     } catch (err) {
@@ -512,14 +513,30 @@ const App: React.FC = () => {
               } : undefined}
               onSave={async (points, gridConfig) => {
                 try {
+                  const existingIds = new Set(editorInitialPoints.map(p => p.id));
                   for (const point of points) {
-                    if (point.id && point.id.startsWith('temp-')) {
+                    if (!existingIds.has(point.id)) {
                       await createFloorPlanPoint(
                         editorFloorPlan.id, point.mappingEntryId || '',
                         point.type, point.pointX, point.pointY,
                         point.labelX, point.labelY, currentUser.id,
                         { perimeterPoints: point.perimeterPoints, customText: point.customText }
                       );
+                    } else {
+                      await updateFloorPlanPoint(point.id, {
+                        pointX: point.pointX,
+                        pointY: point.pointY,
+                        labelX: point.labelX,
+                        labelY: point.labelY,
+                        perimeterPoints: point.perimeterPoints,
+                        customText: point.customText,
+                        eiRating: point.eiRating,
+                        metadata: {
+                          labelText: point.labelText,
+                          labelBackgroundColor: point.labelBackgroundColor,
+                          labelTextColor: point.labelTextColor,
+                        },
+                      });
                     }
                   }
                   await updateFloorPlan(editorFloorPlan.id, {

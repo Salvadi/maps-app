@@ -179,6 +179,56 @@ export interface Database {
           updated_at?: string;
         };
       };
+      floor_plan_points: {
+        Row: {
+          id: string;
+          floor_plan_id: string;
+          mapping_entry_id: string;
+          point_type: 'parete' | 'solaio' | 'perimetro' | 'generico';
+          point_x: number;
+          point_y: number;
+          label_x: number;
+          label_y: number;
+          perimeter_points: any;
+          custom_text: string | null;
+          ei_rating: number | null;
+          metadata: any;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          floor_plan_id: string;
+          mapping_entry_id: string;
+          point_type: 'parete' | 'solaio' | 'perimetro' | 'generico';
+          point_x: number;
+          point_y: number;
+          label_x: number;
+          label_y: number;
+          perimeter_points?: any;
+          custom_text?: string | null;
+          ei_rating?: number | null;
+          metadata?: any;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          floor_plan_id?: string;
+          mapping_entry_id?: string;
+          point_type?: 'parete' | 'solaio' | 'perimetro' | 'generico';
+          point_x?: number;
+          point_y?: number;
+          label_x?: number;
+          label_y?: number;
+          perimeter_points?: any;
+          custom_text?: string | null;
+          ei_rating?: number | null;
+          metadata?: any;
+          updated_at?: string;
+        };
+      };
       photos: {
         Row: {
           id: string;

@@ -556,7 +556,8 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
         label_y: point.labelY,
         perimeter_points: point.perimeterPoints,
         custom_text: point.customText,
-        metadata: point.metadata || {},
+        ei_rating: point.eiRating ?? null,
+        metadata: { ...(point.metadata || {}), ...(point.eiRating != null ? { eiRating: point.eiRating } : {}) },
         created_by: point.createdBy,
         created_at: new Date(point.createdAt).toISOString(),
         updated_at: new Date(point.updatedAt).toISOString()

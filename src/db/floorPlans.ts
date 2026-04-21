@@ -215,6 +215,7 @@ export async function createFloorPlanPoint(
     perimeterPoints?: Array<{ x: number; y: number }>;
     customText?: string;
     metadata?: Record<string, any>;
+    eiRating?: 30 | 60 | 90 | 120 | 180 | 240;
   }
 ): Promise<FloorPlanPoint> {
   try {
@@ -229,6 +230,7 @@ export async function createFloorPlanPoint(
       labelY,
       perimeterPoints: options?.perimeterPoints,
       customText: options?.customText,
+      eiRating: options?.eiRating,
       metadata: options?.metadata,
       createdBy: userId,
       createdAt: now(),

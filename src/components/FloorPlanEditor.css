@@ -956,37 +956,25 @@
   border-color: #ddd;
 }
 
-/* EI Rating Buttons */
-.ei-buttons {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.ei-btn {
-  padding: 4px 8px;
-  background: #fff;
+/* EI Rating Dropdown */
+.ei-select {
+  padding: 4px 6px;
+  border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  background: #fff;
   cursor: pointer;
-  transition: all 0.2s;
-  min-width: 32px;
-  text-align: center;
+  min-width: 100px;
 }
 
-.ei-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+.ei-select:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.ei-btn-clear {
-  border: 1px solid #ccc !important;
-  color: #666;
-}
-
-.ei-btn-clear:hover:not(:disabled) {
-  background: #f5f5f5;
+.ei-select:not(:disabled):hover {
+  border-color: #999;
 }
 
 /* EI Legend */

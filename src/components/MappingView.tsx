@@ -684,11 +684,12 @@ const MappingView: React.FC<MappingViewProps> = ({
             pointY: point.pointY,
             labelX: point.labelX,
             labelY: point.labelY,
-            labelText: mappingEntry ? labelText : (point.metadata?.labelText || labelText), // Per punti con mapping, usa sempre il label rigenerato
+            labelText: mappingEntry ? labelText : (point.metadata?.labelText || labelText),
             perimeterPoints: point.perimeterPoints,
-            mappingEntryId: point.mappingEntryId, // Include to distinguish existing points from new ones
-            labelBackgroundColor: point.metadata?.labelBackgroundColor, // Carica anche colore custom
-            labelTextColor: point.metadata?.labelTextColor, // Carica anche colore testo custom
+            mappingEntryId: point.mappingEntryId,
+            labelBackgroundColor: point.metadata?.labelBackgroundColor,
+            labelTextColor: point.metadata?.labelTextColor,
+            eiRating: point.eiRating,
           };
         })
       );

@@ -6,7 +6,7 @@
  * da Supabase Storage con parsing dinamico del bucket name.
  */
 
-import { db, Project, MappingEntry, Photo, Sal } from '../db/database';
+import { db, Project, MappingEntry, Photo, Sal, FloorPlanPoint } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -690,18 +690,21 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
     for (const supabasePoint of floorPlanPoints) {
       try {
         const existingPoint = await db.floorPlanPoints.get(supabasePoint.id);
+        const remoteEiRating = supabasePoint.metadata?.eiRating ?? supabasePoint.ei_rating;
 
         if (existingPoint) {
           const remoteUpdated = new Date(supabasePoint.updated_at).getTime();
           const localUpdated = existingPoint.updatedAt;
+          const shouldHydrateMissingEiRating =
+            existingPoint.eiRating == null && remoteEiRating != null;
 
-          if (remoteUpdated <= localUpdated) {
+          if (remoteUpdated <= localUpdated && !shouldHydrateMissingEiRating) {
             console.log(`⏭️  Floor plan point ${supabasePoint.id} is up to date, skipping`);
             continue;
           }
         }
 
-        const point = {
+        const point: FloorPlanPoint = {
           id: supabasePoint.id,
           floorPlanId: supabasePoint.floor_plan_id,
           mappingEntryId: supabasePoint.mapping_entry_id,
@@ -712,6 +715,7 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
           labelY: supabasePoint.label_y,
           perimeterPoints: supabasePoint.perimeter_points,
           customText: supabasePoint.custom_text,
+          eiRating: remoteEiRating,
           metadata: supabasePoint.metadata || {},
           createdBy: supabasePoint.created_by,
           createdAt: new Date(supabasePoint.created_at).getTime(),
@@ -719,6 +723,10 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
           remoteUpdatedAt: new Date(supabasePoint.updated_at).getTime(), // Track remote version for conflict detection
           synced: 1 as 0 | 1
         };
+
+        if (point.eiRating == null && existingPoint?.eiRating != null) {
+          point.eiRating = existingPoint.eiRating;
+        }
 
         await db.floorPlanPoints.put(point);
         console.log(`✅ Downloaded floor plan point: ${supabasePoint.id} (${supabasePoint.point_type})`);
