@@ -93,9 +93,7 @@ export async function getProjectsForUser(userId: string): Promise<Project[]> {
       const cached = await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
       const withPending = await applyPendingWrites<Project>(cached, 'project', () => true);
 
-      return withPending
-        .filter((project) => project.ownerId === userId || (project.accessibleUsers || []).includes(userId))
-        .sort((a, b) => b.updatedAt - a.updatedAt);
+      return withPending.sort((a, b) => b.updatedAt - a.updatedAt);
     } catch (err) {
       if (isAuthError(err)) {
         throw err;
