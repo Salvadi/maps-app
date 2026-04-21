@@ -316,14 +316,11 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 export async function searchProjects(
-  userIdOrQuery: string,
-  maybeQuery?: string
+  userId: string,
+  query: string
 ): Promise<Project[]> {
-  const query = maybeQuery ?? userIdOrQuery;
   const lowerQuery = query.toLowerCase();
-  const projects = maybeQuery
-    ? await getProjectsForUser(userIdOrQuery)
-    : await getAllProjects();
+  const projects = await getProjectsForUser(userId);
 
   return projects.filter((project) =>
     project.title.toLowerCase().includes(lowerQuery) ||
