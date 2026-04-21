@@ -11,6 +11,15 @@ import {
 } from './onlineFirst';
 
 type FloorPlanAssetMode = 'thumbnail' | 'full' | 'pdf';
+const FLOOR_PLAN_SIGN_BATCH_SIZE = 300;
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
 
 function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
   return {
@@ -133,14 +142,16 @@ async function signFloorPlanUrls(plans: FloorPlan[]): Promise<FloorPlan[]> {
 
   for (const [bucket, paths] of Array.from(groupedPaths.entries())) {
     const pathList = Array.from(paths);
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(pathList, 60 * 60);
-    if (error) {
-      console.warn('[online-first] signFloorPlanUrls failed', bucket, error);
-      continue;
-    }
-    for (const item of data || []) {
-      if (item.path && item.signedUrl) {
-        signedByLocation.set(`${bucket}:${item.path}`, item.signedUrl);
+    for (const batch of chunkArray(pathList, FLOOR_PLAN_SIGN_BATCH_SIZE)) {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(batch, 60 * 60);
+      if (error) {
+        console.warn('[online-first] signFloorPlanUrls failed', bucket, error);
+        continue;
+      }
+      for (const item of data || []) {
+        if (item.path && item.signedUrl) {
+          signedByLocation.set(`${bucket}:${item.path}`, item.signedUrl);
+        }
       }
     }
   }
