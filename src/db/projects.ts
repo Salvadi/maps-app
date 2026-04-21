@@ -163,17 +163,30 @@ export async function updateProject(
   try {
     await db.projects.put(updatedProject);
 
-    const syncItem: SyncQueueItem = {
-      id: generateId(),
-      operation: 'UPDATE',
-      entityType: 'project',
-      entityId: id,
-      payload: updatedProject,
-      timestamp: now(),
-      retryCount: 0,
-      synced: 0,
-    };
-    await db.syncQueue.add(syncItem);
+    const existingSyncItem = await db.syncQueue
+      .where('entityType')
+      .equals('project')
+      .and((item) => item.entityId === id && item.synced === 0 && item.operation === 'UPDATE')
+      .first();
+
+    if (existingSyncItem) {
+      await db.syncQueue.update(existingSyncItem.id, {
+        payload: updatedProject,
+        timestamp: now(),
+      });
+    } else {
+      const syncItem: SyncQueueItem = {
+        id: generateId(),
+        operation: 'UPDATE',
+        entityType: 'project',
+        entityId: id,
+        payload: updatedProject,
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      };
+      await db.syncQueue.add(syncItem);
+    }
     triggerImmediateUpload();
 
     return updatedProject;

@@ -668,16 +668,29 @@ export async function updateFloorPlanPoint(
 
     const point = await db.floorPlanPoints.get(id);
     if (point) {
-      await db.syncQueue.add({
-        id: generateId(),
-        operation: 'UPDATE',
-        entityType: 'floor_plan_point',
-        entityId: id,
-        payload: point,
-        timestamp: now(),
-        retryCount: 0,
-        synced: 0,
-      });
+      const existingSyncItem = await db.syncQueue
+        .where('entityType')
+        .equals('floor_plan_point')
+        .and((item) => item.entityId === id && item.synced === 0 && item.operation !== 'DELETE')
+        .first();
+
+      if (existingSyncItem) {
+        await db.syncQueue.update(existingSyncItem.id, {
+          payload: point,
+          timestamp: now(),
+        });
+      } else {
+        await db.syncQueue.add({
+          id: generateId(),
+          operation: 'UPDATE',
+          entityType: 'floor_plan_point',
+          entityId: id,
+          payload: point,
+          timestamp: now(),
+          retryCount: 0,
+          synced: 0,
+        });
+      }
       triggerImmediateUpload();
     }
   } catch (error) {
