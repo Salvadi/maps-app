@@ -587,6 +587,39 @@ export async function getMappingCountForProject(projectId: string): Promise<numb
 }
 
 export async function getPhotoCountForProject(projectId: string): Promise<number> {
-  const entries = await getMappingEntriesForProject(projectId);
-  return entries.reduce((sum, entry) => sum + entry.photos.length, 0);
+  if (isOnlineAndConfigured()) {
+    try {
+      const { data: entryIds, error: entriesError } = await supabase
+        .from('mapping_entries')
+        .select('id')
+        .eq('project_id', projectId);
+      if (entriesError) throw entriesError;
+
+      const ids = (entryIds ?? []).map((row: { id: string }) => row.id);
+      if (ids.length === 0) return 0;
+
+      let total = 0;
+      for (const chunk of chunkArray(ids, 100)) {
+        const { count, error } = await supabase
+          .from('photos')
+          .select('id', { count: 'exact', head: true })
+          .in('mapping_entry_id', chunk);
+        if (error) throw error;
+        total += count ?? 0;
+      }
+      return total;
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      console.warn('[getPhotoCountForProject] fallback local:', err);
+    }
+  }
+
+  let total = 0;
+  await db.mappingEntries
+    .where('projectId')
+    .equals(projectId)
+    .each((entry) => {
+      total += entry.photos?.length ?? 0;
+    });
+  return total;
 }
