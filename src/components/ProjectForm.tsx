@@ -751,8 +751,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (!floorPlan.imageBlob) { alert('Immagine non disponibile. Sincronizza il progetto.'); return; }
-                                    window.open(getFloorPlanBlobUrl(floorPlan.imageBlob), '_blank');
+                                    const previewUrl = getFloorPlanBlobUrl(floorPlan.imageBlob, floorPlan.imageUrl);
+                                    if (!previewUrl) { alert('Immagine non disponibile.'); return; }
+                                    window.open(previewUrl, '_blank');
                                   }}
                                   className="flex items-center gap-1 px-3 py-1.5 bg-brand-100 text-brand-700 rounded-xl text-xs font-medium"
                                 >

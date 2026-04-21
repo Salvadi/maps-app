@@ -90,7 +90,7 @@ export async function login(email: string, password: string): Promise<User | nul
       try {
         console.log('⬇️  Starting initial sync from Supabase...');
         const syncResult = await syncFromSupabase();
-        console.log(`✅ Initial sync complete: ${syncResult.projectsCount} projects, ${syncResult.entriesCount} entries, ${syncResult.photosCount} photos`);
+        console.log(`✅ Initial sync complete: ${syncResult.projectsCount} projects, ${syncResult.entriesCount} entries, ${syncResult.photosCount} photo metadata`);
       } catch (syncErr) {
         console.error('⚠️  Initial sync failed, but login successful:', syncErr);
         // Don't fail the login if sync fails - user can still work offline

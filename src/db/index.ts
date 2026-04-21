@@ -7,8 +7,20 @@ export * from './floorPlans';
 
 // Re-export commonly used functions
 export { db, initializeDatabase, clearDatabase, getDatabaseStats } from './database';
-export { createProject, getProject, getAllProjects, getProjectsForUser, updateProject, deleteProject, archiveProject, unarchiveProject } from './projects';
-export { createMappingEntry, getMappingEntry, getMappingEntriesForProject, updateMappingEntry, deleteMappingEntry, getPhotosForMapping, addPhotosToMapping, removePhotoFromMapping } from './mappings';
+export {
+  createProject,
+  getProject,
+  getAllProjects,
+  getProjectsForUser,
+  updateProject,
+  deleteProject,
+  archiveProject,
+  unarchiveProject,
+  getProjectCachePref,
+  setProjectOfflinePinned,
+  hydrateProjectForOffline,
+} from './projects';
+export { createMappingEntry, getMappingEntry, getMappingEntriesForProject, updateMappingEntry, deleteMappingEntry, getPhotosForMapping, getPhotosForMappings, ensurePhotoBlob, addPhotosToMapping, removePhotoFromMapping } from './mappings';
 export { login, signUp, logout, getCurrentUser, isAdmin, initializeMockUsers, onAuthStateChange, sendPasswordResetEmail, updatePassword } from './auth';
 
 // Floor Plans exports
@@ -23,8 +35,10 @@ export {
   getFloorPlanPoint,
   getFloorPlanPointByMappingEntry,
   getFloorPlanPoints,
+  getFloorPlanPointsForPlans,
   updateFloorPlanPoint,
   deleteFloorPlanPoint,
+  ensureFloorPlanAsset,
   updateFloorPlanLabelsForMapping,
   createStandaloneMap,
   getStandaloneMap,

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Map, FolderOpen, Plus, ChevronRight, FileDown, RefreshCw } from 'lucide-react';
 import {
   Project, User, FloorPlan,
-  getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints
+  getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints, ensureFloorPlanAsset
 } from '../db';
 import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useBlobUrl } from '../hooks/useBlobUrl';
@@ -55,9 +55,13 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
   const totalPlans = projectsWithPlans.reduce((sum, p) => sum + p.floorPlans.length, 0);
 
   const handleExportPlanPDF = async (plan: FloorPlan) => {
-    if (!plan.imageBlob) return;
     setExportingPlanId(plan.id);
     try {
+      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
+      const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
+      if (!exportReadyPlan?.imageBlob) {
+        return;
+      }
       const rawPoints = await getFloorPlanPoints(plan.id);
       const exportPoints: ExportPoint[] = rawPoints.map(point => ({
         type: point.pointType,
@@ -71,11 +75,11 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
         labelTextColor: point.metadata?.labelTextColor,
       }));
       await exportFloorPlanVectorPDF(
-        plan.imageBlob,
+        exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
-        plan.pdfBlobBase64,
-        plan.metadata?.rotation || 0,
+        exportReadyPlan.pdfBlobBase64,
+        exportReadyPlan.metadata?.rotation || 0,
       );
     } finally {
       setExportingPlanId(null);
@@ -119,7 +123,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
                       className="w-full active:scale-[0.98] transition-transform"
                     >
                       <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
-                        <ThumbnailImage blob={plan.thumbnailBlob} alt={`Piano ${plan.floor}`} />
+                        <ThumbnailImage blob={plan.thumbnailBlob} remoteUrl={plan.thumbnailUrl || plan.imageUrl} alt={`Piano ${plan.floor}`} />
                       </div>
                     </button>
                     <div className="px-3 py-2.5 flex items-center justify-between">
@@ -131,7 +135,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
                       </div>
                       <button
                         onClick={() => handleExportPlanPDF(plan)}
-                        disabled={exportingPlanId === plan.id || !plan.imageBlob}
+                        disabled={exportingPlanId === plan.id}
                         title="Scarica PDF"
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 disabled:opacity-40 flex-shrink-0"
                       >
@@ -186,10 +190,11 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
 };
 
 /** Sub-component that manages Blob URL lifecycle for a thumbnail */
-const ThumbnailImage: React.FC<{ blob: Blob | undefined; alt: string }> = ({ blob, alt }) => {
+const ThumbnailImage: React.FC<{ blob: Blob | undefined; remoteUrl?: string; alt: string }> = ({ blob, remoteUrl, alt }) => {
   const url = useBlobUrl(blob);
-  if (!url) return <Map size={32} className="text-brand-300" />;
-  return <img src={url} alt={alt} className="w-full h-full object-cover" />;
+  const imageUrl = url || remoteUrl;
+  if (!imageUrl) return <Map size={32} className="text-brand-300" />;
+  return <img src={imageUrl} alt={alt} className="w-full h-full object-cover" />;
 };
 
 export default MapsOverview;

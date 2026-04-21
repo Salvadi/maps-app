@@ -17,6 +17,7 @@ import {
   downloadFloorPlansFromSupabase,
   downloadFloorPlanPointsFromSupabase,
   downloadSalsFromSupabase,
+  downloadTypologyPricesFromSupabase,
   updateRemotePhotosFlags
 } from './syncDownloadHandlers';
 
@@ -390,8 +391,9 @@ export {
 };
 
 // ============================================
-// SEZIONE: Sync FROM Supabase (download completo)
-// Scarica progetti, entries, foto, planimetrie e punti in un'unica operazione.
+// SEZIONE: Sync FROM Supabase (download metadata-first)
+// Scarica progetti, entries, prezzi, planimetrie e punti.
+// I blob pesanti restano lazy salvo richiesta esplicita.
 // Usato dall'auto-sync periodico e come base di phasedSyncFromSupabase.
 // ============================================
 
@@ -437,15 +439,20 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
 
     const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
-    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
+    await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: false });
+    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+      includeImageBlobs: false,
+      includeThumbnailBlobs: false,
+      includePdf: false,
+    });
     const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
     const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
 
     const photosCount = photosResult.downloaded;
     const photosFailedCount = photosResult.failed;
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs`);
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photo metadata${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs`);
 
     await emitSyncComplete();
     return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount };
@@ -636,16 +643,21 @@ export async function phasedSyncFromSupabase(options?: {
   const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 2, totalSteps, phase: 'Download progetti', detail: `${projectsCount} progetti` });
 
-  // Phase 2: Mapping entries + SALs
+  // Phase 2: Mapping entries + SALs + prices
   progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
   const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
   const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
+  await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
 
-  // Phase 3: Floor plans + points
+  // Phase 3: Floor plans metadata + points
   progress?.({ step: 4, totalSteps, phase: 'Download planimetrie...' });
   console.log('🗺️ Fase 2: Sincronizzazione planimetrie...');
-  const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
+  const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+    includeImageBlobs: false,
+    includeThumbnailBlobs: false,
+    includePdf: false,
+  });
   const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 4, totalSteps, phase: 'Download planimetrie', detail: `${floorPlansCount} planimetrie, ${floorPlanPointsCount} punti` });
 
@@ -662,7 +674,7 @@ export async function phasedSyncFromSupabase(options?: {
   if (shouldDownloadPhotos) {
     progress?.({ step: 5, totalSteps, phase: 'Download foto...' });
     console.log('📸 Fase 3: Sincronizzazione foto...');
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: true });
     photosCount = photosResult.downloaded;
     photosFailedCount = photosResult.failed;
     progress?.({ step: 5, totalSteps, phase: 'Download foto', detail: `${photosCount} foto${photosFailedCount > 0 ? ` (${photosFailedCount} fallite)` : ''}` });
@@ -677,19 +689,18 @@ export async function phasedSyncFromSupabase(options?: {
 
 // ============================================
 // SEZIONE: Clear and sync
-// Cancella tutti i dati locali e riscarica tutto da Supabase.
+// Cancella la cache locale e reidrata i metadati da Supabase.
 // Utile per risolvere discrepanze persistenti tra locale e remoto.
 // Preserva solo i dati di autenticazione (users, currentUser metadata).
 // ============================================
 
 /**
- * Clear all local data and re-sync from Supabase
- * This is useful to resolve data discrepancies between local and remote
+ * Reset local cache and rehydrate metadata from Supabase
  */
 export async function clearAndSync(): Promise<{
   downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number }
 }> {
-  console.log('🗑️ Clear and sync triggered - clearing all local data...');
+  console.log('🗑️ Cache reset triggered - clearing local data...');
 
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured. Cannot sync.');
@@ -710,6 +721,8 @@ export async function clearAndSync(): Promise<{
     await db.floorPlanPoints.clear();
     await db.standaloneMaps.clear();
     await db.sals.clear();
+    await db.typologyPrices.clear();
+    await db.projectCachePrefs.clear();
     await db.syncQueue.clear();
     // Don't clear users table - keep authentication data
 
@@ -723,11 +736,11 @@ export async function clearAndSync(): Promise<{
 
     console.log('✅ Local data cleared successfully');
 
-    // Download fresh data from Supabase
-    console.log('⬇️ Downloading fresh data from Supabase...');
+    // Download fresh metadata from Supabase
+    console.log('⬇️ Downloading fresh metadata from Supabase...');
     const downloadResult = await syncFromSupabase();
 
-    console.log(`✅ Clear and sync complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
+    console.log(`✅ Cache reset complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photo metadata, ${downloadResult.floorPlansCount} floor plans, and ${downloadResult.floorPlanPointsCount} floor plan points`);
 
     return { downloadResult };
   } catch (err) {

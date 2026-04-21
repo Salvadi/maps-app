@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search, SlidersHorizontal, Plus, FolderOpen, Eye, Pencil, Trash2,
-  Camera, RefreshCw, MapPin, User as UserIcon, Archive
+  Camera, Wifi, MapPin, User as UserIcon, Archive
 } from 'lucide-react';
-import { Project, User, getAllProjects, getProjectsForUser, updateProject, db } from '../db';
+import { Project, User, getAllProjects, getProjectsForUser, db } from '../db';
 
 interface ProjectListProps {
   currentUser: User;
@@ -96,11 +96,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
     }
     return sorted;
   }, [projects, searchQuery, sortOption, filterTab]);
-
-  const handleToggleSync = async (project: Project, enabled: boolean) => {
-    await updateProject(project.id, { syncEnabled: enabled ? 1 : 0 });
-    setProjects(prev => prev.map(p => p.id === project.id ? { ...p, syncEnabled: enabled ? 1 : 0 } : p));
-  };
 
   const handleDelete = (project: Project) => {
     if (window.confirm(`Eliminare "${project.title}"?`)) {
@@ -262,21 +257,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
                   </div>
                 )}
                 <div className="flex-1" />
-                {/* Sync toggle */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleToggleSync(project, project.syncEnabled !== 1); }}
-                  className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors ${
-                    project.syncEnabled === 1
-                      ? 'bg-green-50 text-success'
-                      : 'bg-brand-50 text-brand-400'
-                  }`}
-                  title={project.syncEnabled === 1 ? 'Sync completa attiva' : 'Sync disabilitata - tap per attivare'}
+                <div
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 bg-green-50 text-success"
+                  title="Accesso online-first con cache locale"
                 >
-                  <RefreshCw size={12} />
-                  <span className="text-[11px] font-medium">
-                    {project.syncEnabled === 1 ? 'Sync' : 'Off'}
-                  </span>
-                </button>
+                  <Wifi size={12} />
+                  <span className="text-[11px] font-medium">Online</span>
+                </div>
                 <span className="text-[11px] text-brand-400">{formatDate(project.updatedAt)}</span>
               </div>
 
@@ -284,16 +271,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
               <div className="border-t border-brand-100 flex">
                 <button
                   onClick={() => onEnterMapping(project)}
-                  disabled={project.syncEnabled === 0}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-medium text-sm transition-colors ${
-                    project.syncEnabled === 0
-                      ? 'text-brand-400 cursor-not-allowed'
-                      : 'text-accent hover:bg-blue-50 active:bg-blue-100'
-                  }`}
-                  title={project.syncEnabled === 0 ? 'Attiva la sincronizzazione per aggiungere mappature' : ''}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-3 font-medium text-sm transition-colors text-accent hover:bg-blue-50 active:bg-blue-100"
                 >
                   <Camera size={15} />
-                  <span>{project.syncEnabled === 0 ? 'Sync off' : 'Mappatura'}</span>
+                  <span>Mappatura</span>
                 </button>
                 <div className="w-px bg-brand-100" />
                 <button

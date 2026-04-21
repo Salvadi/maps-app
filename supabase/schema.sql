@@ -68,9 +68,22 @@ CREATE TABLE IF NOT EXISTS public.photos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   mapping_entry_id UUID NOT NULL REFERENCES public.mapping_entries(id) ON DELETE CASCADE,
   storage_path TEXT, -- Path in Supabase Storage
+  thumbnail_storage_path TEXT,
   url TEXT, -- Public/signed URL
+  thumbnail_url TEXT,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   uploaded BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.typology_prices (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  attraversamento TEXT NOT NULL,
+  tipologico_id TEXT,
+  price_per_unit NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  unit TEXT NOT NULL CHECK (unit IN ('piece', 'sqm')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -109,6 +122,10 @@ CREATE INDEX IF NOT EXISTS idx_mapping_entries_synced ON public.mapping_entries(
 -- Photos indexes
 CREATE INDEX IF NOT EXISTS idx_photos_mapping_entry ON public.photos(mapping_entry_id);
 CREATE INDEX IF NOT EXISTS idx_photos_uploaded ON public.photos(uploaded);
+CREATE INDEX IF NOT EXISTS idx_typology_prices_project ON public.typology_prices(project_id);
+CREATE INDEX IF NOT EXISTS idx_typology_prices_project_attraversamento ON public.typology_prices(project_id, attraversamento);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_generic ON public.typology_prices(project_id, attraversamento) WHERE tipologico_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_specific ON public.typology_prices(project_id, attraversamento, tipologico_id) WHERE tipologico_id IS NOT NULL;
 
 -- Sync queue indexes
 CREATE INDEX IF NOT EXISTS idx_sync_queue_user ON public.sync_queue(user_id);
@@ -125,6 +142,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mapping_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.typology_prices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_queue ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
@@ -377,6 +395,87 @@ CREATE POLICY "Users can delete photos"
   );
 
 -- ============================================
+-- TYPOLOGY PRICES POLICIES
+-- ============================================
+
+CREATE POLICY "Users can view typology prices for accessible projects"
+  ON public.typology_prices
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
+
+CREATE POLICY "Admins can view all typology prices"
+  ON public.typology_prices
+  FOR SELECT
+  USING (public.is_admin());
+
+CREATE POLICY "Users can create typology prices"
+  ON public.typology_prices
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
+
+CREATE POLICY "Users can update typology prices"
+  ON public.typology_prices
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
+
+CREATE POLICY "Users can delete typology prices"
+  ON public.typology_prices
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
+
+CREATE POLICY "Admins can manage all typology prices"
+  ON public.typology_prices
+  FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+-- ============================================
 -- SYNC QUEUE POLICIES
 -- ============================================
 
@@ -428,6 +527,9 @@ CREATE TRIGGER update_mapping_entries_updated_at BEFORE UPDATE ON public.mapping
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_photos_updated_at BEFORE UPDATE ON public.photos
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_typology_prices_updated_at BEFORE UPDATE ON public.typology_prices
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to automatically create profile on user signup

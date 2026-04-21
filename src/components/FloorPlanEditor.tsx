@@ -76,6 +76,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 }) => {
   // Ref to FloorPlanCanvas imperative handle
   const canvasRef = useRef<FloorPlanCanvasHandle>(null);
+  const rotatedObjectUrlRef = useRef<string | null>(null);
 
   // ============================================
   // SEZIONE: Stato e inizializzazione
@@ -106,6 +107,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
   // Build rotated image URL whenever imageUrl or rotation changes
   useEffect(() => {
+    if (rotatedObjectUrlRef.current) {
+      URL.revokeObjectURL(rotatedObjectUrlRef.current);
+      rotatedObjectUrlRef.current = null;
+    }
+
     if (rotation === 0) {
       setRotatedImageUrl(imageUrl);
       return;
@@ -125,11 +131,29 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate(radians);
       ctx.drawImage(img, -img.width / 2, -img.height / 2);
-      if (!cancelled) setRotatedImageUrl(canvas.toDataURL('image/png'));
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          return;
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        rotatedObjectUrlRef.current = objectUrl;
+        setRotatedImageUrl(objectUrl);
+      }, 'image/png');
     };
     img.src = imageUrl;
     return () => { cancelled = true; };
   }, [imageUrl, rotation]);
+
+  useEffect(() => () => {
+    if (rotatedObjectUrlRef.current) {
+      URL.revokeObjectURL(rotatedObjectUrlRef.current);
+      rotatedObjectUrlRef.current = null;
+    }
+  }, []);
 
   // Multi-selection for color picker
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());

@@ -5,7 +5,7 @@
  * Ogni gestore gestisce CREATE, UPDATE e DELETE con conversione formato locale → remoto.
  */
 
-import { db, Project, MappingEntry, Photo, Sal, SyncQueueItem, generateId } from '../db/database';
+import { db, Project, MappingEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -42,6 +42,10 @@ export async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
     case 'sal':
       await syncSal(item);
+      break;
+
+    case 'typology_price':
+      await syncTypologyPrice(item);
       break;
 
     default:
@@ -706,6 +710,45 @@ async function syncSal(item: SyncQueueItem): Promise<void> {
 
     if (error) {
       throw new Error(`Supabase SAL delete failed: ${error.message}`);
+    }
+  }
+}
+
+async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
+  const price = item.payload as TypologyPrice;
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    const { error } = await supabase
+      .from('typology_prices')
+      .upsert({
+        id: price.id,
+        project_id: price.projectId,
+        attraversamento: price.attraversamento,
+        tipologico_id: price.tipologicoId || null,
+        price_per_unit: price.pricePerUnit,
+        unit: price.unit,
+        created_at: price.createdAt ? new Date(price.createdAt).toISOString() : new Date().toISOString(),
+        updated_at: new Date(price.updatedAt || Date.now()).toISOString(),
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      throw new Error(`Supabase typology price upsert failed: ${error.message}`);
+    }
+
+    await db.typologyPrices.update(price.id, {
+      synced: 1,
+      updatedAt: price.updatedAt || Date.now(),
+    });
+  } else if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('typology_prices')
+      .delete()
+      .eq('id', price.id);
+
+    if (error) {
+      throw new Error(`Supabase typology price delete failed: ${error.message}`);
     }
   }
 }

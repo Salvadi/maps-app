@@ -3,7 +3,7 @@ import {
   LogOut, RefreshCw, Trash2,
   Wifi, WifiOff, Shield, Unlock, Plus, X, ChevronDown
 } from 'lucide-react';
-import { User, db } from '../db';
+import { User, db, getDatabaseStats } from '../db';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { SyncStats } from '../sync/syncEngine';
@@ -33,6 +33,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [projectCount, setProjectCount] = useState(0);
   const [mappingCount, setMappingCount] = useState(0);
   const [photoCount, setPhotoCount] = useState(0);
+  const [floorPlanCount, setFloorPlanCount] = useState(0);
+  const [failedSyncCount, setFailedSyncCount] = useState(0);
+  const [cacheSizeMb, setCacheSizeMb] = useState('0.00');
 
   // Admin data management state
   const [adminTab, setAdminTab] = useState<'dropdown' | 'products'>('dropdown');
@@ -53,12 +56,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
   useEffect(() => {
     const loadStats = async () => {
-      const projects = await db.projects.count();
-      const mappings = await db.mappingEntries.count();
-      const photos = await db.photos.count();
+      const [projects, mappings, photos, floorPlans, failedItems, stats] = await Promise.all([
+        db.projects.count(),
+        db.mappingEntries.count(),
+        db.photos.count(),
+        db.floorPlans.count(),
+        db.syncQueue.where('synced').equals(2).count(),
+        getDatabaseStats(),
+      ]);
       setProjectCount(projects);
       setMappingCount(mappings);
       setPhotoCount(photos);
+      setFloorPlanCount(floorPlans);
+      setFailedSyncCount(failedItems);
+      setCacheSizeMb(stats.totalStorageMB);
     };
     loadStats();
   }, []);
@@ -278,7 +289,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               className="w-full flex items-center gap-3 px-4 py-3.5 text-warning hover:bg-orange-50 active:bg-orange-100 transition-colors disabled:opacity-50"
             >
               <Trash2 size={18} />
-              <span className="text-sm font-medium">Clear & Resync</span>
+              <span className="text-sm font-medium">Reset cache locale</span>
             </button>
           </div>
           {syncStats.isSyncing && (
@@ -311,6 +322,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <span className="text-sm text-brand-700">Foto salvate</span>
             <span className="text-sm font-semibold text-brand-800">{photoCount}</span>
           </div>
+          <div className="px-4 py-3.5 flex items-center justify-between">
+            <span className="text-sm text-brand-700">Planimetrie in cache</span>
+            <span className="text-sm font-semibold text-brand-800">{floorPlanCount}</span>
+          </div>
+          <div className="px-4 py-3.5 flex items-center justify-between">
+            <span className="text-sm text-brand-700">Dimensione cache</span>
+            <span className="text-sm font-semibold text-brand-800">{cacheSizeMb} MB</span>
+          </div>
+          <div className="px-4 py-3.5 flex items-center justify-between">
+            <span className="text-sm text-brand-700">Errori permanenti coda</span>
+            <span className={`text-sm font-semibold ${failedSyncCount > 0 ? 'text-warning' : 'text-brand-800'}`}>{failedSyncCount}</span>
+          </div>
         </div>
       </div>
 
@@ -324,7 +347,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
           <div className="px-4 py-3.5 flex items-center justify-between">
             <span className="text-sm text-brand-700">OPImaPPA</span>
-            <span className="text-sm text-brand-500">PWA Offline-First</span>
+            <span className="text-sm text-brand-500">PWA Online-First</span>
           </div>
         </div>
       </div>

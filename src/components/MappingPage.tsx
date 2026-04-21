@@ -23,7 +23,10 @@ import {
   updateFloorPlanPoint,
   updateFloorPlan,
   updateFloorPlanLabelsForMapping,
+  ensurePhotoBlob,
+  ensureFloorPlanAsset,
   getFloorPlanBlobUrl,
+  revokeFloorPlanBlobUrl,
   getFloorPlanPoints
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
@@ -171,25 +174,29 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       if (editingEntry) {
         try {
           const photos = await getPhotosForMapping(editingEntry.id);
+          const hydratedPhotos = await Promise.all(photos.map((photo) => ensurePhotoBlob(photo.id)));
+          const usablePhotos = hydratedPhotos.filter(
+            (photo): photo is NonNullable<typeof photo> => Boolean(photo?.blob)
+          );
 
           // Convert photos to previews and files
           const previews = await Promise.all(
-            photos.map(photo => {
+            usablePhotos.map(photo => {
               return new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
-                reader.readAsDataURL(photo.blob);
+                reader.readAsDataURL(photo.blob!);
               });
             })
           );
 
           // Convert Blobs to Files for consistency
-          const files = photos.map((photo, idx) =>
-            new File([photo.blob], `photo-${idx}.jpg`, { type: photo.blob.type })
+          const files = usablePhotos.map((photo, idx) =>
+            new File([photo.blob!], `photo-${idx}.jpg`, { type: photo.blob!.type })
           );
 
           // Track photo IDs for deletion
-          const ids = photos.map(photo => photo.id);
+          const ids = usablePhotos.map(photo => photo.id);
 
           setPhotoPreviews(previews);
           setPhotoFiles(files);
@@ -232,7 +239,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     return () => {
       // Cleanup blob URL
       if (floorPlanImageUrl) {
-        URL.revokeObjectURL(floorPlanImageUrl);
+        revokeFloorPlanBlobUrl(floorPlanImageUrl);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -305,20 +312,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     try {
       const floorPlan = await getFloorPlanByProjectAndFloor(project.id, floor);
       setCurrentFloorPlan(floorPlan || null);
-
-      if (floorPlan) {
-        // Check if imageBlob is available
-        if (floorPlan.imageBlob) {
-          // Create blob URL for display
-          const url = getFloorPlanBlobUrl(floorPlan.imageBlob);
-          setFloorPlanImageUrl(url);
-        } else {
-          console.warn('Floor plan found but imageBlob is missing');
-          setFloorPlanImageUrl(null);
-        }
-      } else {
-        setFloorPlanImageUrl(null);
-      }
+      setFloorPlanImageUrl(null);
     } catch (error) {
       console.error('Error loading floor plan:', error);
     }
@@ -363,6 +357,22 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
         setIsSubmitting(false);
       }
     }
+
+    const hydratedFloorPlan = await ensureFloorPlanAsset(currentFloorPlan.id, 'full');
+    const nextFloorPlan = hydratedFloorPlan || currentFloorPlan;
+    const nextImageUrl = getFloorPlanBlobUrl(nextFloorPlan.imageBlob, nextFloorPlan.imageUrl);
+
+    if (!nextImageUrl) {
+      alert('La planimetria non e disponibile in questo momento. Riprova tra poco.');
+      return;
+    }
+
+    if (floorPlanImageUrl && floorPlanImageUrl !== nextImageUrl) {
+      revokeFloorPlanBlobUrl(floorPlanImageUrl);
+    }
+
+    setCurrentFloorPlan(nextFloorPlan);
+    setFloorPlanImageUrl(nextImageUrl);
 
     // Load existing point if editing or draft exists
     const entryToCheck = editingEntry || savedDraftEntry;
@@ -1294,7 +1304,13 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             mode="mapping"
             maxPoints={1}
             onSave={handleSaveFloorPlanPoint}
-            onClose={() => setShowFloorPlanEditor(false)}
+            onClose={() => {
+              if (floorPlanImageUrl) {
+                revokeFloorPlanBlobUrl(floorPlanImageUrl);
+              }
+              setFloorPlanImageUrl(null);
+              setShowFloorPlanEditor(false);
+            }}
             readOnlyPoints={readOnlyPoints}
           />
         </div>

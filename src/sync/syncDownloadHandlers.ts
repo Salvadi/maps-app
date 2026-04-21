@@ -1,893 +1,524 @@
-/**
- * @file Gestori di download per la sincronizzazione (Download Handlers)
- * @description Contiene le funzioni per il download dei dati da Supabase verso IndexedDB:
- * progetti, mapping entries, foto, planimetrie e punti planimetria.
- * Include la gestione dei conflitti, il supporto admin/utente e il download dei blob
- * da Supabase Storage con parsing dinamico del bucket name.
- */
-
-import { db, Project, MappingEntry, Photo, Sal, FloorPlanPoint } from '../db/database';
+import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
+import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
+import { getPendingEntityIds } from '../db/onlineFirst';
 
-// ============================================
-// SEZIONE: Download Progetti (Project Download)
-// Scarica tutti i progetti accessibili dall'utente (o tutti se admin).
-// Preserva la preferenza locale syncEnabled e risolve i conflitti.
-// ============================================
-
-export async function downloadProjectsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
+function ensureOnline(): void {
   if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
+    throw new Error('Supabase not configured');
   }
-
   if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
-  }
-
-  console.log(`⬇️  Downloading projects from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-    // Download ALL projects and filter client-side
-    // This is less efficient but more reliable than PostgREST array queries
-    const { data: allProjects, error } = await supabase
-      .from('projects')
-      .select('*');
-
-    if (error) {
-      throw new Error(`Failed to download projects: ${error.message}`);
-    }
-
-    if (!allProjects || allProjects.length === 0) {
-      console.log('✅ No projects to download');
-      return 0;
-    }
-
-    // Filter projects: admins see all, regular users see only accessible
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading all projects');
-      userProjects = allProjects;
-    } else {
-      userProjects = allProjects.filter((p: any) =>
-        p.owner_id === userId ||
-        (p.accessible_users && Array.isArray(p.accessible_users) && p.accessible_users.includes(userId))
-      );
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No projects accessible to this user');
-      return 0;
-    }
-
-    console.log(`📥 Found ${userProjects.length} projects for user`);
-
-    let downloadedCount = 0;
-
-    for (const supabaseProject of userProjects) {
-      // Convert Supabase format to IndexedDB format
-      const project: Project = {
-        id: supabaseProject.id,
-        title: supabaseProject.title,
-        client: supabaseProject.client,
-        address: supabaseProject.address,
-        notes: supabaseProject.notes,
-        floors: supabaseProject.floors,
-        plans: supabaseProject.plans,
-        useRoomNumbering: supabaseProject.use_room_numbering,
-        useInterventionNumbering: supabaseProject.use_intervention_numbering,
-        typologies: supabaseProject.typologies,
-        ownerId: supabaseProject.owner_id,
-        accessibleUsers: supabaseProject.accessible_users || [],
-        archived: supabaseProject.archived ? 1 : 0,
-        syncEnabled: 0, // Always default to 0 for newly downloaded projects (per-device preference)
-        createdAt: new Date(supabaseProject.created_at).getTime(),
-        updatedAt: new Date(supabaseProject.updated_at).getTime(),
-        version: supabaseProject.version || 1,
-        lastModified: supabaseProject.last_modified || new Date(supabaseProject.updated_at).getTime(),
-        synced: 1
-      };
-
-      // Check if project exists locally
-      const existingProject = await db.projects.get(project.id);
-
-      if (existingProject) {
-        // IMPORTANT: Preserve local syncEnabled preference when updating from remote
-        project.syncEnabled = existingProject.syncEnabled;
-
-        // Check for conflicts and resolve using conflict resolution strategy
-        const hasConflict =
-          existingProject.updatedAt !== project.updatedAt ||
-          (existingProject.version || 1) !== (project.version || 1);
-
-        if (hasConflict) {
-          console.log(`⚠️  Conflict detected for project ${project.id} during download`);
-          const resolved = await resolveProjectConflict(existingProject, supabaseProject, 'last-modified-wins');
-          resolved.syncEnabled = existingProject.syncEnabled;
-          await db.projects.put(resolved);
-          console.log(`✅ Updated project from server with conflict resolution: ${project.title}`);
-          downloadedCount++;
-        } else if (project.updatedAt > existingProject.updatedAt) {
-          await db.projects.put(project);
-          console.log(`✅ Updated project from server: ${project.title}`);
-          downloadedCount++;
-        }
-      } else {
-        await db.projects.put(project);
-        console.log(`✅ Downloaded new project: ${project.title}`);
-        downloadedCount++;
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} projects from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download projects:', errorMessage);
-    throw err;
+    throw new Error('No internet connection');
   }
 }
 
-// ============================================
-// SEZIONE: Download Mapping Entries (Mapping Entry Download)
-// Scarica le mapping entries solo per i progetti con syncEnabled=1.
-// Risolve i conflitti con la strategia last-modified-wins.
-// ============================================
+async function getAccessibleProjectsFromRemote(userId: string, isAdmin: boolean): Promise<any[]> {
+  const { data: allProjects, error } = await supabase
+    .from('projects')
+    .select('*');
 
-export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
-    return 0;
+  if (error) {
+    throw new Error(`Failed to download projects: ${error.message}`);
   }
 
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
+  const projects = allProjects || [];
+  if (isAdmin) {
+    return projects;
   }
 
-  console.log(`⬇️  Downloading mapping entries from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
-
-  try {
-    // Get all project IDs that have syncEnabled = 1 (full sync)
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading mapping entries for all sync-enabled projects');
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No sync-enabled projects found, skipping mapping entries download');
-      return 0;
-    }
-
-    const projectIds = userProjects.map(p => p.id);
-    console.log(`📥 Downloading mapping entries for ${projectIds.length} sync-enabled projects`);
-
-    const { data: mappingEntries, error } = await supabase
-      .from('mapping_entries')
-      .select('*')
-      .in('project_id', projectIds);
-
-    if (error) {
-      throw new Error(`Failed to download mapping entries: ${error.message}`);
-    }
-
-    if (!mappingEntries || mappingEntries.length === 0) {
-      console.log('✅ No mapping entries to download');
-      return 0;
-    }
-
-    let downloadedCount = 0;
-
-    for (const supabaseEntry of mappingEntries) {
-      const mappingEntry: MappingEntry = {
-        id: supabaseEntry.id,
-        projectId: supabaseEntry.project_id,
-        floor: supabaseEntry.floor,
-        room: supabaseEntry.room || undefined,
-        intervention: supabaseEntry.intervention || undefined,
-        photos: supabaseEntry.photos || [],
-        crossings: supabaseEntry.crossings || [],
-        toComplete: supabaseEntry.to_complete || false,
-        timestamp: new Date(supabaseEntry.created_at).getTime(),
-        createdBy: supabaseEntry.created_by,
-        lastModified: new Date(supabaseEntry.updated_at).getTime(),
-        modifiedBy: supabaseEntry.modified_by,
-        version: supabaseEntry.version || 1,
-        synced: 1
-      };
-
-      const existingEntry = await db.mappingEntries.get(mappingEntry.id);
-
-      if (existingEntry) {
-        const hasConflict =
-          existingEntry.lastModified !== mappingEntry.lastModified ||
-          existingEntry.version !== mappingEntry.version;
-
-        if (hasConflict) {
-          console.log(`⚠️  Conflict detected for mapping entry ${mappingEntry.id} during download`);
-          const resolved = await resolveMappingEntryConflict(existingEntry, supabaseEntry, 'last-modified-wins');
-          await db.mappingEntries.put(resolved);
-          console.log(`✅ Updated mapping entry from server with conflict resolution: ${mappingEntry.id}`);
-          downloadedCount++;
-        } else if (mappingEntry.lastModified > existingEntry.lastModified) {
-          await db.mappingEntries.put(mappingEntry);
-          console.log(`✅ Updated mapping entry from server: ${mappingEntry.id}`);
-          downloadedCount++;
-        }
-      } else {
-        await db.mappingEntries.put(mappingEntry);
-        console.log(`✅ Downloaded new mapping entry: ${mappingEntry.id}`);
-        downloadedCount++;
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} mapping entries from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download mapping entries:', errorMessage);
-    throw err;
-  }
+  return projects.filter((project: any) =>
+    project.owner_id === userId ||
+    (Array.isArray(project.accessible_users) && project.accessible_users.includes(userId))
+  );
 }
 
-// ============================================
-// SEZIONE: Download Foto (Photo Download)
-// Scarica i blob delle foto da Supabase Storage per i progetti con syncEnabled=1.
-// Le query vengono eseguite in batch da 100 per evitare limiti URL di PostgREST.
-// Salta le foto già presenti localmente (uploaded=true).
-// ============================================
+async function getAccessibleLocalProjects(userId: string, isAdmin: boolean): Promise<Project[]> {
+  if (isAdmin) {
+    return db.projects.toArray();
+  }
 
-export async function downloadPhotosFromSupabase(userId: string, isAdmin: boolean = false): Promise<{ downloaded: number; failed: number }> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
+  return db.projects
+    .where('ownerId')
+    .equals(userId)
+    .or('accessibleUsers')
+    .equals(userId)
+    .toArray();
+}
+
+function extractStorageLocation(
+  url: string | undefined
+): { bucket: string; path: string } | null {
+  if (!url) {
+    return null;
+  }
+
+  const fullMatch = url.match(/\/storage\/v1\/object\/(?:sign|public)\/([^/]+)\/([^?]+)/);
+  if (fullMatch) {
+    return {
+      bucket: decodeURIComponent(fullMatch[1]),
+      path: decodeURIComponent(fullMatch[2]),
+    };
+  }
+
+  const legacyMatch = url.match(/\/(planimetrie|floor-plans|photos)\/([^?]+)/);
+  if (legacyMatch) {
+    return {
+      bucket: decodeURIComponent(legacyMatch[1]),
+      path: decodeURIComponent(legacyMatch[2]),
+    };
+  }
+
+  return null;
+}
+
+async function fetchStorageBlob(
+  storagePath: string | undefined,
+  fallbackUrl?: string | undefined
+): Promise<Blob | undefined> {
+  if (storagePath) {
+    const { data, error } = await supabase.storage.from('photos').download(storagePath);
+    if (error) {
+      throw error;
+    }
+    return data;
+  }
+
+  if (fallbackUrl) {
+    const response = await fetch(fallbackUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch asset: ${response.status}`);
+    }
+    return response.blob();
+  }
+
+  return undefined;
+}
+
+async function fetchBucketBlob(
+  location: { bucket: string; path: string } | null,
+  fallbackUrl?: string | undefined
+): Promise<Blob | undefined> {
+  if (location) {
+    const { data, error } = await supabase.storage.from(location.bucket).download(location.path);
+    if (error) {
+      throw error;
+    }
+    return data;
+  }
+
+  if (fallbackUrl) {
+    const response = await fetch(fallbackUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch asset: ${response.status}`);
+    }
+    return response.blob();
+  }
+
+  return undefined;
+}
+
+export async function downloadProjectsFromSupabase(userId: string, isAdmin = false): Promise<number> {
+  ensureOnline();
+
+  const remoteProjects = await getAccessibleProjectsFromRemote(userId, isAdmin);
+  const pendingIds = await getPendingEntityIds('project');
+
+  let downloadedCount = 0;
+
+  for (const remoteProject of remoteProjects) {
+    const converted = convertRemoteToLocalProject(remoteProject);
+    const existingProject = await db.projects.get(converted.id);
+    const projectToStore: Project = {
+      ...converted,
+      syncEnabled: existingProject?.syncEnabled ?? 1,
+    };
+
+    if (pendingIds.has(projectToStore.id)) {
+      continue;
+    }
+
+    await db.projects.put(projectToStore);
+    downloadedCount += 1;
+  }
+
+  return downloadedCount;
+}
+
+export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin = false): Promise<number> {
+  ensureOnline();
+
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
+    return 0;
+  }
+
+  const { data, error } = await supabase
+    .from('mapping_entries')
+    .select('*')
+    .in('project_id', projectIds);
+
+  if (error) {
+    throw new Error(`Failed to download mapping entries: ${error.message}`);
+  }
+
+  const pendingIds = await getPendingEntityIds('mapping_entry');
+  let downloadedCount = 0;
+
+  for (const remoteEntry of data || []) {
+    if (pendingIds.has(remoteEntry.id)) {
+      continue;
+    }
+
+    const entry = convertRemoteToLocalMapping(remoteEntry);
+    await db.mappingEntries.put(entry);
+    downloadedCount += 1;
+  }
+
+  return downloadedCount;
+}
+
+export async function downloadPhotosFromSupabase(
+  userId: string,
+  isAdmin = false,
+  options?: { includeBlobs?: boolean }
+): Promise<{ downloaded: number; failed: number }> {
+  ensureOnline();
+
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
     return { downloaded: 0, failed: 0 };
   }
 
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
+  const mappingEntries = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
+  const mappingEntryIds = mappingEntries.map((entry) => entry.id);
+  if (mappingEntryIds.length === 0) {
     return { downloaded: 0, failed: 0 };
   }
 
-  console.log(`⬇️  Downloading photos from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+  const { data, error } = await supabase
+    .from('photos')
+    .select('*')
+    .in('mapping_entry_id', mappingEntryIds);
 
-  try {
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading photos for all sync-enabled projects');
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) {
-      console.log('✅ No sync-enabled projects found, skipping photos download');
-      return { downloaded: 0, failed: 0 };
-    }
-
-    const projectIds = userProjects.map(p => p.id);
-    console.log(`📥 Downloading photos for ${projectIds.length} sync-enabled projects`);
-
-    const mappingEntries = await db.mappingEntries
-      .where('projectId')
-      .anyOf(projectIds)
-      .toArray();
-
-    if (mappingEntries.length === 0) {
-      console.log('✅ No mapping entries found, skipping photos download');
-      return { downloaded: 0, failed: 0 };
-    }
-
-    const mappingEntryIds = mappingEntries.map(e => e.id);
-    console.log(`📥 Downloading photos for ${mappingEntryIds.length} mapping entries`);
-
-    // Split into batches to avoid URL length limits (PostgREST has a limit on query string length)
-    const BATCH_SIZE = 100;
-    const allPhotoMetadata: any[] = [];
-
-    for (let i = 0; i < mappingEntryIds.length; i += BATCH_SIZE) {
-      const batch = mappingEntryIds.slice(i, i + BATCH_SIZE);
-      console.log(`📥 Fetching photos batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(mappingEntryIds.length / BATCH_SIZE)} (${batch.length} entries)`);
-
-      const { data: batchData, error: batchError } = await supabase
-        .from('photos')
-        .select('*')
-        .in('mapping_entry_id', batch);
-
-      if (batchError) {
-        throw new Error(`Failed to download photo metadata (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${batchError.message}`);
-      }
-
-      if (batchData && batchData.length > 0) {
-        allPhotoMetadata.push(...batchData);
-      }
-    }
-
-    if (allPhotoMetadata.length === 0) {
-      console.log('✅ No photos to download');
-      return { downloaded: 0, failed: 0 };
-    }
-
-    console.log(`📥 Found ${allPhotoMetadata.length} photos to download`);
-
-    let downloadedCount = 0;
-    let failedCount = 0;
-
-    for (const photoMeta of allPhotoMetadata) {
-      try {
-        // Skip photos already present locally
-        const existingPhoto = await db.photos.get(photoMeta.id);
-        if (existingPhoto && existingPhoto.uploaded) {
-          console.log(`⏭️  Photo ${photoMeta.id} already exists locally, skipping`);
-          continue;
-        }
-
-        const { data: blob, error: downloadError } = await supabase.storage
-          .from('photos')
-          .download(photoMeta.storage_path);
-
-        if (downloadError) {
-          console.error(`❌ Failed to download photo ${photoMeta.id}:`, downloadError.message);
-          failedCount++;
-          continue;
-        }
-
-        if (!blob) {
-          console.error(`❌ No blob returned for photo ${photoMeta.id}`);
-          failedCount++;
-          continue;
-        }
-
-        const photo: Photo = {
-          id: photoMeta.id,
-          blob: blob,
-          mappingEntryId: photoMeta.mapping_entry_id,
-          metadata: photoMeta.metadata,
-          uploaded: true,
-          remoteUrl: photoMeta.url
-        };
-
-        await db.photos.put(photo);
-        console.log(`✅ Downloaded photo: ${photoMeta.id}`);
-        downloadedCount++;
-      } catch (photoErr) {
-        const photoErrorMessage = photoErr instanceof Error ? photoErr.message : String(photoErr);
-        console.error(`❌ Error downloading photo ${photoMeta.id}:`, photoErrorMessage);
-        failedCount++;
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} photos from Supabase${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
-    return { downloaded: downloadedCount, failed: failedCount };
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download photos:', errorMessage);
-    throw err;
+  if (error) {
+    throw new Error(`Failed to download photos: ${error.message}`);
   }
+
+  const pendingIds = await getPendingEntityIds('photo');
+  let downloaded = 0;
+  let failed = 0;
+
+  for (const remotePhoto of data || []) {
+    try {
+      if (pendingIds.has(remotePhoto.id)) {
+        continue;
+      }
+
+      const existingPhoto = await db.photos.get(remotePhoto.id);
+      let blob = existingPhoto?.blob;
+      let thumbnailBlob = existingPhoto?.thumbnailBlob;
+
+      if (options?.includeBlobs && !blob) {
+        blob = await fetchStorageBlob(remotePhoto.storage_path || undefined, remotePhoto.url || undefined);
+      }
+
+      if (options?.includeBlobs && !thumbnailBlob) {
+        thumbnailBlob = await fetchStorageBlob(
+          remotePhoto.thumbnail_storage_path || undefined,
+          remotePhoto.thumbnail_url || undefined
+        );
+      }
+
+      const photo: Photo = {
+        id: remotePhoto.id,
+        mappingEntryId: remotePhoto.mapping_entry_id,
+        blob,
+        thumbnailBlob,
+        metadata: remotePhoto.metadata,
+        uploaded: true,
+        remoteUrl: remotePhoto.url || undefined,
+        thumbnailRemoteUrl: remotePhoto.thumbnail_url || undefined,
+        storagePath: remotePhoto.storage_path || undefined,
+        thumbnailStoragePath: remotePhoto.thumbnail_storage_path || undefined,
+      };
+
+      await db.photos.put(photo);
+      downloaded += 1;
+    } catch (error) {
+      console.warn(`Failed to hydrate photo ${remotePhoto.id}`, error);
+      failed += 1;
+    }
+  }
+
+  return { downloaded, failed };
 }
 
-// ============================================
-// SEZIONE: Download Planimetrie (Floor Plan Download)
-// Scarica planimetrie e relativi blob immagine da Supabase Storage.
-// Supporta bucket multipli (floor-plans, planimetrie) con parsing dinamico del path.
-// Scarica il blob anche se i metadati sono aggiornati ma imageBlob è null.
-// ============================================
+export async function downloadFloorPlansFromSupabase(
+  userId: string,
+  isAdmin = false,
+  options?: { includeImageBlobs?: boolean; includeThumbnailBlobs?: boolean; includePdf?: boolean }
+): Promise<number> {
+  ensureOnline();
 
-export async function downloadFloorPlansFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
     return 0;
   }
 
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
+  const { data, error } = await supabase
+    .from('floor_plans')
+    .select('*')
+    .in('project_id', projectIds);
+
+  if (error) {
+    throw new Error(`Failed to download floor plans: ${error.message}`);
   }
 
-  console.log(`⬇️  Downloading floor plans from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+  const pendingIds = await getPendingEntityIds('floor_plan');
+  let downloadedCount = 0;
 
-  try {
-    let userProjects;
-    if (isAdmin) {
-      console.log('👑 Admin user: downloading floor plans for all sync-enabled projects');
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
+  for (const remoteFloorPlan of data || []) {
+    if (pendingIds.has(remoteFloorPlan.id)) {
+      continue;
     }
 
-    if (userProjects.length === 0) {
-      console.log('✅ No sync-enabled projects found, skipping floor plans download');
-      return 0;
+    const existingFloorPlan = await db.floorPlans.get(remoteFloorPlan.id);
+    const imageLocation = extractStorageLocation(remoteFloorPlan.image_url || undefined);
+    const thumbnailLocation = extractStorageLocation(remoteFloorPlan.thumbnail_url || undefined);
+    const pdfLocation = extractStorageLocation(remoteFloorPlan.pdf_url || undefined);
+
+    let imageBlob = existingFloorPlan?.imageBlob;
+    let thumbnailBlob = existingFloorPlan?.thumbnailBlob;
+    let pdfBlobBase64 = existingFloorPlan?.pdfBlobBase64;
+
+    if (options?.includeImageBlobs && !imageBlob) {
+      imageBlob = await fetchBucketBlob(imageLocation, remoteFloorPlan.image_url || undefined);
     }
 
-    const projectIds = userProjects.map(p => p.id);
-    console.log(`📥 Downloading floor plans for ${projectIds.length} sync-enabled projects`);
-
-    const { data: floorPlans, error } = await supabase
-      .from('floor_plans')
-      .select('*')
-      .in('project_id', projectIds);
-
-    if (error) {
-      throw new Error(`Failed to download floor plans: ${error.message}`);
+    if (options?.includeThumbnailBlobs && !thumbnailBlob) {
+      thumbnailBlob = await fetchBucketBlob(thumbnailLocation, remoteFloorPlan.thumbnail_url || undefined);
     }
 
-    if (!floorPlans || floorPlans.length === 0) {
-      console.log('✅ No floor plans to download');
-      return 0;
-    }
-
-    console.log(`📥 Found ${floorPlans.length} floor plans to download`);
-
-    let downloadedCount = 0;
-
-    for (const supabaseFloorPlan of floorPlans) {
-      try {
-        const existingFloorPlan = await db.floorPlans.get(supabaseFloorPlan.id);
-
-        if (existingFloorPlan) {
-          const remoteUpdated = new Date(supabaseFloorPlan.updated_at).getTime();
-          const localUpdated = existingFloorPlan.updatedAt;
-
-          // Skip only if up to date AND imageBlob exists
-          if (remoteUpdated <= localUpdated && existingFloorPlan.imageBlob) {
-            console.log(`⏭️  Floor plan ${supabaseFloorPlan.id} is up to date, skipping`);
-            continue;
+    if (options?.includePdf && !pdfBlobBase64) {
+        const pdfBlob = await fetchBucketBlob(pdfLocation, remoteFloorPlan.pdf_url || undefined);
+        if (pdfBlob) {
+          const arrayBuffer = await pdfBlob.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          for (let index = 0; index < bytes.length; index += 1) {
+            binary += String.fromCharCode(bytes[index]);
           }
-
-          // If imageBlob is missing, download it even if metadata is up to date
-          if (remoteUpdated <= localUpdated && !existingFloorPlan.imageBlob) {
-            console.log(`📥 Floor plan ${supabaseFloorPlan.id} metadata is up to date but imageBlob is missing, downloading image...`);
-          }
+          pdfBlobBase64 = btoa(binary);
         }
-
-        // Download image blob from Supabase Storage
-        let imageBlob = null;
-        let thumbnailBlob = null;
-
-        if (supabaseFloorPlan.image_url) {
-          try {
-            console.log(`📥 Attempting to download floor plan image for ${supabaseFloorPlan.id}`);
-            console.log(`   Image URL: ${supabaseFloorPlan.image_url}`);
-
-            const imageUrl = new URL(supabaseFloorPlan.image_url);
-            console.log(`   Parsed URL pathname: ${imageUrl.pathname}`);
-
-            // Support both 'floor-plans' and 'planimetrie' bucket names (dynamic parsing)
-            let imagePath: string | undefined;
-            let bucketName = 'floor-plans'; // default
-
-            if (imageUrl.pathname.includes('/storage/v1/object/public/floor-plans/')) {
-              imagePath = imageUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
-              bucketName = 'floor-plans';
-            } else if (imageUrl.pathname.includes('/storage/v1/object/public/planimetrie/')) {
-              imagePath = imageUrl.pathname.split('/storage/v1/object/public/planimetrie/')[1];
-              bucketName = 'planimetrie';
-            } else {
-              const match = imageUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
-              if (match) {
-                bucketName = match[1];
-                imagePath = match[2];
-              }
-            }
-
-            console.log(`   Extracted image path: ${imagePath}`);
-            console.log(`   Using bucket: ${bucketName}`);
-
-            if (imagePath) {
-              const { data: blob, error: downloadError } = await supabase.storage
-                .from(bucketName)
-                .download(imagePath);
-
-              if (!downloadError && blob) {
-                imageBlob = blob;
-                console.log(`✅ Successfully downloaded floor plan image for ${supabaseFloorPlan.id} (size: ${blob.size} bytes)`);
-              } else {
-                console.error(`❌ Failed to download floor plan image for ${supabaseFloorPlan.id}:`);
-                console.error(`   Error: ${downloadError?.message || 'Unknown error'}`);
-                console.error(`   Blob: ${blob}`);
-              }
-            } else {
-              console.error(`❌ Failed to extract image path from URL for ${supabaseFloorPlan.id}`);
-            }
-          } catch (urlErr) {
-            console.error(`❌ Failed to parse floor plan image URL for ${supabaseFloorPlan.id}:`, urlErr);
-            console.error(`   URL was: ${supabaseFloorPlan.image_url}`);
-          }
-        } else {
-          console.warn(`⚠️  No image_url for floor plan ${supabaseFloorPlan.id}`);
-        }
-
-        // Download thumbnail blob
-        if (supabaseFloorPlan.thumbnail_url) {
-          try {
-            const thumbnailUrl = new URL(supabaseFloorPlan.thumbnail_url);
-            let thumbnailPath: string | undefined;
-            let bucketName = 'floor-plans';
-
-            if (thumbnailUrl.pathname.includes('/storage/v1/object/public/floor-plans/')) {
-              thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/floor-plans/')[1];
-              bucketName = 'floor-plans';
-            } else if (thumbnailUrl.pathname.includes('/storage/v1/object/public/planimetrie/')) {
-              thumbnailPath = thumbnailUrl.pathname.split('/storage/v1/object/public/planimetrie/')[1];
-              bucketName = 'planimetrie';
-            } else {
-              const match = thumbnailUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
-              if (match) {
-                bucketName = match[1];
-                thumbnailPath = match[2];
-              }
-            }
-
-            if (thumbnailPath) {
-              const { data: blob, error: downloadError } = await supabase.storage
-                .from(bucketName)
-                .download(thumbnailPath);
-
-              if (!downloadError && blob) {
-                thumbnailBlob = blob;
-              } else {
-                console.warn(`⚠️  Failed to download floor plan thumbnail for ${supabaseFloorPlan.id}: ${downloadError?.message}`);
-              }
-            }
-          } catch (urlErr) {
-            console.warn(`⚠️  Failed to parse floor plan thumbnail URL: ${urlErr}`);
-          }
-        }
-
-        // Download PDF blob e converti in base64 (se disponibile e non già presente localmente)
-        let pdfBlobBase64: string | undefined = existingFloorPlan?.pdfBlobBase64;
-        if (!pdfBlobBase64 && supabaseFloorPlan.pdf_url) {
-          try {
-            const pdfUrl = new URL(supabaseFloorPlan.pdf_url);
-            let pdfPath: string | undefined;
-            let bucketName = 'planimetrie';
-            const match = pdfUrl.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
-            if (match) {
-              bucketName = match[1];
-              pdfPath = match[2];
-            }
-            if (pdfPath) {
-              const { data: pdfBlob, error: pdfDownloadError } = await supabase.storage
-                .from(bucketName)
-                .download(pdfPath);
-              if (!pdfDownloadError && pdfBlob) {
-                const arrayBuffer = await pdfBlob.arrayBuffer();
-                const bytes = new Uint8Array(arrayBuffer);
-                let binary = '';
-                for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-                pdfBlobBase64 = btoa(binary);
-                console.log(`📄 Downloaded PDF originale for floor plan ${supabaseFloorPlan.id}`);
-              } else {
-                console.warn(`⚠️  Failed to download PDF for floor plan ${supabaseFloorPlan.id}: ${pdfDownloadError?.message}`);
-              }
-            }
-          } catch (pdfErr) {
-            console.warn(`⚠️  Failed to parse PDF URL for floor plan ${supabaseFloorPlan.id}:`, pdfErr);
-          }
-        }
-
-        // Convert Supabase format to IndexedDB format
-        const floorPlan = {
-          id: supabaseFloorPlan.id,
-          projectId: supabaseFloorPlan.project_id,
-          floor: supabaseFloorPlan.floor,
-          imageUrl: supabaseFloorPlan.image_url,
-          thumbnailUrl: supabaseFloorPlan.thumbnail_url,
-          pdfUrl: supabaseFloorPlan.pdf_url || undefined,
-          imageBlob: imageBlob,
-          thumbnailBlob: thumbnailBlob,
-          pdfBlobBase64: pdfBlobBase64,
-          originalFilename: supabaseFloorPlan.original_filename,
-          originalFormat: supabaseFloorPlan.original_format,
-          width: supabaseFloorPlan.width,
-          height: supabaseFloorPlan.height,
-          metadata: supabaseFloorPlan.metadata || {},
-          createdBy: supabaseFloorPlan.created_by,
-          createdAt: new Date(supabaseFloorPlan.created_at).getTime(),
-          updatedAt: new Date(supabaseFloorPlan.updated_at).getTime(),
-          remoteUpdatedAt: new Date(supabaseFloorPlan.updated_at).getTime(), // Track remote version for conflict detection
-          synced: 1 as 0 | 1
-        };
-
-        if (!imageBlob && supabaseFloorPlan.image_url) {
-          console.warn(`⚠️  WARNING: Saving floor plan ${supabaseFloorPlan.id} with NULL imageBlob even though image_url exists!`);
-          console.warn(`   This floor plan will not be viewable until the image is downloaded successfully.`);
-        }
-
-        await db.floorPlans.put(floorPlan);
-        console.log(`✅ Downloaded floor plan: ${supabaseFloorPlan.id} for project ${supabaseFloorPlan.project_id}, floor ${supabaseFloorPlan.floor} (imageBlob: ${imageBlob ? 'YES' : 'NO'})`);
-        downloadedCount++;
-      } catch (floorPlanErr) {
-        const errorMessage = floorPlanErr instanceof Error ? floorPlanErr.message : String(floorPlanErr);
-        console.error(`❌ Error downloading floor plan ${supabaseFloorPlan.id}:`, errorMessage);
-        // Continue with next floor plan even if one fails
       }
-    }
 
-    console.log(`✅ Downloaded ${downloadedCount} floor plans from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download floor plans:', errorMessage);
-    throw err;
+    const floorPlan: FloorPlan = {
+      id: remoteFloorPlan.id,
+      projectId: remoteFloorPlan.project_id,
+      floor: remoteFloorPlan.floor,
+      imageBlob,
+      thumbnailBlob,
+      imageUrl: remoteFloorPlan.image_url || undefined,
+      thumbnailUrl: remoteFloorPlan.thumbnail_url || undefined,
+      pdfBlobBase64,
+      pdfUrl: remoteFloorPlan.pdf_url || undefined,
+      originalFilename: remoteFloorPlan.original_filename,
+      originalFormat: remoteFloorPlan.original_format,
+      width: remoteFloorPlan.width,
+      height: remoteFloorPlan.height,
+      gridEnabled: existingFloorPlan?.gridEnabled,
+      gridConfig: existingFloorPlan?.gridConfig,
+      metadata: remoteFloorPlan.metadata || {},
+      createdBy: remoteFloorPlan.created_by,
+      createdAt: new Date(remoteFloorPlan.created_at).getTime(),
+      updatedAt: new Date(remoteFloorPlan.updated_at).getTime(),
+      remoteUpdatedAt: new Date(remoteFloorPlan.updated_at).getTime(),
+      synced: 1,
+    };
+
+    await db.floorPlans.put(floorPlan);
+    downloadedCount += 1;
   }
+
+  return downloadedCount;
 }
 
-// ============================================
-// SEZIONE: Download Punti Planimetria (Floor Plan Points Download)
-// Scarica i punti per tutte le planimetrie presenti localmente.
-// Salta i punti già aggiornati confrontando updated_at.
-// ============================================
+export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmin = false): Promise<number> {
+  ensureOnline();
 
-export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
+  const floorPlans = await db.floorPlans.toArray();
+  const localProjects = await getAccessibleLocalProjects(userId, isAdmin);
+  const accessibleProjectIds = new Set(localProjects.map((project) => project.id));
+  const floorPlanIds = floorPlans
+    .filter((floorPlan) => accessibleProjectIds.has(floorPlan.projectId))
+    .map((floorPlan) => floorPlan.id);
+
+  if (floorPlanIds.length === 0) {
     return 0;
   }
 
-  if (!navigator.onLine) {
-    console.warn('⚠️  Download skipped: No internet connection');
-    return 0;
+  const { data, error } = await supabase
+    .from('floor_plan_points')
+    .select('*')
+    .in('floor_plan_id', floorPlanIds);
+
+  if (error) {
+    throw new Error(`Failed to download floor plan points: ${error.message}`);
   }
 
-  console.log(`⬇️  Downloading floor plan points from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+  const pendingIds = await getPendingEntityIds('floor_plan_point');
+  let downloadedCount = 0;
 
-  try {
-    const localFloorPlans = await db.floorPlans.toArray();
-
-    if (localFloorPlans.length === 0) {
-      console.log('✅ No floor plans found locally, skipping floor plan points download');
-      return 0;
+  for (const remotePoint of data || []) {
+    if (pendingIds.has(remotePoint.id)) {
+      continue;
     }
 
-    const floorPlanIds = localFloorPlans.map(fp => fp.id);
-    console.log(`📥 Downloading floor plan points for ${floorPlanIds.length} floor plans`);
+    const existingPoint = await db.floorPlanPoints.get(remotePoint.id);
+    const point: FloorPlanPoint = {
+      id: remotePoint.id,
+      floorPlanId: remotePoint.floor_plan_id,
+      mappingEntryId: remotePoint.mapping_entry_id,
+      pointType: remotePoint.point_type,
+      pointX: remotePoint.point_x,
+      pointY: remotePoint.point_y,
+      labelX: remotePoint.label_x,
+      labelY: remotePoint.label_y,
+      perimeterPoints: remotePoint.perimeter_points,
+      customText: remotePoint.custom_text,
+      eiRating: existingPoint?.eiRating ?? remotePoint.ei_rating ?? remotePoint.metadata?.eiRating,
+      metadata: remotePoint.metadata || {},
+      createdBy: remotePoint.created_by,
+      createdAt: new Date(remotePoint.created_at).getTime(),
+      updatedAt: new Date(remotePoint.updated_at).getTime(),
+      remoteUpdatedAt: new Date(remotePoint.updated_at).getTime(),
+      synced: 1,
+    };
 
-    const { data: floorPlanPoints, error } = await supabase
-      .from('floor_plan_points')
-      .select('*')
-      .in('floor_plan_id', floorPlanIds);
-
-    if (error) {
-      throw new Error(`Failed to download floor plan points: ${error.message}`);
-    }
-
-    if (!floorPlanPoints || floorPlanPoints.length === 0) {
-      console.log('✅ No floor plan points to download');
-      return 0;
-    }
-
-    console.log(`📥 Found ${floorPlanPoints.length} floor plan points to download`);
-
-    let downloadedCount = 0;
-
-    for (const supabasePoint of floorPlanPoints) {
-      try {
-        const existingPoint = await db.floorPlanPoints.get(supabasePoint.id);
-        const remoteEiRating = supabasePoint.metadata?.eiRating ?? supabasePoint.ei_rating;
-
-        if (existingPoint) {
-          const remoteUpdated = new Date(supabasePoint.updated_at).getTime();
-          const localUpdated = existingPoint.updatedAt;
-          const shouldHydrateMissingEiRating =
-            existingPoint.eiRating == null && remoteEiRating != null;
-
-          if (remoteUpdated <= localUpdated && !shouldHydrateMissingEiRating) {
-            console.log(`⏭️  Floor plan point ${supabasePoint.id} is up to date, skipping`);
-            continue;
-          }
-        }
-
-        const point: FloorPlanPoint = {
-          id: supabasePoint.id,
-          floorPlanId: supabasePoint.floor_plan_id,
-          mappingEntryId: supabasePoint.mapping_entry_id,
-          pointType: supabasePoint.point_type,
-          pointX: supabasePoint.point_x,
-          pointY: supabasePoint.point_y,
-          labelX: supabasePoint.label_x,
-          labelY: supabasePoint.label_y,
-          perimeterPoints: supabasePoint.perimeter_points,
-          customText: supabasePoint.custom_text,
-          eiRating: remoteEiRating,
-          metadata: supabasePoint.metadata || {},
-          createdBy: supabasePoint.created_by,
-          createdAt: new Date(supabasePoint.created_at).getTime(),
-          updatedAt: new Date(supabasePoint.updated_at).getTime(),
-          remoteUpdatedAt: new Date(supabasePoint.updated_at).getTime(), // Track remote version for conflict detection
-          synced: 1 as 0 | 1
-        };
-
-        if (point.eiRating == null && existingPoint?.eiRating != null) {
-          point.eiRating = existingPoint.eiRating;
-        }
-
-        await db.floorPlanPoints.put(point);
-        console.log(`✅ Downloaded floor plan point: ${supabasePoint.id} (${supabasePoint.point_type})`);
-        downloadedCount++;
-      } catch (pointErr) {
-        const errorMessage = pointErr instanceof Error ? pointErr.message : String(pointErr);
-        console.error(`❌ Error downloading floor plan point ${supabasePoint.id}:`, errorMessage);
-        // Continue with next point even if one fails
-      }
-    }
-
-    console.log(`✅ Downloaded ${downloadedCount} floor plan points from Supabase`);
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download floor plan points:', errorMessage);
-    throw err;
+    await db.floorPlanPoints.put(point);
+    downloadedCount += 1;
   }
+
+  return downloadedCount;
 }
-
-// ============================================
-// SEZIONE: Aggiornamento flag foto remote (Remote Photo Flags)
-// Confronta il conteggio foto sul server con quello locale.
-// Imposta hasRemotePhotos=true sulle entries che hanno foto non scaricate.
-// Chiamata quando l'utente sceglie di non scaricare le foto durante il sync manuale.
-// ============================================
 
 export async function updateRemotePhotosFlags(userId: string, isAdmin: boolean): Promise<void> {
-  try {
-    let userProjects;
-    if (isAdmin) {
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      const allUserProjects = await db.projects
-        .where('ownerId').equals(userId)
-        .or('accessibleUsers').equals(userId)
-        .toArray();
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
+    return;
+  }
+
+  const entries = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
+  const entryIds = entries.map((entry) => entry.id);
+  if (entryIds.length === 0) {
+    return;
+  }
+
+  const photos = await db.photos.where('mappingEntryId').anyOf(entryIds).toArray();
+  const remoteOnlyMap = new Map<string, boolean>();
+
+  for (const photo of photos) {
+    if (!photo.blob && (photo.remoteUrl || photo.storagePath)) {
+      remoteOnlyMap.set(photo.mappingEntryId, true);
     }
+  }
 
-    if (userProjects.length === 0) return;
-
-    const projectIds = userProjects.map(p => p.id);
-
-    // Get photo presence from Supabase grouped by mapping_entry_id
-    const { data: photoCounts, error } = await supabase
-      .from('photos')
-      .select('mapping_entry_id')
-      .in('mapping_entry_id', (await db.mappingEntries.where('projectId').anyOf(projectIds).toArray()).map(e => e.id));
-
-    if (error || !photoCounts) return;
-
-    // Count remote photos per mapping entry
-    const remotePhotoMap = new Map<string, number>();
-    for (const row of photoCounts) {
-      remotePhotoMap.set(row.mapping_entry_id, (remotePhotoMap.get(row.mapping_entry_id) || 0) + 1);
-    }
-
-    // Count local photos per mapping entry
-    const localPhotos = await db.photos.toArray();
-    const localPhotoMap = new Map<string, number>();
-    for (const photo of localPhotos) {
-      localPhotoMap.set(photo.mappingEntryId, (localPhotoMap.get(photo.mappingEntryId) || 0) + 1);
-    }
-
-    // Update hasRemotePhotos flag on entries where server has more photos than local
-    const entries = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
-    for (const entry of entries) {
-      const remoteCount = remotePhotoMap.get(entry.id) || 0;
-      const localCount = localPhotoMap.get(entry.id) || 0;
-      const hasRemotePhotos = remoteCount > localCount;
-
-      if (entry.hasRemotePhotos !== hasRemotePhotos) {
-        await db.mappingEntries.update(entry.id, { hasRemotePhotos });
-      }
-    }
-
-    console.log('📷 Remote photo flags aggiornati');
-  } catch (err) {
-    console.warn('Failed to update remote photo flags:', err);
+  for (const entry of entries) {
+    await db.mappingEntries.update(entry.id, {
+      hasRemotePhotos: remoteOnlyMap.get(entry.id) ? true : false,
+    });
   }
 }
 
-// ============================================
-// SEZIONE: Download SAL (SAL Download)
-// Scarica i SAL per i progetti con syncEnabled=1.
-// ============================================
+export async function downloadSalsFromSupabase(userId: string, isAdmin = false): Promise<number> {
+  ensureOnline();
 
-export async function downloadSalsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) return 0;
-  if (!navigator.onLine) return 0;
-
-  try {
-    // Prendi solo progetti con sync abilitato
-    let userProjects;
-    if (isAdmin) {
-      userProjects = await db.projects.where('syncEnabled').equals(1).toArray();
-    } else {
-      const allUserProjects = await db.projects
-        .where('ownerId')
-        .equals(userId)
-        .or('accessibleUsers')
-        .equals(userId)
-        .toArray();
-      userProjects = allUserProjects.filter(p => p.syncEnabled === 1);
-    }
-
-    if (userProjects.length === 0) return 0;
-
-    const projectIds = userProjects.map(p => p.id);
-
-    const { data: remoteSals, error } = await supabase
-      .from('sals')
-      .select('*')
-      .in('project_id', projectIds);
-
-    if (error) {
-      throw new Error(`Failed to download SALs: ${error.message}`);
-    }
-
-    if (!remoteSals || remoteSals.length === 0) return 0;
-
-    let downloadedCount = 0;
-
-    for (const remote of remoteSals) {
-      const sal: Sal = {
-        id: remote.id,
-        projectId: remote.project_id,
-        number: remote.number,
-        name: remote.name || undefined,
-        date: remote.date,
-        notes: remote.notes || undefined,
-        createdAt: new Date(remote.created_at).getTime(),
-        synced: 1,
-      };
-
-      const existing = await db.sals.get(sal.id);
-
-      if (existing) {
-        if (sal.createdAt > existing.createdAt || existing.synced === 0) {
-          // Il remoto e piu recente o il locale non e ancora sincronizzato: usa il remoto
-          if (existing.synced === 1) {
-            await db.sals.put(sal);
-            downloadedCount++;
-          }
-          // Se synced === 0, il locale ha modifiche pendenti: non sovrascrivere
-        }
-      } else {
-        await db.sals.put(sal);
-        downloadedCount++;
-      }
-    }
-
-    if (downloadedCount > 0) {
-      console.log(`✅ Downloaded ${downloadedCount} SALs from Supabase`);
-    }
-
-    return downloadedCount;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Failed to download SALs:', errorMessage);
-    throw err;
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
+    return 0;
   }
+
+  const { data, error } = await supabase
+    .from('sals')
+    .select('*')
+    .in('project_id', projectIds);
+
+  if (error) {
+    throw new Error(`Failed to download SALs: ${error.message}`);
+  }
+
+  const pendingIds = await getPendingEntityIds('sal');
+  let downloadedCount = 0;
+
+  for (const remoteSal of data || []) {
+    if (pendingIds.has(remoteSal.id)) {
+      continue;
+    }
+
+    const sal: Sal = {
+      id: remoteSal.id,
+      projectId: remoteSal.project_id,
+      number: remoteSal.number,
+      name: remoteSal.name || undefined,
+      date: remoteSal.date,
+      notes: remoteSal.notes || undefined,
+      createdAt: new Date(remoteSal.created_at).getTime(),
+      synced: 1,
+    };
+
+    await db.sals.put(sal);
+    downloadedCount += 1;
+  }
+
+  return downloadedCount;
+}
+
+export async function downloadTypologyPricesFromSupabase(userId: string, isAdmin = false): Promise<number> {
+  ensureOnline();
+
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
+    return 0;
+  }
+
+  const { data, error } = await supabase
+    .from('typology_prices')
+    .select('*')
+    .in('project_id', projectIds);
+
+  if (error) {
+    throw new Error(`Failed to download typology prices: ${error.message}`);
+  }
+
+  const pendingIds = await getPendingEntityIds('typology_price');
+  let downloadedCount = 0;
+
+  for (const remotePrice of data || []) {
+    if (pendingIds.has(remotePrice.id)) {
+      continue;
+    }
+
+    const price: TypologyPrice = {
+      id: remotePrice.id,
+      projectId: remotePrice.project_id,
+      attraversamento: remotePrice.attraversamento,
+      tipologicoId: remotePrice.tipologico_id || undefined,
+      pricePerUnit: remotePrice.price_per_unit,
+      unit: remotePrice.unit,
+      createdAt: remotePrice.created_at ? new Date(remotePrice.created_at).getTime() : undefined,
+      updatedAt: remotePrice.updated_at ? new Date(remotePrice.updated_at).getTime() : undefined,
+      synced: 1,
+    };
+
+    await db.typologyPrices.put(price);
+    downloadedCount += 1;
+  }
+
+  return downloadedCount;
 }

@@ -85,7 +85,8 @@ export interface MappingEntry {
 
 export interface Photo {
   id: string;
-  blob: Blob;
+  blob?: Blob;
+  thumbnailBlob?: Blob;
   mappingEntryId: string;
   metadata: {
     width: number;
@@ -97,12 +98,15 @@ export interface Photo {
   };
   uploaded: boolean;
   remoteUrl?: string;
+  thumbnailRemoteUrl?: string;
+  storagePath?: string;
+  thumbnailStoragePath?: string;
 }
 
 export interface SyncQueueItem {
   id: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
-  entityType: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal';
+  entityType: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
   entityId: string;
   payload: any; // The actual data to sync
   timestamp: number;
@@ -123,6 +127,13 @@ export interface User {
 export interface AppMetadata {
   key: string;
   value: any;
+}
+
+export interface ProjectCachePref {
+  projectId: string;
+  offlinePinned: number;
+  lastHydratedAt?: number;
+  updatedAt: number;
 }
 
 export interface ConflictHistory {
@@ -147,7 +158,7 @@ export interface FloorPlan {
   id: string;
   projectId: string;
   floor: string;
-  imageBlob: Blob; // Store full resolution image locally
+  imageBlob?: Blob; // Optional in online-first mode; downloaded lazily
   thumbnailBlob?: Blob; // Store thumbnail locally
   imageUrl?: string; // Supabase URL (when synced)
   thumbnailUrl?: string; // Supabase URL (when synced)
@@ -241,6 +252,9 @@ export interface TypologyPrice {
   tipologicoId?: string;
   pricePerUnit: number;
   unit: 'piece' | 'sqm';
+  createdAt?: number;
+  updatedAt?: number;
+  synced?: 0 | 1;
 }
 
 // ============================================
@@ -290,6 +304,7 @@ export class MappingDatabase extends Dexie {
   syncQueue!: Table<SyncQueueItem, string>;
   users!: Table<User, string>;
   metadata!: Table<AppMetadata, string>;
+  projectCachePrefs!: Table<ProjectCachePref, string>;
   conflictHistory!: Table<ConflictHistory, string>;
 
   // FLOOR PLAN TABLES
@@ -462,6 +477,25 @@ export class MappingDatabase extends Dexie {
       typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
       sals: 'id, projectId, number, createdAt'
     });
+
+    // Define schema v10 - add offline pin preferences table
+    this.version(10).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      projectCachePrefs: 'projectId, offlinePinned, updatedAt',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
+      sals: 'id, projectId, number, createdAt'
+    });
   }
 }
 
@@ -507,6 +541,7 @@ export async function clearDatabase(): Promise<void> {
   await db.photos.clear();
   await db.syncQueue.clear();
   await db.users.clear();
+  await db.projectCachePrefs.clear();
   await db.floorPlans.clear();
   await db.floorPlanPoints.clear();
   await db.standaloneMaps.clear();
@@ -542,11 +577,13 @@ export async function getDatabaseStats() {
 
   // Calculate approximate storage size
   const photos = await db.photos.toArray();
-  const totalPhotoSize = photos.reduce((sum, photo) => sum + photo.blob.size, 0);
+  const safePhotoStorageSize = photos.reduce((sum, photo) =>
+    sum + (photo.blob?.size || 0) + (photo.thumbnailBlob?.size || 0), 0
+  );
 
   const floorPlans = await db.floorPlans.toArray();
   const totalFloorPlanSize = floorPlans.reduce((sum, fp) =>
-    sum + fp.imageBlob.size + (fp.thumbnailBlob?.size || 0), 0
+    sum + (fp.imageBlob?.size || 0) + (fp.thumbnailBlob?.size || 0), 0
   );
 
   const standaloneMaps = await db.standaloneMaps.toArray();
@@ -563,13 +600,13 @@ export async function getDatabaseStats() {
     floorPlans: floorPlanCount,
     floorPlanPoints: floorPlanPointCount,
     standaloneMaps: standaloneMapCount,
-    photoStorageBytes: totalPhotoSize,
-    photoStorageMB: (totalPhotoSize / (1024 * 1024)).toFixed(2),
+    photoStorageBytes: safePhotoStorageSize,
+    photoStorageMB: (safePhotoStorageSize / (1024 * 1024)).toFixed(2),
     floorPlanStorageBytes: totalFloorPlanSize,
     floorPlanStorageMB: (totalFloorPlanSize / (1024 * 1024)).toFixed(2),
     standaloneMapStorageBytes: totalStandaloneMapSize,
     standaloneMapStorageMB: (totalStandaloneMapSize / (1024 * 1024)).toFixed(2),
-    totalStorageBytes: totalPhotoSize + totalFloorPlanSize + totalStandaloneMapSize,
-    totalStorageMB: ((totalPhotoSize + totalFloorPlanSize + totalStandaloneMapSize) / (1024 * 1024)).toFixed(2)
+    totalStorageBytes: safePhotoStorageSize + totalFloorPlanSize + totalStandaloneMapSize,
+    totalStorageMB: ((safePhotoStorageSize + totalFloorPlanSize + totalStandaloneMapSize) / (1024 * 1024)).toFixed(2)
   };
 }

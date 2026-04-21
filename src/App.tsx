@@ -9,7 +9,7 @@ import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, db,
-  getFloorPlanBlobUrl, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints
+  getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
@@ -92,11 +92,13 @@ const App: React.FC = () => {
         await initializeDatabase();
         await initializeMockUsers();
 
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const locationHash = window.location?.hash ?? '';
+        const pathname = window.location?.pathname ?? '/';
+        const hashParams = new URLSearchParams(locationHash.substring(1));
         const type = hashParams.get('type');
         const accessToken = hashParams.get('access_token');
 
-        if (type === 'recovery' || window.location.pathname === '/reset-password') {
+        if (type === 'recovery' || pathname === '/reset-password') {
           setCurrentView('passwordReset');
           setIsInitialized(true);
           return;
@@ -104,7 +106,7 @@ const App: React.FC = () => {
 
         if (type === 'signup' && accessToken) {
           await new Promise(resolve => setTimeout(resolve, 1000));
-          window.history.replaceState(null, '', window.location.pathname);
+          window.history.replaceState(null, '', pathname);
         }
 
         const user = await getCurrentUser();
@@ -254,7 +256,7 @@ const App: React.FC = () => {
 
   const handleClearAndSync = async () => {
     if (!isSupabaseConfigured()) { alert('Supabase not configured.'); return; }
-    if (!window.confirm('Cancellare tutti i dati locali e risincronizzare?')) return;
+    if (!window.confirm('Reimpostare la cache locale e reidratare i metadati dal server?')) return;
     try {
       setSyncStats(prev => ({ ...prev, isSyncing: true }));
       await clearAndSync();
@@ -281,10 +283,6 @@ const App: React.FC = () => {
   };
 
   const handleEnterMapping = (project: Project) => {
-    if (project.syncEnabled === 0) {
-      alert('Impossibile aggiungere mappatura. Attiva la sincronizzazione completa.');
-      return;
-    }
     setCurrentMappingProject(project);
     setEditingMappingEntry(undefined);
     setCurrentView('mapping');
@@ -362,16 +360,19 @@ const App: React.FC = () => {
     }
 
     setEditorProject(project);
-    setEditorFloorPlan(floorPlan);
-    // Revoke previous blob URL before creating a new one
-    if (editorImageUrl) {
+    const hydratedPlan = await ensureFloorPlanAsset(floorPlan.id, 'full') || floorPlan;
+    setEditorFloorPlan(hydratedPlan);
+    if (editorImageUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(editorImageUrl);
     }
-    if (floorPlan.imageBlob) {
-      setEditorImageUrl(getFloorPlanBlobUrl(floorPlan.imageBlob));
+    const hydratedImageUrl = getFloorPlanBlobUrl(hydratedPlan.imageBlob, hydratedPlan.imageUrl);
+    if (!hydratedImageUrl) {
+      alert('Immagine planimetria non disponibile. Verifica la connessione e riprova.');
+      return;
     }
+    setEditorImageUrl(hydratedImageUrl);
     try {
-      const dbPoints = await getFloorPlanPoints(floorPlan.id);
+      const dbPoints = await getFloorPlanPoints(hydratedPlan.id);
       const canvasPoints = dbPoints.map(p => ({
         id: p.id,
         type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
@@ -402,7 +403,7 @@ const App: React.FC = () => {
       setActiveTab('maps');
     }
     // Revoke blob URL to prevent memory leak
-    if (editorImageUrl) {
+    if (editorImageUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(editorImageUrl);
     }
     setEditorFloorPlan(null);

@@ -191,7 +191,7 @@ export async function resolveProjectConflict(
 /**
  * Convert remote mapping entry to local format
  */
-function convertRemoteToLocalMapping(remote: any): MappingEntry {
+export function convertRemoteToLocalMapping(remote: any): MappingEntry {
   return {
     id: remote.id,
     projectId: remote.project_id,
@@ -213,7 +213,7 @@ function convertRemoteToLocalMapping(remote: any): MappingEntry {
 /**
  * Convert remote project to local format
  */
-function convertRemoteToLocalProject(remote: any): Project {
+export function convertRemoteToLocalProject(remote: any): Project {
   return {
     id: remote.id,
     title: remote.title,
@@ -228,7 +228,7 @@ function convertRemoteToLocalProject(remote: any): Project {
     ownerId: remote.owner_id,
     accessibleUsers: remote.accessible_users || [],
     archived: remote.archived || 0,
-    syncEnabled: 0, // Default to 0 for remote projects (per-device preference, not synced)
+    syncEnabled: 1, // Local-only compatibility field; the UI no longer gates project access on it
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
     version: remote.version || 1, // Add version for conflict detection

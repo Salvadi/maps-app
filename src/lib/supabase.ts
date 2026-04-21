@@ -22,7 +22,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * Only created if credentials are available
  */
 export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         // Store session in localStorage for persistence
         storage: window.localStorage,
@@ -87,6 +87,9 @@ export interface Database {
           typologies: any; // JSONB
           owner_id: string;
           accessible_users: any; // JSONB
+          archived: boolean;
+          version: number;
+          last_modified: number;
           created_at: string;
           updated_at: string;
           synced: boolean;
@@ -104,6 +107,9 @@ export interface Database {
           typologies?: any;
           owner_id: string;
           accessible_users?: any;
+          archived?: boolean;
+          version?: number;
+          last_modified?: number;
           created_at?: string;
           updated_at?: string;
           synced?: boolean;
@@ -121,6 +127,9 @@ export interface Database {
           typologies?: any;
           owner_id?: string;
           accessible_users?: any;
+          archived?: boolean;
+          version?: number;
+          last_modified?: number;
           created_at?: string;
           updated_at?: string;
           synced?: boolean;
@@ -131,7 +140,8 @@ export interface Database {
           id: string;
           project_id: string;
           floor: string;
-          room_or_intervention: string;
+          room: string | null;
+          intervention: string | null;
           crossings: any; // JSONB
           to_complete: boolean;
           timestamp: number;
@@ -148,7 +158,8 @@ export interface Database {
           id?: string;
           project_id: string;
           floor: string;
-          room_or_intervention: string;
+          room?: string | null;
+          intervention?: string | null;
           crossings?: any;
           to_complete?: boolean;
           timestamp: number;
@@ -165,7 +176,8 @@ export interface Database {
           id?: string;
           project_id?: string;
           floor?: string;
-          room_or_intervention?: string;
+          room?: string | null;
+          intervention?: string | null;
           crossings?: any;
           to_complete?: boolean;
           timestamp?: number;
@@ -234,7 +246,9 @@ export interface Database {
           id: string;
           mapping_entry_id: string;
           storage_path: string | null;
+          thumbnail_storage_path: string | null;
           url: string | null;
+          thumbnail_url: string | null;
           metadata: any; // JSONB
           uploaded: boolean;
           created_at: string;
@@ -244,7 +258,9 @@ export interface Database {
           id?: string;
           mapping_entry_id: string;
           storage_path?: string | null;
+          thumbnail_storage_path?: string | null;
           url?: string | null;
+          thumbnail_url?: string | null;
           metadata?: any;
           uploaded?: boolean;
           created_at?: string;
@@ -254,10 +270,59 @@ export interface Database {
           id?: string;
           mapping_entry_id?: string;
           storage_path?: string | null;
+          thumbnail_storage_path?: string | null;
           url?: string | null;
+          thumbnail_url?: string | null;
           metadata?: any;
           uploaded?: boolean;
           created_at?: string;
+          updated_at?: string;
+        };
+      };
+      floor_plans: {
+        Row: {
+          id: string;
+          project_id: string;
+          floor: string;
+          image_url: string | null;
+          thumbnail_url: string | null;
+          pdf_url: string | null;
+          original_filename: string;
+          original_format: string;
+          width: number;
+          height: number;
+          metadata: any;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          floor: string;
+          image_url?: string | null;
+          thumbnail_url?: string | null;
+          pdf_url?: string | null;
+          original_filename: string;
+          original_format: string;
+          width: number;
+          height: number;
+          metadata?: any;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          project_id?: string;
+          floor?: string;
+          image_url?: string | null;
+          thumbnail_url?: string | null;
+          pdf_url?: string | null;
+          original_filename?: string;
+          original_format?: string;
+          width?: number;
+          height?: number;
+          metadata?: any;
           updated_at?: string;
         };
       };
@@ -265,7 +330,7 @@ export interface Database {
         Row: {
           id: string;
           operation: 'CREATE' | 'UPDATE' | 'DELETE';
-          entity_type: 'project' | 'mapping_entry' | 'photo';
+          entity_type: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
           entity_id: string;
           data: any; // JSONB
           timestamp: number;
@@ -277,7 +342,7 @@ export interface Database {
         Insert: {
           id?: string;
           operation: 'CREATE' | 'UPDATE' | 'DELETE';
-          entity_type: 'project' | 'mapping_entry' | 'photo';
+          entity_type: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
           entity_id: string;
           data?: any;
           timestamp: number;
@@ -289,7 +354,7 @@ export interface Database {
         Update: {
           id?: string;
           operation?: 'CREATE' | 'UPDATE' | 'DELETE';
-          entity_type?: 'project' | 'mapping_entry' | 'photo';
+          entity_type?: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
           entity_id?: string;
           data?: any;
           timestamp?: number;
@@ -348,6 +413,66 @@ export interface Database {
           name?: string;
           sort_order?: number;
           is_active?: boolean;
+        };
+      };
+      sals: {
+        Row: {
+          id: string;
+          project_id: string;
+          number: number;
+          name: string | null;
+          date: number;
+          notes: string | null;
+          created_at: string;
+          synced: boolean;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          number: number;
+          name?: string | null;
+          date: number;
+          notes?: string | null;
+          created_at?: string;
+          synced?: boolean;
+        };
+        Update: {
+          project_id?: string;
+          number?: number;
+          name?: string | null;
+          date?: number;
+          notes?: string | null;
+          synced?: boolean;
+        };
+      };
+      typology_prices: {
+        Row: {
+          id: string;
+          project_id: string;
+          attraversamento: string;
+          tipologico_id: string | null;
+          price_per_unit: number;
+          unit: 'piece' | 'sqm';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          attraversamento: string;
+          tipologico_id?: string | null;
+          price_per_unit: number;
+          unit: 'piece' | 'sqm';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          project_id?: string;
+          attraversamento?: string;
+          tipologico_id?: string | null;
+          price_per_unit?: number;
+          unit?: 'piece' | 'sqm';
+          updated_at?: string;
         };
       };
     };
