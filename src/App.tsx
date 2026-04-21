@@ -577,13 +577,10 @@ const App: React.FC = () => {
               {activeTab === 'projects' && (
                 <ProjectList
                   currentUser={currentUser}
-                  onCreateProject={handleCreateProject}
                   onEditProject={handleEditProject}
                   onDeleteProject={handleDeleteProject}
                   onViewProject={handleViewProject}
                   onEnterMapping={handleEnterMapping}
-                  onManualSync={handleManualSync}
-                  isSyncing={syncStats.isSyncing}
                 />
               )}
               {activeTab === 'maps' && (

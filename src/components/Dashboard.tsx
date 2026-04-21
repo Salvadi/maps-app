@@ -184,7 +184,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Sync Status */}
+      {/* Data Status */}
       <div className="px-5 mt-4">
         <div className="bg-white rounded-2xl p-4 shadow-card flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -201,15 +201,15 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="flex-1">
             <div className="text-sm font-semibold text-brand-700">
-              {syncStats.isSyncing ? 'Sincronizzazione...' :
-               isOnline ? 'Online' : 'Offline'}
+              {syncStats.isSyncing ? 'Aggiornamento dati in corso...' :
+               isOnline ? 'Dati connessi' : 'Modalita offline'}
             </div>
             <div className="text-xs text-brand-500">
               {syncStats.lastSyncTime
-                ? `Ultima sync: ${formatTimeAgo(syncStats.lastSyncTime)}`
-                : 'Mai sincronizzato'}
+                ? `Ultimo aggiornamento: ${formatTimeAgo(syncStats.lastSyncTime)}`
+                : 'Nessun aggiornamento ancora eseguito'}
               {syncStats.pendingCount > 0 && (
-                <span className="text-warning font-medium"> · {syncStats.pendingCount} in coda</span>
+                <span className="text-warning font-medium"> · {syncStats.pendingCount} modifiche in coda</span>
               )}
             </div>
           </div>
@@ -224,7 +224,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 disabled={syncStats.isSyncing}
                 className="bg-accent/10 text-accent text-xs font-semibold px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
               >
-                {syncStats.isSyncing ? 'Sync...' : 'Sincronizza'}
+                {syncStats.isSyncing ? 'Aggiorno...' : 'Aggiorna dati'}
               </button>
             </div>
           )}

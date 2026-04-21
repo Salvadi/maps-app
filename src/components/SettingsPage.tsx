@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LogOut, RefreshCw, Trash2,
-  Wifi, WifiOff, Shield, Unlock, Plus, X, ChevronDown
+  Wifi, WifiOff, Shield, Plus, X, ChevronDown
 } from 'lucide-react';
 import { User, db, getDatabaseStats } from '../db';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
@@ -192,15 +192,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   };
 
-  const handleResetSyncLock = async () => {
-    try {
-      await db.metadata.put({ key: 'isSyncing', value: false });
-      window.location.reload();
-    } catch (error) {
-      alert('Errore durante il reset del lock di sincronizzazione');
-    }
-  };
-
   const formatSyncTime = (ts: number | null) => {
     if (!ts) return 'Mai';
     return new Date(ts).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
@@ -243,9 +234,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
       </div>
 
-      {/* Sync Section */}
+      {/* Data Connection Section */}
       <div className="px-5 mb-5">
-        <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">Sincronizzazione</h2>
+        <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">Dati e connessione</h2>
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
           {/* Status */}
           <div className="p-4 flex items-center gap-3">
@@ -256,20 +247,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold text-brand-700">
-                Stato: {isOnline ? 'Online' : 'Offline'}
+                Stato dati: {isOnline ? 'Online' : 'Offline'}
               </div>
               <div className="text-xs text-brand-500">
-                Ultima sync: {formatSyncTime(syncStats.lastSyncTime)}
+                Ultimo aggiornamento: {formatSyncTime(syncStats.lastSyncTime)}
               </div>
               {syncStats.pendingCount > 0 && (
                 <div className="text-xs text-warning font-medium mt-0.5">
-                  {syncStats.pendingCount} elementi in coda
+                  {syncStats.pendingCount} modifiche in coda locale
                 </div>
               )}
             </div>
           </div>
 
-          {/* Sync actions */}
+          {/* Data actions */}
           <div className="border-t border-brand-100">
             <button
               onClick={onManualSync}
@@ -278,7 +269,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             >
               <RefreshCw size={18} className={syncStats.isSyncing ? 'animate-spin' : ''} />
               <span className="text-sm font-medium">
-                {syncStats.isSyncing ? 'Sincronizzazione...' : 'Sync manuale'}
+                {syncStats.isSyncing ? 'Aggiornamento dati...' : 'Aggiorna adesso'}
               </span>
             </button>
           </div>
@@ -292,17 +283,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               <span className="text-sm font-medium">Reset cache locale</span>
             </button>
           </div>
-          {syncStats.isSyncing && (
-            <div className="border-t border-brand-100">
-              <button
-                onClick={handleResetSyncLock}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-danger hover:bg-red-50 active:bg-red-100 transition-colors"
-              >
-                <Unlock size={18} />
-                <span className="text-sm font-medium">Reset Lock Sync</span>
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -331,7 +311,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <span className="text-sm font-semibold text-brand-800">{cacheSizeMb} MB</span>
           </div>
           <div className="px-4 py-3.5 flex items-center justify-between">
-            <span className="text-sm text-brand-700">Errori permanenti coda</span>
+            <span className="text-sm text-brand-700">Errori permanenti nella coda modifiche</span>
             <span className={`text-sm font-semibold ${failedSyncCount > 0 ? 'text-warning' : 'text-brand-800'}`}>{failedSyncCount}</span>
           </div>
         </div>

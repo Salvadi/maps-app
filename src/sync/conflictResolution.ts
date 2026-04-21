@@ -227,7 +227,7 @@ export function convertRemoteToLocalProject(remote: any): Project {
     typologies: remote.typologies || [],
     ownerId: remote.owner_id,
     accessibleUsers: remote.accessible_users || [],
-    archived: remote.archived || 0,
+    archived: remote.archived ? 1 : 0,
     syncEnabled: 1, // Local-only compatibility field; the UI no longer gates project access on it
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),

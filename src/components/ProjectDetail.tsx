@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBlobUrl } from '../hooks/useBlobUrl';
 import {
-  ArrowLeft, Camera, Map, Info, Plus,
+  ArrowLeft, Camera, Map, Info,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
   RefreshCw, Tag, Package, Filter, X, DollarSign, Download, FileDown, ClipboardList
 } from 'lucide-react';
@@ -700,7 +700,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                   <div className="text-center py-12">
                     <Camera size={40} className="mx-auto text-brand-300 mb-3" />
                     <p className="text-brand-500 text-sm">Nessuna mappatura</p>
-                    <p className="text-brand-400 text-xs mt-1">Premi + per aggiungere la prima mappatura</p>
+                    <p className="text-brand-400 text-xs mt-1">Usa il pulsante qui sotto per iniziare una nuova mappatura</p>
                   </div>
                 )}
 
@@ -709,8 +709,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                   onClick={onAddMapping}
                   className="w-full mt-4 py-3.5 bg-accent text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-card"
                 >
-                  <Plus size={18} />
-                  Aggiungi Mappatura
+                  Nuova mappatura
                 </button>
               </div>
             )}
@@ -898,16 +897,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
           </>
         )}
       </div>
-
-      {/* FAB for adding mapping */}
-      {activeTab === 'mappings' && (
-        <button
-          onClick={onAddMapping}
-          className="fixed bottom-[88px] right-5 z-40 w-14 h-14 bg-accent text-white rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform"
-        >
-          <Plus size={24} />
-        </button>
-      )}
 
       {/* Photo Preview Modal */}
       {selectedPhoto && (
