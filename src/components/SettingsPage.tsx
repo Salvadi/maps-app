@@ -6,7 +6,11 @@ import {
 import { User, db, getDatabaseStats } from '../db';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { SyncStats } from '../sync/syncEngine';
+import {
+  SyncStats,
+  getSyncIncludeArchivedProjects,
+  setSyncIncludeArchivedProjects
+} from '../sync/syncEngine';
 
 type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento';
 
@@ -36,6 +40,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [floorPlanCount, setFloorPlanCount] = useState(0);
   const [failedSyncCount, setFailedSyncCount] = useState(0);
   const [cacheSizeMb, setCacheSizeMb] = useState('0.00');
+  const [includeArchivedSync, setIncludeArchivedSync] = useState(false);
+  const [syncPrefsLoading, setSyncPrefsLoading] = useState(true);
 
   // Admin data management state
   const [adminTab, setAdminTab] = useState<'dropdown' | 'products'>('dropdown');
@@ -72,6 +78,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       setCacheSizeMb(stats.totalStorageMB);
     };
     loadStats();
+  }, []);
+
+  useEffect(() => {
+    const loadSyncPrefs = async () => {
+      try {
+        setIncludeArchivedSync(await getSyncIncludeArchivedProjects());
+      } finally {
+        setSyncPrefsLoading(false);
+      }
+    };
+
+    loadSyncPrefs();
   }, []);
 
   const loadDropdownItems = useCallback(async (category: DropdownCategory) => {
@@ -197,6 +215,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     return new Date(ts).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleToggleArchivedSync = async () => {
+    const nextValue = !includeArchivedSync;
+    setIncludeArchivedSync(nextValue);
+
+    try {
+      await setSyncIncludeArchivedProjects(nextValue);
+    } catch {
+      setIncludeArchivedSync(!nextValue);
+      alert('Errore durante il salvataggio delle preferenze di sincronizzazione.');
+    }
+  };
+
   return (
     <div className="flex-1 overflow-auto pb-20 bg-brand-100">
       {/* Header */}
@@ -282,6 +312,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               <Trash2 size={18} />
               <span className="text-sm font-medium">Reset cache locale</span>
             </button>
+          </div>
+          <div className="border-t border-brand-100 px-4 py-3.5">
+            <label htmlFor="sync-include-archived" className="flex items-start gap-3 cursor-pointer">
+              <input
+                id="sync-include-archived"
+                type="checkbox"
+                checked={includeArchivedSync}
+                disabled={syncStats.isSyncing || syncPrefsLoading}
+                onChange={handleToggleArchivedSync}
+                className="mt-1 h-4 w-4 rounded border-brand-300 text-accent focus:ring-accent"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium text-brand-700">Includi progetti archiviati nella sync</div>
+                <div className="text-xs text-brand-500 mt-0.5">
+                  Se disattivato, foto, mappature, planimetrie e SAL dei progetti archiviati vengono saltati per velocizzare la sincronizzazione.
+                </div>
+              </div>
+            </label>
           </div>
         </div>
       </div>

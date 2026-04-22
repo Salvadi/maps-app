@@ -173,6 +173,9 @@ export function triggerImmediateUpload(): void {
 // ============================================
 
 const SYNC_LOCK_TIMEOUT = 3 * 60 * 1000; // 3 minutes
+const SYNC_INCLUDE_ARCHIVED_KEY = 'syncIncludeArchivedProjects';
+const LAST_SYNC_TIME_KEY = 'lastSyncTime';
+const LEGACY_LAST_SYNC_KEY = 'lastSync';
 
 async function acquireSyncLock(): Promise<boolean> {
   return db.transaction('rw', db.metadata, async () => {
@@ -187,6 +190,38 @@ async function acquireSyncLock(): Promise<boolean> {
 
 async function releaseSyncLock(): Promise<void> {
   await db.metadata.put({ key: 'isSyncing', value: false });
+}
+
+export async function getSyncIncludeArchivedProjects(): Promise<boolean> {
+  const includeArchivedMeta = await db.metadata.get(SYNC_INCLUDE_ARCHIVED_KEY);
+  if (typeof includeArchivedMeta?.value === 'boolean') {
+    return includeArchivedMeta.value;
+  }
+
+  await db.metadata.put({ key: SYNC_INCLUDE_ARCHIVED_KEY, value: false });
+  return false;
+}
+
+export async function setSyncIncludeArchivedProjects(value: boolean): Promise<void> {
+  await db.metadata.put({ key: SYNC_INCLUDE_ARCHIVED_KEY, value });
+}
+
+async function updateLastSyncTimestamp(timestamp: number = Date.now()): Promise<void> {
+  await db.metadata.put({ key: LAST_SYNC_TIME_KEY, value: timestamp });
+}
+
+async function clearBrowserCaches(): Promise<void> {
+  if (typeof window === 'undefined' || !('caches' in window)) {
+    return;
+  }
+
+  try {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+    console.log(`🧹 Browser caches cleared: ${cacheNames.length}`);
+  } catch (error) {
+    console.warn('Failed to clear browser caches during reset', error);
+  }
 }
 
 // ============================================
@@ -305,7 +340,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
   }
 
   // Update last sync time
-  await db.metadata.put({ key: 'lastSyncTime', value: Date.now() });
+  await updateLastSyncTimestamp();
 
   // Clean up synced items from the queue (housekeeping)
   if (processedCount > 0) {
@@ -347,8 +382,9 @@ export async function getSyncStats(): Promise<SyncStats> {
     .equals(0)
     .count();
 
-  const lastSyncMeta = await db.metadata.get('lastSyncTime');
-  const lastSyncTime = lastSyncMeta?.value || null;
+  const lastSyncMeta = await db.metadata.get(LAST_SYNC_TIME_KEY);
+  const legacyLastSyncMeta = lastSyncMeta ? null : await db.metadata.get(LEGACY_LAST_SYNC_KEY);
+  const lastSyncTime = lastSyncMeta?.value || legacyLastSyncMeta?.value || null;
 
   const isSyncingMeta = await db.metadata.get('isSyncing');
   // Timestamp-based lock: consider active only if within timeout
@@ -456,6 +492,8 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
     const photosCount = photosResult.downloaded;
     const photosFailedCount = photosResult.failed;
 
+    await updateLastSyncTimestamp();
+
     console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photo metadata${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs, ${standaloneMapsCount} mappe standalone`);
 
     await emitSyncComplete();
@@ -531,6 +569,8 @@ export async function lockedSync(): Promise<void> {
   } finally {
     await releaseSyncLock();
   }
+
+  await emitSyncComplete();
 }
 
 // ============================================
@@ -563,6 +603,10 @@ export async function manualSync(options?: {
 
   const progress = options?.onProgress;
   const totalSteps = 6;
+  let result: {
+    uploadResult: SyncResult;
+    downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
+  } | null = null;
 
   try {
     // Upload local changes FIRST
@@ -580,14 +624,16 @@ export async function manualSync(options?: {
 
     console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos${downloadResult.photosFailedCount > 0 ? ` (${downloadResult.photosFailedCount} failed)` : ''}, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
-    await emitSyncComplete();
-    return { uploadResult, downloadResult };
+    result = { uploadResult, downloadResult };
   } catch (error) {
     console.error('❌ Manual sync failed:', error);
     throw error;
   } finally {
     await releaseSyncLock();
   }
+
+  await emitSyncComplete();
+  return result!;
 }
 
 // ============================================
@@ -673,6 +719,8 @@ export async function phasedSyncFromSupabase(options?: {
     await updateRemotePhotosFlags(session.user.id, isAdmin);
   }
 
+  await updateLastSyncTimestamp();
+
   return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount, standaloneMapsCount };
 }
 
@@ -705,7 +753,13 @@ export async function clearAndSync(): Promise<{
     throw new Error('Sync already in progress. Please retry in a moment.');
   }
 
+  let result: {
+    downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
+  } | null = null;
+
   try {
+    await clearBrowserCaches();
+
     // Clear all data from IndexedDB
     await db.projects.clear();
     await db.mappingEntries.clear();
@@ -716,26 +770,64 @@ export async function clearAndSync(): Promise<{
     await db.sals.clear();
     await db.typologyPrices.clear();
     await db.projectCachePrefs.clear();
+    await db.dropdownOptionsCache.clear();
+    await db.productsCache.clear();
+    await db.conflictHistory.clear();
     await db.syncQueue.clear();
     // Don't clear users table - keep authentication data
 
     // Reset metadata but keep currentUser
     const currentUserMeta = await db.metadata.get('currentUser');
+    const includeArchivedMeta = await db.metadata.get(SYNC_INCLUDE_ARCHIVED_KEY);
     await db.metadata.clear();
     if (currentUserMeta) {
       await db.metadata.put(currentUserMeta);
     }
-    await db.metadata.put({ key: 'lastSyncTime', value: 0 });
+    if (includeArchivedMeta) {
+      await db.metadata.put(includeArchivedMeta);
+    }
+    await db.metadata.put({ key: LAST_SYNC_TIME_KEY, value: 0 });
 
     console.log('✅ Local data cleared successfully');
 
-    // Download fresh metadata from Supabase
-    console.log('⬇️ Downloading fresh metadata from Supabase...');
-    const downloadResult = await syncFromSupabase();
+    // Download a fresh full local cache from Supabase
+    console.log('⬇️ Downloading fresh full cache from Supabase...');
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    const isAdmin = profile?.role === 'admin';
+
+    const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
+    const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+    await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
+    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+      includeImageBlobs: true,
+      includeThumbnailBlobs: true,
+      includePdf: true,
+    });
+    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
+    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
+    const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: true });
+    const downloadResult = {
+      projectsCount,
+      entriesCount,
+      photosCount: photosResult.downloaded,
+      photosFailedCount: photosResult.failed,
+      floorPlansCount,
+      floorPlanPointsCount,
+      salsCount,
+      standaloneMapsCount,
+    };
+
+    await updateLastSyncTimestamp();
+    await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed after reset:', err));
 
     console.log(`✅ Cache reset complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photo metadata, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
-    return { downloadResult };
+    result = { downloadResult };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Clear and sync failed:', errorMessage);
@@ -743,4 +835,7 @@ export async function clearAndSync(): Promise<{
   } finally {
     await releaseSyncLock();
   }
+
+  await emitSyncComplete();
+  return result!;
 }
