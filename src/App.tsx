@@ -332,7 +332,7 @@ const App: React.FC = () => {
           .from('floor_plans')
           .select('updated_at')
           .eq('id', floorPlan.id)
-          .single();
+          .single() as { data: { updated_at: string } | null; error: any };
 
         if (data) {
           const remoteUpdatedAt = new Date(data.updated_at).getTime();

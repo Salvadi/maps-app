@@ -1,4 +1,4 @@
-import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice } from '../db/database';
+import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice, StandaloneMap } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
 import { getPendingEntityIds } from '../db/onlineFirst';
@@ -583,6 +583,62 @@ export async function downloadTypologyPricesFromSupabase(userId: string, isAdmin
     : [];
   const toDeletePrices = localPriceIds.filter((id) => !remotePriceIds.has(id) && !pendingIds.has(id));
   if (toDeletePrices.length > 0) await db.typologyPrices.bulkDelete(toDeletePrices);
+
+  return downloadedCount;
+}
+
+export async function downloadStandaloneMapsFromSupabase(userId: string): Promise<number> {
+  ensureOnline();
+
+  const { data, error } = await supabase
+    .from('standalone_maps')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (error) {
+    throw new Error(`Failed to download standalone_maps: ${error.message}`);
+  }
+
+  const pendingIds = await getPendingEntityIds('standalone_map');
+  let downloadedCount = 0;
+
+  for (const remote of data || []) {
+    if (pendingIds.has(remote.id)) {
+      continue;
+    }
+
+    const existingLocal = await db.standaloneMaps.get(remote.id);
+
+    const localMap: StandaloneMap = {
+      id: remote.id,
+      userId: remote.user_id,
+      name: remote.name,
+      description: remote.description || undefined,
+      imageBlob: existingLocal?.imageBlob,
+      thumbnailBlob: existingLocal?.thumbnailBlob,
+      imageUrl: remote.image_url || undefined,
+      thumbnailUrl: remote.thumbnail_url || undefined,
+      originalFilename: remote.original_filename || '',
+      width: remote.width,
+      height: remote.height,
+      points: remote.points || [],
+      gridEnabled: remote.grid_enabled,
+      gridConfig: remote.grid_config || { rows: 10, cols: 10, offsetX: 0, offsetY: 0 },
+      metadata: remote.metadata || {},
+      createdAt: new Date(remote.created_at).getTime(),
+      updatedAt: new Date(remote.updated_at).getTime(),
+      synced: 1,
+    };
+
+    await db.standaloneMaps.put(localMap);
+    downloadedCount += 1;
+  }
+
+  // Pruning: rimuovere localmente le mappe non più presenti remoto
+  const remoteIds = new Set((data || []).map((r: any) => r.id));
+  const localIds = await db.standaloneMaps.where('userId').equals(userId).primaryKeys() as string[];
+  const toDelete = localIds.filter((id) => !remoteIds.has(id) && !pendingIds.has(id));
+  if (toDelete.length > 0) await db.standaloneMaps.bulkDelete(toDelete);
 
   return downloadedCount;
 }

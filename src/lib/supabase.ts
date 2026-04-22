@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Supabase client configuration
@@ -21,7 +21,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * Used for authentication, database queries, and storage
  * Only created if credentials are available
  */
-export const supabase = (supabaseUrl && supabaseAnonKey)
+// Istanza reale del client Supabase; null in modalità offline.
+// Il cast unknown→SupabaseClient (senza Database generic) rimuove `null as any`
+// mantenendo il medesimo comportamento a runtime. Il Database generic non viene
+// propagato nella variabile esportata perché il tipo `Database` di questo progetto
+// omette il campo `Relationships` richiesto dall'SDK v2 per l'inferenza degli Insert,
+// il che causerebbe errori `never` sulle tabelle con Insert parziali.
+export const supabase = ((supabaseUrl && supabaseAnonKey)
   ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         // Store session in localStorage for persistence
@@ -31,7 +37,7 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
         detectSessionInUrl: true
       }
     })
-  : null as any; // Fallback to null for offline-only mode or tests
+  : null) as unknown as SupabaseClient;
 
 /**
  * Check if Supabase is configured
@@ -434,6 +440,57 @@ export interface Database {
           tipologico_id?: string | null;
           price_per_unit?: number;
           unit?: 'piece' | 'sqm';
+          updated_at?: string;
+        };
+      };
+      standalone_maps: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          description: string | null;
+          image_url: string | null;
+          thumbnail_url: string | null;
+          original_filename: string;
+          width: number;
+          height: number;
+          points: any; // JSONB array
+          grid_enabled: boolean;
+          grid_config: any; // JSONB
+          metadata: any | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          description?: string | null;
+          image_url?: string | null;
+          thumbnail_url?: string | null;
+          original_filename?: string;
+          width?: number;
+          height?: number;
+          points?: any;
+          grid_enabled?: boolean;
+          grid_config?: any;
+          metadata?: any | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          name?: string;
+          description?: string | null;
+          image_url?: string | null;
+          thumbnail_url?: string | null;
+          original_filename?: string;
+          width?: number;
+          height?: number;
+          points?: any;
+          grid_enabled?: boolean;
+          grid_config?: any;
+          metadata?: any | null;
           updated_at?: string;
         };
       };

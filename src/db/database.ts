@@ -209,7 +209,7 @@ export interface StandaloneMap {
   userId: string;
   name: string;
   description?: string;
-  imageBlob: Blob;
+  imageBlob?: Blob;
   thumbnailBlob?: Blob;
   imageUrl?: string; // Supabase URL (when synced)
   thumbnailUrl?: string;
@@ -611,7 +611,7 @@ export async function getDatabaseStats() {
 
   const standaloneMaps = await db.standaloneMaps.toArray();
   const totalStandaloneMapSize = standaloneMaps.reduce((sum, sm) =>
-    sum + sm.imageBlob.size + (sm.thumbnailBlob?.size || 0), 0
+    sum + (sm.imageBlob?.size || 0) + (sm.thumbnailBlob?.size || 0), 0
   );
 
   return {

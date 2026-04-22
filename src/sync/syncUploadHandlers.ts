@@ -371,7 +371,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
           .from('floor_plans')
           .select('updated_at')
           .eq('id', localFloorPlan.id)
-          .single();
+          .single() as { data: { updated_at: string } | null; error: any };
 
         if (remoteRecord) {
           const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
@@ -540,7 +540,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
           .from('floor_plan_points')
           .select('updated_at')
           .eq('id', effectivePoint.id)
-          .single();
+          .single() as { data: { updated_at: string } | null; error: any };
 
         if (remoteRecord) {
           const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
