@@ -4,7 +4,7 @@ import {
   Project, User, FloorPlan,
   getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints, ensureFloorPlanAsset
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useBlobUrl } from '../hooks/useBlobUrl';
 
 interface MapsOverviewProps {
@@ -54,7 +54,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
 
   const totalPlans = projectsWithPlans.reduce((sum, p) => sum + p.floorPlans.length, 0);
 
-  const handleExportPlanPDF = async (project: Project, plan: FloorPlan) => {
+  const handleExportPlanPDF = async (_project: Project, plan: FloorPlan) => {
     setExportingPlanId(plan.id);
     try {
       const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
@@ -74,20 +74,12 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
         labelBackgroundColor: point.metadata?.labelBackgroundColor,
         labelTextColor: point.metadata?.labelTextColor,
       }));
-      const cartiglio: ExportCartiglioData = {
-        tavola: plan.floor,
-        typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
-        committente: [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
-        locali: '',
-      };
       await exportFloorPlanVectorPDF(
         exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
         exportReadyPlan.pdfBlobBase64,
         exportReadyPlan.metadata?.rotation || 0,
-        undefined,
-        cartiglio,
       );
     } finally {
       setExportingPlanId(null);

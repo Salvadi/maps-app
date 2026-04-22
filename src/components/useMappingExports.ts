@@ -9,7 +9,7 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { exportFloorPlanVectorPDF, buildFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, buildFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import {
   Project,
   MappingEntry,
@@ -61,15 +61,6 @@ export function useMappingExports({
 }: UseMappingExportsParams) {
   const [isExporting, setIsExporting] = useState(false);
   const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
-  const buildCartiglioData = (floor: string): ExportCartiglioData => {
-    const committenteParts = [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean);
-    return {
-      tavola: floor,
-      typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
-      committente: committenteParts.join(' - '),
-      locali: '',
-    };
-  };
 
   // ============================================
   // SEZIONE: Export Excel
@@ -366,14 +357,11 @@ export function useMappingExports({
         });
 
         try {
-          const cartiglio = buildCartiglioData(plan.floor);
           const pdfBytes = await buildFloorPlanVectorPDF(
             exportReadyPlan.imageBlob,
             exportPoints,
             exportReadyPlan.pdfBlobBase64,
-            exportReadyPlan.metadata?.rotation || 0,
-            undefined,
-            cartiglio,
+            exportReadyPlan.metadata?.rotation || 0
           );
           zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
         } catch (error) {
@@ -484,15 +472,12 @@ export function useMappingExports({
         };
       });
 
-      const cartiglio = buildCartiglioData(plan.floor);
       await exportFloorPlanVectorPDF(
         exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
         exportReadyPlan.pdfBlobBase64,
-        exportReadyPlan.metadata?.rotation || 0,
-        undefined,
-        cartiglio,
+        exportReadyPlan.metadata?.rotation || 0
       );
       const qualityNote = exportReadyPlan.pdfBlobBase64 ? ' (sfondo vettoriale)' : ' (sfondo raster)';
       alert(`✅ Planimetria esportata in PDF${qualityNote}`);

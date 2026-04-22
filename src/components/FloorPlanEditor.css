@@ -309,8 +309,198 @@
 .canvas-area {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
   background: #e8e8e8;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-stage {
+  position: relative;
+  min-height: 420px;
+  flex: 1;
+}
+
+.cartiglio-editor-panel {
+  background: #f7f7f7;
+  border-top: 1px solid #d8d8d8;
+  padding: 18px;
+}
+
+.cartiglio-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.cartiglio-editor-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #222;
+}
+
+.cartiglio-editor-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.cartiglio-row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cartiglio-row-btn {
+  padding: 8px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cartiglio-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.cartiglio-layout.single-column-typologies {
+  grid-template-columns: minmax(120px, 180px) minmax(320px, 1.2fr) minmax(260px, 0.9fr) minmax(260px, 0.9fr);
+  grid-template-areas:
+    "tavola typologies company signature";
+}
+
+.cartiglio-layout.multi-column-typologies {
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  grid-template-areas:
+    "tavola tavola"
+    "typologies typologies"
+    "company signature";
+}
+
+.cartiglio-box {
+  background: #fff;
+  border: 2px solid #e1543c;
+  padding: 10px;
+  min-width: 0;
+}
+
+.cartiglio-box-tavola {
+  grid-area: tavola;
+}
+
+.cartiglio-typology-columns {
+  grid-area: typologies;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.cartiglio-box-company {
+  grid-area: company;
+}
+
+.cartiglio-box-signature {
+  grid-area: signature;
+}
+
+.cartiglio-inline-label,
+.cartiglio-stacked-field,
+.cartiglio-typology-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.cartiglio-inline-label span,
+.cartiglio-stacked-field span,
+.cartiglio-typology-row span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+}
+
+.cartiglio-inline-label input,
+.cartiglio-stacked-field input,
+.cartiglio-typology-row input,
+.cartiglio-signature-field textarea {
+  width: 100%;
+  border: 1px solid #d6d6d6;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #222;
+  background: #fff;
+}
+
+.cartiglio-inline-label input:focus,
+.cartiglio-stacked-field input:focus,
+.cartiglio-typology-row input:focus,
+.cartiglio-signature-field textarea:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+}
+
+.cartiglio-box-typologies {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.cartiglio-typology-row {
+  padding: 6px 8px;
+  border-bottom: 1px solid #ececec;
+}
+
+.cartiglio-typology-row:last-child {
+  border-bottom: none;
+}
+
+.cartiglio-typology-empty {
+  padding: 14px 10px;
+  font-size: 12px;
+  color: #777;
+  min-height: 80px;
+}
+
+.cartiglio-typology-row span {
+  min-width: 30px;
+}
+
+.cartiglio-typology-row input {
+  border: none;
+  padding: 4px 0;
+  border-radius: 0;
+}
+
+.cartiglio-company-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #333;
+}
+
+.cartiglio-stacked-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cartiglio-signature-field {
+  height: 100%;
+}
+
+.cartiglio-signature-field textarea {
+  resize: vertical;
+  min-height: 110px;
 }
 
 /* Side Menus */
@@ -645,6 +835,28 @@
   .grid-controls {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .cartiglio-editor-panel {
+    padding: 14px;
+  }
+
+  .cartiglio-editor-header {
+    flex-direction: column;
+  }
+
+  .cartiglio-layout.single-column-typologies,
+  .cartiglio-layout.multi-column-typologies {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "tavola"
+      "typologies"
+      "company"
+      "signature";
+  }
+
+  .cartiglio-typology-columns {
+    grid-template-columns: 1fr;
   }
 }
 

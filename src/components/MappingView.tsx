@@ -712,7 +712,7 @@ const MappingView: React.FC<MappingViewProps> = ({
   };
 
   // Handle save floor plan editor changes
-  const handleSaveFloorPlanEditor = async (points: CanvasPoint[], gridConfig: GridConfig) => {
+  const handleSaveFloorPlanEditor = async (points: CanvasPoint[], gridConfig: GridConfig, cartiglio: import('./FloorPlanEditor').FloorPlanCartiglioData) => {
     if (!editorFloorPlan) return;
 
     try {
@@ -724,8 +724,26 @@ const MappingView: React.FC<MappingViewProps> = ({
           cols: gridConfig.cols,
           offsetX: gridConfig.offsetX,
           offsetY: gridConfig.offsetY,
-        }
+        },
+        metadata: {
+          ...(editorFloorPlan.metadata || {}),
+          cartiglio,
+        },
       });
+      setEditorFloorPlan(prev => prev ? {
+        ...prev,
+        gridEnabled: gridConfig.enabled,
+        gridConfig: {
+          rows: gridConfig.rows,
+          cols: gridConfig.cols,
+          offsetX: gridConfig.offsetX,
+          offsetY: gridConfig.offsetY,
+        },
+        metadata: {
+          ...(prev.metadata || {}),
+          cartiglio,
+        },
+      } : prev);
 
       const currentPoints = floorPlanPoints[editorFloorPlan.id] || [];
       const currentPointIds = new Set(currentPoints.map(p => p.id));
@@ -1343,6 +1361,10 @@ const MappingView: React.FC<MappingViewProps> = ({
             mode="view-edit"
             unmappedEntries={editorUnmappedEntries}
             initialRotation={editorFloorPlan.metadata?.rotation || 0}
+            initialCartiglio={editorFloorPlan.metadata?.cartiglio}
+            defaultTavola={editorFloorPlan.floor}
+            defaultCommittente={[project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - ')}
+            typologyNumbers={[...(project.typologies || [])].map(t => t.number).sort((a, b) => a - b)}
             onSave={handleSaveFloorPlanEditor}
             onRotationChange={handleFloorPlanRotationChange}
             onClose={handleCloseFloorPlanEditor}
