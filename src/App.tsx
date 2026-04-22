@@ -336,8 +336,9 @@ const App: React.FC = () => {
 
         if (data) {
           const remoteUpdatedAt = new Date(data.updated_at).getTime();
-          // Compare against remoteUpdatedAt (last synced base version) if available, otherwise updatedAt
-          const localBase = floorPlan.remoteUpdatedAt ?? floorPlan.updatedAt;
+          // Leggi da Dexie per avere remoteUpdatedAt aggiornato dopo upload (evita falsi conflitti)
+          const freshLocal = await db.floorPlans.get(floorPlan.id);
+          const localBase = (freshLocal ?? floorPlan).remoteUpdatedAt ?? (freshLocal ?? floorPlan).updatedAt;
           // Warn if remote is more than 5s newer than our base version (tolerance for clock skew)
           if (remoteUpdatedAt > localBase + 5000) {
             const localDate = new Date(localBase).toLocaleString('it-IT');
