@@ -59,6 +59,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   const filteredProjects = useMemo(() => {
     let filtered = projects;
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const hasSearchQuery = normalizedQuery.length > 0;
 
     // Filter tab
     if (filterTab === 'archived') {
@@ -66,17 +68,16 @@ const ProjectList: React.FC<ProjectListProps> = ({
     } else if (filterTab === 'recent') {
       const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       filtered = filtered.filter(p => Number(p.archived) === 0 && p.updatedAt > weekAgo);
-    } else {
+    } else if (!hasSearchQuery) {
       filtered = filtered.filter(p => Number(p.archived) === 0);
     }
 
     // Search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (hasSearchQuery) {
       filtered = filtered.filter(p =>
-        p.title.toLowerCase().includes(q) ||
-        p.client.toLowerCase().includes(q) ||
-        p.address.toLowerCase().includes(q)
+        p.title.toLowerCase().includes(normalizedQuery) ||
+        p.client.toLowerCase().includes(normalizedQuery) ||
+        p.address.toLowerCase().includes(normalizedQuery)
       );
     }
 
