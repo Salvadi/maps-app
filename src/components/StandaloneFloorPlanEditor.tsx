@@ -12,7 +12,7 @@ import {
   getFloorPlanBlobUrl,
   revokeFloorPlanBlobUrl,
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
 import { processFloorPlan, blobToBase64 } from '../utils/floorPlanUtils';
 
 interface StandaloneFloorPlanEditorProps {
@@ -180,6 +180,12 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         labelTextColor: point.labelTextColor,
         eiRating: point.eiRating,
       }));
+      const cartiglio: ExportCartiglioData = {
+        tavola: '',
+        typologyNumbers: [],
+        committente: projectName.trim(),
+        locali: '',
+      };
 
       const filename = projectName ? `${projectName}.pdf` : 'planimetria.pdf';
       await exportFloorPlanVectorPDF(
@@ -189,6 +195,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         currentPdfBlobBase64,
         rotation,
         context?.eiLegendPosition,
+        cartiglio,
       );
       alert('✅ Planimetria esportata in PDF');
     } catch (error) {

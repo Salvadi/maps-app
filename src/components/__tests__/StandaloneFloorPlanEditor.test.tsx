@@ -306,6 +306,12 @@ test('export standalone usa il PDF originale quando pdfBlobBase64 e disponibile'
     'pdf-base64',
     90,
     { x: 0.22, y: 0.11 },
+    {
+      tavola: '',
+      typologyNumbers: [],
+      committente: '',
+      locali: '',
+    },
   ));
 });
 
@@ -343,5 +349,11 @@ test('export standalone senza pdfBlobBase64 passa undefined e usa il fallback ra
     undefined,
     0,
     { x: 0.22, y: 0.11 },
+    {
+      tavola: '',
+      typologyNumbers: [],
+      committente: '',
+      locali: '',
+    },
   ));
 });

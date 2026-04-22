@@ -13,7 +13,7 @@ import {
   getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers, ensureFloorPlanAsset,
   ProjectCachePref, getProjectCachePref, setProjectOfflinePinned, hydrateProjectForOffline,
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
@@ -325,12 +325,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         labelBackgroundColor: point.metadata?.labelBackgroundColor,
         labelTextColor: point.metadata?.labelTextColor,
       }));
+      const cartiglio: ExportCartiglioData = {
+        tavola: plan.floor,
+        typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
+        committente: [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
+        locali: '',
+      };
       await exportFloorPlanVectorPDF(
         exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
         exportReadyPlan.pdfBlobBase64,
         exportReadyPlan.metadata?.rotation || 0,
+        undefined,
+        cartiglio,
       );
       setFloorPlans(prev => prev.map(existing => existing.id === exportReadyPlan.id ? exportReadyPlan : existing));
     } finally {
