@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
-  User, Project, MappingEntry, FloorPlan, db,
+  User, Project, MappingEntry, FloorPlan,
   getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
