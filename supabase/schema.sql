@@ -501,6 +501,22 @@ CREATE POLICY "Users can delete own standalone maps"
   ON public.standalone_maps FOR DELETE
   USING (auth.uid() = user_id);
 
+CREATE POLICY "Admins can view all standalone maps"
+  ON public.standalone_maps FOR SELECT
+  USING (public.is_admin());
+
+CREATE POLICY "Admins can insert all standalone maps"
+  ON public.standalone_maps FOR INSERT
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can update all standalone maps"
+  ON public.standalone_maps FOR UPDATE
+  USING (public.is_admin());
+
+CREATE POLICY "Admins can delete all standalone maps"
+  ON public.standalone_maps FOR DELETE
+  USING (public.is_admin());
+
 -- ============================================
 -- FUNCTIONS
 -- ============================================
