@@ -88,20 +88,6 @@ CREATE TABLE IF NOT EXISTS public.typology_prices (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Sync queue table (tracks pending changes)
-CREATE TABLE IF NOT EXISTS public.sync_queue (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  operation TEXT NOT NULL CHECK (operation IN ('CREATE', 'UPDATE', 'DELETE')),
-  entity_type TEXT NOT NULL CHECK (entity_type IN ('project', 'mapping_entry', 'photo')),
-  entity_id UUID NOT NULL,
-  data JSONB NOT NULL DEFAULT '{}'::jsonb,
-  timestamp BIGINT NOT NULL,
-  synced BOOLEAN NOT NULL DEFAULT false,
-  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  processed_at TIMESTAMPTZ
-);
-
 -- ============================================
 -- INDEXES
 -- ============================================
@@ -127,12 +113,6 @@ CREATE INDEX IF NOT EXISTS idx_typology_prices_project_attraversamento ON public
 CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_generic ON public.typology_prices(project_id, attraversamento) WHERE tipologico_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_specific ON public.typology_prices(project_id, attraversamento, tipologico_id) WHERE tipologico_id IS NOT NULL;
 
--- Sync queue indexes
-CREATE INDEX IF NOT EXISTS idx_sync_queue_user ON public.sync_queue(user_id);
-CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON public.sync_queue(synced);
-CREATE INDEX IF NOT EXISTS idx_sync_queue_timestamp ON public.sync_queue(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_sync_queue_entity ON public.sync_queue(entity_type, entity_id);
-
 -- ============================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================
@@ -143,7 +123,6 @@ ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mapping_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.typology_prices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sync_queue ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- HELPER FUNCTIONS FOR POLICIES
@@ -474,34 +453,6 @@ CREATE POLICY "Admins can manage all typology prices"
   FOR ALL
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
--- ============================================
--- SYNC QUEUE POLICIES
--- ============================================
-
--- Users can view their own sync queue
-CREATE POLICY "Users can view own sync queue"
-  ON public.sync_queue
-  FOR SELECT
-  USING (user_id = auth.uid());
-
--- Users can create their own sync queue items
-CREATE POLICY "Users can create sync queue items"
-  ON public.sync_queue
-  FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
--- Users can update their own sync queue items
-CREATE POLICY "Users can update own sync queue items"
-  ON public.sync_queue
-  FOR UPDATE
-  USING (user_id = auth.uid());
-
--- Users can delete their own sync queue items
-CREATE POLICY "Users can delete own sync queue items"
-  ON public.sync_queue
-  FOR DELETE
-  USING (user_id = auth.uid());
 
 -- ============================================
 -- FUNCTIONS

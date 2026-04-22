@@ -354,8 +354,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     if (hasUnsavedChanges) {
       const result = window.confirm('Hai modifiche non salvate. Salvare prima di chiudere?');
       if (result) {
-        if (onSave) await onSave(points, gridConfig);
-        setHasUnsavedChanges(false);
+        try {
+          if (onSave) await onSave(points, gridConfig);
+          setHasUnsavedChanges(false);
+        } catch (err) {
+          console.error('Errore durante il salvataggio:', err);
+          alert('Salvataggio fallito. Riprova o chiudi senza salvare.');
+          return;
+        }
       }
     }
     onClose?.();
