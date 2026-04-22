@@ -173,6 +173,7 @@ export function triggerImmediateUpload(): void {
 // ============================================
 
 const SYNC_LOCK_TIMEOUT = 3 * 60 * 1000; // 3 minutes
+const SYNC_INCLUDE_ARCHIVED_KEY = 'syncIncludeArchivedProjects';
 
 async function acquireSyncLock(): Promise<boolean> {
   return db.transaction('rw', db.metadata, async () => {
@@ -187,6 +188,20 @@ async function acquireSyncLock(): Promise<boolean> {
 
 async function releaseSyncLock(): Promise<void> {
   await db.metadata.put({ key: 'isSyncing', value: false });
+}
+
+export async function getSyncIncludeArchivedProjects(): Promise<boolean> {
+  const includeArchivedMeta = await db.metadata.get(SYNC_INCLUDE_ARCHIVED_KEY);
+  if (typeof includeArchivedMeta?.value === 'boolean') {
+    return includeArchivedMeta.value;
+  }
+
+  await db.metadata.put({ key: SYNC_INCLUDE_ARCHIVED_KEY, value: false });
+  return false;
+}
+
+export async function setSyncIncludeArchivedProjects(value: boolean): Promise<void> {
+  await db.metadata.put({ key: SYNC_INCLUDE_ARCHIVED_KEY, value });
 }
 
 // ============================================
@@ -531,6 +546,8 @@ export async function lockedSync(): Promise<void> {
   } finally {
     await releaseSyncLock();
   }
+
+  await emitSyncComplete();
 }
 
 // ============================================
@@ -563,6 +580,10 @@ export async function manualSync(options?: {
 
   const progress = options?.onProgress;
   const totalSteps = 6;
+  let result: {
+    uploadResult: SyncResult;
+    downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
+  } | null = null;
 
   try {
     // Upload local changes FIRST
@@ -580,14 +601,16 @@ export async function manualSync(options?: {
 
     console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos${downloadResult.photosFailedCount > 0 ? ` (${downloadResult.photosFailedCount} failed)` : ''}, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
-    await emitSyncComplete();
-    return { uploadResult, downloadResult };
+    result = { uploadResult, downloadResult };
   } catch (error) {
     console.error('❌ Manual sync failed:', error);
     throw error;
   } finally {
     await releaseSyncLock();
   }
+
+  await emitSyncComplete();
+  return result!;
 }
 
 // ============================================
@@ -705,6 +728,10 @@ export async function clearAndSync(): Promise<{
     throw new Error('Sync already in progress. Please retry in a moment.');
   }
 
+  let result: {
+    downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
+  } | null = null;
+
   try {
     // Clear all data from IndexedDB
     await db.projects.clear();
@@ -716,14 +743,21 @@ export async function clearAndSync(): Promise<{
     await db.sals.clear();
     await db.typologyPrices.clear();
     await db.projectCachePrefs.clear();
+    await db.dropdownOptionsCache.clear();
+    await db.productsCache.clear();
+    await db.conflictHistory.clear();
     await db.syncQueue.clear();
     // Don't clear users table - keep authentication data
 
     // Reset metadata but keep currentUser
     const currentUserMeta = await db.metadata.get('currentUser');
+    const includeArchivedMeta = await db.metadata.get(SYNC_INCLUDE_ARCHIVED_KEY);
     await db.metadata.clear();
     if (currentUserMeta) {
       await db.metadata.put(currentUserMeta);
+    }
+    if (includeArchivedMeta) {
+      await db.metadata.put(includeArchivedMeta);
     }
     await db.metadata.put({ key: 'lastSyncTime', value: 0 });
 
@@ -732,10 +766,11 @@ export async function clearAndSync(): Promise<{
     // Download fresh metadata from Supabase
     console.log('⬇️ Downloading fresh metadata from Supabase...');
     const downloadResult = await syncFromSupabase();
+    await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed after reset:', err));
 
     console.log(`✅ Cache reset complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photo metadata, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
-    return { downloadResult };
+    result = { downloadResult };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Clear and sync failed:', errorMessage);
@@ -743,4 +778,7 @@ export async function clearAndSync(): Promise<{
   } finally {
     await releaseSyncLock();
   }
+
+  await emitSyncComplete();
+  return result!;
 }

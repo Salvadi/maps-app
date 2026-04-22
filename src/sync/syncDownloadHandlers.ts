@@ -154,6 +154,21 @@ async function getAccessibleLocalProjects(userId: string, isAdmin: boolean): Pro
     .toArray();
 }
 
+async function getSyncIncludeArchivedProjects(): Promise<boolean> {
+  const includeArchivedMeta = await db.metadata.get('syncIncludeArchivedProjects');
+  return includeArchivedMeta?.value === true;
+}
+
+async function getSyncEligibleProjects(userId: string, isAdmin: boolean): Promise<Project[]> {
+  const includeArchivedProjects = await getSyncIncludeArchivedProjects();
+  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const syncEnabledProjects = projects.filter((project) => project.syncEnabled === 1);
+
+  return includeArchivedProjects
+    ? syncEnabledProjects
+    : syncEnabledProjects.filter((project) => project.archived !== 1);
+}
+
 function extractStorageLocation(
   url: string | undefined
 ): { bucket: string; path: string } | null {
@@ -265,7 +280,7 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin = fal
 export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin = false): Promise<number> {
   ensureOnline();
 
-  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
   const projectIds = projects.map((project) => project.id);
   if (projectIds.length === 0) {
     return 0;
@@ -304,7 +319,7 @@ export async function downloadPhotosFromSupabase(
 ): Promise<{ downloaded: number; failed: number }> {
   ensureOnline();
 
-  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
   const projectIds = projects.map((project) => project.id);
   if (projectIds.length === 0) {
     return { downloaded: 0, failed: 0 };
@@ -316,23 +331,65 @@ export async function downloadPhotosFromSupabase(
     return { downloaded: 0, failed: 0 };
   }
 
-  const photoRows: any[] = [];
-  const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
+  const pendingIds = await getPendingEntityIds('photo');
+  const expectedPhotoIds = new Set(
+    mappingEntries.flatMap((entry) =>
+      Array.isArray(entry.photos)
+        ? entry.photos
+            .map((photo) => photo.id)
+            .filter((photoId): photoId is string => typeof photoId === 'string' && photoId.length > 0)
+        : []
+    )
+  );
+  const localPhotos = await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).toArray();
+  const localPhotoIdSet = new Set(localPhotos.map((photo) => photo.id));
+  const staleLocalPhotoIds = localPhotos
+    .map((photo) => photo.id)
+    .filter((photoId) => !expectedPhotoIds.has(photoId) && !pendingIds.has(photoId));
 
-  for (const batch of mappingEntryIdBatches) {
-    const { data, error } = await supabase
-      .from('photos')
-      .select('*')
-      .in('mapping_entry_id', batch);
-
-    if (error) {
-      throw new Error(`Failed to download photos: ${error.message}`);
-    }
-
-    photoRows.push(...(data || []));
+  if (staleLocalPhotoIds.length > 0) {
+    await db.photos.bulkDelete(staleLocalPhotoIds);
   }
 
-  const pendingIds = await getPendingEntityIds('photo');
+  const missingPhotoIds = Array.from(expectedPhotoIds).filter((photoId) => !localPhotoIdSet.has(photoId));
+  const shouldFetchAllRows = options?.includeBlobs === true;
+  const photoRows: any[] = [];
+
+  if (!shouldFetchAllRows && missingPhotoIds.length === 0) {
+    return { downloaded: 0, failed: 0 };
+  }
+
+  if (!shouldFetchAllRows) {
+    const photoIdBatches = chunkArray(missingPhotoIds, SUPABASE_IN_BATCH_SIZE);
+    for (const batch of photoIdBatches) {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .in('id', batch);
+
+      if (error) {
+        throw new Error(`Failed to download photos: ${error.message}`);
+      }
+
+      photoRows.push(...(data || []));
+    }
+  } else {
+    const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
+
+    for (const batch of mappingEntryIdBatches) {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .in('mapping_entry_id', batch);
+
+      if (error) {
+        throw new Error(`Failed to download photos: ${error.message}`);
+      }
+
+      photoRows.push(...(data || []));
+    }
+  }
+
   let downloaded = 0;
   let failed = 0;
 
@@ -396,7 +453,7 @@ export async function downloadFloorPlansFromSupabase(
 ): Promise<number> {
   ensureOnline();
 
-  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
   const projectIds = projects.map((project) => project.id);
   if (projectIds.length === 0) {
     return 0;
@@ -485,7 +542,7 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
   ensureOnline();
 
   const floorPlans = await db.floorPlans.toArray();
-  const localProjects = await getAccessibleLocalProjects(userId, isAdmin);
+  const localProjects = await getSyncEligibleProjects(userId, isAdmin);
   const accessibleProjectIds = new Set(localProjects.map((project) => project.id));
   const floorPlanIds = floorPlans
     .filter((floorPlan) => accessibleProjectIds.has(floorPlan.projectId))
@@ -691,7 +748,7 @@ export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin
 // ============================================
 
 export async function updateRemotePhotosFlags(userId: string, isAdmin: boolean): Promise<void> {
-  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
   const projectIds = projects.map((project) => project.id);
   if (projectIds.length === 0) {
     return;
@@ -722,7 +779,7 @@ export async function updateRemotePhotosFlags(userId: string, isAdmin: boolean):
 export async function downloadSalsFromSupabase(userId: string, isAdmin = false): Promise<number> {
   ensureOnline();
 
-  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
   const projectIds = projects.map((project) => project.id);
   if (projectIds.length === 0) {
     return 0;
@@ -767,7 +824,7 @@ export async function downloadSalsFromSupabase(userId: string, isAdmin = false):
 export async function downloadTypologyPricesFromSupabase(userId: string, isAdmin = false): Promise<number> {
   ensureOnline();
 
-  const projects = await getAccessibleLocalProjects(userId, isAdmin);
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
   const projectIds = projects.map((project) => project.id);
   if (projectIds.length === 0) {
     return 0;
