@@ -7,7 +7,7 @@ import UpdateNotification from './components/UpdateNotification';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
-  initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
+  db, initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan,
   getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint
 } from './db';
