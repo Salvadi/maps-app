@@ -270,7 +270,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
 
       setCurrentMapId(newMap.id);
       setProjectName(trimmedName);
-      setCurrentImageBlob(newMap.imageBlob);
+      setCurrentImageBlob(newMap.imageBlob ?? null);
       setCurrentPdfBlobBase64(newMap.pdfBlobBase64);
       setCurrentPdfUrl(newMap.pdfUrl);
       setCurrentOriginalFormat(newMap.originalFormat);

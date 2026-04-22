@@ -501,57 +501,6 @@ export interface Database {
           updated_at?: string;
         };
       };
-      standalone_maps: {
-        Row: {
-          id: string;
-          user_id: string;
-          name: string;
-          description: string | null;
-          image_url: string | null;
-          thumbnail_url: string | null;
-          original_filename: string;
-          width: number;
-          height: number;
-          points: any; // JSONB array
-          grid_enabled: boolean;
-          grid_config: any; // JSONB
-          metadata: any | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          name: string;
-          description?: string | null;
-          image_url?: string | null;
-          thumbnail_url?: string | null;
-          original_filename?: string;
-          width?: number;
-          height?: number;
-          points?: any;
-          grid_enabled?: boolean;
-          grid_config?: any;
-          metadata?: any | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          user_id?: string;
-          name?: string;
-          description?: string | null;
-          image_url?: string | null;
-          thumbnail_url?: string | null;
-          original_filename?: string;
-          width?: number;
-          height?: number;
-          points?: any;
-          grid_enabled?: boolean;
-          grid_config?: any;
-          metadata?: any | null;
-          updated_at?: string;
-        };
-      };
     };
   };
 }

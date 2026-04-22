@@ -19,7 +19,6 @@ import {
   downloadStandaloneMapsFromSupabase,
   downloadSalsFromSupabase,
   downloadTypologyPricesFromSupabase,
-  downloadStandaloneMapsFromSupabase,
   updateRemotePhotosFlags
 } from './syncDownloadHandlers';
 
@@ -609,10 +608,6 @@ export async function phasedSyncFromSupabase(options?: {
 }): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
   if (!isSupabaseConfigured()) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
-}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
-  if (!isSupabaseConfigured()) {
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
-  }
   }
 
   const { data: { session } } = await supabase.auth.getSession();
