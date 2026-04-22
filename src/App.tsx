@@ -12,6 +12,7 @@ import {
   getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { enforceForcedMigrationIfNeeded } from './lib/forcedMigration';
 import {
   startAutoSync, stopAutoSync, lockedSync,
   getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
@@ -89,6 +90,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const initialize = async () => {
       try {
+        if (await enforceForcedMigrationIfNeeded()) {
+          return;
+        }
+
         await initializeDatabase();
         await initializeMockUsers();
 
