@@ -89,11 +89,20 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
   return (
     <div className="flex-1 overflow-auto pb-20 bg-brand-100">
       {/* Header */}
-      <div className="px-5 pt-6 pb-4">
-        <h1 className="text-2xl font-bold text-brand-800">Planimetrie</h1>
-        <p className="text-sm text-brand-500 mt-0.5">
-          {totalPlans} planimetri{totalPlans === 1 ? 'a' : 'e'} in {projectsWithPlans.length} progett{projectsWithPlans.length === 1 ? 'o' : 'i'}
-        </p>
+      <div className="px-5 pt-6 pb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-brand-800">Planimetrie</h1>
+          <p className="text-sm text-brand-500 mt-0.5">
+            {totalPlans} planimetri{totalPlans === 1 ? 'a' : 'e'} in {projectsWithPlans.length} progett{projectsWithPlans.length === 1 ? 'o' : 'i'}
+          </p>
+        </div>
+        <button
+          onClick={onOpenStandaloneEditor}
+          className="inline-flex items-center gap-2 rounded-xl bg-white border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-700 shadow-card hover:border-accent/40 hover:text-accent transition-colors flex-shrink-0"
+        >
+          <Plus size={16} />
+          Nuova mappa standalone
+        </button>
       </div>
 
       {isLoading ? (
@@ -161,26 +170,6 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
               </p>
             </div>
           )}
-
-          {/* Standalone editor button */}
-          <div className="mt-6">
-            <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">
-              Mappe standalone
-            </h2>
-            <button
-              onClick={onOpenStandaloneEditor}
-              className="w-full bg-white rounded-2xl shadow-card p-4 flex items-center gap-3 active:scale-[0.99] transition-transform"
-            >
-              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                <Plus size={18} className="text-accent" />
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-semibold text-brand-700">Editor Mappa Standalone</div>
-                <div className="text-xs text-brand-500">Crea una mappa indipendente dai progetti</div>
-              </div>
-              <ChevronRight size={16} className="text-brand-400 ml-auto" />
-            </button>
-          </div>
         </div>
       )}
 

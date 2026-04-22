@@ -168,6 +168,7 @@ async function signFloorPlanUrls(plans: FloorPlan[]): Promise<FloorPlan[]> {
     };
   });
 }
+type ProcessedStandaloneFile = Awaited<ReturnType<typeof processFloorPlan>>;
 
 export async function createFloorPlan(
   projectId: string,
@@ -720,21 +721,41 @@ export async function createStandaloneMap(
   userId: string,
   name: string,
   file: File,
-  description?: string
+  description?: string,
+  processedFloorPlan?: ProcessedStandaloneFile
 ): Promise<StandaloneMap> {
   try {
-    const { fullRes, thumbnail, width, height } = await processFloorPlan(file);
+    const {
+      fullRes,
+      thumbnail,
+      width,
+      height,
+      originalFormat,
+      pdfBlob,
+    } = processedFloorPlan ?? await processFloorPlan(file);
     const mapId = generateId();
 
     let imageUrl: string | undefined;
     let thumbnailUrl: string | undefined;
+    let pdfUrl: string | undefined;
 
     try {
-      const urls = await uploadStandaloneMap(mapId, fullRes, thumbnail, userId);
+      const urls = await uploadStandaloneMap(mapId, fullRes, thumbnail, userId, pdfBlob);
       imageUrl = urls.fullResUrl;
       thumbnailUrl = urls.thumbnailUrl;
+      pdfUrl = urls.pdfUrl;
+      console.log('Standalone map uploaded to Supabase Storage:', mapId);
     } catch (uploadError) {
       console.warn('Failed to upload standalone map to storage, keeping local copy', uploadError);
+    }
+
+    let pdfBlobBase64: string | undefined;
+    if (pdfBlob) {
+      try {
+        pdfBlobBase64 = await blobToBase64(pdfBlob);
+      } catch (err) {
+        console.warn('Failed to convert standalone PDF blob to Base64, vector export will use raster fallback:', err);
+      }
     }
 
     const map: StandaloneMap = {
@@ -744,9 +765,12 @@ export async function createStandaloneMap(
       description,
       imageBlob: fullRes,
       thumbnailBlob: thumbnail,
+      pdfBlobBase64,
       imageUrl,
       thumbnailUrl,
+      pdfUrl,
       originalFilename: file.name,
+      originalFormat,
       width,
       height,
       points: [],

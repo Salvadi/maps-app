@@ -16,6 +16,7 @@ import {
   downloadPhotosFromSupabase,
   downloadFloorPlansFromSupabase,
   downloadFloorPlanPointsFromSupabase,
+  downloadStandaloneMapsFromSupabase,
   downloadSalsFromSupabase,
   downloadTypologyPricesFromSupabase,
   downloadStandaloneMapsFromSupabase,
@@ -389,7 +390,8 @@ export {
   downloadMappingEntriesFromSupabase,
   downloadPhotosFromSupabase,
   downloadFloorPlansFromSupabase,
-  downloadFloorPlanPointsFromSupabase
+  downloadFloorPlanPointsFromSupabase,
+  downloadStandaloneMapsFromSupabase
 };
 
 // ============================================
@@ -449,8 +451,8 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
       includePdf: false,
     });
     const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
+    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
     const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
-    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id);
 
     const photosCount = photosResult.downloaded;
     const photosFailedCount = photosResult.failed;
@@ -607,6 +609,10 @@ export async function phasedSyncFromSupabase(options?: {
 }): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
   if (!isSupabaseConfigured()) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
+  if (!isSupabaseConfigured()) {
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+  }
   }
 
   const { data: { session } } = await supabase.auth.getSession();
@@ -635,7 +641,6 @@ export async function phasedSyncFromSupabase(options?: {
   const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
   const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
   await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
-  const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id);
   progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
 
   // Phase 3: Floor plans metadata + points
@@ -647,7 +652,8 @@ export async function phasedSyncFromSupabase(options?: {
     includePdf: false,
   });
   const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
-  progress?.({ step: 4, totalSteps, phase: 'Download planimetrie', detail: `${floorPlansCount} planimetrie, ${floorPlanPointsCount} punti` });
+  const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
+  progress?.({ step: 4, totalSteps, phase: 'Download planimetrie', detail: `${floorPlansCount} planimetrie, ${floorPlanPointsCount} punti, ${standaloneMapsCount} standalone` });
 
   // Phase 4: Photos (optional)
   let photosCount = 0;

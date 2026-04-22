@@ -637,6 +637,13 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
     // Upload blobs to Supabase Storage if not already uploaded
     let imageUrl = localMap.imageUrl;
     let thumbnailUrl = localMap.thumbnailUrl;
+    let pdfUrl = localMap.pdfUrl;
+
+    let pdfBlob: Blob | undefined;
+    if (localMap.pdfBlobBase64) {
+      const { base64ToBlob } = await import('../utils/floorPlanUtils');
+      pdfBlob = base64ToBlob(localMap.pdfBlobBase64, 'application/pdf');
+    }
 
     if (!imageUrl && localMap.imageBlob) {
       const { uploadStandaloneMap } = await import('../utils/floorPlanUtils');
@@ -644,13 +651,26 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
         localMap.id,
         localMap.imageBlob,
         localMap.thumbnailBlob || localMap.imageBlob,
-        localMap.userId
+        localMap.userId,
+        pdfUrl ? undefined : pdfBlob
       );
       imageUrl = urls.fullResUrl;
       thumbnailUrl = urls.thumbnailUrl;
+      pdfUrl = urls.pdfUrl || pdfUrl;
 
       // Update local record with URLs
-      await db.standaloneMaps.update(map.id, { imageUrl, thumbnailUrl, synced: 1 });
+      await db.standaloneMaps.update(map.id, { imageUrl, thumbnailUrl, pdfUrl, synced: 1 });
+    }
+
+    if (!pdfUrl && pdfBlob) {
+      try {
+        const { uploadStandaloneMapPDF } = await import('../utils/floorPlanUtils');
+        pdfUrl = await uploadStandaloneMapPDF(localMap.id, pdfBlob, localMap.userId);
+        await db.standaloneMaps.update(map.id, { pdfUrl });
+        console.log(`📄 Uploaded PDF originale for standalone map ${map.id}`);
+      } catch (pdfErr) {
+        console.warn(`⚠️  Failed to upload PDF for standalone map ${map.id}:`, pdfErr);
+      }
     }
 
     // Create/update standalone map record in Supabase
@@ -663,12 +683,28 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
         description: localMap.description,
         image_url: imageUrl,
         thumbnail_url: thumbnailUrl,
+        pdf_url: pdfUrl || null,
         original_filename: localMap.originalFilename,
+        original_format: localMap.originalFormat || null,
         width: localMap.width,
         height: localMap.height,
-        points: localMap.points,
+        points: localMap.points.map(point => ({
+          id: point.id,
+          pointType: point.pointType,
+          pointX: point.pointX,
+          pointY: point.pointY,
+          labelX: point.labelX,
+          labelY: point.labelY,
+          perimeterPoints: point.perimeterPoints,
+          customText: point.customText,
+          labelText: point.labelText,
+          labelBackgroundColor: point.labelBackgroundColor,
+          labelTextColor: point.labelTextColor,
+          eiRating: point.eiRating ?? null,
+        })),
         grid_enabled: localMap.gridEnabled,
         grid_config: localMap.gridConfig,
+        metadata: localMap.metadata || {},
         created_at: new Date(localMap.createdAt).toISOString(),
         updated_at: new Date(localMap.updatedAt).toISOString()
       }, {
@@ -678,6 +714,13 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
     if (error) {
       throw new Error(`Supabase standalone map upsert failed: ${error.message}`);
     }
+
+    await db.standaloneMaps.update(map.id, {
+      imageUrl,
+      thumbnailUrl,
+      pdfUrl,
+      synced: 1,
+    });
   } else if (item.operation === 'DELETE') {
     const { error } = await supabase
       .from('standalone_maps')

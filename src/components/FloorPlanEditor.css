@@ -9,6 +9,11 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
+.floor-plan-editor.standalone-mode {
+  height: 100dvh;
+  min-height: 0;
+}
+
 /* Header */
 .editor-header {
   display: flex;
@@ -296,6 +301,10 @@
   position: relative;
 }
 
+.floor-plan-editor.standalone-mode .editor-content {
+  min-height: 0;
+}
+
 /* Canvas */
 .canvas-area {
   flex: 1;
@@ -322,6 +331,13 @@
   left: 0;
   border-right: 1px solid #e0e0e0;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.floor-plan-editor.standalone-mode .editor-menu.left-menu {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 .editor-menu.right-menu {
@@ -377,9 +393,13 @@
 
 .menu-content {
   padding: 20px;
-  overflow-y: auto;
-  flex: 1;
   -webkit-overflow-scrolling: touch;
+}
+
+.floor-plan-editor.standalone-mode .menu-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .menu-section {
