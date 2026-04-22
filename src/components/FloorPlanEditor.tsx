@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle, EiRating } from './FloorPlanCanvas';
-import { exportCanvasToPNG, exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
@@ -18,6 +18,11 @@ export interface UnmappedEntry {
   id: string;
   labelText: string[];
   type: 'parete' | 'solaio';
+}
+
+interface StandaloneExportContext {
+  points: CanvasPoint[];
+  eiLegendPosition: { x: number; y: number } | null;
 }
 
 interface FloorPlanEditorProps {
@@ -33,9 +38,7 @@ interface FloorPlanEditorProps {
   onNewFile?: () => void;
   onOpenFile?: () => void;
   onSaveFile?: (points: CanvasPoint[], gridConfig: GridConfig) => void;
-  onExportJSON?: () => void;
-  onExportPNG?: () => void;
-  onExportPDF?: () => void;
+  onExportPDF?: (context: StandaloneExportContext) => void | Promise<void>;
   onOpenMappingEntry?: (mappingEntryId: string) => void;
   onReorderPoints?: (sortedMappingEntryIds: string[]) => Promise<CanvasPoint[]>;
   readOnlyPoints?: CanvasPoint[];
@@ -63,8 +66,6 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   onNewFile,
   onOpenFile,
   onSaveFile,
-  onExportJSON,
-  onExportPNG: onExportPNGProp,
   onExportPDF: onExportPDFProp,
   onOpenMappingEntry,
   onReorderPoints,
@@ -339,13 +340,16 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
   // ============================================
   // SEZIONE: Esportazione
-  // Logica di esportazione PDF/PNG della planimetria annotata.
+  // Logica di esportazione PDF della planimetria annotata.
   // ============================================
 
   // Handle export to PDF (vettoriale con pdf-lib)
   const handleExportPDF = useCallback(async () => {
     if (onExportPDFProp) {
-      onExportPDFProp();
+      await onExportPDFProp({
+        points,
+        eiLegendPosition,
+      });
       return;
     }
 
@@ -374,28 +378,6 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       alert('❌ Errore durante l\'esportazione PDF');
     }
   }, [imageUrl, points, onExportPDFProp, eiLegendPosition]);
-
-  // Handle export to PNG
-  const handleExportPNG = useCallback(() => {
-    if (onExportPNGProp) {
-      onExportPNGProp();
-      return;
-    }
-
-    const canvas = document.querySelector('.floor-plan-canvas') as HTMLCanvasElement;
-    if (!canvas) {
-      alert('❌ Impossibile trovare il canvas');
-      return;
-    }
-
-    try {
-      exportCanvasToPNG(canvas, 'planimetria-annotata.png');
-      alert('✅ Planimetria esportata in PNG');
-    } catch (error) {
-      console.error('Export PNG error:', error);
-      alert('❌ Errore durante l\'esportazione PNG');
-    }
-  }, [onExportPNGProp]);
 
   // Handle zoom
   const handleZoomIn = () => setZoomInTrigger(prev => prev + 1);
@@ -624,7 +606,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // ============================================
 
   return (
-    <div className="floor-plan-editor">
+    <div className={`floor-plan-editor ${mode === 'standalone' ? 'standalone-mode' : ''}`.trim()}>
       {/* Header */}
       <div className="editor-header">
         <div className="header-left">
@@ -878,12 +860,6 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   <h4>Esporta</h4>
                   <button className="menu-btn" onClick={handleExportPDF}>
                     <span>📄</span> PDF
-                  </button>
-                  <button className="menu-btn" onClick={handleExportPNG}>
-                    <span>🖼️</span> PNG
-                  </button>
-                  <button className="menu-btn" onClick={onExportJSON}>
-                    <span>📦</span> JSON
                   </button>
                 </div>
               </>

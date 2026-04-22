@@ -6,9 +6,78 @@
  * da Supabase Storage con parsing dinamico del bucket name.
  */
 
-import { db, Project, MappingEntry, Photo, Sal, FloorPlanPoint } from '../db/database';
+import { db, Project, MappingEntry, Photo, Sal, FloorPlanPoint, StandaloneMap } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
+
+async function downloadStorageBlobFromPublicUrl(publicUrl: string): Promise<Blob | null> {
+  const parsedUrl = new URL(publicUrl);
+  const match = parsedUrl.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, bucketName, rawObjectPath] = match;
+  const objectPath = decodeURIComponent(rawObjectPath);
+  const { data: blob, error } = await supabase.storage
+    .from(bucketName)
+    .download(objectPath);
+
+  if (error || !blob) {
+    console.warn(`⚠️  Failed to download storage object ${objectPath}: ${error?.message}`);
+    return null;
+  }
+
+  return blob;
+}
+
+async function downloadStoragePdfBase64(publicUrl: string): Promise<string | undefined> {
+  const pdfBlob = await downloadStorageBlobFromPublicUrl(publicUrl);
+  if (!pdfBlob) {
+    return undefined;
+  }
+
+  const arrayBuffer = await pdfBlob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+  }
+
+  return btoa(binary);
+}
+
+function normalizeStandaloneMapGridConfig(gridConfig: any): StandaloneMap['gridConfig'] {
+  return {
+    rows: typeof gridConfig?.rows === 'number' ? gridConfig.rows : 10,
+    cols: typeof gridConfig?.cols === 'number' ? gridConfig.cols : 10,
+    offsetX: typeof gridConfig?.offsetX === 'number' ? gridConfig.offsetX : 0,
+    offsetY: typeof gridConfig?.offsetY === 'number' ? gridConfig.offsetY : 0,
+  };
+}
+
+function normalizeStandaloneMapPoints(points: any): StandaloneMap['points'] {
+  if (!Array.isArray(points)) {
+    return [];
+  }
+
+  return points.map((point: any) => ({
+    id: point.id,
+    pointType: point.pointType,
+    pointX: point.pointX,
+    pointY: point.pointY,
+    labelX: point.labelX,
+    labelY: point.labelY,
+    perimeterPoints: point.perimeterPoints,
+    customText: point.customText,
+    labelText: point.labelText,
+    labelBackgroundColor: point.labelBackgroundColor,
+    labelTextColor: point.labelTextColor,
+    eiRating: point.eiRating ?? undefined,
+  }));
+}
 
 // ============================================
 // SEZIONE: Download Progetti (Project Download)
@@ -743,6 +812,149 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Failed to download floor plan points:', errorMessage);
+    throw err;
+  }
+}
+
+// ============================================
+// SEZIONE: Download Mappe Standalone (Standalone Maps Download)
+// Scarica le mappe standalone dell'utente e idrata lazy il PDF originale.
+// ============================================
+
+export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
+  if (!isSupabaseConfigured()) {
+    console.warn('⚠️  Download skipped: Supabase not configured');
+    return 0;
+  }
+
+  if (!navigator.onLine) {
+    console.warn('⚠️  Download skipped: No internet connection');
+    return 0;
+  }
+
+  console.log(`⬇️  Downloading standalone maps from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+
+  try {
+    let query = supabase
+      .from('standalone_maps')
+      .select('*');
+
+    if (!isAdmin) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: standaloneMaps, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to download standalone maps: ${error.message}`);
+    }
+
+    if (!standaloneMaps || standaloneMaps.length === 0) {
+      console.log('✅ No standalone maps to download');
+      return 0;
+    }
+
+    let downloadedCount = 0;
+
+    for (const supabaseMap of standaloneMaps) {
+      try {
+        const existingMap = await db.standaloneMaps.get(supabaseMap.id);
+        const remoteUpdated = new Date(supabaseMap.updated_at).getTime();
+        const shouldKeepLocalData = !!existingMap && remoteUpdated <= existingMap.updatedAt;
+        const shouldHydrateMissingPdf = !!supabaseMap.pdf_url && !existingMap?.pdfBlobBase64;
+        const shouldHydrateMissingImage = !!supabaseMap.image_url && !existingMap?.imageBlob;
+        const shouldHydrateMissingThumbnail = !!supabaseMap.thumbnail_url && !existingMap?.thumbnailBlob;
+
+        if (
+          existingMap &&
+          shouldKeepLocalData &&
+          existingMap.imageBlob &&
+          !shouldHydrateMissingPdf &&
+          !shouldHydrateMissingImage &&
+          !shouldHydrateMissingThumbnail
+        ) {
+          console.log(`⏭️  Standalone map ${supabaseMap.id} is up to date, skipping`);
+          continue;
+        }
+
+        let imageBlob = existingMap?.imageBlob;
+        if (supabaseMap.image_url && (!imageBlob || remoteUpdated > (existingMap?.updatedAt || 0))) {
+          try {
+            imageBlob = (await downloadStorageBlobFromPublicUrl(supabaseMap.image_url)) || imageBlob;
+          } catch (imageErr) {
+            console.warn(`⚠️  Failed to download standalone image for ${supabaseMap.id}:`, imageErr);
+          }
+        }
+
+        let thumbnailBlob = existingMap?.thumbnailBlob;
+        if (supabaseMap.thumbnail_url && (!thumbnailBlob || remoteUpdated > (existingMap?.updatedAt || 0))) {
+          try {
+            thumbnailBlob = (await downloadStorageBlobFromPublicUrl(supabaseMap.thumbnail_url)) || thumbnailBlob;
+          } catch (thumbnailErr) {
+            console.warn(`⚠️  Failed to download standalone thumbnail for ${supabaseMap.id}:`, thumbnailErr);
+          }
+        }
+
+        let pdfBlobBase64 = existingMap?.pdfBlobBase64;
+        if (supabaseMap.pdf_url && (!pdfBlobBase64 || remoteUpdated > (existingMap?.updatedAt || 0))) {
+          try {
+            pdfBlobBase64 = (await downloadStoragePdfBase64(supabaseMap.pdf_url)) || pdfBlobBase64;
+            if (pdfBlobBase64) {
+              console.log(`📄 Downloaded PDF originale for standalone map ${supabaseMap.id}`);
+            }
+          } catch (pdfErr) {
+            console.warn(`⚠️  Failed to download standalone PDF for ${supabaseMap.id}:`, pdfErr);
+          }
+        }
+
+        const resolvedImageBlob = imageBlob || existingMap?.imageBlob;
+        if (!resolvedImageBlob) {
+          console.warn(`⚠️  Skipping standalone map ${supabaseMap.id}: image blob unavailable`);
+          continue;
+        }
+
+        const baseMap = shouldKeepLocalData ? existingMap : undefined;
+        const remotePoints = normalizeStandaloneMapPoints(supabaseMap.points);
+        const remoteGridConfig = normalizeStandaloneMapGridConfig(supabaseMap.grid_config);
+
+        const standaloneMap: StandaloneMap = {
+          id: supabaseMap.id,
+          userId: baseMap?.userId ?? supabaseMap.user_id,
+          name: baseMap?.name ?? supabaseMap.name,
+          description: baseMap?.description ?? supabaseMap.description ?? undefined,
+          imageBlob: resolvedImageBlob,
+          thumbnailBlob: thumbnailBlob || baseMap?.thumbnailBlob,
+          pdfBlobBase64,
+          imageUrl: baseMap?.imageUrl ?? supabaseMap.image_url ?? undefined,
+          thumbnailUrl: baseMap?.thumbnailUrl ?? supabaseMap.thumbnail_url ?? undefined,
+          pdfUrl: baseMap?.pdfUrl ?? supabaseMap.pdf_url ?? undefined,
+          originalFilename: baseMap?.originalFilename ?? supabaseMap.original_filename,
+          originalFormat: baseMap?.originalFormat ?? supabaseMap.original_format ?? undefined,
+          width: baseMap?.width ?? supabaseMap.width,
+          height: baseMap?.height ?? supabaseMap.height,
+          points: baseMap?.points ?? remotePoints,
+          gridEnabled: baseMap?.gridEnabled ?? !!supabaseMap.grid_enabled,
+          gridConfig: baseMap?.gridConfig ?? remoteGridConfig,
+          metadata: baseMap?.metadata ?? supabaseMap.metadata ?? {},
+          createdAt: baseMap?.createdAt ?? new Date(supabaseMap.created_at).getTime(),
+          updatedAt: baseMap?.updatedAt ?? remoteUpdated,
+          synced: baseMap?.synced ?? (1 as 0 | 1),
+        };
+
+        await db.standaloneMaps.put(standaloneMap);
+        downloadedCount++;
+        console.log(`✅ Downloaded standalone map: ${supabaseMap.id}`);
+      } catch (mapErr) {
+        const errorMessage = mapErr instanceof Error ? mapErr.message : String(mapErr);
+        console.error(`❌ Error downloading standalone map ${supabaseMap.id}:`, errorMessage);
+      }
+    }
+
+    console.log(`✅ Downloaded ${downloadedCount} standalone maps from Supabase`);
+    return downloadedCount;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('❌ Failed to download standalone maps:', errorMessage);
     throw err;
   }
 }
