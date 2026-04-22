@@ -5,7 +5,7 @@
  * Ogni gestore gestisce CREATE, UPDATE e DELETE con conversione formato locale → remoto.
  */
 
-import { db, Project, MappingEntry, Photo, Sal, SyncQueueItem, generateId } from '../db/database';
+import { db, Project, MappingEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -44,6 +44,10 @@ export async function processSyncItem(item: SyncQueueItem): Promise<void> {
       await syncSal(item);
       break;
 
+    case 'typology_price':
+      await syncTypologyPrice(item);
+      break;
+
     default:
       throw new Error(`Unknown entity type: ${item.entityType}`);
   }
@@ -78,7 +82,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       typologies: project.typologies,
       owner_id: project.ownerId,
       accessible_users: project.accessibleUsers,
-      archived: project.archived,
+      archived: Boolean(project.archived),
       // NOTE: syncEnabled is NOT synced - it's a per-device preference
       created_at: new Date(project.createdAt).toISOString(),
       updated_at: new Date(project.updatedAt).toISOString(),
@@ -89,7 +93,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
 
     const { error } = await supabase
       .from('projects')
-      .insert(supabaseProject);
+      .upsert(supabaseProject, { onConflict: 'id' });
 
     if (error) throw new Error(error.message);
   }
@@ -123,7 +127,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       use_intervention_numbering: project.useInterventionNumbering,
       typologies: project.typologies,
       accessible_users: project.accessibleUsers,
-      archived: project.archived,
+      archived: Boolean(project.archived),
       // NOTE: syncEnabled is NOT synced - it's a per-device preference
       updated_at: new Date(project.updatedAt).toISOString(),
       version: project.version || 1, // Add version for conflict detection
@@ -149,6 +153,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       .eq('id', project.id);
 
     if (error) throw new Error(error.message);
+    return;
   }
 
   // Mark local as synced
@@ -220,8 +225,14 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
     for (const photo of photos) {
       if (!photo.uploaded) {
         // Add photo to sync queue if not already uploaded
+        const photoSyncItemId = `${entry.id}-photo-${photo.id}`;
+        const existingPhotoSyncItem = await db.syncQueue.get(photoSyncItemId);
+        if (existingPhotoSyncItem?.synced === 2 || existingPhotoSyncItem?.synced === 0) {
+          continue;
+        }
+
         const photoSyncItem: SyncQueueItem = {
-          id: `${entry.id}-photo-${photo.id}`,
+          id: photoSyncItemId,
           operation: 'CREATE',
           entityType: 'photo',
           entityId: photo.id,
@@ -231,7 +242,6 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
           synced: 0
         };
 
-        // Idempotent put - avoids race condition with check-then-add
         await db.syncQueue.put(photoSyncItem);
         console.log(`📸 Added photo ${photo.id} to sync queue`);
       }
@@ -279,11 +289,6 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       throw new Error(`Supabase photo upload failed: ${uploadError.message}`);
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('photos')
-      .getPublicUrl(fileName);
-
     // Create photo metadata record in Supabase
     const { error: metaError } = await supabase
       .from('photos')
@@ -291,7 +296,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
         id: photoMeta.id,
         mapping_entry_id: photoMeta.mappingEntryId,
         storage_path: fileName,
-        url: publicUrl,
+        url: null,
         metadata: photoMeta.metadata,
         uploaded: true,
         created_at: new Date(photoMeta.metadata.captureTimestamp).toISOString(),
@@ -307,20 +312,26 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
     // Mark local photo as uploaded
     await db.photos.update(photoMeta.id, { uploaded: true });
   } else if (item.operation === 'DELETE') {
-    // Use photoMeta from sync queue payload instead of querying database
-    // (photo was already deleted locally in removePhotoFromMapping)
-    const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
+    // Use explicit storage paths from the sync queue payload because
+    // the photo may already be gone from IndexedDB when DELETE runs.
+    const storagePaths = [
+      photoMeta.storagePath,
+      photoMeta.thumbnailStoragePath,
+      photoMeta.mappingEntryId ? `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg` : undefined,
+    ].filter((path, index, array): path is string => Boolean(path) && array.indexOf(path) === index);
 
     // Delete from storage
-    const { error: storageError } = await supabase.storage
-      .from('photos')
-      .remove([fileName]);
+    if (storagePaths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from('photos')
+        .remove(storagePaths);
 
-    if (storageError) {
-      console.warn(`Failed to delete photo from storage: ${storageError.message}`);
-      // Continue with metadata deletion even if storage deletion fails
-    } else {
-      console.log(`🗑️ Deleted photo from storage: ${fileName}`);
+      if (storageError) {
+        console.warn(`Failed to delete photo from storage: ${storageError.message}`);
+        // Continue with metadata deletion even if storage deletion fails
+      } else {
+        console.log(`🗑️ Deleted photo from storage: ${storagePaths.join(', ')}`);
+      }
     }
 
     // Delete metadata from database
@@ -353,13 +364,59 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       throw new Error(`Floor plan not found: ${floorPlan.id}`);
     }
 
-    // Upload blobs to Supabase Storage if not already uploaded
+    // --- Conflict detection ANTICIPATO: check PRIMA di qualsiasi upload asset ---
+    if (localFloorPlan.remoteUpdatedAt != null) {
+      try {
+        const { data: remoteRecord } = await supabase
+          .from('floor_plans')
+          .select('updated_at')
+          .eq('id', localFloorPlan.id)
+          .single() as { data: { updated_at: string } | null; error: any };
+
+        if (remoteRecord) {
+          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
+          // Se il remote è stato modificato dopo il nostro ultimo sync → conflitto
+          if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
+            console.warn(
+              `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
+              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
+              `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
+              `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
+            );
+            // Log conflict to conflictHistory
+            await db.conflictHistory.add({
+              id: generateId(),
+              timestamp: Date.now(),
+              entityType: 'floor_plan',
+              entityId: localFloorPlan.id,
+              conflictType: 'timestamp',
+              localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
+              remoteVersion: { updatedAt: remoteUpdatedAt },
+              resolvedVersion: null,
+              strategy: 'skip_upload_floor_plan',
+              autoResolved: true,
+              userNotified: false,
+            });
+            // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
+            await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
+            return; // Do NOT upload assets né upsert — utente deve sincronizzare prima
+          }
+        }
+      } catch {
+        // Errore di rete durante il check → procedi con upload (best-effort)
+        console.warn(`⚠️  Could not check remote version for floor plan ${localFloorPlan.id}, proceeding with upload`);
+      }
+    }
+
+    // Upload blobs to Supabase Storage when missing or when local assets changed.
     let imageUrl = localFloorPlan.imageUrl;
     let thumbnailUrl = localFloorPlan.thumbnailUrl;
-
+    const previousImageUrl = localFloorPlan.imageUrl;
+    const previousThumbnailUrl = localFloorPlan.thumbnailUrl;
     let pdfUrl = localFloorPlan.pdfUrl;
+    const previousPdfUrl = localFloorPlan.pdfUrl;
 
-    if (!imageUrl && localFloorPlan.imageBlob) {
+    if ((!imageUrl || localFloorPlan.assetDirty === 1) && localFloorPlan.imageBlob) {
       const { uploadFloorPlan } = await import('../utils/floorPlanUtils');
       const urls = await uploadFloorPlan(
         localFloorPlan.projectId,
@@ -375,7 +432,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
 
     // Upload PDF originale indipendentemente dall'imageUrl (il PDF può esistere
     // anche quando le immagini sono già state caricate in un ciclo precedente)
-    if (!pdfUrl && localFloorPlan.pdfBlobBase64) {
+    if ((!pdfUrl || localFloorPlan.assetDirty === 1) && localFloorPlan.pdfBlobBase64) {
       try {
         const { uploadFloorPlanPDF } = await import('../utils/floorPlanUtils');
         const binaryStr = atob(localFloorPlan.pdfBlobBase64);
@@ -395,45 +452,16 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    // --- Conflict detection: check if remote has been modified since our last sync ---
-    if (localFloorPlan.remoteUpdatedAt != null) {
+    if (
+      (previousImageUrl && previousImageUrl !== imageUrl) ||
+      (previousThumbnailUrl && previousThumbnailUrl !== thumbnailUrl) ||
+      (previousPdfUrl && previousPdfUrl !== pdfUrl)
+    ) {
+      const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
       try {
-        const { data: remoteRecord } = await supabase
-          .from('floor_plans')
-          .select('updated_at')
-          .eq('id', localFloorPlan.id)
-          .single();
-
-        if (remoteRecord) {
-          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
-          // If remote has changed since our last sync, skip upload to avoid overwriting
-          if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
-            console.warn(
-              `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
-              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
-              `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
-              `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
-            );
-            // Log conflict to conflictHistory
-            await db.conflictHistory.add({
-              id: generateId(),
-              timestamp: Date.now(),
-              entityType: 'mapping_entry', // reuse closest type
-              entityId: localFloorPlan.id,
-              conflictType: 'timestamp',
-              localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
-              remoteVersion: { updatedAt: remoteUpdatedAt },
-              resolvedVersion: null,
-              strategy: 'skip_upload_floor_plan',
-              autoResolved: true,
-              userNotified: false,
-            });
-            return; // Do NOT upsert — user must sync first
-          }
-        }
-      } catch {
-        // Network error during check → proceed with upsert (best-effort)
-        console.warn(`⚠️  Could not check remote version for floor plan ${localFloorPlan.id}, proceeding with upload`);
+        await deleteFloorPlan(previousImageUrl, previousThumbnailUrl, previousPdfUrl);
+      } catch (cleanupError) {
+        console.warn(`Failed to clean previous floor plan assets for ${floorPlan.id}:`, cleanupError);
       }
     }
 
@@ -466,6 +494,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     // After successful upload, update remoteUpdatedAt to match what we just wrote
     await db.floorPlans.update(localFloorPlan.id, {
       remoteUpdatedAt: localFloorPlan.updatedAt,
+      assetDirty: 0,
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
@@ -480,10 +509,10 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     }
 
     // Delete from Storage if URLs exist
-    if (floorPlan.imageUrl || floorPlan.thumbnailUrl) {
+    if (floorPlan.imageUrl || floorPlan.thumbnailUrl || floorPlan.pdfUrl) {
       const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
       try {
-        await deleteFloorPlan(floorPlan.imageUrl, floorPlan.thumbnailUrl);
+        await deleteFloorPlan(floorPlan.imageUrl, floorPlan.thumbnailUrl, floorPlan.pdfUrl);
       } catch (err) {
         console.warn('Failed to delete floor plan from storage:', err);
       }
@@ -511,7 +540,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
           .from('floor_plan_points')
           .select('updated_at')
           .eq('id', effectivePoint.id)
-          .single();
+          .single() as { data: { updated_at: string } | null; error: any };
 
         if (remoteRecord) {
           const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
@@ -525,7 +554,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
             await db.conflictHistory.add({
               id: generateId(),
               timestamp: Date.now(),
-              entityType: 'mapping_entry',
+              entityType: 'floor_plan_point',
               entityId: effectivePoint.id,
               conflictType: 'timestamp',
               localVersion: { updatedAt: effectivePoint.updatedAt, remoteUpdatedAt: effectivePoint.remoteUpdatedAt },
@@ -535,6 +564,8 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
               autoResolved: true,
               userNotified: false,
             });
+            // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
+            await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
             return;
           }
         }
@@ -749,6 +780,45 @@ async function syncSal(item: SyncQueueItem): Promise<void> {
 
     if (error) {
       throw new Error(`Supabase SAL delete failed: ${error.message}`);
+    }
+  }
+}
+
+async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
+  const price = item.payload as TypologyPrice;
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    const { error } = await supabase
+      .from('typology_prices')
+      .upsert({
+        id: price.id,
+        project_id: price.projectId,
+        attraversamento: price.attraversamento,
+        tipologico_id: price.tipologicoId || null,
+        price_per_unit: price.pricePerUnit,
+        unit: price.unit,
+        created_at: price.createdAt ? new Date(price.createdAt).toISOString() : new Date().toISOString(),
+        updated_at: new Date(price.updatedAt || Date.now()).toISOString(),
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      throw new Error(`Supabase typology price upsert failed: ${error.message}`);
+    }
+
+    await db.typologyPrices.update(price.id, {
+      synced: 1,
+      updatedAt: price.updatedAt || Date.now(),
+    });
+  } else if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('typology_prices')
+      .delete()
+      .eq('id', price.id);
+
+    if (error) {
+      throw new Error(`Supabase typology price delete failed: ${error.message}`);
     }
   }
 }

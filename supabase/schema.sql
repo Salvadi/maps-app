@@ -68,25 +68,24 @@ CREATE TABLE IF NOT EXISTS public.photos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   mapping_entry_id UUID NOT NULL REFERENCES public.mapping_entries(id) ON DELETE CASCADE,
   storage_path TEXT, -- Path in Supabase Storage
+  thumbnail_storage_path TEXT,
   url TEXT, -- Public/signed URL
+  thumbnail_url TEXT,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   uploaded BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Sync queue table (tracks pending changes)
-CREATE TABLE IF NOT EXISTS public.sync_queue (
+CREATE TABLE IF NOT EXISTS public.typology_prices (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  operation TEXT NOT NULL CHECK (operation IN ('CREATE', 'UPDATE', 'DELETE')),
-  entity_type TEXT NOT NULL CHECK (entity_type IN ('project', 'mapping_entry', 'photo')),
-  entity_id UUID NOT NULL,
-  data JSONB NOT NULL DEFAULT '{}'::jsonb,
-  timestamp BIGINT NOT NULL,
-  synced BOOLEAN NOT NULL DEFAULT false,
-  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  attraversamento TEXT NOT NULL,
+  tipologico_id TEXT,
+  price_per_unit NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  unit TEXT NOT NULL CHECK (unit IN ('piece', 'sqm')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  processed_at TIMESTAMPTZ
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================
@@ -109,12 +108,10 @@ CREATE INDEX IF NOT EXISTS idx_mapping_entries_synced ON public.mapping_entries(
 -- Photos indexes
 CREATE INDEX IF NOT EXISTS idx_photos_mapping_entry ON public.photos(mapping_entry_id);
 CREATE INDEX IF NOT EXISTS idx_photos_uploaded ON public.photos(uploaded);
-
--- Sync queue indexes
-CREATE INDEX IF NOT EXISTS idx_sync_queue_user ON public.sync_queue(user_id);
-CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON public.sync_queue(synced);
-CREATE INDEX IF NOT EXISTS idx_sync_queue_timestamp ON public.sync_queue(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_sync_queue_entity ON public.sync_queue(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_typology_prices_project ON public.typology_prices(project_id);
+CREATE INDEX IF NOT EXISTS idx_typology_prices_project_attraversamento ON public.typology_prices(project_id, attraversamento);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_generic ON public.typology_prices(project_id, attraversamento) WHERE tipologico_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_specific ON public.typology_prices(project_id, attraversamento, tipologico_id) WHERE tipologico_id IS NOT NULL;
 
 -- ============================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -125,7 +122,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mapping_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sync_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.typology_prices ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- HELPER FUNCTIONS FOR POLICIES
@@ -377,32 +374,148 @@ CREATE POLICY "Users can delete photos"
   );
 
 -- ============================================
--- SYNC QUEUE POLICIES
+-- TYPOLOGY PRICES POLICIES
 -- ============================================
 
--- Users can view their own sync queue
-CREATE POLICY "Users can view own sync queue"
-  ON public.sync_queue
+CREATE POLICY "Users can view typology prices for accessible projects"
+  ON public.typology_prices
   FOR SELECT
-  USING (user_id = auth.uid());
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
 
--- Users can create their own sync queue items
-CREATE POLICY "Users can create sync queue items"
-  ON public.sync_queue
+CREATE POLICY "Admins can view all typology prices"
+  ON public.typology_prices
+  FOR SELECT
+  USING (public.is_admin());
+
+CREATE POLICY "Users can create typology prices"
+  ON public.typology_prices
   FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
 
--- Users can update their own sync queue items
-CREATE POLICY "Users can update own sync queue items"
-  ON public.sync_queue
+CREATE POLICY "Users can update typology prices"
+  ON public.typology_prices
   FOR UPDATE
-  USING (user_id = auth.uid());
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
 
--- Users can delete their own sync queue items
-CREATE POLICY "Users can delete own sync queue items"
-  ON public.sync_queue
+CREATE POLICY "Users can delete typology prices"
+  ON public.typology_prices
   FOR DELETE
-  USING (user_id = auth.uid());
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects
+      WHERE id = typology_prices.project_id
+      AND (
+        owner_id = auth.uid()
+        OR accessible_users @> jsonb_build_array(auth.uid()::text)
+      )
+    )
+  );
+
+CREATE POLICY "Admins can manage all typology prices"
+  ON public.typology_prices
+  FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+-- ============================================
+-- STANDALONE MAPS TABLE
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.standalone_maps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  thumbnail_url TEXT,
+  original_filename TEXT NOT NULL DEFAULT '',
+  width INTEGER NOT NULL DEFAULT 0,
+  height INTEGER NOT NULL DEFAULT 0,
+  points JSONB NOT NULL DEFAULT '[]',
+  grid_enabled BOOLEAN NOT NULL DEFAULT false,
+  grid_config JSONB NOT NULL DEFAULT '{"rows":10,"cols":10,"offsetX":0,"offsetY":0}',
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_standalone_maps_user ON public.standalone_maps(user_id);
+CREATE INDEX IF NOT EXISTS idx_standalone_maps_updated ON public.standalone_maps(updated_at DESC);
+
+ALTER TABLE public.standalone_maps ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- STANDALONE MAPS POLICIES
+-- ============================================
+
+CREATE POLICY "Users can view own standalone maps"
+  ON public.standalone_maps FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own standalone maps"
+  ON public.standalone_maps FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own standalone maps"
+  ON public.standalone_maps FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own standalone maps"
+  ON public.standalone_maps FOR DELETE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all standalone maps"
+  ON public.standalone_maps FOR SELECT
+  USING (public.is_admin());
+
+CREATE POLICY "Admins can insert all standalone maps"
+  ON public.standalone_maps FOR INSERT
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can update all standalone maps"
+  ON public.standalone_maps FOR UPDATE
+  USING (public.is_admin());
+
+CREATE POLICY "Admins can delete all standalone maps"
+  ON public.standalone_maps FOR DELETE
+  USING (public.is_admin());
 
 -- ============================================
 -- FUNCTIONS
@@ -428,6 +541,9 @@ CREATE TRIGGER update_mapping_entries_updated_at BEFORE UPDATE ON public.mapping
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_photos_updated_at BEFORE UPDATE ON public.photos
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_typology_prices_updated_at BEFORE UPDATE ON public.typology_prices
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to automatically create profile on user signup

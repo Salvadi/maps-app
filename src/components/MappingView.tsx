@@ -9,7 +9,7 @@ import {
   Photo,
   User,
   getMappingEntriesForProject,
-  getPhotosForMapping,
+  getPhotosForMappings,
   deleteMappingEntry,
   updateMappingEntry,
   getAllUsers,
@@ -17,7 +17,9 @@ import {
   FloorPlanPoint,
   getFloorPlansByProject,
   getFloorPlanPoints,
+  getFloorPlanPointsForPlans,
   getFloorPlanBlobUrl,
+  ensureFloorPlanAsset,
   updateFloorPlan,
   updateFloorPlanPoint,
   updateFloorPlanLabelsForMapping,
@@ -163,12 +165,7 @@ const MappingView: React.FC<MappingViewProps> = ({
         const entries = await getMappingEntriesForProject(project.id);
         setMappings(entries);
 
-        // Load photos for all mappings
-        const photosMap: Record<string, Photo[]> = {};
-        for (const entry of entries) {
-          const photos = await getPhotosForMapping(entry.id);
-          photosMap[entry.id] = photos;
-        }
+        const photosMap = await getPhotosForMappings(entries.map(entry => entry.id));
         setMappingPhotos(photosMap);
 
         // Load all users for username lookup
@@ -184,12 +181,7 @@ const MappingView: React.FC<MappingViewProps> = ({
         });
         setFloorPlans(sortedPlans);
 
-        // Load points for each floor plan
-        const pointsMap: Record<string, FloorPlanPoint[]> = {};
-        for (const plan of plans) {
-          const points = await getFloorPlanPoints(plan.id);
-          pointsMap[plan.id] = points;
-        }
+        const pointsMap = await getFloorPlanPointsForPlans(plans.map(plan => plan.id));
         setFloorPlanPoints(pointsMap);
       } catch (error) {
         console.error('Failed to load mappings:', error);
@@ -219,17 +211,14 @@ const MappingView: React.FC<MappingViewProps> = ({
           });
           setFloorPlans(sortedPlans);
 
-          // Reload points for each floor plan
-          const pointsMap: Record<string, FloorPlanPoint[]> = {};
-          for (const plan of plans) {
-            const points = await getFloorPlanPoints(plan.id);
-            pointsMap[plan.id] = points;
-          }
+          const pointsMap = await getFloorPlanPointsForPlans(plans.map(plan => plan.id));
           setFloorPlanPoints(pointsMap);
 
           // Also reload mappings in case they changed
           const entries = await getMappingEntriesForProject(project.id);
           setMappings(entries);
+          const photosMap = await getPhotosForMappings(entries.map(entry => entry.id));
+          setMappingPhotos(photosMap);
 
           console.log('✅ Floor plans and mappings reloaded after sync');
         } catch (error) {
@@ -619,14 +608,10 @@ const MappingView: React.FC<MappingViewProps> = ({
     if (!plan) return;
 
     try {
-      // Check if imageBlob is available
-      if (!plan.imageBlob) {
-        // If no blob but we have an imageUrl, try to fetch it
-        if (plan.imageUrl) {
-          alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
-        } else {
-          alert('Errore: immagine della planimetria non disponibile. Prova a ricaricare la planimetria.');
-        }
+      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
+      const imageUrl = getFloorPlanBlobUrl(hydratedPlan?.imageBlob, hydratedPlan?.imageUrl);
+      if (!hydratedPlan || !imageUrl) {
+        alert('Errore: immagine della planimetria non disponibile. Verifica la connessione e riprova.');
         return;
       }
 
@@ -694,10 +679,8 @@ const MappingView: React.FC<MappingViewProps> = ({
         })
       );
 
-      // Create blob URL for the image
-      const imageUrl = getFloorPlanBlobUrl(plan.imageBlob);
-
-      setEditorFloorPlan(plan);
+      setFloorPlans(prev => prev.map(existing => existing.id === hydratedPlan.id ? hydratedPlan : existing));
+      setEditorFloorPlan(hydratedPlan);
       setEditorImageUrl(imageUrl);
       setEditorPoints(canvasPoints);
       setEditorUnmappedEntries(unmappedEntries);
@@ -710,7 +693,7 @@ const MappingView: React.FC<MappingViewProps> = ({
 
   // Handle close floor plan editor
   const handleCloseFloorPlanEditor = () => {
-    if (editorImageUrl) {
+    if (editorImageUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(editorImageUrl);
     }
     setShowFloorPlanEditor(false);

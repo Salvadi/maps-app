@@ -8,12 +8,12 @@ import { validateFileSignature } from '../utils/validation';
 import {
   Project, Crossing, User, MappingEntry, calcAsolaMq,
   createMappingEntry, getMappingEntriesForProject,
-  updateMappingEntry, getPhotosForMapping,
+  updateMappingEntry, deleteMappingEntry, getPhotosForMapping, ensurePhotoBlob,
   addPhotosToMapping, removePhotoFromMapping,
   FloorPlan, FloorPlanPoint,
   getFloorPlanByProjectAndFloor, getFloorPlanPointByMappingEntry,
   createFloorPlanPoint, updateFloorPlanPoint, updateFloorPlan,
-  updateFloorPlanLabelsForMapping, getFloorPlanBlobUrl, getFloorPlanPoints
+  updateFloorPlanLabelsForMapping, getFloorPlanBlobUrl, getFloorPlanPoints, ensureFloorPlanAsset
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import PhotoPreviewModal from './PhotoPreviewModal';
@@ -116,6 +116,20 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [readOnlyPoints, setReadOnlyPoints] = useState<CanvasPoint[]>([]);
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
 
+  // Ref per tracciare se il wizard è stato completato con successo (ref per evitare stale closure su unmount)
+  const finalizedRef = useRef(false);
+  // Ref alla draft corrente per accedervi durante l'unmount senza re-register dell'effect
+  const savedDraftEntryRef = useRef<MappingEntry | null>(null);
+
+  // Pulizia draft su unmount se non finalizzata (es. back/cancel dopo aver aperto la planimetria)
+  useEffect(() => {
+    return () => {
+      if (savedDraftEntryRef.current && !finalizedRef.current) {
+        deleteMappingEntry(savedDraftEntryRef.current.id).catch(console.error);
+      }
+    };
+  }, []);
+
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
   const [projectTypologies, setProjectTypologies] = useState(project?.typologies || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,17 +145,19 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     if (editingEntry) {
       (async () => {
         const photos = await getPhotosForMapping(editingEntry.id);
+        const hydratedPhotos = await Promise.all(photos.map(photo => ensurePhotoBlob(photo.id)));
+        const usablePhotos = hydratedPhotos.filter((photo): photo is NonNullable<typeof photo> => Boolean(photo?.blob));
         const previews = await Promise.all(
-          photos.map(p => new Promise<string>(resolve => {
+          usablePhotos.map(p => new Promise<string>(resolve => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
-            reader.readAsDataURL(p.blob);
+            reader.readAsDataURL(p.blob!);
           }))
         );
-        const files = photos.map((p, i) => new File([p.blob], `photo-${i}.jpg`, { type: p.blob.type }));
+        const files = usablePhotos.map((p, i) => new File([p.blob!], `photo-${i}.jpg`, { type: p.blob!.type }));
         setPhotoPreviews(previews);
         setPhotoFiles(files);
-        setPhotoIds(photos.map(p => p.id));
+        setPhotoIds(usablePhotos.map(p => p.id));
         setInitialPhotoCount(files.length);
       })();
     }
@@ -167,11 +183,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     (async () => {
       const fp = await getFloorPlanByProjectAndFloor(project.id, floor);
       setCurrentFloorPlan(fp || null);
-      if (fp?.imageBlob) {
-        setFloorPlanImageUrl(getFloorPlanBlobUrl(fp.imageBlob));
-      } else {
-        setFloorPlanImageUrl(null);
-      }
+      setFloorPlanImageUrl(getFloorPlanBlobUrl(fp?.imageBlob, fp?.imageUrl));
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floor, project?.id]);
@@ -301,6 +313,14 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const handleOpenFloorPlanEditor = async () => {
     if (!currentFloorPlan || !project) return;
+    const hydratedFloorPlan = await ensureFloorPlanAsset(currentFloorPlan.id, 'full') || currentFloorPlan;
+    const hydratedImageUrl = getFloorPlanBlobUrl(hydratedFloorPlan.imageBlob, hydratedFloorPlan.imageUrl);
+    if (!hydratedImageUrl) {
+      alert('Immagine planimetria non disponibile. Verifica la connessione e riprova.');
+      return;
+    }
+    setCurrentFloorPlan(hydratedFloorPlan);
+    setFloorPlanImageUrl(hydratedImageUrl);
     const currentEntry = editingEntry || savedDraftEntry;
     if (!currentEntry) {
       setIsSubmitting(true);
@@ -314,6 +334,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           createdBy: currentUser.id,
         }, []);
         setSavedDraftEntry(draft);
+        savedDraftEntryRef.current = draft;
       } catch { return; } finally { setIsSubmitting(false); }
     }
     const entryToCheck = editingEntry || savedDraftEntry;
@@ -323,7 +344,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       if (pt?.eiRating) setEiRating(pt.eiRating as EiRating);
     }
     try {
-      const allPts = await getFloorPlanPoints(currentFloorPlan.id);
+      const allPts = await getFloorPlanPoints(hydratedFloorPlan.id);
       const cid = (editingEntry || savedDraftEntry)?.id;
       setReadOnlyPoints(allPts.filter(p => p.mappingEntryId !== cid).map(p => ({
         id: p.id, type: p.pointType as CanvasPoint['type'],
@@ -416,6 +437,8 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
         alert('Mappatura salvata!');
       }
+      // Segna come completato prima di uscire: impedisce al cleanup di cancellare la draft
+      finalizedRef.current = true;
       onBack();
     } catch (err) {
       console.error('Save error:', err);
