@@ -375,8 +375,9 @@ export async function uploadStandaloneMap(
   mapId: string,
   fullRes: Blob,
   thumbnail: Blob,
-  userId: string
-): Promise<{ fullResUrl: string; thumbnailUrl: string }> {
+  userId: string,
+  pdfBlob?: Blob
+): Promise<{ fullResUrl: string; thumbnailUrl: string; pdfUrl?: string }> {
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
@@ -422,10 +423,58 @@ export async function uploadStandaloneMap(
     .from('planimetrie')
     .getPublicUrl(thumbnailPath);
 
+  let pdfUrl: string | undefined;
+  if (pdfBlob) {
+    try {
+      pdfUrl = await uploadStandaloneMapPDF(mapId, pdfBlob, userId);
+    } catch (error) {
+      console.warn(`Failed to upload standalone PDF for ${mapId}:`, error);
+    }
+  }
+
   return {
     fullResUrl: fullResUrlData.publicUrl,
     thumbnailUrl: thumbnailUrlData.publicUrl,
+    pdfUrl,
   };
+}
+
+/**
+ * Upload PDF originale della mappa standalone su Supabase Storage.
+ */
+export async function uploadStandaloneMapPDF(
+  mapId: string,
+  pdfBlob: Blob,
+  userId: string
+): Promise<string> {
+  if (!supabase) {
+    throw new Error('Supabase not configured');
+  }
+
+  const timestamp = Date.now();
+  const pdfPath = `standalone/${userId}/${mapId}/original_${timestamp}.pdf`;
+
+  const { error } = await supabase.storage
+    .from('planimetrie')
+    .upload(pdfPath, pdfBlob, {
+      contentType: 'application/pdf',
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload standalone PDF: ${error.message}`);
+  }
+
+  const { data: urlData, error: urlError } = await supabase.storage
+    .from('planimetrie')
+    .createSignedUrl(pdfPath, 315360000);
+
+  if (urlError || !urlData?.signedUrl) {
+    throw new Error(`Failed to create standalone PDF signed URL: ${urlError?.message || 'missing signed URL'}`);
+  }
+
+  return urlData.signedUrl;
 }
 
 /**
@@ -480,10 +529,17 @@ export interface StandaloneMap {
   description?: string;
   imageUrl: string;
   thumbnailUrl: string | null;
+  pdfUrl?: string | null;
   originalFilename: string;
+  originalFormat?: string | null;
   width: number;
   height: number;
-  points: Array<Omit<FloorPlanPoint, 'id' | 'floorPlanId' | 'mappingEntryId' | 'createdBy' | 'createdAt' | 'updatedAt'>>;
+  points: Array<(Omit<FloorPlanPoint, 'id' | 'floorPlanId' | 'mappingEntryId' | 'createdBy' | 'createdAt' | 'updatedAt'> & {
+    labelText?: string[];
+    labelBackgroundColor?: string;
+    labelTextColor?: string;
+    eiRating?: 30 | 60 | 90 | 120 | 180 | 240;
+  })>;
   gridEnabled: boolean;
   gridConfig: {
     rows: number;
@@ -491,6 +547,7 @@ export interface StandaloneMap {
     offsetX: number;
     offsetY: number;
   };
+  metadata?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }

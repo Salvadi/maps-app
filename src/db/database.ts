@@ -199,9 +199,12 @@ export interface StandaloneMap {
   description?: string;
   imageBlob: Blob;
   thumbnailBlob?: Blob;
+  pdfBlobBase64?: string;
   imageUrl?: string; // Supabase URL (when synced)
   thumbnailUrl?: string;
+  pdfUrl?: string;
   originalFilename: string;
+  originalFormat?: string;
   width: number;
   height: number;
   points: Array<{
@@ -213,6 +216,7 @@ export interface StandaloneMap {
     labelY: number;
     perimeterPoints?: Array<{ x: number; y: number }>;
     customText?: string;
+    eiRating?: 30 | 60 | 90 | 120 | 180 | 240;
     labelBackgroundColor?: string; // Custom background color for label
     labelTextColor?: string; // Custom text color for label
     labelText?: string[]; // Custom label text (if modified by user)

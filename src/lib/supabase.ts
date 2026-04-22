@@ -179,6 +179,64 @@ export interface Database {
           updated_at?: string;
         };
       };
+      standalone_maps: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          description: string | null;
+          image_url: string | null;
+          thumbnail_url: string | null;
+          pdf_url: string | null;
+          original_filename: string;
+          original_format: string | null;
+          width: number;
+          height: number;
+          points: any;
+          grid_enabled: boolean;
+          grid_config: any;
+          metadata: any;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          description?: string | null;
+          image_url?: string | null;
+          thumbnail_url?: string | null;
+          pdf_url?: string | null;
+          original_filename: string;
+          original_format?: string | null;
+          width: number;
+          height: number;
+          points?: any;
+          grid_enabled?: boolean;
+          grid_config?: any;
+          metadata?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          name?: string;
+          description?: string | null;
+          image_url?: string | null;
+          thumbnail_url?: string | null;
+          pdf_url?: string | null;
+          original_filename?: string;
+          original_format?: string | null;
+          width?: number;
+          height?: number;
+          points?: any;
+          grid_enabled?: boolean;
+          grid_config?: any;
+          metadata?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       floor_plan_points: {
         Row: {
           id: string;
