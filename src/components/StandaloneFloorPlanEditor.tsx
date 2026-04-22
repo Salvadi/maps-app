@@ -1,219 +1,230 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ArrowLeft, Map, Upload, Database, FolderOpen, Trash2 } from 'lucide-react';
 import FloorPlanEditor from './FloorPlanEditor';
 import { CanvasPoint, GridConfig } from './FloorPlanCanvas';
-import { User, StandaloneMap, getStandaloneMaps, createStandaloneMap, updateStandaloneMap, deleteStandaloneMap, getFloorPlanBlobUrl } from '../db';
-import { exportCanvasToPDF, exportCanvasToPNG, convertPDFToImage } from '../utils/exportUtils';
+import {
+  User,
+  StandaloneMap,
+  getStandaloneMaps,
+  createStandaloneMap,
+  updateStandaloneMap,
+  deleteStandaloneMap,
+  getFloorPlanBlobUrl,
+  revokeFloorPlanBlobUrl,
+} from '../db';
+import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { processFloorPlan, blobToBase64 } from '../utils/floorPlanUtils';
 
 interface StandaloneFloorPlanEditorProps {
   currentUser: User;
   onBack: () => void;
 }
 
+type ProcessedStandaloneFile = Awaited<ReturnType<typeof processFloorPlan>>;
+
+const DEFAULT_GRID_CONFIG: GridConfig = {
+  enabled: false,
+  rows: 10,
+  cols: 10,
+  offsetX: 0,
+  offsetY: 0,
+};
+
+const toStandalonePoints = (canvasPoints: CanvasPoint[]): StandaloneMap['points'] =>
+  canvasPoints.map(point => ({
+    id: point.id,
+    pointType: point.type,
+    pointX: point.pointX,
+    pointY: point.pointY,
+    labelX: point.labelX,
+    labelY: point.labelY,
+    perimeterPoints: point.perimeterPoints,
+    customText: point.customText,
+    labelText: point.labelText,
+    labelBackgroundColor: point.labelBackgroundColor,
+    labelTextColor: point.labelTextColor,
+    eiRating: point.eiRating,
+  }));
+
 const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   currentUser,
   onBack,
 }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [currentImageBlob, setCurrentImageBlob] = useState<Blob | null>(null);
+  const [currentPdfBlobBase64, setCurrentPdfBlobBase64] = useState<string | undefined>(undefined);
+  const [currentPdfUrl, setCurrentPdfUrl] = useState<string | undefined>(undefined);
+  const [currentOriginalFormat, setCurrentOriginalFormat] = useState<string | undefined>(undefined);
+  const [processedFile, setProcessedFile] = useState<ProcessedStandaloneFile | null>(null);
   const [points, setPoints] = useState<CanvasPoint[]>([]);
-  const [gridConfig, setGridConfig] = useState<GridConfig>({
-    enabled: false,
-    rows: 10,
-    cols: 10,
-    offsetX: 0,
-    offsetY: 0,
-  });
+  const [gridConfig, setGridConfig] = useState<GridConfig>(DEFAULT_GRID_CONFIG);
+  const [rotation, setRotation] = useState<number>(0);
+  const [mapMetadata, setMapMetadata] = useState<Record<string, any>>({ rotation: 0 });
   const [projectName, setProjectName] = useState<string>('');
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [availableMaps, setAvailableMaps] = useState<StandaloneMap[]>([]);
   const [currentMapId, setCurrentMapId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Store the current file for saving
   const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
-  // Handle file upload
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Store the file for later use
-    setCurrentFile(file);
-
-    // Check if it's a PDF or image
-    if (file.type === 'application/pdf') {
-      try {
-        const imageUrl = await convertPDFToImage(file);
-        setImageUrl(imageUrl);
-        setPoints([]);
-        setGridConfig({
-          enabled: false,
-          rows: 10,
-          cols: 10,
-          offsetX: 0,
-          offsetY: 0,
-        });
-      } catch (error) {
-        console.error('PDF conversion error:', error);
-        alert('❌ Errore durante la conversione del PDF');
-      }
-    } else if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target?.result as string;
-        setImageUrl(url);
-        setPoints([]);
-        setGridConfig({
-          enabled: false,
-          rows: 10,
-          cols: 10,
-          offsetX: 0,
-          offsetY: 0,
-        });
-      };
-      reader.readAsDataURL(file);
-    } else {
-      alert('❌ Per favore seleziona un file immagine o PDF valido.');
+  const resetPreviewUrl = useCallback(() => {
+    if (previewUrlRef.current) {
+      revokeFloorPlanBlobUrl(previewUrlRef.current);
+      previewUrlRef.current = null;
     }
+    setImageUrl(null);
   }, []);
 
-  // Trigger file input
-  const handleLoadFloorPlan = useCallback(() => {
-    // Confirm if there's unsaved work
-    if (points.length > 0 || projectName) {
-      const confirmed = window.confirm('⚠️ Vuoi creare un nuovo progetto? Il lavoro non salvato andrà perso.');
-      if (!confirmed) return;
-    }
+  const updatePreviewFromBlob = useCallback((blob: Blob) => {
+    resetPreviewUrl();
+    const blobUrl = getFloorPlanBlobUrl(blob);
+    previewUrlRef.current = blobUrl;
+    setImageUrl(blobUrl);
+  }, [resetPreviewUrl]);
 
-    // Reset all state
-    setImageUrl(null);
+  useEffect(() => () => resetPreviewUrl(), [resetPreviewUrl]);
+
+  const resetEditorState = useCallback(() => {
+    resetPreviewUrl();
+    setCurrentImageBlob(null);
+    setCurrentPdfBlobBase64(undefined);
+    setCurrentPdfUrl(undefined);
+    setCurrentOriginalFormat(undefined);
+    setProcessedFile(null);
     setPoints([]);
-    setGridConfig({
-      enabled: false,
-      rows: 10,
-      cols: 10,
-      offsetX: 0,
-      offsetY: 0,
-    });
+    setGridConfig(DEFAULT_GRID_CONFIG);
+    setRotation(0);
+    setMapMetadata({ rotation: 0 });
     setProjectName('');
     setCurrentMapId(null);
     setCurrentFile(null);
+  }, [resetPreviewUrl]);
 
-    // Trigger file input
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
+      alert('❌ Per favore seleziona un file immagine o PDF valido.');
+      return;
+    }
+
+    try {
+      const processed = await processFloorPlan(file);
+      const pdfBlobBase64 = processed.pdfBlob
+        ? await blobToBase64(processed.pdfBlob)
+        : undefined;
+
+      setCurrentFile(file);
+      setProcessedFile(processed);
+      setCurrentImageBlob(processed.fullRes);
+      setCurrentPdfBlobBase64(pdfBlobBase64);
+      setCurrentPdfUrl(undefined);
+      setCurrentOriginalFormat(processed.originalFormat);
+      setCurrentMapId(null);
+      setProjectName('');
+      setPoints([]);
+      setGridConfig(DEFAULT_GRID_CONFIG);
+      setRotation(0);
+      setMapMetadata({ rotation: 0 });
+      updatePreviewFromBlob(processed.fullRes);
+    } catch (error) {
+      console.error('Floor plan processing error:', error);
+      alert('❌ Errore durante la preparazione della planimetria');
+    }
+  }, [updatePreviewFromBlob]);
+
+  const handleLoadFloorPlan = useCallback(() => {
+    if (points.length > 0 || projectName) {
+      const confirmed = window.confirm('⚠️ Vuoi creare un nuovo progetto? Il lavoro non salvato andrà perso.');
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    resetEditorState();
     fileInputRef.current?.click();
-  }, [points.length, projectName]);
+  }, [points.length, projectName, resetEditorState]);
 
-  // Handle save
   const handleSave = useCallback((savedPoints: CanvasPoint[], savedGridConfig: GridConfig) => {
     setPoints(savedPoints);
     setGridConfig(savedGridConfig);
     alert('✅ Modifiche salvate localmente');
   }, []);
 
-  // Handle export as PNG
-  const handleExportPNG = useCallback(() => {
-    const canvas = document.querySelector('.floor-plan-canvas') as HTMLCanvasElement;
-    if (!canvas) {
-      alert('❌ Impossibile trovare il canvas');
+  const handleExportPDF = useCallback(async (context?: {
+    points: CanvasPoint[];
+    eiLegendPosition: { x: number; y: number } | null;
+  }) => {
+    if (!currentImageBlob) {
+      alert('❌ Nessuna planimetria caricata');
       return;
     }
 
     try {
-      const filename = projectName ? `${projectName}.png` : 'planimetria.png';
-      exportCanvasToPNG(canvas, filename);
-      alert('✅ Planimetria esportata in PNG');
-    } catch (error) {
-      console.error('Export PNG error:', error);
-      alert('❌ Errore durante l\'esportazione PNG');
-    }
-  }, [projectName]);
+      const exportPoints: ExportPoint[] = (context?.points ?? points).map(point => ({
+        type: point.type,
+        pointX: point.pointX,
+        pointY: point.pointY,
+        labelX: point.labelX,
+        labelY: point.labelY,
+        labelText: point.labelText,
+        perimeterPoints: point.perimeterPoints,
+        labelBackgroundColor: point.labelBackgroundColor,
+        labelTextColor: point.labelTextColor,
+        eiRating: point.eiRating,
+      }));
 
-  // Handle export as PDF
-  const handleExportPDF = useCallback(() => {
-    const canvas = document.querySelector('.floor-plan-canvas') as HTMLCanvasElement;
-    if (!canvas) {
-      alert('❌ Impossibile trovare il canvas');
-      return;
-    }
-
-    try {
       const filename = projectName ? `${projectName}.pdf` : 'planimetria.pdf';
-      exportCanvasToPDF(canvas, filename);
+      await exportFloorPlanVectorPDF(
+        currentImageBlob,
+        exportPoints,
+        filename,
+        currentPdfBlobBase64,
+        rotation,
+        context?.eiLegendPosition,
+      );
       alert('✅ Planimetria esportata in PDF');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [projectName]);
+  }, [currentImageBlob, currentPdfBlobBase64, points, projectName, rotation]);
 
-  // Handle export as JSON
-  const handleExportJSON = useCallback(() => {
-    if (!imageUrl) {
-      alert('❌ Nessuna planimetria caricata');
-      return;
-    }
-
-    const data = {
-      projectName: projectName || 'Progetto senza nome',
-      createdAt: new Date().toISOString(),
-      imageUrl,
-      points,
-      gridConfig,
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${projectName || 'planimetria'}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    alert('✅ Progetto esportato come JSON');
-  }, [imageUrl, points, gridConfig, projectName]);
-
-  // Handle save to database
   const handleSaveToDatabase = useCallback((currentPoints: CanvasPoint[], currentGridConfig: GridConfig) => {
-    if (!imageUrl) {
+    if (!currentImageBlob) {
       alert('❌ Nessuna planimetria caricata');
       return;
     }
 
-    // Update state with current values from editor
     setPoints(currentPoints);
     setGridConfig(currentGridConfig);
-
-    // Show name dialog
     setShowNameDialog(true);
-  }, [imageUrl]);
+  }, [currentImageBlob]);
 
-  // Handle name dialog confirm
   const handleNameDialogConfirm = useCallback(async () => {
-    if (!projectName.trim()) {
+    const trimmedName = projectName.trim();
+    if (!trimmedName) {
       alert('❌ Per favore inserisci un nome per il progetto');
       return;
     }
+
+    const standalonePoints = toStandalonePoints(points);
+    const nextMetadata = { ...mapMetadata, rotation };
 
     setShowNameDialog(false);
 
     try {
       if (currentMapId) {
-        // Update existing map
         await updateStandaloneMap(currentMapId, {
-          name: projectName,
-          points: points.map(p => ({
-            id: p.id,
-            pointType: p.type,
-            pointX: p.pointX,
-            pointY: p.pointY,
-            labelX: p.labelX,
-            labelY: p.labelY,
-            perimeterPoints: p.perimeterPoints,
-            customText: p.customText,
-          })),
+          name: trimmedName,
+          points: standalonePoints,
           gridEnabled: gridConfig.enabled,
           gridConfig: {
             rows: gridConfig.rows || 10,
@@ -221,52 +232,69 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
             offsetX: gridConfig.offsetX || 0,
             offsetY: gridConfig.offsetY || 0,
           },
+          metadata: nextMetadata,
+          pdfBlobBase64: currentPdfBlobBase64,
+          pdfUrl: currentPdfUrl,
+          originalFormat: currentOriginalFormat,
         });
+        setMapMetadata(nextMetadata);
+        setProjectName(trimmedName);
         alert('✅ Progetto aggiornato con successo');
-      } else {
-        // Create new map
-        if (!currentFile) {
-          alert('❌ Nessun file caricato. Per favore carica prima una planimetria');
-          return;
-        }
-
-        const newMap = await createStandaloneMap(
-          currentUser.id,
-          projectName,
-          currentFile
-        );
-
-        // Update the new map with points and grid config
-        await updateStandaloneMap(newMap.id, {
-          points: points.map(p => ({
-            id: p.id,
-            pointType: p.type,
-            pointX: p.pointX,
-            pointY: p.pointY,
-            labelX: p.labelX,
-            labelY: p.labelY,
-            perimeterPoints: p.perimeterPoints,
-            customText: p.customText,
-          })),
-          gridEnabled: gridConfig.enabled,
-          gridConfig: {
-            rows: gridConfig.rows || 10,
-            cols: gridConfig.cols || 10,
-            offsetX: gridConfig.offsetX || 0,
-            offsetY: gridConfig.offsetY || 0,
-          },
-        });
-
-        setCurrentMapId(newMap.id);
-        alert('✅ Progetto creato e salvato con successo');
+        return;
       }
+
+      if (!currentFile) {
+        alert('❌ Nessun file caricato. Per favore carica prima una planimetria');
+        return;
+      }
+
+      const newMap = await createStandaloneMap(
+        currentUser.id,
+        trimmedName,
+        currentFile,
+        undefined,
+        processedFile || undefined,
+      );
+
+      await updateStandaloneMap(newMap.id, {
+        points: standalonePoints,
+        gridEnabled: gridConfig.enabled,
+        gridConfig: {
+          rows: gridConfig.rows || 10,
+          cols: gridConfig.cols || 10,
+          offsetX: gridConfig.offsetX || 0,
+          offsetY: gridConfig.offsetY || 0,
+        },
+        metadata: nextMetadata,
+      });
+
+      setCurrentMapId(newMap.id);
+      setProjectName(trimmedName);
+      setCurrentImageBlob(newMap.imageBlob);
+      setCurrentPdfBlobBase64(newMap.pdfBlobBase64);
+      setCurrentPdfUrl(newMap.pdfUrl);
+      setCurrentOriginalFormat(newMap.originalFormat);
+      setMapMetadata(nextMetadata);
+      alert('✅ Progetto creato e salvato con successo');
     } catch (error) {
       console.error('Error saving map:', error);
       alert('❌ Errore durante il salvataggio del progetto');
     }
-  }, [projectName, currentMapId, points, gridConfig, currentFile, currentUser.id]);
+  }, [
+    currentFile,
+    currentMapId,
+    currentOriginalFormat,
+    currentPdfBlobBase64,
+    currentPdfUrl,
+    currentUser.id,
+    gridConfig,
+    mapMetadata,
+    points,
+    processedFile,
+    projectName,
+    rotation,
+  ]);
 
-  // Handle open from database
   const handleOpenFromDatabase = useCallback(async () => {
     try {
       const maps = await getStandaloneMaps(currentUser.id);
@@ -278,29 +306,39 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     }
   }, [currentUser.id]);
 
-  // Handle load map from dialog
   const handleLoadMap = useCallback(async (map: StandaloneMap) => {
     try {
       if (!map.imageBlob) {
         alert('Errore: immagine della mappa non disponibile');
         return;
       }
-      const blobUrl = getFloorPlanBlobUrl(map.imageBlob);
-      setImageUrl(blobUrl);
+
+      updatePreviewFromBlob(map.imageBlob);
       setProjectName(map.name);
       setCurrentMapId(map.id);
+      setCurrentFile(null);
+      setProcessedFile(null);
+      setCurrentImageBlob(map.imageBlob);
+      setCurrentPdfBlobBase64(map.pdfBlobBase64);
+      setCurrentPdfUrl(map.pdfUrl);
+      setCurrentOriginalFormat(map.originalFormat);
 
-      // Convert standalone map points to canvas points
-      const canvasPoints: CanvasPoint[] = map.points.map(p => ({
-        id: p.id,
-        type: p.pointType,
-        pointX: p.pointX,
-        pointY: p.pointY,
-        labelX: p.labelX,
-        labelY: p.labelY,
-        labelText: p.customText ? [p.customText] : ['Punto'],
-        perimeterPoints: p.perimeterPoints,
-        customText: p.customText,
+      const nextMetadata = map.metadata || {};
+      const nextRotation = typeof nextMetadata.rotation === 'number' ? nextMetadata.rotation : 0;
+
+      const canvasPoints: CanvasPoint[] = map.points.map(point => ({
+        id: point.id,
+        type: point.pointType,
+        pointX: point.pointX,
+        pointY: point.pointY,
+        labelX: point.labelX,
+        labelY: point.labelY,
+        labelText: point.labelText || (point.customText ? [point.customText] : ['Punto']),
+        perimeterPoints: point.perimeterPoints,
+        customText: point.customText,
+        labelBackgroundColor: point.labelBackgroundColor,
+        labelTextColor: point.labelTextColor,
+        eiRating: point.eiRating,
       }));
 
       setPoints(canvasPoints);
@@ -311,19 +349,21 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         offsetX: map.gridConfig.offsetX,
         offsetY: map.gridConfig.offsetY,
       });
-
+      setRotation(nextRotation);
+      setMapMetadata({ ...nextMetadata, rotation: nextRotation });
       setShowLoadDialog(false);
       alert('✅ Progetto caricato con successo');
     } catch (error) {
       console.error('Error loading map:', error);
       alert('❌ Errore durante il caricamento del progetto');
     }
-  }, []);
+  }, [updatePreviewFromBlob]);
 
-  // Handle delete map from dialog
   const handleDeleteMap = useCallback(async (mapId: string) => {
     const confirmed = window.confirm('⚠️ Sei sicuro di voler eliminare questo progetto?');
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await deleteStandaloneMap(mapId);
@@ -336,7 +376,11 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     }
   }, [currentUser.id]);
 
-  // Shared load dialog JSX
+  const handleRotationChange = useCallback((nextRotation: number) => {
+    setRotation(nextRotation);
+    setMapMetadata(prev => ({ ...prev, rotation: nextRotation }));
+  }, []);
+
   const LoadDialogContent = () => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-card-hover">
@@ -356,8 +400,11 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
                   <div className="text-sm font-semibold text-brand-800 truncate">{map.name}</div>
                   <div className="text-xs text-brand-500 mt-0.5">
                     {new Date(map.updatedAt).toLocaleDateString('it-IT', {
-                      day: '2-digit', month: '2-digit', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
                     })}
                   </div>
                 </div>
@@ -392,11 +439,9 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     </div>
   );
 
-  // Show initial load prompt
   if (!imageUrl) {
     return (
-      <div className="flex flex-col h-screen bg-brand-100">
-        {/* Header */}
+      <div className="flex flex-col h-[100dvh] bg-brand-100">
         <div className="bg-white border-b border-brand-200 px-5 py-4 flex items-center gap-3">
           <button
             onClick={onBack}
@@ -407,7 +452,6 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
           <h1 className="text-lg font-bold text-brand-800">Editor Planimetrie</h1>
         </div>
 
-        {/* Load prompt */}
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="w-full max-w-sm text-center space-y-4">
             <Map size={64} className="mx-auto text-brand-300" />
@@ -450,7 +494,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-screen bg-brand-100">
+    <div className="flex flex-col h-[100dvh] bg-brand-100">
       <input
         ref={fileInputRef}
         type="file"
@@ -459,7 +503,6 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         style={{ display: 'none' }}
       />
 
-      {/* Header */}
       <div className="bg-white border-b border-brand-200 px-5 py-4 flex items-center gap-3 flex-shrink-0">
         <button
           onClick={onBack}
@@ -478,25 +521,23 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         </div>
       </div>
 
-      {/* Editor */}
       <div className="flex-1 overflow-hidden relative">
         <FloorPlanEditor
-          key={currentMapId || 'new'}
+          key={`${currentMapId || 'new'}:${imageUrl}`}
           imageUrl={imageUrl}
           initialPoints={points}
           initialGridConfig={gridConfig}
           mode="standalone"
+          initialRotation={rotation}
+          onRotationChange={handleRotationChange}
           onSave={handleSave}
           onNewFile={handleLoadFloorPlan}
           onOpenFile={handleOpenFromDatabase}
           onSaveFile={handleSaveToDatabase}
-          onExportJSON={handleExportJSON}
-          onExportPNG={handleExportPNG}
           onExportPDF={handleExportPDF}
         />
       </div>
 
-      {/* Name Dialog */}
       {showNameDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
@@ -532,7 +573,6 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         </div>
       )}
 
-      {/* Load Dialog */}
       {showLoadDialog && <LoadDialogContent />}
     </div>
   );
