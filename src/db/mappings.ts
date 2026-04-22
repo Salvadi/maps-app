@@ -314,6 +314,7 @@ export async function updateMappingEntry(
 
 export async function deleteMappingEntry(id: string): Promise<void> {
   try {
+    const photos = await db.photos.where('mappingEntryId').equals(id).toArray();
     await db.photos.where('mappingEntryId').equals(id).delete();
 
     const orphanedPoints = await db.floorPlanPoints.where('mappingEntryId').equals(id).toArray();
@@ -344,6 +345,26 @@ export async function deleteMappingEntry(id: string): Promise<void> {
       synced: 0,
     };
     await db.syncQueue.add(syncItem);
+
+    for (const photo of photos) {
+      if (!photo.uploaded) continue;
+      await db.syncQueue.add({
+        id: generateId(),
+        operation: 'DELETE',
+        entityType: 'photo',
+        entityId: photo.id,
+        payload: {
+          id: photo.id,
+          mappingEntryId: photo.mappingEntryId,
+          storagePath: photo.storagePath,
+          thumbnailStoragePath: photo.thumbnailStoragePath,
+        },
+        timestamp: now(),
+        retryCount: 0,
+        synced: 0,
+      });
+    }
+
     triggerImmediateUpload();
   } catch (error) {
     console.error('Failed to delete mapping entry:', error);

@@ -105,7 +105,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   }, [points.length, projectName]);
 
   // Handle save
-  const handleSave = useCallback((savedPoints: CanvasPoint[], savedGridConfig: GridConfig) => {
+  const handleSave = useCallback(async (savedPoints: CanvasPoint[], savedGridConfig: GridConfig) => {
     setPoints(savedPoints);
     setGridConfig(savedGridConfig);
     alert('✅ Modifiche salvate localmente');
@@ -176,7 +176,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   }, [imageUrl, points, gridConfig, projectName]);
 
   // Handle save to database
-  const handleSaveToDatabase = useCallback((currentPoints: CanvasPoint[], currentGridConfig: GridConfig) => {
+  const handleSaveToDatabase = useCallback(async (currentPoints: CanvasPoint[], currentGridConfig: GridConfig) => {
     if (!imageUrl) {
       alert('❌ Nessuna planimetria caricata');
       return;

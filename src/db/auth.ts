@@ -113,31 +113,30 @@ export async function login(email: string, password: string): Promise<User | nul
  * Only allows re-authentication for users who have previously logged in online.
  * This prevents unauthorized access via mock users during Supabase outages.
  */
-async function loginOffline(email: string, password: string): Promise<User | null> {
+async function loginOffline(email: string, _password: string): Promise<User | null> {
   console.log('📦 Using offline login');
 
-  // Check if this user has a cached session from a previous online login
-  const cachedMeta = await db.metadata.get('currentUser');
-  const cachedUser = cachedMeta?.value as User | null;
-
-  if (cachedUser && cachedUser.email.toLowerCase() === email.toLowerCase()) {
-    console.log('✅ User re-authenticated (offline, cached session):', cachedUser.email);
-    return cachedUser;
+  // La sessione offline è valida SOLO se Supabase ha una sessione attiva
+  // con l'email corrispondente. Senza verifica sessione, chiunque conosca
+  // un'email potrebbe autenticarsi su dispositivo condiviso/compromesso.
+  if (supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email?.toLowerCase() === email.toLowerCase()) {
+        // Sessione valida: recupera i metadati utente dalla cache locale
+        const cachedMeta = await db.metadata.get('currentUser');
+        const cachedUser = cachedMeta?.value as User | null;
+        if (cachedUser && cachedUser.email.toLowerCase() === email.toLowerCase()) {
+          console.log('✅ User re-authenticated (offline, valid session):', cachedUser.email);
+          return cachedUser;
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Could not check session for offline login:', err);
+    }
   }
 
-  // Also check if the user exists in local IndexedDB users table (synced from Supabase)
-  const localUser = await db.users
-    .where('email')
-    .equalsIgnoreCase(email)
-    .first();
-
-  if (localUser) {
-    await db.metadata.put({ key: 'currentUser', value: localUser });
-    console.log('✅ User re-authenticated (offline, local DB):', localUser.email);
-    return localUser;
-  }
-
-  console.warn('⚠️ Offline login failed: no cached session for', email);
+  console.warn('⚠️ Offline login failed: no valid cached session for', email);
   return null;
 }
 

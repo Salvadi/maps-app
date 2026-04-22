@@ -8,7 +8,7 @@ import { validateFileSignature } from '../utils/validation';
 import {
   Project, Crossing, User, MappingEntry, calcAsolaMq,
   createMappingEntry, getMappingEntriesForProject,
-  updateMappingEntry, getPhotosForMapping, ensurePhotoBlob,
+  updateMappingEntry, deleteMappingEntry, getPhotosForMapping, ensurePhotoBlob,
   addPhotosToMapping, removePhotoFromMapping,
   FloorPlan, FloorPlanPoint,
   getFloorPlanByProjectAndFloor, getFloorPlanPointByMappingEntry,
@@ -115,6 +115,20 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [floorPlanImageUrl, setFloorPlanImageUrl] = useState<string | null>(null);
   const [readOnlyPoints, setReadOnlyPoints] = useState<CanvasPoint[]>([]);
   const [savedDraftEntry, setSavedDraftEntry] = useState<MappingEntry | null>(null);
+
+  // Ref per tracciare se il wizard è stato completato con successo (ref per evitare stale closure su unmount)
+  const finalizedRef = useRef(false);
+  // Ref alla draft corrente per accedervi durante l'unmount senza re-register dell'effect
+  const savedDraftEntryRef = useRef<MappingEntry | null>(null);
+
+  // Pulizia draft su unmount se non finalizzata (es. back/cancel dopo aver aperto la planimetria)
+  useEffect(() => {
+    return () => {
+      if (savedDraftEntryRef.current && !finalizedRef.current) {
+        deleteMappingEntry(savedDraftEntryRef.current.id).catch(console.error);
+      }
+    };
+  }, []);
 
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
   const [projectTypologies, setProjectTypologies] = useState(project?.typologies || []);
@@ -320,6 +334,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           createdBy: currentUser.id,
         }, []);
         setSavedDraftEntry(draft);
+        savedDraftEntryRef.current = draft;
       } catch { return; } finally { setIsSubmitting(false); }
     }
     const entryToCheck = editingEntry || savedDraftEntry;
@@ -422,6 +437,8 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
         alert('Mappatura salvata!');
       }
+      // Segna come completato prima di uscire: impedisce al cleanup di cancellare la draft
+      finalizedRef.current = true;
       onBack();
     } catch (err) {
       console.error('Save error:', err);

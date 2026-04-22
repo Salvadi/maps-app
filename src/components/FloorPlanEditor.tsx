@@ -27,12 +27,12 @@ interface FloorPlanEditorProps {
   mode?: 'mapping' | 'standalone' | 'view' | 'view-edit'; // mapping = linked to mapping entry, standalone = independent, view = read-only, view-edit = can move labels and add generico/perimetro
   maxPoints?: number; // Maximum number of points allowed (for mapping mode, typically 1)
   unmappedEntries?: UnmappedEntry[]; // Entries not yet positioned on floor plan (for view-edit mode)
-  onSave?: (points: CanvasPoint[], gridConfig: GridConfig) => void;
+  onSave?: (points: CanvasPoint[], gridConfig: GridConfig) => Promise<void>;
   onClose?: () => void;
   // Standalone mode handlers
   onNewFile?: () => void;
   onOpenFile?: () => void;
-  onSaveFile?: (points: CanvasPoint[], gridConfig: GridConfig) => void;
+  onSaveFile?: (points: CanvasPoint[], gridConfig: GridConfig) => Promise<void>;
   onExportJSON?: () => void;
   onExportPNG?: () => void;
   onExportPDF?: () => void;
@@ -344,17 +344,17 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   }, []);
 
   // Handle save
-  const handleSave = useCallback(() => {
-    onSave?.(points, gridConfig);
+  const handleSave = useCallback(async () => {
+    if (onSave) await onSave(points, gridConfig);
     setHasUnsavedChanges(false);
   }, [points, gridConfig, onSave]);
 
   // Handle close with unsaved changes check
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback(async () => {
     if (hasUnsavedChanges) {
       const result = window.confirm('Hai modifiche non salvate. Salvare prima di chiudere?');
       if (result) {
-        onSave?.(points, gridConfig);
+        if (onSave) await onSave(points, gridConfig);
         setHasUnsavedChanges(false);
       }
     }
@@ -459,7 +459,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     if (hasUnsavedChanges) {
       const save = window.confirm('Ci sono modifiche non salvate. Salvare prima di riordinare?');
       if (save) {
-        onSave?.(points, gridConfig);
+        if (onSave) await onSave(points, gridConfig);
         setHasUnsavedChanges(false);
       }
     }
@@ -893,7 +893,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   <button className="menu-btn" onClick={onOpenFile}>
                     <span>📂</span> Apri Progetto
                   </button>
-                  <button className="menu-btn primary" onClick={() => onSaveFile?.(points, gridConfig)}>
+                  <button className="menu-btn primary" onClick={async () => { if (onSaveFile) await onSaveFile(points, gridConfig); }}>
                     <span>💾</span> Salva Progetto
                   </button>
                 </div>
@@ -1154,12 +1154,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                           className="btn-open-mapping"
                           title="Apri mappatura"
                           aria-label="Apri mappatura"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (hasUnsavedChanges) {
                               const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
                               if (save) {
-                                onSave?.(points, gridConfig);
+                                if (onSave) await onSave(points, gridConfig);
                                 setHasUnsavedChanges(false);
                               }
                             }
@@ -1265,12 +1265,12 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                             className="btn-open-mapping"
                             title="Apri mappatura"
                             aria-label="Apri mappatura"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
                               if (hasUnsavedChanges) {
                                 const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
                                 if (save) {
-                                  onSave?.(points, gridConfig);
+                                  if (onSave) await onSave(points, gridConfig);
                                   setHasUnsavedChanges(false);
                                 }
                               }

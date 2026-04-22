@@ -1,28 +1,11 @@
 import { db, generateId, now, Project, ProjectCachePref, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { supabase } from '../lib/supabase';
-import {
-  applyPendingWrites,
-  getPendingEntityIds,
-  isAuthError,
-  isOnlineAndConfigured,
-  writeThroughCache,
-} from './onlineFirst';
-import { convertRemoteToLocalProject } from '../sync/conflictResolution';
 import { getMappingEntriesForProject, getPhotosForMappings, ensurePhotoBlob } from './mappings';
 import { getFloorPlansByProject, ensureFloorPlanAsset } from './floorPlans';
 
-async function processInBatches<T>(
-  items: T[],
-  batchSize: number,
-  worker: (item: T) => Promise<void>
-): Promise<void> {
-  for (let index = 0; index < items.length; index += batchSize) {
-    const batch = items.slice(index, index + batchSize);
-    await Promise.all(batch.map((item) => worker(item)));
-  }
-}
-
+/**
+ * Create a new project
+ */
 export async function createProject(
   projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'archived' | 'syncEnabled'>
 ): Promise<Project> {
@@ -30,17 +13,18 @@ export async function createProject(
     ...projectData,
     id: generateId(),
     archived: 0,
-    syncEnabled: 1,
+    syncEnabled: 0, // Default to metadata-only sync (no photos/mappings downloaded)
     createdAt: now(),
     updatedAt: now(),
-    version: 1,
-    lastModified: now(),
-    synced: 0,
+    version: 1, // Initial version for conflict detection
+    lastModified: now(), // For conflict detection
+    synced: 0
   };
 
   try {
     await db.projects.add(project);
 
+    // Add to sync queue
     const syncItem: SyncQueueItem = {
       id: generateId(),
       operation: 'CREATE',
@@ -49,11 +33,12 @@ export async function createProject(
       payload: project,
       timestamp: now(),
       retryCount: 0,
-      synced: 0,
+      synced: 0
     };
     await db.syncQueue.add(syncItem);
     triggerImmediateUpload();
 
+    console.log('Project created:', project.id);
     return project;
   } catch (error) {
     console.error('Failed to create project:', error);
@@ -61,87 +46,38 @@ export async function createProject(
   }
 }
 
+/**
+ * Get a project by ID
+ */
 export async function getProject(id: string): Promise<Project | undefined> {
-  return db.projects.get(id);
+  return await db.projects.get(id);
 }
 
-function mergeProjectLocalFields(remote: Project, existing: Project | undefined): Project {
-  return {
-    ...remote,
-    syncEnabled: existing?.syncEnabled ?? 1,
-  };
-}
-
+/**
+ * Get all projects for a user
+ */
 export async function getProjectsForUser(userId: string): Promise<Project[]> {
-  if (isOnlineAndConfigured()) {
-    try {
-      const { data: allProjects, error } = await supabase
-        .from('projects')
-        .select('*');
-
-      if (error) {
-        throw error;
-      }
-
-      const userProjects = (allProjects || []).filter((project: any) =>
-        project.owner_id === userId ||
-        (Array.isArray(project.accessible_users) && project.accessible_users.includes(userId))
-      );
-
-      const converted = userProjects.map(convertRemoteToLocalProject);
-      const pendingIds = await getPendingEntityIds('project');
-      const cached = await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
-      const withPending = await applyPendingWrites<Project>(cached, 'project', () => true);
-
-      return withPending.sort((a, b) => b.updatedAt - a.updatedAt);
-    } catch (err) {
-      if (isAuthError(err)) {
-        throw err;
-      }
-      console.warn('[online-first] getProjectsForUser fallback to IndexedDB', err);
-    }
-  }
-
-  const projects = await db.projects
+  return await db.projects
     .where('ownerId')
     .equals(userId)
     .or('accessibleUsers')
     .equals(userId)
     .sortBy('updatedAt');
-
-  return projects.reverse();
 }
 
+/**
+ * Get all projects (for admin)
+ */
 export async function getAllProjects(): Promise<Project[]> {
-  if (isOnlineAndConfigured()) {
-    try {
-      const { data: allProjects, error } = await supabase
-        .from('projects')
-        .select('*');
-
-      if (error) {
-        throw error;
-      }
-
-      const converted = (allProjects || []).map(convertRemoteToLocalProject);
-      const pendingIds = await getPendingEntityIds('project');
-      const cached = await writeThroughCache(converted, pendingIds, db.projects, mergeProjectLocalFields);
-      const withPending = await applyPendingWrites<Project>(cached, 'project', () => true);
-      return withPending.sort((a, b) => b.updatedAt - a.updatedAt);
-    } catch (err) {
-      if (isAuthError(err)) {
-        throw err;
-      }
-      console.warn('[online-first] getAllProjects fallback to IndexedDB', err);
-    }
-  }
-
-  return db.projects
+  return await db.projects
     .orderBy('updatedAt')
     .reverse()
     .toArray();
 }
 
+/**
+ * Update a project
+ */
 export async function updateProject(
   id: string,
   updates: Partial<Omit<Project, 'id' | 'createdAt'>>
@@ -196,6 +132,9 @@ export async function updateProject(
   }
 }
 
+/**
+ * Delete a project and all associated mapping entries
+ */
 export async function deleteProject(id: string): Promise<void> {
   try {
     await db.transaction(
@@ -281,6 +220,26 @@ export async function deleteProject(id: string): Promise<void> {
           await db.syncQueue.bulkDelete(queueIdsToRemove);
         }
 
+        // Accodare DELETE storage per ogni foto già caricata sul server
+        for (const photo of photos) {
+          if (!photo.uploaded) continue;
+          await db.syncQueue.add({
+            id: generateId(),
+            operation: 'DELETE',
+            entityType: 'photo',
+            entityId: photo.id,
+            payload: {
+              id: photo.id,
+              mappingEntryId: photo.mappingEntryId,
+              storagePath: photo.storagePath,
+              thumbnailStoragePath: photo.thumbnailStoragePath,
+            },
+            timestamp: now(),
+            retryCount: 0,
+            synced: 0,
+          });
+        }
+
         if (photoIds.length > 0) {
           await db.photos.bulkDelete(photoIds);
         }
@@ -326,22 +285,80 @@ export async function deleteProject(id: string): Promise<void> {
   }
 }
 
-export async function searchProjects(
-  userId: string,
-  query: string
-): Promise<Project[]> {
+/**
+ * Rimuove un progetto e tutti i suoi figli da Dexie locale.
+ * Da usare quando la cancellazione è già avvenuta lato server (pruning).
+ * Non accoda sync items perché il server ha già la versione aggiornata.
+ */
+export async function pruneProjectLocal(id: string): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.projects, db.mappingEntries, db.photos, db.floorPlans, db.floorPlanPoints, db.sals, db.typologyPrices, db.syncQueue],
+    async () => {
+      const mappingEntries = await db.mappingEntries.where('projectId').equals(id).toArray();
+      const mappingEntryIds = mappingEntries.map((e) => e.id);
+      const photos = mappingEntryIds.length > 0
+        ? await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).toArray()
+        : [];
+      const photoIds = photos.map((p) => p.id);
+      const floorPlans = await db.floorPlans.where('projectId').equals(id).toArray();
+      const floorPlanIds = floorPlans.map((fp) => fp.id);
+      const floorPlanPoints = floorPlanIds.length > 0
+        ? await db.floorPlanPoints.where('floorPlanId').anyOf(floorPlanIds).toArray()
+        : [];
+      const floorPlanPointIds = floorPlanPoints.map((p) => p.id);
+      const salIds = (await db.sals.where('projectId').equals(id).toArray()).map((s) => s.id);
+      const typologyPriceIds = (await db.typologyPrices.where('projectId').equals(id).toArray()).map((p) => p.id);
+
+      // Rimuovere sync queue items pending per questo progetto e tutti i figli
+      const queueItems = await db.syncQueue.where('synced').equals(0).toArray();
+      const queueIdsToRemove = queueItems
+        .filter((item) => {
+          if (item.entityType === 'project' && item.entityId === id) return true;
+          if (item.entityType === 'mapping_entry' && mappingEntryIds.includes(item.entityId)) return true;
+          if (item.entityType === 'photo' && (photoIds.includes(item.entityId) || mappingEntryIds.includes((item.payload as any)?.mappingEntryId || ''))) return true;
+          if (item.entityType === 'floor_plan' && floorPlanIds.includes(item.entityId)) return true;
+          if (item.entityType === 'floor_plan_point' && (floorPlanPointIds.includes(item.entityId) || floorPlanIds.includes((item.payload as any)?.floorPlanId || ''))) return true;
+          if (item.entityType === 'sal' && salIds.includes(item.entityId)) return true;
+          if ((item.entityType as string) === 'typology_price' && typologyPriceIds.includes(item.entityId)) return true;
+          return false;
+        })
+        .map((item) => item.id);
+
+      if (queueIdsToRemove.length > 0) await db.syncQueue.bulkDelete(queueIdsToRemove);
+      if (photoIds.length > 0) await db.photos.bulkDelete(photoIds);
+      if (mappingEntryIds.length > 0) await db.mappingEntries.bulkDelete(mappingEntryIds);
+      if (floorPlanPointIds.length > 0) await db.floorPlanPoints.bulkDelete(floorPlanPointIds);
+      if (floorPlanIds.length > 0) await db.floorPlans.bulkDelete(floorPlanIds);
+      if (salIds.length > 0) await db.sals.bulkDelete(salIds);
+      if (typologyPriceIds.length > 0) await db.typologyPrices.bulkDelete(typologyPriceIds);
+      await db.projects.delete(id);
+    }
+  );
+}
+
+/**
+ * Search projects by title, client, or address
+ */
+export async function searchProjects(userId: string, query: string): Promise<Project[]> {
   const lowerQuery = query.toLowerCase();
   const projects = await getProjectsForUser(userId);
 
-  return projects.filter((project) =>
+  return projects.filter(project =>
     project.title.toLowerCase().includes(lowerQuery) ||
     project.client.toLowerCase().includes(lowerQuery) ||
     project.address.toLowerCase().includes(lowerQuery)
   );
 }
 
+/**
+ * Get unsynced projects
+ */
 export async function getUnsyncedProjects(): Promise<Project[]> {
-  return db.projects.where('synced').equals(0).toArray();
+  return await db.projects
+    .where('synced')
+    .equals(0)
+    .toArray();
 }
 
 export async function getProjectCachePref(projectId: string): Promise<ProjectCachePref | undefined> {
@@ -359,9 +376,19 @@ export async function setProjectOfflinePinned(
     lastHydratedAt: existing?.lastHydratedAt,
     updatedAt: now(),
   };
-
   await db.projectCachePrefs.put(cachePref);
   return cachePref;
+}
+
+async function processInBatches<T>(
+  items: T[],
+  batchSize: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    await Promise.all(batch.map(worker));
+  }
 }
 
 export async function hydrateProjectForOffline(projectId: string): Promise<ProjectCachePref> {
@@ -390,19 +417,27 @@ export async function hydrateProjectForOffline(projectId: string): Promise<Proje
     lastHydratedAt: hydratedAt,
     updatedAt: hydratedAt,
   };
-
   await db.projectCachePrefs.put(cachePref);
   return cachePref;
 }
 
+/**
+ * Mark project as synced
+ */
 export async function markProjectSynced(id: string): Promise<void> {
   await db.projects.update(id, { synced: 1 });
 }
 
+/**
+ * Archive a project
+ */
 export async function archiveProject(id: string): Promise<Project> {
-  return updateProject(id, { archived: 1 });
+  return await updateProject(id, { archived: 1 });
 }
 
+/**
+ * Unarchive a project
+ */
 export async function unarchiveProject(id: string): Promise<Project> {
-  return updateProject(id, { archived: 0 });
+  return await updateProject(id, { archived: 0 });
 }

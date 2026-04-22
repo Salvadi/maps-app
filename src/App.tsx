@@ -9,7 +9,7 @@ import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, db,
-  getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints
+  getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
@@ -117,8 +117,6 @@ const App: React.FC = () => {
             alert('Email confirmed! Welcome to OPImaPPA.');
           }
         }
-
-        await db.metadata.put({ key: 'isSyncing', value: false });
 
         if (isSupabaseConfigured()) {
           startAutoSync(60000);
@@ -514,9 +512,18 @@ const App: React.FC = () => {
               } : undefined}
               onSave={async (points, gridConfig) => {
                 try {
-                  const existingIds = new Set(editorInitialPoints.map(p => p.id));
+                  const initialIds = new Set(editorInitialPoints.map(p => p.id));
+                  const currentPointIdSet = new Set(points.map(p => p.id));
+
+                  // Elimina i punti rimossi
+                  const deletedIds = editorInitialPoints.map(p => p.id).filter(id => !currentPointIdSet.has(id));
+                  for (const id of deletedIds) {
+                    await deleteFloorPlanPoint(id);
+                  }
+
+                  // Crea o aggiorna i punti correnti
                   for (const point of points) {
-                    if (!existingIds.has(point.id)) {
+                    if (!initialIds.has(point.id)) {
                       await createFloorPlanPoint(
                         editorFloorPlan.id, point.mappingEntryId || '',
                         point.type, point.pointX, point.pointY,
@@ -544,6 +551,25 @@ const App: React.FC = () => {
                     gridEnabled: gridConfig.enabled,
                     gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY }
                   });
+
+                  // Riconcilia gli ID ricariando i punti da Dexie
+                  const saved = await getFloorPlanPoints(editorFloorPlan.id);
+                  const reconciledPoints = saved.map(p => ({
+                    id: p.id,
+                    type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
+                    pointX: p.pointX,
+                    pointY: p.pointY,
+                    labelX: p.labelX,
+                    labelY: p.labelY,
+                    labelText: p.metadata?.labelText || ['Punto'],
+                    perimeterPoints: p.perimeterPoints,
+                    mappingEntryId: p.mappingEntryId,
+                    labelBackgroundColor: p.metadata?.labelBackgroundColor,
+                    labelTextColor: p.metadata?.labelTextColor,
+                    eiRating: p.eiRating,
+                  }));
+                  setEditorInitialPoints(reconciledPoints);
+
                   alert('Planimetria salvata!');
                 } catch (err) {
                   console.error('Error saving floor plan:', err);

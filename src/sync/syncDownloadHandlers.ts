@@ -2,6 +2,7 @@ import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice } fro
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
 import { getPendingEntityIds } from '../db/onlineFirst';
+import { pruneProjectLocal } from '../db/projects';
 
 const SUPABASE_IN_BATCH_SIZE = 150;
 
@@ -175,6 +176,15 @@ export async function downloadProjectsFromSupabase(userId: string, isAdmin = fal
     downloadedCount += 1;
   }
 
+  // Pruning: rimuovere localmente i progetti non più accessibili remoto
+  const remoteProjectIds = new Set(remoteProjects.map((p) => p.id));
+  const localProjects = await db.projects.toArray();
+  for (const local of localProjects) {
+    if (!remoteProjectIds.has(local.id) && !pendingIds.has(local.id)) {
+      await pruneProjectLocal(local.id);
+    }
+  }
+
   return downloadedCount;
 }
 
@@ -201,6 +211,14 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
     await db.mappingEntries.put(entry);
     downloadedCount += 1;
   }
+
+  // Pruning: rimuovere localmente le mapping entries non più presenti remoto
+  const remoteEntryIds = new Set((data || []).map((r: any) => r.id));
+  const localEntryIds = projectIds.length > 0
+    ? await db.mappingEntries.where('projectId').anyOf(projectIds).primaryKeys() as string[]
+    : [];
+  const toDeleteEntries = localEntryIds.filter((id) => !remoteEntryIds.has(id) && !pendingIds.has(id));
+  if (toDeleteEntries.length > 0) await db.mappingEntries.bulkDelete(toDeleteEntries);
 
   return downloadedCount;
 }
@@ -286,6 +304,14 @@ export async function downloadPhotosFromSupabase(
     }
   }
 
+  // Pruning: rimuovere localmente le foto non più presenti remoto
+  const remotePhotoIds = new Set(photoRows.map((r: any) => r.id));
+  const localPhotoIds = mappingEntryIds.length > 0
+    ? await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).primaryKeys() as string[]
+    : [];
+  const toDeletePhotos = localPhotoIds.filter((id) => !remotePhotoIds.has(id) && !pendingIds.has(id));
+  if (toDeletePhotos.length > 0) await db.photos.bulkDelete(toDeletePhotos);
+
   return { downloaded, failed };
 }
 
@@ -370,6 +396,14 @@ export async function downloadFloorPlansFromSupabase(
     downloadedCount += 1;
   }
 
+  // Pruning: rimuovere localmente i floor plan non più presenti remoto
+  const remoteFloorPlanIds = new Set((data || []).map((r: any) => r.id));
+  const localFloorPlanIds = projectIds.length > 0
+    ? await db.floorPlans.where('projectId').anyOf(projectIds).primaryKeys() as string[]
+    : [];
+  const toDeleteFP = localFloorPlanIds.filter((id) => !remoteFloorPlanIds.has(id) && !pendingIds.has(id));
+  if (toDeleteFP.length > 0) await db.floorPlans.bulkDelete(toDeleteFP);
+
   return downloadedCount;
 }
 
@@ -421,6 +455,14 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
     await db.floorPlanPoints.put(point);
     downloadedCount += 1;
   }
+
+  // Pruning: rimuovere localmente i points non più presenti remoto
+  const remotePointIds = new Set((data || []).map((r: any) => r.id));
+  const localPointIds = floorPlanIds.length > 0
+    ? await db.floorPlanPoints.where('floorPlanId').anyOf(floorPlanIds).primaryKeys() as string[]
+    : [];
+  const toDeletePoints = localPointIds.filter((id) => !remotePointIds.has(id) && !pendingIds.has(id));
+  if (toDeletePoints.length > 0) await db.floorPlanPoints.bulkDelete(toDeletePoints);
 
   return downloadedCount;
 }
@@ -488,6 +530,14 @@ export async function downloadSalsFromSupabase(userId: string, isAdmin = false):
     downloadedCount += 1;
   }
 
+  // Pruning: rimuovere localmente i SAL non più presenti remoto
+  const remoteSalIds = new Set((data || []).map((r: any) => r.id));
+  const localSalIds = projectIds.length > 0
+    ? await db.sals.where('projectId').anyOf(projectIds).primaryKeys() as string[]
+    : [];
+  const toDeleteSals = localSalIds.filter((id) => !remoteSalIds.has(id) && !pendingIds.has(id));
+  if (toDeleteSals.length > 0) await db.sals.bulkDelete(toDeleteSals);
+
   return downloadedCount;
 }
 
@@ -525,6 +575,14 @@ export async function downloadTypologyPricesFromSupabase(userId: string, isAdmin
     await db.typologyPrices.put(price);
     downloadedCount += 1;
   }
+
+  // Pruning: rimuovere localmente i prezzi non più presenti remoto
+  const remotePriceIds = new Set((data || []).map((r: any) => r.id));
+  const localPriceIds = projectIds.length > 0
+    ? await db.typologyPrices.where('projectId').anyOf(projectIds).primaryKeys() as string[]
+    : [];
+  const toDeletePrices = localPriceIds.filter((id) => !remotePriceIds.has(id) && !pendingIds.has(id));
+  if (toDeletePrices.length > 0) await db.typologyPrices.bulkDelete(toDeletePrices);
 
   return downloadedCount;
 }

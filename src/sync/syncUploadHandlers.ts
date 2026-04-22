@@ -364,6 +364,50 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       throw new Error(`Floor plan not found: ${floorPlan.id}`);
     }
 
+    // --- Conflict detection ANTICIPATO: check PRIMA di qualsiasi upload asset ---
+    if (localFloorPlan.remoteUpdatedAt != null) {
+      try {
+        const { data: remoteRecord } = await supabase
+          .from('floor_plans')
+          .select('updated_at')
+          .eq('id', localFloorPlan.id)
+          .single();
+
+        if (remoteRecord) {
+          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
+          // Se il remote è stato modificato dopo il nostro ultimo sync → conflitto
+          if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
+            console.warn(
+              `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
+              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
+              `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
+              `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
+            );
+            // Log conflict to conflictHistory
+            await db.conflictHistory.add({
+              id: generateId(),
+              timestamp: Date.now(),
+              entityType: 'floor_plan',
+              entityId: localFloorPlan.id,
+              conflictType: 'timestamp',
+              localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
+              remoteVersion: { updatedAt: remoteUpdatedAt },
+              resolvedVersion: null,
+              strategy: 'skip_upload_floor_plan',
+              autoResolved: true,
+              userNotified: false,
+            });
+            // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
+            await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
+            return; // Do NOT upload assets né upsert — utente deve sincronizzare prima
+          }
+        }
+      } catch {
+        // Errore di rete durante il check → procedi con upload (best-effort)
+        console.warn(`⚠️  Could not check remote version for floor plan ${localFloorPlan.id}, proceeding with upload`);
+      }
+    }
+
     // Upload blobs to Supabase Storage when missing or when local assets changed.
     let imageUrl = localFloorPlan.imageUrl;
     let thumbnailUrl = localFloorPlan.thumbnailUrl;
@@ -418,48 +462,6 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
         await deleteFloorPlan(previousImageUrl, previousThumbnailUrl, previousPdfUrl);
       } catch (cleanupError) {
         console.warn(`Failed to clean previous floor plan assets for ${floorPlan.id}:`, cleanupError);
-      }
-    }
-
-    // --- Conflict detection: check if remote has been modified since our last sync ---
-    if (localFloorPlan.remoteUpdatedAt != null) {
-      try {
-        const { data: remoteRecord } = await supabase
-          .from('floor_plans')
-          .select('updated_at')
-          .eq('id', localFloorPlan.id)
-          .single();
-
-        if (remoteRecord) {
-          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
-          // If remote has changed since our last sync, skip upload to avoid overwriting
-          if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
-            console.warn(
-              `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
-              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
-              `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
-              `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
-            );
-            // Log conflict to conflictHistory
-            await db.conflictHistory.add({
-              id: generateId(),
-              timestamp: Date.now(),
-              entityType: 'floor_plan',
-              entityId: localFloorPlan.id,
-              conflictType: 'timestamp',
-              localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
-              remoteVersion: { updatedAt: remoteUpdatedAt },
-              resolvedVersion: null,
-              strategy: 'skip_upload_floor_plan',
-              autoResolved: true,
-              userNotified: false,
-            });
-            return; // Do NOT upsert — user must sync first
-          }
-        }
-      } catch {
-        // Network error during check → proceed with upsert (best-effort)
-        console.warn(`⚠️  Could not check remote version for floor plan ${localFloorPlan.id}, proceeding with upload`);
       }
     }
 
@@ -562,6 +564,8 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
               autoResolved: true,
               userNotified: false,
             });
+            // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
+            await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
             return;
           }
         }
