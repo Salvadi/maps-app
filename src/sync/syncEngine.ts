@@ -18,6 +18,7 @@ import {
   downloadFloorPlanPointsFromSupabase,
   downloadStandaloneMapsFromSupabase,
   downloadSalsFromSupabase,
+  downloadTypologyPricesFromSupabase,
   updateRemotePhotosFlags
 } from './syncDownloadHandlers';
 
@@ -92,7 +93,10 @@ async function deduplicateSyncQueue(): Promise<{ before: number; after: number }
       }
     } else if (hasCreate) {
       // CREATE + UPDATEs: keep CREATE with latest payload
-      const latestPayload = lastItem.payload;
+      const latestPayload = {
+        ...(hasCreate.payload || {}),
+        ...(lastItem.payload || {}),
+      };
       await db.syncQueue.update(hasCreate.id, { payload: latestPayload });
       for (const item of items) {
         if (item.id !== hasCreate.id) {
@@ -155,11 +159,7 @@ export function triggerImmediateUpload(): void {
   uploadDebounceTimer = setTimeout(async () => {
     try {
       if (!navigator.onLine || !isSupabaseConfigured()) return;
-      const isSyncingMeta = await db.metadata.get('isSyncing');
-      // Check timestamp-based lock
-      const LOCK_TIMEOUT = 3 * 60 * 1000;
-      if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < LOCK_TIMEOUT) return;
-      await processSyncQueue();
+      await lockedSync();
     } catch (err) {
       console.error('Debounced upload failed:', err);
     }
@@ -175,12 +175,14 @@ export function triggerImmediateUpload(): void {
 const SYNC_LOCK_TIMEOUT = 3 * 60 * 1000; // 3 minutes
 
 async function acquireSyncLock(): Promise<boolean> {
-  const isSyncingMeta = await db.metadata.get('isSyncing');
-  if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < SYNC_LOCK_TIMEOUT) {
-    return false; // Lock is held and not expired
-  }
-  await db.metadata.put({ key: 'isSyncing', value: Date.now() });
-  return true;
+  return db.transaction('rw', db.metadata, async () => {
+    const isSyncingMeta = await db.metadata.get('isSyncing');
+    if (isSyncingMeta?.value && (Date.now() - isSyncingMeta.value) < SYNC_LOCK_TIMEOUT) {
+      return false; // Lock is held and not expired
+    }
+    await db.metadata.put({ key: 'isSyncing', value: Date.now() });
+    return true;
+  });
 }
 
 async function releaseSyncLock(): Promise<void> {
@@ -392,8 +394,9 @@ export {
 };
 
 // ============================================
-// SEZIONE: Sync FROM Supabase (download completo)
-// Scarica progetti, entries, foto, planimetrie e punti in un'unica operazione.
+// SEZIONE: Sync FROM Supabase (download metadata-first)
+// Scarica progetti, entries, prezzi, planimetrie e punti.
+// I blob pesanti restano lazy salvo richiesta esplicita.
 // Usato dall'auto-sync periodico e come base di phasedSyncFromSupabase.
 // ============================================
 
@@ -401,17 +404,17 @@ export {
  * Sync data FROM Supabase TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
-export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; standaloneMapsCount: number; salsCount: number }> {
+export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
   if (!isSupabaseConfigured()) {
     console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, standaloneMapsCount: 0, salsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
   // Check if user is authenticated
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, standaloneMapsCount: 0, salsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
   console.log('⬇️  Starting sync FROM Supabase...');
@@ -439,8 +442,13 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
 
     const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
-    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
+    await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: false });
+    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+      includeImageBlobs: false,
+      includeThumbnailBlobs: false,
+      includePdf: false,
+    });
     const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
     const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
     const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
@@ -448,10 +456,10 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
     const photosCount = photosResult.downloaded;
     const photosFailedCount = photosResult.failed;
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photos${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${standaloneMapsCount} standalone maps, ${salsCount} SALs`);
+    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photo metadata${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs, ${standaloneMapsCount} mappe standalone`);
 
     await emitSyncComplete();
-    return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, standaloneMapsCount, salsCount };
+    return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount, standaloneMapsCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Sync from Supabase failed:', errorMessage);
@@ -479,32 +487,16 @@ export function startAutoSync(intervalMs: number = 30000): void {
   console.log(`🔄 Starting auto-sync (bidirectional) every ${intervalMs / 1000}s`);
 
   // Sync immediately (both upload and download)
-  Promise.all([
-    processSyncQueue().catch(err => {
-      console.error('❌ Initial upload sync failed:', err);
-    }),
-    syncFromSupabase().catch(err => {
-      console.error('❌ Initial download sync failed:', err);
-    })
-  ]);
+  lockedSync().catch(err => {
+    console.error('❌ Initial auto-sync failed:', err);
+  });
 
   // Then sync on interval (bidirectional with timestamp lock)
   syncInterval = setInterval(async () => {
     try {
-      if (!await acquireSyncLock()) {
-        console.log('⏭️  Auto-sync skipped: sync already in progress');
-        return;
-      }
-
-      try {
-        await processSyncQueue();
-        await syncFromSupabase();
-      } finally {
-        await releaseSyncLock();
-      }
+      await lockedSync();
     } catch (err) {
       console.error('❌ Auto-sync failed:', err);
-      await releaseSyncLock();
     }
   }, intervalMs);
 }
@@ -557,7 +549,7 @@ export async function manualSync(options?: {
   onProgress?: (progress: SyncProgress) => void;
 }): Promise<{
   uploadResult: SyncResult;
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; standaloneMapsCount: number; salsCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
 }> {
   console.log('🔄 Manual bidirectional sync triggered');
 
@@ -565,7 +557,7 @@ export async function manualSync(options?: {
     console.warn('⚠️  Sync already in progress, skipping');
     return {
       uploadResult: { success: false, processedCount: 0, failedCount: 0, errors: [] },
-      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, standaloneMapsCount: 0, salsCount: 0 }
+      downloadResult: { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 }
     };
   }
 
@@ -586,7 +578,7 @@ export async function manualSync(options?: {
     await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed:', err));
     progress?.({ step: 6, totalSteps, phase: 'Completato' });
 
-    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos${downloadResult.photosFailedCount > 0 ? ` (${downloadResult.photosFailedCount} failed)` : ''}, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, and ${downloadResult.standaloneMapsCount} standalone maps`);
+    console.log(`✅ Manual sync complete: uploaded ${uploadResult.processedCount} items, downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos${downloadResult.photosFailedCount > 0 ? ` (${downloadResult.photosFailedCount} failed)` : ''}, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
     await emitSyncComplete();
     return { uploadResult, downloadResult };
@@ -613,14 +605,14 @@ export async function phasedSyncFromSupabase(options?: {
   skipPhotos?: boolean;
   onPhotoDecisionNeeded?: () => Promise<boolean>;
   onProgress?: (progress: SyncProgress) => void;
-}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; standaloneMapsCount: number; salsCount: number }> {
+}): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
   if (!isSupabaseConfigured()) {
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, standaloneMapsCount: 0, salsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, standaloneMapsCount: 0, salsCount: 0 };
+    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
   const { data: profile } = await supabase
@@ -639,16 +631,21 @@ export async function phasedSyncFromSupabase(options?: {
   const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 2, totalSteps, phase: 'Download progetti', detail: `${projectsCount} progetti` });
 
-  // Phase 2: Mapping entries + SALs
+  // Phase 2: Mapping entries + SALs + prices + mappe standalone
   progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
   const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
   const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
+  await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
 
-  // Phase 3: Floor plans + points
+  // Phase 3: Floor plans metadata + points
   progress?.({ step: 4, totalSteps, phase: 'Download planimetrie...' });
   console.log('🗺️ Fase 2: Sincronizzazione planimetrie...');
-  const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin);
+  const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+    includeImageBlobs: false,
+    includeThumbnailBlobs: false,
+    includePdf: false,
+  });
   const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
   const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 4, totalSteps, phase: 'Download planimetrie', detail: `${floorPlansCount} planimetrie, ${floorPlanPointsCount} punti, ${standaloneMapsCount} standalone` });
@@ -666,7 +663,7 @@ export async function phasedSyncFromSupabase(options?: {
   if (shouldDownloadPhotos) {
     progress?.({ step: 5, totalSteps, phase: 'Download foto...' });
     console.log('📸 Fase 3: Sincronizzazione foto...');
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: true });
     photosCount = photosResult.downloaded;
     photosFailedCount = photosResult.failed;
     progress?.({ step: 5, totalSteps, phase: 'Download foto', detail: `${photosCount} foto${photosFailedCount > 0 ? ` (${photosFailedCount} fallite)` : ''}` });
@@ -676,24 +673,23 @@ export async function phasedSyncFromSupabase(options?: {
     await updateRemotePhotosFlags(session.user.id, isAdmin);
   }
 
-  return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, standaloneMapsCount, salsCount };
+  return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount, standaloneMapsCount };
 }
 
 // ============================================
 // SEZIONE: Clear and sync
-// Cancella tutti i dati locali e riscarica tutto da Supabase.
+// Cancella la cache locale e reidrata i metadati da Supabase.
 // Utile per risolvere discrepanze persistenti tra locale e remoto.
 // Preserva solo i dati di autenticazione (users, currentUser metadata).
 // ============================================
 
 /**
- * Clear all local data and re-sync from Supabase
- * This is useful to resolve data discrepancies between local and remote
+ * Reset local cache and rehydrate metadata from Supabase
  */
 export async function clearAndSync(): Promise<{
-  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; standaloneMapsCount: number; salsCount: number }
+  downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
 }> {
-  console.log('🗑️ Clear and sync triggered - clearing all local data...');
+  console.log('🗑️ Cache reset triggered - clearing local data...');
 
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured. Cannot sync.');
@@ -705,6 +701,10 @@ export async function clearAndSync(): Promise<{
     throw new Error('User not authenticated. Please log in to sync data.');
   }
 
+  if (!await acquireSyncLock()) {
+    throw new Error('Sync already in progress. Please retry in a moment.');
+  }
+
   try {
     // Clear all data from IndexedDB
     await db.projects.clear();
@@ -714,6 +714,8 @@ export async function clearAndSync(): Promise<{
     await db.floorPlanPoints.clear();
     await db.standaloneMaps.clear();
     await db.sals.clear();
+    await db.typologyPrices.clear();
+    await db.projectCachePrefs.clear();
     await db.syncQueue.clear();
     // Don't clear users table - keep authentication data
 
@@ -727,16 +729,18 @@ export async function clearAndSync(): Promise<{
 
     console.log('✅ Local data cleared successfully');
 
-    // Download fresh data from Supabase
-    console.log('⬇️ Downloading fresh data from Supabase...');
+    // Download fresh metadata from Supabase
+    console.log('⬇️ Downloading fresh metadata from Supabase...');
     const downloadResult = await syncFromSupabase();
 
-    console.log(`✅ Clear and sync complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photos, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, and ${downloadResult.standaloneMapsCount} standalone maps`);
+    console.log(`✅ Cache reset complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photo metadata, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
     return { downloadResult };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('❌ Clear and sync failed:', errorMessage);
     throw err;
+  } finally {
+    await releaseSyncLock();
   }
 }

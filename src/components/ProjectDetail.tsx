@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBlobUrl } from '../hooks/useBlobUrl';
 import {
-  ArrowLeft, Camera, Map, Info, Plus,
+  ArrowLeft, Camera, Map, Info,
   ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle,
   RefreshCw, Tag, Package, Filter, X, DollarSign, Download, FileDown, ClipboardList
 } from 'lucide-react';
@@ -9,8 +9,9 @@ import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
-  getMappingEntriesForProject, getPhotosForMapping, deleteMappingEntry,
-  getFloorPlansByProject, getFloorPlanPoints, getAllUsers
+  getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry,
+  getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers, ensureFloorPlanAsset,
+  ProjectCachePref, getProjectCachePref, setProjectOfflinePinned, hydrateProjectForOffline,
 } from '../db';
 import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
@@ -76,6 +77,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [expandedMappings, setExpandedMappings] = useState<Set<string>>(new Set());
   const [exportingPlanId, setExportingPlanId] = useState<string | null>(null);
+  const [projectCachePref, setProjectCachePref] = useState<ProjectCachePref | null>(null);
+  const [isUpdatingOfflineCache, setIsUpdatingOfflineCache] = useState(false);
 
   // Filters (persisted in localStorage)
   const [showOnlyToComplete, setShowOnlyToComplete] = useState<boolean>(() => {
@@ -151,6 +154,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
+  useEffect(() => {
+    const loadCachePref = async () => {
+      const cachePref = await getProjectCachePref(project.id);
+      setProjectCachePref(cachePref || null);
+    };
+
+    loadCachePref();
+  }, [project.id]);
+
   const loadData = async () => {
     setIsLoading(true);
     const entries = await getMappingEntriesForProject(project.id);
@@ -164,20 +176,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       setExpandedFloors(new Set([sorted[0]]));
     }
 
-    // Load photos for all entries
-    const photosMap: Record<string, Photo[]> = {};
-    for (const entry of entries) {
-      photosMap[entry.id] = await getPhotosForMapping(entry.id);
-    }
+    const photosMap = await getPhotosForMappings(entries.map(entry => entry.id));
     setMappingPhotos(photosMap);
 
     // Load floor plans + their points
     const plans = await getFloorPlansByProject(project.id);
     setFloorPlans(plans);
-    const pointsMap: Record<string, FloorPlanPoint[]> = {};
-    for (const plan of plans) {
-      pointsMap[plan.id] = await getFloorPlanPoints(plan.id);
-    }
+    const pointsMap = await getFloorPlanPointsForPlans(plans.map(plan => plan.id));
     setFloorPlanPoints(pointsMap);
 
     // Load users for export labels
@@ -198,6 +203,32 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       else next.add(floor);
       return next;
     });
+  };
+
+  const handleEnableOffline = async () => {
+    try {
+      setIsUpdatingOfflineCache(true);
+      const cachePref = await hydrateProjectForOffline(project.id);
+      setProjectCachePref(cachePref);
+    } catch (error) {
+      console.error('Failed to hydrate project for offline use:', error);
+      alert('Impossibile completare il download offline del progetto.');
+    } finally {
+      setIsUpdatingOfflineCache(false);
+    }
+  };
+
+  const handleDisableOfflinePin = async () => {
+    try {
+      setIsUpdatingOfflineCache(true);
+      const cachePref = await setProjectOfflinePinned(project.id, false);
+      setProjectCachePref(cachePref);
+    } catch (error) {
+      console.error('Failed to disable offline pin:', error);
+      alert('Impossibile aggiornare la preferenza offline del progetto.');
+    } finally {
+      setIsUpdatingOfflineCache(false);
+    }
   };
 
   const toggleMappingExpand = (id: string) => {
@@ -269,9 +300,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   // Export a single floor plan as vector PDF
   const handleExportPlanPDF = async (plan: FloorPlan) => {
-    if (!plan.imageBlob) return;
     setExportingPlanId(plan.id);
     try {
+      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
+      const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
+      if (!exportReadyPlan?.imageBlob) {
+        return;
+      }
+
       const rawPoints = floorPlanPoints[plan.id] || [];
       const exportPoints: ExportPoint[] = rawPoints.map(point => ({
         type: point.pointType,
@@ -290,12 +326,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         labelTextColor: point.metadata?.labelTextColor,
       }));
       await exportFloorPlanVectorPDF(
-        plan.imageBlob,
+        exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
-        plan.pdfBlobBase64,
-        plan.metadata?.rotation || 0,
+        exportReadyPlan.pdfBlobBase64,
+        exportReadyPlan.metadata?.rotation || 0,
       );
+      setFloorPlans(prev => prev.map(existing => existing.id === exportReadyPlan.id ? exportReadyPlan : existing));
     } finally {
       setExportingPlanId(null);
     }
@@ -542,7 +579,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                 >
                                   {/* Thumbnail */}
                                   <div className="w-12 h-12 rounded-lg bg-brand-50 flex-shrink-0 overflow-hidden">
-                                    <EntryThumbnail blob={photos.length > 0 ? photos[0].blob : undefined} />
+                                    <EntryThumbnail
+                                      blob={photos.length > 0 ? photos[0].thumbnailBlob || photos[0].blob : undefined}
+                                      remoteUrl={photos.length > 0 ? photos[0].thumbnailRemoteUrl || photos[0].remoteUrl : undefined}
+                                    />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
@@ -621,6 +661,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                           <PhotoGridItem
                                             key={photo.id || pi}
                                             blob={photo.blob}
+                                            remoteUrl={photo.remoteUrl}
                                             alt={`Foto ${pi + 1}`}
                                             onSelect={(url) => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
                                           />
@@ -659,7 +700,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                   <div className="text-center py-12">
                     <Camera size={40} className="mx-auto text-brand-300 mb-3" />
                     <p className="text-brand-500 text-sm">Nessuna mappatura</p>
-                    <p className="text-brand-400 text-xs mt-1">Premi + per aggiungere la prima mappatura</p>
+                    <p className="text-brand-400 text-xs mt-1">Usa il pulsante qui sotto per iniziare una nuova mappatura</p>
                   </div>
                 )}
 
@@ -668,8 +709,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                   onClick={onAddMapping}
                   className="w-full mt-4 py-3.5 bg-accent text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-card"
                 >
-                  <Plus size={18} />
-                  Aggiungi Mappatura
+                  Nuova mappatura
                 </button>
               </div>
             )}
@@ -692,14 +732,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                           className="w-full active:scale-[0.98] transition-transform"
                         >
                           <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
-                            <PlanThumbnail blob={plan.thumbnailBlob} alt={`Piano ${plan.floor}`} />
+                            <PlanThumbnail blob={plan.thumbnailBlob} remoteUrl={plan.thumbnailUrl || plan.imageUrl} alt={`Piano ${plan.floor}`} />
                           </div>
                         </button>
                         <div className="px-3 py-2.5 flex items-center justify-between">
                           <div className="text-sm font-semibold text-brand-700">Piano {plan.floor}</div>
                           <button
                             onClick={() => handleExportPlanPDF(plan)}
-                            disabled={exportingPlanId === plan.id || !plan.imageBlob}
+                            disabled={exportingPlanId === plan.id}
                             title="Scarica PDF"
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 disabled:opacity-40"
                           >
@@ -767,13 +807,53 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               </div>
       </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-xs text-brand-500 mb-0.5">Sincronizzazione</div>
+                    <div className="text-xs text-brand-500 mb-0.5">Accesso dati</div>
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${project.syncEnabled === 1 ? 'bg-success' : 'bg-brand-300'}`} />
+                      <span className="w-2 h-2 rounded-full bg-success" />
                       <span className="text-sm text-brand-700">
-                        {project.syncEnabled === 1 ? 'Completa' : 'Solo metadati'}
+                        Online-first con cache locale e coda offline
                       </span>
-    </div>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3.5">
+                    <div className="text-xs text-brand-500 mb-1">Disponibile offline</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm text-brand-800 font-medium">
+                          {projectCachePref?.offlinePinned ? 'Progetto pinnato offline' : 'Solo cache dinamica'}
+                        </div>
+                        <div className="text-xs text-brand-500 mt-1">
+                          {projectCachePref?.lastHydratedAt
+                            ? `Ultima reidratazione: ${new Date(projectCachePref.lastHydratedAt).toLocaleString('it-IT')}`
+                            : 'Scarica foto e planimetrie in locale per lavorare meglio anche senza rete.'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {projectCachePref?.offlinePinned && (
+                          <button
+                            type="button"
+                            onClick={handleDisableOfflinePin}
+                            disabled={isUpdatingOfflineCache}
+                            className="px-3 py-2 rounded-xl border border-brand-200 text-xs font-semibold text-brand-700 disabled:opacity-60"
+                          >
+                            Rimuovi pin
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleEnableOffline}
+                          disabled={isUpdatingOfflineCache}
+                          className="px-3 py-2 rounded-xl bg-accent text-white text-xs font-semibold disabled:opacity-60 inline-flex items-center gap-1.5"
+                        >
+                          {isUpdatingOfflineCache ? (
+                            <RefreshCw size={14} className="animate-spin" />
+                          ) : (
+                            <Download size={14} />
+                          )}
+                          <span>{projectCachePref?.offlinePinned ? 'Aggiorna cache' : 'Rendi offline'}</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -818,16 +898,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         )}
       </div>
 
-      {/* FAB for adding mapping */}
-      {activeTab === 'mappings' && (
-        <button
-          onClick={onAddMapping}
-          className="fixed bottom-[88px] right-5 z-40 w-14 h-14 bg-accent text-white rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform"
-        >
-          <Plus size={24} />
-        </button>
-      )}
-
       {/* Photo Preview Modal */}
       {selectedPhoto && (
         <PhotoPreviewModal
@@ -841,41 +911,45 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 };
 
 /** Sub-component: entry thumbnail from first photo blob */
-const EntryThumbnail: React.FC<{ blob: Blob | undefined }> = ({ blob }) => {
+const EntryThumbnail: React.FC<{ blob: Blob | undefined; remoteUrl?: string }> = ({ blob, remoteUrl }) => {
   const url = useBlobUrl(blob);
-  if (!url) {
+  const imageUrl = url || remoteUrl;
+  if (!imageUrl) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <Camera size={16} className="text-brand-300" />
       </div>
     );
   }
-  return <img src={url} alt="" className="w-full h-full object-cover" />;
+  return <img src={imageUrl} alt="" className="w-full h-full object-cover" />;
 };
 
 /** Sub-component: single photo in the grid */
 const PhotoGridItem: React.FC<{
-  blob: Blob;
+  blob?: Blob;
+  remoteUrl?: string;
   alt: string;
   onSelect: (url: string) => void;
-}> = ({ blob, alt, onSelect }) => {
+}> = ({ blob, remoteUrl, alt, onSelect }) => {
   const url = useBlobUrl(blob);
-  if (!url) return null;
+  const imageUrl = url || remoteUrl;
+  if (!imageUrl) return null;
   return (
     <button
-      onClick={() => onSelect(url)}
+      onClick={() => onSelect(imageUrl)}
       className="aspect-square rounded-lg overflow-hidden bg-brand-50"
     >
-      <img src={url} alt={alt} className="w-full h-full object-cover" />
+      <img src={imageUrl} alt={alt} className="w-full h-full object-cover" />
     </button>
   );
 };
 
 /** Sub-component: floor plan thumbnail */
-const PlanThumbnail: React.FC<{ blob: Blob | undefined; alt: string }> = ({ blob, alt }) => {
+const PlanThumbnail: React.FC<{ blob: Blob | undefined; remoteUrl?: string; alt: string }> = ({ blob, remoteUrl, alt }) => {
   const url = useBlobUrl(blob);
-  if (!url) return <Map size={28} className="text-brand-300" />;
-  return <img src={url} alt={alt} className="w-full h-full object-cover" />;
+  const imageUrl = url || remoteUrl;
+  if (!imageUrl) return <Map size={28} className="text-brand-300" />;
+  return <img src={imageUrl} alt={alt} className="w-full h-full object-cover" />;
 };
 
 export default ProjectDetail;

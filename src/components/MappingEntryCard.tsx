@@ -32,6 +32,7 @@ const MappingEntryCard: React.FC<MappingEntryCardProps> = ({
   onPhotoPreview,
   getTipologicoNumber,
 }) => {
+  const hasRemoteOnlyPhotos = photos.some(photo => !photo.blob && (photo.remoteUrl || photo.storagePath));
   return (
     <div
       className={`mapping-card ${isExpanded ? 'expanded' : ''}`}
@@ -48,7 +49,7 @@ const MappingEntryCard: React.FC<MappingEntryCardProps> = ({
                 ⚠️
               </span>
             )}
-            {mapping.hasRemotePhotos && (
+            {(mapping.hasRemotePhotos || hasRemoteOnlyPhotos) && (
               <span className="remote-photos-badge" title="Foto disponibili sul server (non scaricate)">
                 📷
               </span>
@@ -151,14 +152,15 @@ const PhotoItem: React.FC<{
   onPhotoPreview: (url: string, alt: string) => void;
 }> = ({ photo, alt, onPhotoPreview }) => {
   const photoUrl = useBlobUrl(photo.blob);
-  if (!photoUrl) return null;
+  const imageUrl = photoUrl || photo.thumbnailRemoteUrl || photo.remoteUrl;
+  if (!imageUrl) return null;
   return (
     <div className="photo-item">
       <img
-        src={photoUrl}
+        src={imageUrl}
         alt={alt}
         loading="lazy"
-        onClick={() => onPhotoPreview(photoUrl, alt)}
+        onClick={() => onPhotoPreview(photo.remoteUrl || imageUrl, alt)}
         style={{ cursor: 'pointer' }}
       />
     </div>

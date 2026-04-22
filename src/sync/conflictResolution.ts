@@ -191,7 +191,7 @@ export async function resolveProjectConflict(
 /**
  * Convert remote mapping entry to local format
  */
-function convertRemoteToLocalMapping(remote: any): MappingEntry {
+export function convertRemoteToLocalMapping(remote: any): MappingEntry {
   return {
     id: remote.id,
     projectId: remote.project_id,
@@ -213,7 +213,7 @@ function convertRemoteToLocalMapping(remote: any): MappingEntry {
 /**
  * Convert remote project to local format
  */
-function convertRemoteToLocalProject(remote: any): Project {
+export function convertRemoteToLocalProject(remote: any): Project {
   return {
     id: remote.id,
     title: remote.title,
@@ -227,8 +227,8 @@ function convertRemoteToLocalProject(remote: any): Project {
     typologies: remote.typologies || [],
     ownerId: remote.owner_id,
     accessibleUsers: remote.accessible_users || [],
-    archived: remote.archived || 0,
-    syncEnabled: 0, // Default to 0 for remote projects (per-device preference, not synced)
+    archived: remote.archived ? 1 : 0,
+    syncEnabled: 1, // Local-only compatibility field; the UI no longer gates project access on it
     createdAt: new Date(remote.created_at).getTime(),
     updatedAt: new Date(remote.updated_at).getTime(),
     version: remote.version || 1, // Add version for conflict detection
@@ -368,11 +368,10 @@ export async function checkForConflicts(
         return { hasConflict: false, remote };
       }
 
-      // Compare versions and timestamps
-      const remoteTime = new Date(remote.updated_at).getTime();
+      // Compare versions
       const remoteVersion = remote.version ?? 0;
       const localVersion = local.version ?? 0;
-      const hasConflict = localVersion !== remoteVersion || local.updatedAt !== remoteTime;
+      const hasConflict = localVersion !== remoteVersion;
 
       return { hasConflict, remote };
     } else {
@@ -394,14 +393,13 @@ export async function checkForConflicts(
         return { hasConflict: false, remote };
       }
 
-      const hasConflict = local.version !== remote.version ||
-                         local.lastModified !== remote.last_modified;
+      const hasConflict = (local.version ?? 0) !== (remote.version ?? 0);
 
       return { hasConflict, remote };
     }
   } catch (err) {
     console.error('Error checking for conflicts:', err);
-    return { hasConflict: false, remote: null };
+    throw err;
   }
 }
 

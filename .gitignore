@@ -20,6 +20,13 @@
 .env.production.local
 scripts/ingest/.env
 
+# local tooling state
+.serena/
+.claude/worktrees/
+scripts/__pycache__/
+supabase/.temp/
+nul
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

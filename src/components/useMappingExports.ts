@@ -17,6 +17,8 @@ import {
   User,
   FloorPlan,
   FloorPlanPoint,
+  ensurePhotoBlob,
+  ensureFloorPlanAsset,
   getFloorPlanPoints,
   updateFloorPlanLabelsForMapping,
 } from '../db';
@@ -306,7 +308,10 @@ export function useMappingExports({
         }
 
         for (let i = 0; i < photos.length; i++) {
-          const photo = photos[i];
+          const photo = await ensurePhotoBlob(photos[i].id) || photos[i];
+          if (!photo.blob) {
+            continue;
+          }
           const photoNum = (i + 1).toString().padStart(2, '0');
           const filename = `${prefix}${photoNum}.jpg`;
           const fullPath = folderPath + filename;
@@ -321,8 +326,9 @@ export function useMappingExports({
         // Only export if there are points
         if (rawPoints.length === 0) continue;
 
-        // Skip if no imageBlob available
-        if (!plan.imageBlob) {
+        const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
+        const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
+        if (!exportReadyPlan?.imageBlob) {
           console.warn(`⚠️  Skipping floor plan ${plan.id} - no image blob available`);
           continue;
         }
@@ -351,7 +357,12 @@ export function useMappingExports({
         });
 
         try {
-          const pdfBytes = await buildFloorPlanVectorPDF(plan.imageBlob, exportPoints, plan.pdfBlobBase64, plan.metadata?.rotation || 0);
+          const pdfBytes = await buildFloorPlanVectorPDF(
+            exportReadyPlan.imageBlob,
+            exportPoints,
+            exportReadyPlan.pdfBlobBase64,
+            exportReadyPlan.metadata?.rotation || 0
+          );
           zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
         } catch (error) {
           console.error(`Error creating PDF for plan ${plan.floor}:`, error);
@@ -430,12 +441,10 @@ export function useMappingExports({
 
   const handleExportFloorPlan = async (plan: FloorPlan) => {
     try {
-      if (!plan.imageBlob) {
-        if (plan.imageUrl) {
-          alert('La planimetria deve essere scaricata da Supabase. Prova a sincronizzare il progetto e riprova.');
-        } else {
-          alert('Errore: immagine della planimetria non disponibile.');
-        }
+      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
+      const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
+      if (!exportReadyPlan?.imageBlob) {
+        alert('Errore: immagine della planimetria non disponibile.');
         return;
       }
 
@@ -463,8 +472,14 @@ export function useMappingExports({
         };
       });
 
-      await exportFloorPlanVectorPDF(plan.imageBlob, exportPoints, `Piano_${plan.floor}_annotato.pdf`, plan.pdfBlobBase64, plan.metadata?.rotation || 0);
-      const qualityNote = plan.pdfBlobBase64 ? ' (sfondo vettoriale)' : ' (sfondo raster)';
+      await exportFloorPlanVectorPDF(
+        exportReadyPlan.imageBlob,
+        exportPoints,
+        `Piano_${plan.floor}_annotato.pdf`,
+        exportReadyPlan.pdfBlobBase64,
+        exportReadyPlan.metadata?.rotation || 0
+      );
+      const qualityNote = exportReadyPlan.pdfBlobBase64 ? ' (sfondo vettoriale)' : ' (sfondo raster)';
       alert(`✅ Planimetria esportata in PDF${qualityNote}`);
     } catch (error) {
       console.error('Failed to export floor plan:', error);

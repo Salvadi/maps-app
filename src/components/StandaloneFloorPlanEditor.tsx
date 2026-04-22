@@ -152,7 +152,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     fileInputRef.current?.click();
   }, [points.length, projectName, resetEditorState]);
 
-  const handleSave = useCallback((savedPoints: CanvasPoint[], savedGridConfig: GridConfig) => {
+  const handleSave = useCallback(async (savedPoints: CanvasPoint[], savedGridConfig: GridConfig) => {
     setPoints(savedPoints);
     setGridConfig(savedGridConfig);
     alert('✅ Modifiche salvate localmente');
@@ -197,7 +197,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     }
   }, [currentImageBlob, currentPdfBlobBase64, points, projectName, rotation]);
 
-  const handleSaveToDatabase = useCallback((currentPoints: CanvasPoint[], currentGridConfig: GridConfig) => {
+  const handleSaveToDatabase = useCallback(async (currentPoints: CanvasPoint[], currentGridConfig: GridConfig) => {
     if (!currentImageBlob) {
       alert('❌ Nessuna planimetria caricata');
       return;
@@ -270,7 +270,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
 
       setCurrentMapId(newMap.id);
       setProjectName(trimmedName);
-      setCurrentImageBlob(newMap.imageBlob);
+      setCurrentImageBlob(newMap.imageBlob ?? null);
       setCurrentPdfBlobBase64(newMap.pdfBlobBase64);
       setCurrentPdfUrl(newMap.pdfUrl);
       setCurrentOriginalFormat(newMap.originalFormat);
