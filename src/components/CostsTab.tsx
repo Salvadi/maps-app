@@ -41,6 +41,18 @@ interface AggregatedRow {
   toComplete: boolean;
 }
 
+interface SummaryGroupRow {
+  label: string;
+  secondaryLabel?: string;
+  detailLabel?: string;
+  quantity: number;
+  unit: 'piece' | 'sqm';
+  pricePerUnit: number;
+  total: number;
+  isAsola: boolean;
+  toComplete: boolean;
+}
+
 const GROUP_LABELS: Record<GroupBy, string> = {
   floor: 'Piano',
   tipologico: 'Tipologico',
@@ -210,6 +222,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const [salDate, setSalDate] = useState('');
   const [salNotes, setSalNotes] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
     const [entries, loadedPrices, loadedSals] = await Promise.all([
@@ -417,6 +430,114 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     }
     return map;
   }, [filteredRows, groupBy]);
+
+  useEffect(() => {
+    setCollapsedGroups(prev => {
+      const next: Record<string, boolean> = {};
+      for (const key of Array.from(grouped.keys())) {
+        const scopedKey = `${groupBy}::${selectedSalId}::${key}`;
+        next[scopedKey] = prev[scopedKey] ?? true;
+      }
+      return next;
+    });
+  }, [groupBy, grouped, selectedSalId]);
+
+  const groupedSummaryRows = React.useMemo(() => {
+    const map = new Map<string, SummaryGroupRow[]>();
+
+    const getPrimaryLabel = (row: AggregatedRow) => {
+      switch (groupBy) {
+        case 'floor':
+          return row.attraversamento || 'N/D';
+        case 'tipologico':
+          return row.attraversamento || 'N/D';
+        case 'supporto':
+          return row.attraversamento || 'N/D';
+        case 'attraversamento':
+          return row.tipologicoNumber
+            ? `Tip. ${row.tipologicoNumber}`
+            : row.tipologicoLabel || 'Senza tipologico';
+      }
+    };
+
+    const getSecondaryLabel = (row: AggregatedRow) => {
+      switch (groupBy) {
+        case 'floor':
+          return row.tipologicoNumber
+            ? `Tip. ${row.tipologicoNumber}`
+            : row.tipologicoLabel || 'Senza tipologico';
+        case 'tipologico':
+          return row.floor || 'N/D';
+        case 'supporto':
+          return row.tipologicoNumber
+            ? `Tip. ${row.tipologicoNumber}`
+            : row.tipologicoLabel || 'Senza tipologico';
+        case 'attraversamento':
+          return row.floor || 'N/D';
+      }
+    };
+
+    const getDetailLabel = (row: AggregatedRow) => {
+      switch (groupBy) {
+        case 'floor':
+          return row.supporto || undefined;
+        case 'tipologico':
+          return row.supporto || undefined;
+        case 'supporto':
+          return row.floor || undefined;
+        case 'attraversamento':
+          return row.supporto || undefined;
+      }
+    };
+
+    for (const [groupKey, groupRows] of Array.from(grouped.entries())) {
+      const aggregated = new Map<string, SummaryGroupRow>();
+
+      for (const row of groupRows) {
+        const label = getPrimaryLabel(row);
+        const secondaryLabel = getSecondaryLabel(row);
+        const detailLabel = getDetailLabel(row);
+        const aggregateKey = JSON.stringify([
+          label,
+          secondaryLabel ?? '',
+          detailLabel ?? '',
+          row.unit,
+          row.pricePerUnit,
+          row.isAsola ? '1' : '0',
+          row.toComplete ? '1' : '0',
+        ]);
+
+        const existing = aggregated.get(aggregateKey);
+        if (existing) {
+          existing.quantity += row.quantity;
+          existing.total += row.total;
+          existing.toComplete = existing.toComplete || row.toComplete;
+        } else {
+          aggregated.set(aggregateKey, {
+            label,
+            secondaryLabel,
+            detailLabel,
+            quantity: row.quantity,
+            unit: row.unit,
+            pricePerUnit: row.pricePerUnit,
+            total: row.total,
+            isAsola: row.isAsola,
+            toComplete: row.toComplete,
+          });
+        }
+      }
+
+      map.set(
+        groupKey,
+        Array.from(aggregated.values()).sort((a, b) => {
+          if (a.isAsola !== b.isAsola) return a.isAsola ? 1 : -1;
+          return a.label.localeCompare(b.label, 'it');
+        })
+      );
+    }
+
+    return map;
+  }, [groupBy, grouped]);
 
   const formatCurrency = (n: number) =>
     n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
@@ -694,6 +815,14 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     await loadData();
   };
 
+  const toggleGroup = (groupKey: string) => {
+    const scopedKey = `${groupBy}::${selectedSalId}::${groupKey}`;
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [scopedKey]: !prev[scopedKey],
+    }));
+  };
+
   return (
     <div className="px-4 pt-4 pb-24 space-y-5">
       {/* Header row */}
@@ -759,119 +888,6 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             <Trash2 size={13} />
             Elimina
           </button>
-        )}
-      </div>
-
-      {/* Summary table */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-brand-100">
-          <h3 className="text-sm font-bold text-brand-800">
-            {selectedSal
-              ? `SAL ${selectedSal.number}${selectedSal.name ? ` — ${selectedSal.name}` : ''}`
-              : 'Riepilogo Attraversamenti'
-            }
-          </h3>
-          {selectedSal && (
-            <p className="text-xs text-brand-400 mt-0.5">
-              {new Date(selectedSal.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-          )}
-        </div>
-        {filteredRows.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-brand-500">
-            {selectedSalId === 'unassigned'
-              ? 'Tutti gli attraversamenti sono già contabilizzati in un SAL'
-              : 'Nessun attraversamento registrato'
-            }
-          </div>
-        ) : (
-          <>
-            {Array.from(grouped.entries()).map(([groupKey, groupRows]) => {
-              const groupTotal = groupRows.reduce((s, r) => s + r.total, 0);
-              return (
-                <div key={groupKey} className="border-b border-brand-50 last:border-0">
-                  <div className="px-4 py-2 bg-brand-50">
-                    <span className="text-xs font-bold text-brand-700 uppercase tracking-wide">
-                      {GROUP_LABELS[groupBy]}: {groupKey}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-brand-50">
-                    {groupRows.map((row, i) => (
-                      <div key={i} className={`px-4 py-2.5 flex items-center justify-between gap-2 ${row.isAsola ? 'pl-8 bg-warning/5' : ''}`}>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-brand-700">
-                            {row.isAsola ? <span className="text-warning flex-shrink-0">↳ </span> : null}
-                            <span className="truncate">{row.attraversamento || 'N/D'}</span>
-                            {row.toComplete && (
-                              <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-semibold text-warning bg-warning/10 px-1.5 py-0.5 rounded-full">
-                                <AlertTriangle size={9} />
-                                da completare
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-1">
-                            {renderTypologySummary({
-                              number: row.tipologicoNumber,
-                              supporto: row.tipologicoSupporto,
-                              brand: row.tipologicoBrand,
-                              products: row.tipologicoProducts,
-                              fallbackLabel: row.tipologicoLabel,
-                              compact: true,
-                            })}
-                          </div>
-                          <div className="text-[11px] text-brand-400 mt-1">
-                            {row.unit === 'sqm' ? `${row.quantity.toFixed(2)} mq` : `×${row.quantity}`}
-                          </div>
-                        </div>
-                        <div className="text-xs font-semibold text-brand-800 flex-shrink-0">
-                          {row.pricePerUnit > 0 ? formatCurrency(row.total) : '—'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="px-4 py-2.5 bg-brand-50/50 flex justify-between">
-                    <span className="text-xs font-bold text-brand-600">
-                      TOTALE {GROUP_LABELS[groupBy].toUpperCase()}
-                    </span>
-                    <span className="text-xs font-bold text-brand-800">
-                      {groupTotal > 0 ? formatCurrency(groupTotal) : '—'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            {/* Grand total */}
-            <div className="px-4 py-3.5 flex justify-between bg-accent/5">
-              <span className="text-sm font-bold text-brand-800">
-                {selectedSal ? `TOTALE SAL ${selectedSal.number}` : 'TOTALE PROGETTO'}
-              </span>
-              <span className="text-sm font-bold text-accent">
-                {grandTotal > 0 ? formatCurrency(grandTotal) : '—'}
-              </span>
-            </div>
-
-            {/* Cumulative totals (only for specific SAL view) */}
-            {selectedSal && (
-              <>
-                <div className="px-4 py-2.5 flex justify-between border-t border-brand-100">
-                  <span className="text-xs text-brand-500">
-                    Cumulativo SAL precedenti
-                  </span>
-                  <span className="text-xs font-semibold text-brand-600">
-                    {cumulativePriorTotal > 0 ? formatCurrency(cumulativePriorTotal) : '—'}
-                  </span>
-                </div>
-                <div className="px-4 py-2.5 flex justify-between bg-accent/10">
-                  <span className="text-xs font-bold text-brand-800">
-                    TOTALE COMPLESSIVO
-                  </span>
-                  <span className="text-xs font-bold text-accent">
-                    {(grandTotal + cumulativePriorTotal) > 0 ? formatCurrency(grandTotal + cumulativePriorTotal) : '—'}
-                  </span>
-                </div>
-              </>
-            )}
-          </>
         )}
       </div>
 
@@ -944,6 +960,167 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* Summary table */}
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-brand-100">
+          <h3 className="text-sm font-bold text-brand-800">
+            {selectedSal
+              ? `SAL ${selectedSal.number}${selectedSal.name ? ` — ${selectedSal.name}` : ''}`
+              : 'Riepilogo Attraversamenti'
+            }
+          </h3>
+          <p className="text-xs text-brand-400 mt-0.5">
+            Gruppi comprimibili con righe aggregate per rendere il riepilogo piu leggibile.
+          </p>
+          {selectedSal && (
+            <p className="text-xs text-brand-400 mt-1">
+              {new Date(selectedSal.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          )}
+        </div>
+        {filteredRows.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-brand-500">
+            {selectedSalId === 'unassigned'
+              ? 'Tutti gli attraversamenti sono già contabilizzati in un SAL'
+              : 'Nessun attraversamento registrato'
+            }
+          </div>
+        ) : (
+          <>
+            {Array.from(grouped.entries()).map(([groupKey, groupRows]) => {
+              const summaryRows = groupedSummaryRows.get(groupKey) ?? [];
+              const groupTotal = groupRows.reduce((s, r) => s + r.total, 0);
+              const scopedKey = `${groupBy}::${selectedSalId}::${groupKey}`;
+              const isCollapsed = collapsedGroups[scopedKey] ?? true;
+              return (
+                <div key={groupKey} className="border-b border-brand-50 last:border-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(groupKey)}
+                    className="w-full px-4 py-3 bg-brand-50 flex items-center justify-between gap-3 text-left"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ChevronDown
+                          size={15}
+                          className={`text-brand-500 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                        />
+                        <span className="text-xs font-bold text-brand-700 uppercase tracking-wide truncate">
+                          {GROUP_LABELS[groupBy]}: {groupKey}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-brand-400 mt-1 pl-6">
+                        {summaryRows.length} righe aggregate
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-[11px] font-semibold text-brand-500">Totale</div>
+                      <div className="text-xs font-bold text-brand-800">
+                        {groupTotal > 0 ? formatCurrency(groupTotal) : '—'}
+                      </div>
+                    </div>
+                  </button>
+
+                  {!isCollapsed && (
+                    <>
+                      <div className="overflow-x-auto">
+                        <div className="min-w-[760px]">
+                          <div className="grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_72px_64px_96px_104px] gap-3 px-4 py-2 border-y border-brand-100 bg-brand-50/40 text-[11px] font-bold uppercase tracking-wide text-brand-500">
+                            <span>Voce</span>
+                            <span>Dettaglio</span>
+                            <span>Info</span>
+                            <span className="text-right">Qta</span>
+                            <span>UM</span>
+                            <span className="text-right">Prezzo</span>
+                            <span className="text-right">Totale</span>
+                          </div>
+                          <div className="divide-y divide-brand-50">
+                            {summaryRows.map((row, i) => (
+                              <div
+                                key={`${groupKey}-${i}`}
+                                className={`grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_72px_64px_96px_104px] gap-3 px-4 py-3 items-start ${row.isAsola ? 'bg-warning/5' : ''}`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 text-xs font-medium text-brand-700">
+                                    {row.isAsola ? <span className="text-warning flex-shrink-0">↳ </span> : null}
+                                    <span className="truncate">{row.label}</span>
+                                  </div>
+                                  {row.toComplete && (
+                                    <span className="inline-flex mt-1 items-center gap-0.5 text-[10px] font-semibold text-warning bg-warning/10 px-1.5 py-0.5 rounded-full">
+                                      <AlertTriangle size={9} />
+                                      da completare
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="min-w-0 text-[11px] text-brand-600 truncate">
+                                  {row.secondaryLabel || '—'}
+                                </div>
+                                <div className="min-w-0 text-[11px] text-brand-400 truncate">
+                                  {row.detailLabel || '—'}
+                                </div>
+                                <div className="text-xs text-right font-semibold text-brand-700">
+                                  {row.unit === 'sqm' ? row.quantity.toFixed(2) : row.quantity}
+                                </div>
+                                <div className="text-xs text-brand-500">
+                                  {formatUnitLabel(row.unit)}
+                                </div>
+                                <div className="text-xs text-right font-semibold text-brand-700">
+                                  {row.pricePerUnit > 0 ? formatCurrency(row.pricePerUnit) : '—'}
+                                </div>
+                                <div className="text-xs text-right font-semibold text-brand-800">
+                                  {row.pricePerUnit > 0 ? formatCurrency(row.total) : '—'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-2.5 bg-brand-50/50 flex justify-between">
+                        <span className="text-xs font-bold text-brand-600">
+                          TOTALE {GROUP_LABELS[groupBy].toUpperCase()}
+                        </span>
+                        <span className="text-xs font-bold text-brand-800">
+                          {groupTotal > 0 ? formatCurrency(groupTotal) : '—'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <div className="px-4 py-3.5 flex justify-between bg-accent/5">
+              <span className="text-sm font-bold text-brand-800">
+                {selectedSal ? `TOTALE SAL ${selectedSal.number}` : 'TOTALE PROGETTO'}
+              </span>
+              <span className="text-sm font-bold text-accent">
+                {grandTotal > 0 ? formatCurrency(grandTotal) : '—'}
+              </span>
+            </div>
+
+            {selectedSal && (
+              <>
+                <div className="px-4 py-2.5 flex justify-between border-t border-brand-100">
+                  <span className="text-xs text-brand-500">
+                    Cumulativo SAL precedenti
+                  </span>
+                  <span className="text-xs font-semibold text-brand-600">
+                    {cumulativePriorTotal > 0 ? formatCurrency(cumulativePriorTotal) : '—'}
+                  </span>
+                </div>
+                <div className="px-4 py-2.5 flex justify-between bg-accent/10">
+                  <span className="text-xs font-bold text-brand-800">
+                    TOTALE COMPLESSIVO
+                  </span>
+                  <span className="text-xs font-bold text-accent">
+                    {(grandTotal + cumulativePriorTotal) > 0 ? formatCurrency(grandTotal + cumulativePriorTotal) : '—'}
+                  </span>
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
 
