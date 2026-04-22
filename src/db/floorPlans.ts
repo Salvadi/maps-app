@@ -265,30 +265,25 @@ export async function getFloorPlanByProjectAndFloor(
         throw error;
       }
 
-      const [signedRemote] = await signFloorPlanUrls([convertRemoteToLocalFloorPlan(data)]);
+      const rawRemote = convertRemoteToLocalFloorPlan(data);
+      const [signedRemote] = await signFloorPlanUrls([rawRemote]);
       const pendingIds = await getPendingEntityIds('floor_plan');
-      const existing = await db.floorPlans.get(signedRemote.id);
-      const merged = mergeFloorPlanLocalFields(signedRemote, existing);
+      const existing = await db.floorPlans.get(rawRemote.id);
 
-      if (pendingIds.has(signedRemote.id) && existing) {
+      if (pendingIds.has(rawRemote.id) && existing) {
         return existing;
       }
 
-      if (pendingIds.has(signedRemote.id) && !existing) {
+      if (pendingIds.has(rawRemote.id) && !existing) {
         return undefined;
       }
 
-      if (!pendingIds.has(signedRemote.id)) {
-        const toPersist = {
-          ...merged,
-          imageUrl: undefined,
-          thumbnailUrl: undefined,
-          pdfUrl: undefined,
-        };
-        await db.floorPlans.put(toPersist);
-      }
+      // Persiste con URL grezzi così ensureFloorPlanAsset può scaricare il blob su richiesta
+      const mergedRaw = mergeFloorPlanLocalFields(rawRemote, existing);
+      await db.floorPlans.put(mergedRaw);
 
-      return merged;
+      // Restituisce la versione firmata per la visualizzazione immediata (non persistita)
+      return mergeFloorPlanLocalFields(signedRemote, existing);
     } catch (err) {
       if (isAuthError(err)) {
         throw err;
@@ -315,20 +310,22 @@ export async function getFloorPlansByProject(projectId: string): Promise<FloorPl
         throw error;
       }
 
-      const remotePlans = await signFloorPlanUrls((data || []).map(convertRemoteToLocalFloorPlan));
+      const rawPlans = (data || []).map(convertRemoteToLocalFloorPlan);
       const pendingIds = await getPendingEntityIds(
         'floor_plan',
         (item) => (item.payload as FloorPlan)?.projectId === projectId
       );
+      // Persiste URL grezzi così ensureFloorPlanAsset può scaricare il blob su richiesta
       const cached = await writeThroughCache(
-        remotePlans,
+        rawPlans,
         pendingIds,
         db.floorPlans,
-        mergeFloorPlanLocalFields,
-        (fp) => ({ ...fp, imageUrl: undefined, thumbnailUrl: undefined, pdfUrl: undefined })
+        mergeFloorPlanLocalFields
       );
+      // Firma in memoria per la visualizzazione immediata (non persistita)
+      const signedForDisplay = await signFloorPlanUrls(cached);
       return applyPendingWrites<FloorPlan>(
-        cached,
+        signedForDisplay,
         'floor_plan',
         (item) => (item.payload as FloorPlan)?.projectId === projectId
       );
