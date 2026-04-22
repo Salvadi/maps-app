@@ -70,33 +70,30 @@ async function signPhotoPaths(rows: RemotePhotoRow[]): Promise<{
   const signedByPath = new Map<string, string>();
   const signedThumbByPath = new Map<string, string>();
 
-  if (fullPaths.length > 0) {
-    for (const batch of chunkArray(fullPaths, PHOTO_SIGN_BATCH_SIZE)) {
-      const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
-      if (error) {
-        throw error;
-      }
-      for (const item of data || []) {
-        if (item.path && item.signedUrl) {
-          signedByPath.set(item.path, item.signedUrl);
+  await Promise.all([
+    (async () => {
+      if (fullPaths.length > 0) {
+        for (const batch of chunkArray(fullPaths, PHOTO_SIGN_BATCH_SIZE)) {
+          const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
+          if (error) throw error;
+          for (const item of data || []) {
+            if (item.path && item.signedUrl) signedByPath.set(item.path, item.signedUrl);
+          }
         }
       }
-    }
-  }
-
-  if (thumbPaths.length > 0) {
-    for (const batch of chunkArray(thumbPaths, PHOTO_SIGN_BATCH_SIZE)) {
-      const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
-      if (error) {
-        throw error;
-      }
-      for (const item of data || []) {
-        if (item.path && item.signedUrl) {
-          signedThumbByPath.set(item.path, item.signedUrl);
+    })(),
+    (async () => {
+      if (thumbPaths.length > 0) {
+        for (const batch of chunkArray(thumbPaths, PHOTO_SIGN_BATCH_SIZE)) {
+          const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
+          if (error) throw error;
+          for (const item of data || []) {
+            if (item.path && item.signedUrl) signedThumbByPath.set(item.path, item.signedUrl);
+          }
         }
       }
-    }
-  }
+    })(),
+  ]);
 
   return { signedByPath, signedThumbByPath };
 }
@@ -610,25 +607,12 @@ export async function getMappingCountForProject(projectId: string): Promise<numb
 export async function getPhotoCountForProject(projectId: string): Promise<number> {
   if (isOnlineAndConfigured()) {
     try {
-      const { data: entryIds, error: entriesError } = await supabase
-        .from('mapping_entries')
-        .select('id')
-        .eq('project_id', projectId);
-      if (entriesError) throw entriesError;
-
-      const ids = (entryIds ?? []).map((row: { id: string }) => row.id);
-      if (ids.length === 0) return 0;
-
-      let total = 0;
-      for (const chunk of chunkArray(ids, 100)) {
-        const { count, error } = await supabase
-          .from('photos')
-          .select('id', { count: 'exact', head: true })
-          .in('mapping_entry_id', chunk);
-        if (error) throw error;
-        total += count ?? 0;
-      }
-      return total;
+      const { count, error } = await supabase
+        .from('photos')
+        .select('id, mapping_entries!inner(id)', { count: 'exact', head: true })
+        .eq('mapping_entries.project_id', projectId);
+      if (error) throw error;
+      return count ?? 0;
     } catch (err) {
       if (isAuthError(err)) throw err;
       console.warn('[getPhotoCountForProject] fallback local:', err);
