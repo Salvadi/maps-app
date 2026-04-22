@@ -1,95 +1,26 @@
-# OPImaPPA - Documentazione
+# Documentazione OPImaPPA
 
-Questa cartella contiene la documentazione tecnica dell'applicazione OPImaPPA.
+Indice dei documenti tecnici del progetto.
 
-## 📚 Documenti Disponibili
+## Setup & deploy
 
-### Setup e Deployment
+- [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) — provisioning backend Supabase da zero (schema, RLS, bucket)
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — deploy su Vercel / Netlify
+- [.env.local.example](./.env.local.example) — template variabili d'ambiente
 
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Guida completa per il deployment su Vercel/Netlify
-- **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)** - Configurazione del backend Supabase
+## Runtime
 
-### Funzionalità Avanzate
+- [CONFLICT_RESOLUTION.md](./CONFLICT_RESOLUTION.md) — strategia `last-modified-wins` per progetti e mapping entries
+- [UPDATE_SYSTEM.md](./UPDATE_SYSTEM.md) — flusso di aggiornamento PWA via Service Worker
 
-- **[CONFLICT_RESOLUTION.md](./CONFLICT_RESOLUTION.md)** - Sistema di risoluzione conflitti per sincronizzazione multi-dispositivo
-- **[UPDATE_SYSTEM.md](./UPDATE_SYSTEM.md)** - Sistema di aggiornamento automatico con Service Worker
+## File SQL
 
-### Configurazione Database
-
-- **[ACTION_ITEMS_RLS_POLICIES.md](./ACTION_ITEMS_RLS_POLICIES.md)** - Action items per le policy RLS (Row Level Security)
-- **[RLS_POLICIES_ANALYSIS.md](./RLS_POLICIES_ANALYSIS.md)** - Analisi dettagliata delle policy di sicurezza
-
-### File di Configurazione
-
-- **[.env.local.example](./.env.local.example)** - Template per le variabili d'ambiente
-
-## 🗂️ Struttura File SQL
-
-I file SQL sono organizzati nella cartella `/supabase/`:
+Lo schema Supabase vive in [`/supabase/`](../supabase/):
 
 ```
 supabase/
-├── schema.sql              # Schema completo del database
-├── storage-policies.sql    # Policy per Supabase Storage
-└── migrations/
-    ├── README.md
-    ├── 20250101000000_add_sync_enabled_to_projects.sql
-    ├── 20250104000001_update_projects_rls_policies.sql
-    └── 20250104000002_add_projects_conflict_resolution.sql
+├── schema.sql           # Baseline: tabelle, indici, trigger, RLS policies
+└── storage-policies.sql # Bucket (photos, planimetrie) + policies
 ```
 
-## 🚀 Quick Start
-
-Per iniziare con l'applicazione:
-
-1. Leggi il **[README principale](../README.md)** per una panoramica completa
-2. Segui la guida **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)** per configurare il backend
-3. Consulta **[DEPLOYMENT.md](./DEPLOYMENT.md)** per il deploy in produzione
-
-## 📖 Per Sviluppatori
-
-### Modifiche al Database
-
-Quando apporti modifiche al database:
-
-1. Crea una nuova migration in `/supabase/migrations/`
-2. Usa il formato timestamp: `YYYYMMDDHHMMSS_description.sql`
-3. Testa la migration in ambiente di sviluppo
-4. Documenta le modifiche in questa sezione
-
-### Aggiornamenti Documentazione
-
-La documentazione deve essere mantenuta aggiornata:
-
-- Aggiorna i file rilevanti quando modifichi funzionalità
-- Rimuovi documentazione obsoleta
-- Mantieni la struttura organizzata
-
-## ⚠️ Note Importanti
-
-### Migrations
-
-Le migration SQL sono organizzate cronologicamente:
-
-- `20250101000000` - Sync enabled (deprecato, ora locale)
-- `20250104000001` - Update RLS policies
-- `20250104000002` - Conflict resolution
-
-### Backward Compatibility
-
-L'applicazione mantiene la compatibilità con progetti esistenti:
-
-- Campi opzionali per nuove feature
-- Gestione graceful di dati mancanti
-- Fallback per configurazioni precedenti
-
-## 🔗 Link Utili
-
-- [Supabase Documentation](https://supabase.com/docs)
-- [Vercel Documentation](https://vercel.com/docs)
-- [PWA Guidelines](https://web.dev/progressive-web-apps/)
-
----
-
-**Ultimo aggiornamento:** 2025-12-30
-**Versione:** 1.0.0
+Non ci sono migration incrementali in repo: `schema.sql` è il singolo punto di verità e viene mantenuto allineato con lo stato live. Le modifiche al DB si propagano editando `schema.sql` e rieseguendolo (è idempotente) oppure con SQL mirato nella SQL Editor di Supabase.

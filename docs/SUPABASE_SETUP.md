@@ -1,244 +1,75 @@
-# Supabase Setup Guide
+# Supabase Setup
 
-This guide will help you set up your Supabase project for the OPImaPPA application.
+Procedura per ricostruire il backend Supabase di OPImaPPA da zero, oppure riallineare un'istanza esistente allo schema corrente.
 
-## Prerequisites
+## 1. Progetto Supabase
 
-- A Supabase account (https://supabase.com)
-- A Supabase project created
-- Your project's credentials added to `.env.local`
+1. Crea un progetto su [supabase.com](https://supabase.com).
+2. In **Project Settings → API** copia:
+   - `Project URL` → `REACT_APP_SUPABASE_URL`
+   - `anon` public key → `REACT_APP_SUPABASE_ANON_KEY`
+3. Inserisci entrambe in `.env.local` nella root del progetto (template in [.env.local.example](./.env.local.example)).
 
-## Step 1: Database Setup
+## 2. Schema database
 
-1. Go to your Supabase Dashboard
-2. Navigate to **SQL Editor**
-3. Create a new query
-4. Copy and paste the contents of `/supabase/schema.sql`
-5. Click **Run** to execute the SQL
+Apri **SQL Editor** e incolla integralmente [`supabase/schema.sql`](../supabase/schema.sql).
 
-This will create:
-- All database tables (profiles, projects, mapping_entries, photos, sync_queue)
-- Row Level Security policies
-- Indexes for performance
-- Triggers for automatic timestamps
-- Auto-create user profiles on signup
+Lo script è **idempotente** (`CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`, `DROP POLICY IF EXISTS` prima di ogni `CREATE POLICY`), quindi puó essere rieseguito senza errori anche su un DB già popolato — serve anche come riallineamento.
 
-## Step 2: Storage Bucket Setup
+Lo script crea:
 
-### 2.1 Create the Photos Bucket (Alternative to SQL)
+- Estensione `uuid-ossp`
+- Funzione helper `public.is_admin()` (SECURITY DEFINER)
+- Tabelle: `profiles`, `projects`, `mapping_entries`, `photos`, `floor_plans`, `floor_plan_points`, `dropdown_options`, `products`, `sals`, `typology_prices`, `standalone_maps`
+- Indici, trigger `updated_at`, trigger `last_modified` per `projects`
+- Trigger `on_auth_user_created` che crea automaticamente una riga in `profiles` al signup
+- RLS enabled + policies complete per ogni tabella
 
-If the bucket doesn't exist, you can create it via the UI:
+## 3. Storage buckets
 
-1. Go to **Storage** in your Supabase Dashboard
-2. Click **New Bucket**
-3. Configure:
-   - **Name**: `photos`
-   - **Public**: ❌ Unchecked (private bucket)
-   - **File size limit**: `10485760` (10MB)
-   - **Allowed MIME types**: `image/jpeg, image/jpg, image/png, image/webp`
-4. Click **Create Bucket**
+Sempre da SQL Editor, incolla [`supabase/storage-policies.sql`](../supabase/storage-policies.sql). Crea e configura due bucket:
 
-### 2.2 Apply Storage Policies
+| Bucket        | Visibilità          | Uso                                    |
+|---------------|---------------------|----------------------------------------|
+| `photos`      | privato             | Foto dei mapping entry (signed URL)    |
+| `planimetrie` | pubblico in lettura | Immagini e PDF delle planimetrie       |
 
-1. Go to **SQL Editor**
-2. Create a new query
-3. Copy and paste the contents of `/supabase/storage-policies.sql`
-4. Click **Run** to execute the SQL
+Path convention: nel bucket `photos` i file vivono in `{mappingEntryId}/{photoId}.jpg`.
 
-This will create policies that allow:
-- Users to upload photos to mapping entries they have access to
-- Users to view/update/delete photos from accessible mapping entries
-- Admins to view all photos
-- File type and size restrictions
+## 4. Primo admin
 
-## Step 3: Verify Setup
-
-### 3.1 Check Database Tables
-
-Run this query in SQL Editor:
+Dopo il primo signup tramite l'app, promuovi l'utente a admin da SQL Editor:
 
 ```sql
+UPDATE public.profiles SET role = 'admin' WHERE email = 'tua@email.com';
+```
+
+Solo gli admin possono popolare `dropdown_options` e `products` via UI (pagina Impostazioni).
+
+## 5. Verifica
+
+```sql
+-- Tabelle create
 SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public'
 ORDER BY table_name;
-```
 
-You should see:
-- `mapping_entries`
-- `photos`
-- `profiles`
-- `projects`
-- `sync_queue`
-
-### 3.2 Check RLS is Enabled
-
-Run this query:
-
-```sql
+-- RLS attiva ovunque
 SELECT tablename, rowsecurity
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY tablename;
+
+-- Bucket creati
+SELECT id, public FROM storage.buckets WHERE id IN ('photos','planimetrie');
 ```
 
-All tables should have `rowsecurity = true`.
+Attesi in `public.`:
+`dropdown_options, floor_plan_points, floor_plans, mapping_entries, photos, products, profiles, projects, sals, standalone_maps, typology_prices`.
 
-### 3.3 Check Storage Policies
+## Note
 
-Run this query:
-
-```sql
-SELECT policyname, cmd
-FROM pg_policies
-WHERE schemaname = 'storage'
-  AND tablename = 'objects'
-ORDER BY policyname;
-```
-
-You should see 4 policies:
-- `Users can upload photos to accessible mapping entries` (INSERT)
-- `Users can view photos from accessible mapping entries` (SELECT)
-- `Users can update photos in accessible mapping entries` (UPDATE)
-- `Users can delete photos from accessible mapping entries` (DELETE)
-
-## Step 4: Create Your First User
-
-1. Go to **Authentication** > **Users**
-2. Click **Add User**
-3. Enter email and password
-4. Click **Create User**
-
-A profile will be automatically created in the `profiles` table.
-
-To make a user an admin:
-
-```sql
-UPDATE public.profiles
-SET role = 'admin'
-WHERE email = 'your-admin@example.com';
-```
-
-## Step 5: Test the App
-
-1. Clear your browser's IndexedDB (to reset local data):
-   - Open DevTools → Application → IndexedDB
-   - Delete `MappingDatabase`
-
-2. Reload the app
-
-3. Log in with your Supabase user credentials
-
-4. Create a project and add photos
-
-5. Check the console - you should see:
-   ```
-   🔄 Processing X sync queue items as user [user-id]...
-   ✅ Synced project CREATE: [project-id]
-   ✅ Synced mapping_entry CREATE: [entry-id]
-   ✅ Synced photo CREATE: [photo-id]
-   ```
-
-6. Verify in Supabase:
-   - **Database** → Check tables for your data
-   - **Storage** → Check `photos` bucket for uploaded images
-
-## Troubleshooting
-
-### Issue: "new row violates row-level security policy"
-
-**Cause**: User is not authenticated or RLS policies are not set up correctly.
-
-**Solution**:
-1. Ensure you're logged in (check localStorage for `supabase.auth.token`)
-2. Run the storage policies SQL again
-3. Clear browser cache and reload
-
-### Issue: "User not authenticated. Please log in to sync data."
-
-**Cause**: No active Supabase session.
-
-**Solution**:
-1. Implement and use the login/signup UI
-2. Make sure session persists in localStorage
-3. Check that `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are set correctly
-
-### Issue: Photos upload to storage but metadata insert fails
-
-**Cause**: Database RLS policies blocking the insert.
-
-**Solution**:
-1. Verify the mapping entry exists in Supabase
-2. Verify you have access to the project that owns the mapping entry
-3. Check that `created_by` matches the authenticated user
-
-### Issue: Storage bucket not found
-
-**Cause**: The `photos` bucket doesn't exist.
-
-**Solution**:
-1. Go to Storage in Supabase Dashboard
-2. Create the `photos` bucket manually
-3. Or run the `INSERT INTO storage.buckets` command from `/supabase/storage-policies.sql`
-
-## Environment Variables
-
-Make sure your `.env.local` file contains:
-
-```env
-REACT_APP_SUPABASE_URL=https://your-project.supabase.co
-REACT_APP_SUPABASE_ANON_KEY=your-anon-key
-```
-
-Get these from: **Supabase Dashboard** → **Settings** → **API**
-
-## Security Notes
-
-- ✅ Row Level Security is enabled on all tables
-- ✅ Storage bucket is private (requires authentication)
-- ✅ File types are restricted to images only
-- ✅ File size is limited to 10MB
-- ✅ Users can only access their own data or shared projects
-- ✅ Admins can view all data
-
-## Updating RLS Policies
-
-### Projects Table Policies Update (2025-12-04)
-
-**⚠️ IMPORTANT**: If you need to update the RLS policies for the `projects` table, please review the following documents BEFORE applying any changes:
-
-1. **[RLS_POLICIES_ANALYSIS.md](./RLS_POLICIES_ANALYSIS.md)** - Detailed analysis of policy changes, potential bugs, and recommendations
-2. **[/supabase/migrations/20250104000001_update_projects_rls_policies.sql](../supabase/migrations/20250104000001_update_projects_rls_policies.sql)** - SQL migration script with the new policies
-3. **[ACTION_ITEMS_RLS_POLICIES.md](./ACTION_ITEMS_RLS_POLICIES.md)** - Action items and checklist before deployment
-
-**Key Changes in New Policies**:
-- ✅ Consolidated SELECT policies for better performance
-- ✅ Added admin-specific INSERT, UPDATE, DELETE policies
-- 🔴 **BREAKING CHANGE**: Users with shared access can no longer DELETE projects (only owners and admins)
-- ⚠️ Users cannot remove themselves from `accessible_users`
-- ⚠️ Admins can create projects for other users and change `owner_id`
-
-**Before Applying the Migration**:
-1. Read the full analysis in `RLS_POLICIES_ANALYSIS.md`
-2. Make a decision on whether shared users should be able to delete projects
-3. Implement conflict resolution for projects (see ACTION_ITEMS)
-4. Test thoroughly in staging environment
-5. Create a database backup
-6. Prepare a rollback plan
-
-**To Apply the New Policies**:
-```sql
--- In Supabase SQL Editor, run:
--- File: /supabase/migrations/20250104000001_update_projects_rls_policies.sql
-```
-
-## Next Steps
-
-Once setup is complete:
-1. Test creating projects, mapping entries, and uploading photos
-2. Test sharing projects with other users
-3. Verify sync works correctly
-4. Set up automated backups in Supabase Dashboard
-5. Review and apply RLS policy updates if needed (see section above)
-
-For more help, see the [Supabase Documentation](https://supabase.com/docs).
+- **Conflict resolution**: `projects` e `mapping_entries` portano `version` + `last_modified`; il trigger `update_projects_last_modified` aggiorna il timestamp sul server. Dettagli in [CONFLICT_RESOLUTION.md](./CONFLICT_RESOLUTION.md).
+- **Aggiornamenti schema**: edita `schema.sql` e rieseguilo, oppure applica SQL mirato. Non ci sono migration incrementali nel repo — `schema.sql` è la baseline.
+- **Pipeline RAG certificati**: vive in un repo separato. Le tabelle `rag_*`, `manufacturers`, `manufacturer_lexicon` non fanno parte di questo schema.

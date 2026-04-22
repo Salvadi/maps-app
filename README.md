@@ -1,549 +1,118 @@
 # OPImaPPA
 
-A mobile-first Progressive Web App for construction and installation mapping with offline-first architecture. Capture photos, manage mapping entries, and export data - all while working completely offline.
+Progressive Web App mobile-first per la mappatura di sigillature antincendio su cantieri. Consente di fotografare, geolocalizzare su planimetria, catalogare e esportare gli interventi — online o completamente offline.
 
-## 🚀 Features
+Frontend React 19 + TypeScript, store locale Dexie (IndexedDB), backend Supabase (Postgres + Storage + Auth). Architettura **online-first**: letture live con write-through verso la cache locale e fallback completo su IndexedDB quando la rete manca.
 
-### ✅ Phase 1: Core Offline with IndexedDB
-- **Offline-First Architecture** - All data stored in IndexedDB, works without internet
-- **Photo Compression** - Automatic compression to 1MB max, 1920px using browser-image-compression
-- **Project Management** - Create, edit, delete, and view projects
-- **Mock Authentication** - Multi-user support with role-based access control
-- **Service Worker** - App shell caching for instant offline access
-- **PWA Manifest** - Installable on mobile devices as a native app
+## Stack
 
-### ✅ Phase 2: Mapping View & Export
-- **Mapping View** - Display all mapping entries for a project with photo gallery
-- **Photo Gallery** - Expandable cards with responsive image grid
-- **XLSX Export** - Export mapping data to formatted Excel spreadsheet
-- **ZIP Export** - Export Excel file + photos organized by floor/room
-- **Smart Navigation** - Context-aware navigation between views
+- **React 19** + **TypeScript**, CRA + CRACO, **Tailwind CSS**
+- **Dexie** (IndexedDB) — store locale versionato
+- **Supabase** — auth, Postgres (RLS), Storage (bucket `photos`, `planimetrie`)
+- **PDF**: `pdf-lib`, `pdfjs-dist`, `jspdf`
+- **Export**: `xlsx`, `jszip`, `file-saver`
+- **UI**: `lucide-react`, `framer-motion`
+- **PWA**: Service Worker custom con update flow esplicito
 
-### ✅ Phase 2.5: Floor Plan Editor
-- **Floor Plan Upload** - Support for images (PNG, JPG, WEBP) and PDF files
-- **PDF Conversion** - Automatic conversion of PDF files to high-resolution images
-- **Interactive Canvas** - Pan, zoom, and annotate floor plans with precision
-- **Point Annotation** - Place and label points for mapping entries (parete, solaio)
-- **Perimeter Drawing** - Draw custom perimeter areas on floor plans
-- **Generic Points** - Add custom text labels for notes and references
-- **Configurable Grid** - Optional grid overlay with adjustable rows, columns, and offset
-- **Label Management** - Move, edit, and organize labels on the canvas
-- **Unmapped Entries** - Visual list of mapping entries awaiting floor plan placement
-- **Sorting & Filtering** - Sort unmapped entries by type, number, or recent activity
-- **Multiple Modes**:
-  - **Standalone Mode** - Independent floor plan editor with save/load functionality
-  - **Project Integration** - Link floor plans to specific project floors
-  - **Mapping Mode** - Direct integration with mapping entries (one point per entry)
-  - **View/Edit Mode** - Review and adjust existing floor plan annotations
-- **Export Options**:
-  - Export annotated floor plans to PDF
-  - Export to PNG with all annotations
-  - Download original floor plan images
-- **Supabase Sync** - Automatic sync of floor plans and annotations to cloud storage
-- **Thumbnail Generation** - Auto-generated thumbnails for quick preview
-- **2x Resolution** - Floor plans stored at 2x resolution for crisp display on high-DPI screens
+## Quick start
 
-### ✅ Phase 3: Supabase Sync (Implemented)
-- Real-time sync with Supabase backend
-- Background sync when connection returns
-- Bidirectional sync (upload and download)
-- Multi-device support
-- Row Level Security (RLS) policies
-- Admin role-based access control
-- ✅ Conflict resolution (projects & mapping_entries, see [CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md))
-
----
-
-## 🛠️ Technologies
-
-- **React 18** - UI framework with TypeScript
-- **Dexie.js** - IndexedDB wrapper for offline storage
-- **Service Worker** - Offline-first caching strategy
-- **browser-image-compression** - Photo compression
-- **SheetJS (xlsx)** - Excel file generation
-- **JSZip** - ZIP file creation
-- **file-saver** - File download handling
-
----
-
-## 📦 Installation
-
-### Prerequisites
-- Node.js 16+ and npm
-
-### Steps
-
-1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd maps-app
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install --legacy-peer-deps
-   ```
-
-   *Note: `--legacy-peer-deps` is required due to React 19 compatibility*
-
-3. **Start the development server**
-   ```bash
-   npm start
-   ```
-
-   The app will open at [http://localhost:3000](http://localhost:3000)
-
-4. **Build for production**
-   ```bash
-   npm run build
-   ```
-
-   Builds the app to the `build/` folder (243 kB gzipped)
-
----
-
-## 🧪 How to Test the App
-
-### Basic Testing
-
-1. **Start the app**
-   ```bash
-   npm start
-   ```
-
-2. **Login**
-   - Use one of the mock accounts:
-     - **Admin**: `admin@example.com` (any password) - Can see all projects
-     - **User**: `user@example.com` (any password) - Can see only their projects
-
-3. **Create a Project**
-   - Click the **+** button on the Home page
-   - Fill in:
-     - Title (required)
-     - Client, Address, Notes (optional)
-     - Floors (e.g., "-1, 0, 1, 2")
-     - Intervention mode: Room or Intervention
-     - Typologies (optional)
-   - Click **Create**
-
-4. **View Projects**
-   - Click the **eye icon** on any project card to view mappings
-   - Initially empty - no mappings yet
-
-5. **Add Floor Plans** (Optional)
-   - From Project View, click **Upload Floor Plan**
-   - Select a floor from the dropdown
-   - Choose an image or PDF file (automatically converted)
-   - Floor plan is processed and saved at 2x resolution
-   - Thumbnail generated for quick preview
-
-6. **Annotate Floor Plans** (Optional)
-   - Click **View Floor Plan** on any floor
-   - Use the interactive editor to:
-     - Place points for mapping entries
-     - Draw perimeter areas
-     - Add custom text labels
-     - Configure grid overlay
-     - Zoom and pan for precise placement
-   - Export annotated plans to PDF/PNG
-   - Use **Standalone Editor** for independent floor plan projects
-
-7. **Add Mapping Entries**
-   - From Home, click the **door icon** to enter mapping mode
-   - OR from Mapping View, click the **+** button
-   - Capture/upload photos (supports multiple photos)
-   - Select floor and room/intervention
-   - Add crossings (optional)
-   - Click **Save**
-   - Link to floor plan position (if floor plan exists)
-
-8. **View Mapping Gallery**
-   - Click **eye icon** on a project
-   - See all mapping entries with photo counts
-   - View floor plan with all positioned mapping entries
-   - Click any mapping card to expand and view photos
-   - Photos load from IndexedDB instantly
-
-9. **Export Data**
-   - From Mapping View:
-     - **Export Excel**: Downloads spreadsheet with mapping data
-     - **Export ZIP**: Downloads ZIP with Excel + photos organized by floor/room
-   - From Floor Plan Editor:
-     - **Export PDF**: Annotated floor plan in PDF format
-     - **Export PNG**: High-resolution PNG image with annotations
-
-### Offline Testing
-
-1. **Enable Offline Mode**
-   - Open Chrome DevTools (F12)
-   - Go to **Application** → **Service Workers**
-   - Check the **Offline** checkbox
-   - OR go to **Network** tab → Select **Offline** from throttling dropdown
-
-2. **Refresh the Page**
-   - The app should still load (served from cache)
-   - All functionality works offline
-
-3. **Create Projects Offline**
-   - Create new projects
-   - Add mapping entries with photos
-   - Everything saves to IndexedDB
-
-4. **Test Data Persistence**
-   - Close the browser completely
-   - Reopen and navigate to http://localhost:3000
-   - All your data is still there!
-
-5. **Check Service Worker**
-   - Open DevTools → Application → Service Workers
-   - Should see "activated and running"
-   - Cache Storage shows cached assets
-
-### PWA Installation Testing
-
-1. **Desktop (Chrome)**
-   - Click the **install icon** in the address bar
-   - OR go to Settings (3 dots) → "Install OPImaPPA"
-   - App opens in standalone window
-
-2. **Mobile (Android Chrome)**
-   - Deploy the app to a server (must be HTTPS)
-   - Open in Chrome mobile
-   - Tap menu → "Add to Home Screen"
-   - App installs like a native app
-
-### Photo Compression Testing
-
-1. **Upload Large Photos**
-   - Take a high-resolution photo (5-10 MB)
-   - Add to a mapping entry
-   - Photo is automatically compressed to ~1 MB
-   - Check DevTools → Application → IndexedDB → photos → blob size
-
----
-
-## 📱 Usage Guide
-
-### User Roles
-
-- **Admin** (`admin@example.com`)
-  - Can see all projects from all users
-  - Full CRUD permissions
-
-- **Regular User** (`user@example.com`)
-  - Can only see projects they own or have access to
-  - Can create their own projects
-
-### Workflow
-
-```
-Login → Home → Create Project → View Project → Add Mappings → Export
+```bash
+npm install --legacy-peer-deps   # richiesto da peer conflicts React 19
+npm start                        # dev server su http://localhost:3000
+npm run build                    # bundle produzione in build/
+npm test                         # Jest / React Testing Library
 ```
 
-1. **Login** with mock credentials
-2. **Create a project** with floor plans and typologies
-3. **Add mapping entries** by capturing photos on-site
-4. **View all mappings** in the gallery view
-5. **Export to Excel/ZIP** for sharing or archival
+### Variabili d'ambiente
 
-### Customizing Typologies Menu Options
+Crea `.env.local` in root (template in [docs/.env.local.example](./docs/.env.local.example)):
 
-The Typologies section in the Project Form uses predefined menu options that can be easily customized. To modify the available options:
-
-1. **Open** `src/components/ProjectForm.tsx`
-2. **Locate** the constants at the top of the file (lines 5-34):
-
-```typescript
-// Supporto options (Parete, Solaio)
-const SUPPORTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'parete', label: 'Parete' },
-  { value: 'solaio', label: 'Solaio' },
-];
-
-// Tipo Supporto options (Mattoni, Cemento, etc.)
-const TIPO_SUPPORTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'brick', label: 'Mattoni' },
-  { value: 'concrete', label: 'Cemento' },
-  { value: 'wood', label: 'Legno' },
-  { value: 'steel', label: 'Acciaio' },
-  { value: 'plasterboard', label: 'Cartongesso' },
-];
-
-// Materiali options
-const MATERIALI_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'plastic', label: 'Plastica' },
-  { value: 'metal', label: 'Metallo' },
-  { value: 'fiber', label: 'Fibra' },
-  { value: 'composite', label: 'Composito' },
-];
-
-// Attraversamento options
-const ATTRAVERSAMENTO_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'horizontal', label: 'Orizzontale' },
-  { value: 'vertical', label: 'Verticale' },
-  { value: 'diagonal', label: 'Diagonale' },
-];
+```
+REACT_APP_SUPABASE_URL=https://<project-ref>.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=<anon-key>
 ```
 
-3. **Add, remove, or modify** entries as needed
-4. **Format**: Each entry requires `{ value: 'key', label: 'Display Text' }`
-5. **Save** and rebuild the app
+Senza queste variabili l'app parte in **offline-only**: niente sync, niente login remoto.
 
-**Example - Adding a new material:**
-```typescript
-const MATERIALI_OPTIONS = [
-  { value: '', label: '' },
-  { value: 'plastic', label: 'Plastica' },
-  { value: 'metal', label: 'Metallo' },
-  { value: 'fiber', label: 'Fibra' },
-  { value: 'composite', label: 'Composito' },
-  { value: 'ceramic', label: 'Ceramica' }, // ← New option
-];
-```
-
-### Project Structure
+## Struttura
 
 ```
 maps-app/
-├── public/
-│   ├── service-worker.js      # PWA service worker
-│   └── manifest.json           # PWA manifest
 ├── src/
-│   ├── components/
-│   │   ├── Login.tsx                      # Login page
-│   │   ├── Home.tsx                       # Project list
-│   │   ├── ProjectForm.tsx                # Create/edit projects
-│   │   ├── MappingPage.tsx                # Add mapping entries
-│   │   ├── MappingView.tsx                # View mappings + export
-│   │   ├── FloorPlanEditor.tsx            # Main floor plan editor
-│   │   ├── FloorPlanCanvas.tsx            # Canvas rendering and interactions
-│   │   └── StandaloneFloorPlanEditor.tsx  # Standalone editor mode
-│   ├── db/
-│   │   ├── database.ts        # Dexie schema
-│   │   ├── projects.ts        # Project CRUD
-│   │   ├── mappings.ts        # Mapping CRUD
-│   │   ├── floorPlans.ts      # Floor plan CRUD
-│   │   ├── auth.ts            # Authentication
-│   │   └── index.ts           # Exports
-│   ├── utils/
-│   │   ├── floorPlanUtils.ts  # Floor plan processing
-│   │   └── exportUtils.ts     # PDF/PNG export utilities
-│   ├── App.tsx                # Main app component
-│   └── index.tsx              # Entry point + SW registration
-└── package.json
+│   ├── App.tsx              # Router single-component (View state)
+│   ├── components/          # UI — view heavy in React.lazy
+│   ├── db/                  # Dexie schema + CRUD per entità
+│   │   ├── database.ts      # Schema versionato (v10)
+│   │   ├── onlineFirst.ts   # Helper read online-first
+│   │   └── projects|mappings|floorPlans|photos|sal|pricing|...
+│   ├── sync/                # Engine sync bidirezionale
+│   │   ├── syncEngine.ts          # Queue, lock, scheduler, eventi
+│   │   ├── syncUploadHandlers.ts  # Upload per entità
+│   │   ├── syncDownloadHandlers.ts# Download da Supabase
+│   │   └── conflictResolution.ts  # last-modified-wins
+│   ├── utils/               # Export (xlsx, zip), planimetrie utils
+│   ├── hooks/               # useBlobUrl, useDropdownOptions, useModal
+│   ├── config/              # Opzioni statiche (attraversamento, prodotti…)
+│   └── lib/supabase.ts      # Client Supabase
+├── public/
+│   ├── service-worker.js    # Cache app shell + update flow
+│   └── manifest.json        # PWA manifest
+├── supabase/
+│   ├── schema.sql           # Schema Postgres + RLS (baseline)
+│   └── storage-policies.sql # Bucket + policies Storage
+├── docs/                    # Documentazione tecnica
+├── craco.config.js
+├── tailwind.config.js
+├── tsconfig.json
+└── vercel.json              # Deploy + CSP
 ```
 
----
+## Architettura
 
-## 💾 Data Storage
+### Data layer
 
-All data is stored in **IndexedDB** (browser local storage):
+Dexie schema in [src/db/database.ts](src/db/database.ts), versione corrente **v10**. Le modifiche allo schema richiedono **sempre** un nuovo `this.version(n+1).stores(...)` — mai modificare blocchi passati. I boolean indicizzati sono salvati come `0|1` perché IndexedDB non indicizza `true/false`.
 
-- **Projects** - Title, client, address, floors, typologies
-- **Mapping Entries** - Floor, room, crossings, timestamps
-- **Photos** - Compressed blobs (1MB max)
-- **Floor Plans** - Full resolution (2x) and thumbnails
-- **Floor Plan Points** - Annotations and labels on floor plans
-- **Standalone Maps** - Independent floor plan projects
-- **Sync Queue** - Pending changes for Supabase sync
-- **Users** - User accounts
+Entità principali: `Project`, `MappingEntry`, `Photo`, `FloorPlan`, `FloorPlanPoint`, `StandaloneMap`, `Sal`, `TypologyPrice`, più cache per dropdown options e catalogo prodotti.
 
-**Storage Estimate**:
-- ~50 MB per 100 photos (compressed)
-- ~2-5 MB per floor plan (depending on size and resolution)
-- Thumbnails: ~100-200 KB each
+### Pattern online-first
 
----
+Ogni read passa da [src/db/onlineFirst.ts](src/db/onlineFirst.ts): se `isOnlineAndConfigured()` → fetch da Supabase, overlay dei pending writes dalla sync queue locale, write-through su Dexie, ritorno al chiamante. Se offline → lettura diretta da Dexie. Le nuove read path devono usare questi helper invece di `try-remote-then-local` manuali.
 
-## 🔒 Offline Capabilities
+### Sync engine
 
-### What Works Offline
+- **Upload handler per entità** in [syncUploadHandlers.ts](src/sync/syncUploadHandlers.ts) consumano `db.syncQueue`.
+- **Download handler** in [syncDownloadHandlers.ts](src/sync/syncDownloadHandlers.ts) popolano Dexie da Supabase; settano `hasRemotePhotos`.
+- **Conflict resolution** last-modified-wins per `projects` e `mapping_entries` ([conflictResolution.ts](src/sync/conflictResolution.ts)); gli eventi vengono loggati in `conflictHistory`. Dettagli in [docs/CONFLICT_RESOLUTION.md](docs/CONFLICT_RESOLUTION.md).
 
-✅ **Login** - Authentication with mock users
-✅ **Create Projects** - All project creation/editing
-✅ **Add Mappings** - Capture photos and save entries
-✅ **View Mappings** - Browse photo gallery
-✅ **Export Excel** - Generate XLSX files
-✅ **Export ZIP** - Create ZIP with photos
-✅ **Full UI** - All pages and navigation
+Tipi entità supportati in queue: `project | mapping_entry | photo | floor_plan | floor_plan_point | standalone_map | sal`.
 
-### Service Worker Strategy
+### Storage
 
-- **Cache-First** for app shell (HTML, CSS, JS)
-- **Network-First** with fallback for API calls (Phase 3)
-- **Runtime Caching** for dynamic content
+Le foto vanno nel bucket privato `photos` — il client richiede **signed URL** e non costruisce mai URL pubbliche. Le planimetrie vanno in `planimetrie` (pubblico in lettura). Le foto sono compresse client-side a ≤1 MB / 1920px via `browser-image-compression`; le planimetrie vengono rasterizzate a 2× con thumbnail separata, e per i PDF originali si mantiene `pdfBlobBase64` + `pdfUrl` per export vettoriale con `pdf-lib`.
 
----
+### PWA / update
 
-## 🚀 Deployment
+`public/service-worker.js` registrato in [serviceWorkerRegistration.ts](src/serviceWorkerRegistration.ts). Il componente `UpdateNotification` intercetta la nuova versione; "Aggiorna Ora" invoca `clearAndSync()` che svuota Dexie e riscarica da Supabase. Bump della versione del SW → forza questo flusso su tutti i client. Dettagli in [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md).
 
-### Build for Production
+## Supabase
 
-```bash
-npm run build
-```
+Schema autoritativo in [supabase/schema.sql](supabase/schema.sql) e policy Storage in [supabase/storage-policies.sql](supabase/storage-policies.sql). Eseguili nell'ordine dalla SQL Editor di Supabase per ricostruire l'ambiente da zero. Procedura completa in [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
 
-Output: `build/` folder (243 kB gzipped)
+## Deploy
 
-### Deploy to Static Hosting
+Produzione su Vercel (config in [vercel.json](vercel.json), inclusa CSP). Aggiungere nuove origini a `connect-src` quando si introduce un servizio terzo. Guida in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-#### Vercel
-```bash
-vercel --prod
-```
+## Convenzioni
 
-#### Netlify
-```bash
-netlify deploy --prod --dir=build
-```
+- Commenti, commit message e testi UI in **italiano**.
+- Boolean Dexie da indicizzare: tipo `0 | 1` o `number` (es. `synced`, `archived`, `syncEnabled`).
+- ID: UUID via `crypto.randomUUID()` esposto come `generateId()` in `database.ts`. Timestamp: epoch ms via `now()`.
+- Aggiunta di un campo a un'entità sincronizzata: aggiornare interfaccia Dexie → bump schema version con `.upgrade()` se serve backfill → tipi Supabase in [src/lib/supabase.ts](src/lib/supabase.ts) → schema Postgres + RLS → upload + download handler.
 
-#### GitHub Pages
-```bash
-npm run build
-# Push build folder to gh-pages branch
-```
+## Documentazione
 
-**Important**: For PWA features to work, the app must be served over **HTTPS**.
-
----
-
-## 🐛 Troubleshooting
-
-### Build Errors
-
-**Issue**: `Module not found: Can't resolve 'dexie'`
-**Fix**: Run `npm install --legacy-peer-deps`
-
-**Issue**: `Module not found: Can't resolve 'browser-image-compression'`
-**Fix**: Run `npm install --legacy-peer-deps`
-
-### Runtime Errors
-
-**Issue**: IndexedDB not working
-**Fix**: Ensure you're not in private/incognito mode
-
-**Issue**: Photos not compressing
-**Fix**: Check browser console for compression errors. Ensure photos are valid image files.
-
-**Issue**: Service Worker not registering
-**Fix**: Ensure you're on HTTPS or localhost. Check DevTools → Application → Service Workers
-
-### Data Loss
-
-**Issue**: Lost data after browser update
-**Fix**: IndexedDB is persistent. Check Application → IndexedDB in DevTools. Data should be there unless manually cleared.
-
----
-
-## 📊 Performance
-
-- **Bundle Size**: 243 kB gzipped (main.js + CSS)
-- **First Load**: ~500ms on 3G
-- **Offline Load**: <100ms (served from cache)
-- **Photo Compression**: ~1-2s per photo
-- **Export Time**: ~2-5s for 50 mappings with 100 photos
-
----
-
-## 📚 Documentation
-
-### Complete Documentation
-
-For detailed technical documentation, see the [docs/](./docs/) folder:
-
-- **[SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md)** - Complete guide to setting up Supabase backend
-- **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)** - Deployment guide for Vercel/Netlify
-- **[CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md)** - Multi-device conflict resolution system
-- **[UPDATE_SYSTEM.md](./docs/UPDATE_SYSTEM.md)** - Automatic update system with Service Worker
-- **[RLS_POLICIES_ANALYSIS.md](./docs/RLS_POLICIES_ANALYSIS.md)** - Security policies analysis
-- **[ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md)** - RLS policy checklist
-
-### Database Schema & Migrations
-
-All SQL files are organized in the `/supabase/` directory:
-
-- **[schema.sql](./supabase/schema.sql)** - Complete database schema
-- **[storage-policies.sql](./supabase/storage-policies.sql)** - Storage bucket policies
-- **[migrations/](./supabase/migrations/)** - Database migrations (timestamped)
-
-**⚠️ Important**: Before applying migrations, review the documentation in `/docs/` to understand changes and requirements.
-
-## 🔮 Future Enhancements (Phase 4+)
-
-### Phase 3: Completed ✅
-- [x] Supabase authentication
-- [x] Real-time sync with Postgres
-- [x] Background sync when online
-- [x] Row Level Security (RLS)
-- [x] Complete conflict resolution strategy (projects & mapping_entries)
-
-### Behavior & Design Decisions
-
-- **✅ Conflict resolution implemented**: Projects and mapping entries use "last-modified-wins" strategy (see [CONFLICT_RESOLUTION.md](./docs/CONFLICT_RESOLUTION.md))
-- **✅ Delete permissions by design**: Only project owners and admins can delete projects. Shared users have view/edit access but cannot delete (security feature)
-- **✅ Shared project access**: Users cannot remove themselves from shared projects (prevents accidental loss of access)
-
-### Setup Requirements
-
-- **⚠️ Migration required**: Apply migrations from `/supabase/migrations/` in Supabase for full conflict resolution support
-- See [SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) for detailed setup instructions
-- Review [ACTION_ITEMS_RLS_POLICIES.md](./docs/ACTION_ITEMS_RLS_POLICIES.md) for deployment checklist
-
-### Phase 4: Advanced Features
-- [x] Floor plan upload and annotation ✅
-- [x] Interactive floor plan editor ✅
-- [x] PDF to image conversion ✅
-- [x] Perimeter and custom point support ✅
-- [ ] 3D floor plan visualization
-- [ ] Offline maps integration
-- [ ] Real-time collaborative editing
-- [ ] Push notifications
-- [ ] Advanced measurement tools
-
-### Phase 5: Analytics & Reporting
-- [ ] Dashboard with statistics
-- [ ] Custom report generation
-- [ ] Timeline view
-- [ ] Photo comparison tools
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit changes: `git commit -m 'Add my feature'`
-4. Push to branch: `git push origin feature/my-feature`
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 📞 Support
-
-For issues or questions:
-- Open an issue on GitHub
-- Check the troubleshooting section above
-- Review the browser console for error messages
-
----
-
-## 🙏 Acknowledgments
-
-- Built with Create React App
-- Offline storage powered by Dexie.js
-- Photo compression by browser-image-compression
-- Export functionality using SheetJS and JSZip
-
----
-
-**Built with ❤️ for offline-first construction mapping**
+- [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) — setup backend da zero
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — deploy produzione
+- [docs/CONFLICT_RESOLUTION.md](docs/CONFLICT_RESOLUTION.md) — strategia conflitti
+- [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md) — flusso aggiornamenti PWA
