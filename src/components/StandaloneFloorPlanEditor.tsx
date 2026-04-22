@@ -12,7 +12,7 @@ import {
   getFloorPlanBlobUrl,
   revokeFloorPlanBlobUrl,
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
 import { processFloorPlan, blobToBase64 } from '../utils/floorPlanUtils';
 
 interface StandaloneFloorPlanEditorProps {
@@ -21,6 +21,21 @@ interface StandaloneFloorPlanEditorProps {
 }
 
 type ProcessedStandaloneFile = Awaited<ReturnType<typeof processFloorPlan>>;
+
+const toExportCartiglio = (cartiglio?: Partial<FloorPlanCartiglioData> | null): ExportCartiglioData | null => {
+  if (!cartiglio?.enabled) {
+    return null;
+  }
+
+  const rowCount = Math.max(1, cartiglio.standaloneRowCount ?? 1);
+  return {
+    tavola: cartiglio.tavola || '',
+    typologyNumbers: Array.from({ length: rowCount }, (_, index) => index + 1),
+    typologyValues: { ...(cartiglio.typologyValues || {}) },
+    committente: cartiglio.committente || '',
+    locali: cartiglio.locali || '',
+  };
+};
 
 const DEFAULT_GRID_CONFIG: GridConfig = {
   enabled: false,
@@ -162,6 +177,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   const handleExportPDF = useCallback(async (context?: {
     points: CanvasPoint[];
     eiLegendPosition: { x: number; y: number } | null;
+    cartiglio?: FloorPlanCartiglioData;
   }) => {
     if (!currentImageBlob) {
       alert('❌ Nessuna planimetria caricata');
@@ -189,13 +205,14 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         currentPdfBlobBase64,
         rotation,
         context?.eiLegendPosition,
+        toExportCartiglio(context?.cartiglio ?? mapMetadata.cartiglio),
       );
       alert('✅ Planimetria esportata in PDF');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [currentImageBlob, currentPdfBlobBase64, points, projectName, rotation]);
+  }, [currentImageBlob, currentPdfBlobBase64, points, projectName, rotation, mapMetadata.cartiglio]);
 
   const handleSaveToDatabase = useCallback(async (currentPoints: CanvasPoint[], currentGridConfig: GridConfig, currentCartiglio: FloorPlanCartiglioData) => {
     if (!currentImageBlob) {

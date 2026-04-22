@@ -54,7 +54,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
 
   const totalPlans = projectsWithPlans.reduce((sum, p) => sum + p.floorPlans.length, 0);
 
-  const handleExportPlanPDF = async (_project: Project, plan: FloorPlan) => {
+  const handleExportPlanPDF = async (project: Project, plan: FloorPlan) => {
     setExportingPlanId(plan.id);
     try {
       const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
@@ -74,12 +74,24 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
         labelBackgroundColor: point.metadata?.labelBackgroundColor,
         labelTextColor: point.metadata?.labelTextColor,
       }));
+      const savedCartiglio = plan.metadata?.cartiglio;
+      const exportCartiglio = savedCartiglio?.enabled === false
+        ? null
+        : {
+            tavola: savedCartiglio?.tavola ?? plan.floor,
+            typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
+            typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
+            committente: savedCartiglio?.committente ?? [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
+            locali: savedCartiglio?.locali ?? '',
+          };
       await exportFloorPlanVectorPDF(
         exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
         exportReadyPlan.pdfBlobBase64,
         exportReadyPlan.metadata?.rotation || 0,
+        undefined,
+        exportCartiglio,
       );
     } finally {
       setExportingPlanId(null);

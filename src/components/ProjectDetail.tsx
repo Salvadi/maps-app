@@ -325,12 +325,24 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         labelBackgroundColor: point.metadata?.labelBackgroundColor,
         labelTextColor: point.metadata?.labelTextColor,
       }));
+      const savedCartiglio = plan.metadata?.cartiglio;
+      const exportCartiglio = savedCartiglio?.enabled === false
+        ? null
+        : {
+            tavola: savedCartiglio?.tavola ?? plan.floor,
+            typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
+            typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
+            committente: savedCartiglio?.committente ?? [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
+            locali: savedCartiglio?.locali ?? '',
+          };
       await exportFloorPlanVectorPDF(
         exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
         exportReadyPlan.pdfBlobBase64,
         exportReadyPlan.metadata?.rotation || 0,
+        undefined,
+        exportCartiglio,
       );
       setFloorPlans(prev => prev.map(existing => existing.id === exportReadyPlan.id ? exportReadyPlan : existing));
     } finally {

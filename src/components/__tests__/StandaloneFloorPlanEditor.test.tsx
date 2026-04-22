@@ -16,6 +16,15 @@ let mockEditorPoints: any[] = [];
 let mockEditorGridConfig: any = {};
 let mockEditorLegendPosition: { x: number; y: number } | null = null;
 let mockEditorRotation = 0;
+let mockEditorCartiglio: any = {
+  enabled: true,
+  visible: true,
+  tavola: 'T-01',
+  committente: 'Cliente prova',
+  locali: 'Piano terra',
+  typologyValues: { '1': 'Porta REI 120' },
+  standaloneRowCount: 1,
+};
 
 const mockFloorPlanEditor = jest.fn((props: any) => (
   <div data-testid="mock-floorplan-editor">
@@ -24,13 +33,14 @@ const mockFloorPlanEditor = jest.fn((props: any) => (
       initialGridConfig: props.initialGridConfig,
       initialRotation: props.initialRotation,
     })}</div>
-    <button onClick={() => props.onSave?.(mockEditorPoints, mockEditorGridConfig)}>salva-locale</button>
-    <button onClick={() => props.onSaveFile?.(mockEditorPoints, mockEditorGridConfig)}>salva-db</button>
+    <button onClick={() => props.onSave?.(mockEditorPoints, mockEditorGridConfig, mockEditorCartiglio)}>salva-locale</button>
+    <button onClick={() => props.onSaveFile?.(mockEditorPoints, mockEditorGridConfig, mockEditorCartiglio)}>salva-db</button>
     <button onClick={() => props.onOpenFile?.()}>apri-db</button>
     <button onClick={() => props.onRotationChange?.(mockEditorRotation)}>ruota</button>
     <button onClick={() => props.onExportPDF?.({
       points: mockEditorPoints,
       eiLegendPosition: mockEditorLegendPosition,
+      cartiglio: mockEditorCartiglio,
     })}>export-pdf</button>
   </div>
 ));
@@ -104,6 +114,15 @@ beforeEach(() => {
   mockEditorGridConfig = sampleGridConfig;
   mockEditorLegendPosition = { x: 0.22, y: 0.11 };
   mockEditorRotation = 90;
+  mockEditorCartiglio = {
+    enabled: true,
+    visible: true,
+    tavola: 'T-01',
+    committente: 'Cliente prova',
+    locali: 'Piano terra',
+    typologyValues: { '1': 'Porta REI 120' },
+    standaloneRowCount: 1,
+  };
 
   Object.defineProperty(window, 'confirm', {
     writable: true,
@@ -288,6 +307,7 @@ test('export standalone usa il PDF originale quando pdfBlobBase64 e disponibile'
     await latestProps.onExportPDF?.({
       points: mockEditorPoints,
       eiLegendPosition: mockEditorLegendPosition,
+      cartiglio: mockEditorCartiglio,
     });
   });
 
@@ -306,6 +326,13 @@ test('export standalone usa il PDF originale quando pdfBlobBase64 e disponibile'
     'pdf-base64',
     90,
     { x: 0.22, y: 0.11 },
+    {
+      tavola: 'T-01',
+      typologyNumbers: [1],
+      typologyValues: { '1': 'Porta REI 120' },
+      committente: 'Cliente prova',
+      locali: 'Piano terra',
+    },
   ));
 });
 
@@ -333,6 +360,7 @@ test('export standalone senza pdfBlobBase64 passa undefined e usa il fallback ra
     await editorProps.onExportPDF?.({
       points: mockEditorPoints,
       eiLegendPosition: mockEditorLegendPosition,
+      cartiglio: mockEditorCartiglio,
     });
   });
 
@@ -343,5 +371,12 @@ test('export standalone senza pdfBlobBase64 passa undefined e usa il fallback ra
     undefined,
     0,
     { x: 0.22, y: 0.11 },
+    {
+      tavola: 'T-01',
+      typologyNumbers: [1],
+      typologyValues: { '1': 'Porta REI 120' },
+      committente: 'Cliente prova',
+      locali: 'Piano terra',
+    },
   ));
 });
