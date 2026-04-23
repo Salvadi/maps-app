@@ -319,13 +319,13 @@
   flex: 1;
   position: relative;
   overflow: auto;
-  background: #e8e8e8;
+  background: transparent;
   min-height: 0;
 }
 
 .canvas-stage {
   position: relative;
-  min-height: 420px;
+  min-height: 0;
   flex: 1;
 }
 
