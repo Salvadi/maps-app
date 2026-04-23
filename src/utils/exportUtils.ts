@@ -180,7 +180,8 @@ function buildCartiglioLayout(
   const infoFontSize = 7.5 * scale;
   const signatureFontSize = 8 * scale;
   const sortedTypologyNumbers = [...(cartiglio.typologyNumbers || [])].sort((a, b) => a - b);
-  const typologyWidth = layoutWidth;
+  const signatureWidth = layoutWidth * 0.34;
+  const typologyWidth = layoutWidth - signatureWidth - gap;
   const typologyTextWidth = typologyWidth - prefixWidth - 14 * scale;
   const rows = (sortedTypologyNumbers.length > 0 ? sortedTypologyNumbers : [0]).map((num, index) => {
     const key = num ? String(num) : `empty-${index}`;
@@ -192,10 +193,9 @@ function buildCartiglioLayout(
     return { key, label, value, wrappedLines, height: rowHeight };
   });
   const typologyHeight = rows.reduce((sum, row) => sum + row.height, 0) + 10 * scale;
-  const signatureWidth = layoutWidth * 0.34;
-  const infoWidth = layoutWidth - signatureWidth;
+  const infoWidth = layoutWidth;
   const infoBoxHeight = 86 * scale;
-  const signatureBoxHeight = infoBoxHeight;
+  const signatureBoxHeight = typologyHeight;
   const totalHeight = tavolaHeight + gap + typologyHeight + gap + infoBoxHeight;
   const usableWidth = Math.max(1, pageW - layoutWidth);
   const desiredX = (cartiglio.positionX ?? 0.03) * usableWidth;
@@ -232,15 +232,15 @@ function buildCartiglioLayout(
       textInsetX: 8 * scale,
     },
     signatureBox: {
-      x,
-      y,
+      x: x + typologyWidth + gap,
+      y: topY - tavolaHeight - gap - signatureBoxHeight,
       width: signatureWidth,
       height: signatureBoxHeight,
       padding: infoPadding,
       fontSize: signatureFontSize,
     },
     infoBox: {
-      x: x + signatureWidth,
+      x,
       y,
       width: infoWidth,
       height: infoBoxHeight,
@@ -260,7 +260,7 @@ function drawCartiglioBorder(
     y: rect.y,
     width: rect.width,
     height: rect.height,
-    borderColor: rgb(0.2, 0.2, 0.2),
+    borderColor: rgb(0.882, 0.329, 0.235),
     borderWidth: 1,
     color: rgb(1, 1, 1),
   });
@@ -293,7 +293,7 @@ function drawCartiglio(
   page.drawLine({
     start: { x: layout.typologyBox.x + layout.typologyBox.prefixWidth, y: layout.typologyBox.y },
     end: { x: layout.typologyBox.x + layout.typologyBox.prefixWidth, y: layout.typologyBox.y + layout.typologyBox.height },
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(0.882, 0.329, 0.235),
     thickness: 1,
   });
   let cursorY = layout.typologyBox.y + layout.typologyBox.height - layout.typologyBox.rowPaddingY;
@@ -305,7 +305,7 @@ function drawCartiglio(
       page.drawLine({
         start: { x: layout.typologyBox.x, y: rowTop },
         end: { x: layout.typologyBox.x + layout.typologyBox.width, y: rowTop },
-        color: rgb(0.2, 0.2, 0.2),
+        color: rgb(0.882, 0.329, 0.235),
         thickness: 0.75,
       });
     }
