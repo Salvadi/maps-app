@@ -1118,22 +1118,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               {/* EI Legend toggle button */}
               {(mode === 'standalone' || mode === 'view-edit') && (
                 <button
-                  className="ei-legend-toggle"
+                  className={`ei-legend-toggle ${showCartiglioPanel ? 'cartiglio-open' : ''}`.trim()}
                   onClick={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
                   title={eiLegendPosition ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
-                  style={{
-                    position: 'absolute',
-                    bottom: '10px',
-                    left: '10px',
-                    zIndex: 100,
-                    padding: '6px 10px',
-                    background: 'white',
-                    border: '1px solid #ccc',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  }}
                 >
                   {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda PPA'}
                 </button>
@@ -1210,10 +1197,6 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   </div>
 
                   <div className="cartiglio-bottom-row">
-                    <div className="cartiglio-box cartiglio-box-signature-preview">
-                      <div className="cartiglio-signature-placeholder">Firma digitale</div>
-                    </div>
-
                     <div className="cartiglio-box cartiglio-box-company">
                       <div className="cartiglio-company-lines">
                         <div>Installatore : Opi Firesafe SrL</div>
