@@ -180,8 +180,8 @@ function buildCartiglioLayout(
   const infoFontSize = 7.5 * scale;
   const signatureFontSize = 8 * scale;
   const sortedTypologyNumbers = [...(cartiglio.typologyNumbers || [])].sort((a, b) => a - b);
-  const signatureWidth = layoutWidth * 0.34;
-  const typologyWidth = layoutWidth - signatureWidth - gap;
+  const signatureWidth = layoutWidth * 0.3;
+  const typologyWidth = layoutWidth;
   const typologyTextWidth = typologyWidth - prefixWidth - 14 * scale;
   const rows = (sortedTypologyNumbers.length > 0 ? sortedTypologyNumbers : [0]).map((num, index) => {
     const key = num ? String(num) : `empty-${index}`;
@@ -193,18 +193,19 @@ function buildCartiglioLayout(
     return { key, label, value, wrappedLines, height: rowHeight };
   });
   const typologyHeight = rows.reduce((sum, row) => sum + row.height, 0) + 10 * scale;
-  const infoWidth = layoutWidth;
+  const infoWidth = layoutWidth - signatureWidth - gap;
   const infoBoxHeight = 86 * scale;
-  const signatureBoxHeight = typologyHeight;
+  const signatureBoxHeight = infoBoxHeight;
   const totalHeight = tavolaHeight + gap + typologyHeight + gap + infoBoxHeight;
   const usableWidth = Math.max(1, pageW - layoutWidth);
   const desiredX = (cartiglio.positionX ?? 0.03) * usableWidth;
   const x = Math.max(outerMargin, Math.min(pageW - layoutWidth - outerMargin, desiredX));
-  const y = 0;
+  const bottomMargin = 12 * scale;
+  const y = bottomMargin;
   const topY = y + totalHeight;
 
   return {
-    height: totalHeight,
+    height: totalHeight + bottomMargin,
     x,
     y,
     width: layoutWidth,
@@ -231,8 +232,8 @@ function buildCartiglioLayout(
       textInsetX: 8 * scale,
     },
     signatureBox: {
-      x: x + typologyWidth + gap,
-      y: topY - tavolaHeight - gap - signatureBoxHeight,
+      x: x + infoWidth + gap,
+      y,
       width: signatureWidth,
       height: signatureBoxHeight,
       padding: infoPadding,
