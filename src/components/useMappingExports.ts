@@ -69,6 +69,8 @@ export function useMappingExports({
 
     const committenteParts = [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean);
     return {
+      positionX: savedCartiglio?.positionX ?? 0.03,
+      positionY: savedCartiglio?.positionY ?? 0.68,
       tavola: savedCartiglio?.tavola ?? plan.floor,
       typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
       typologyValues: { ...(savedCartiglio?.typologyValues || {}) },

@@ -48,7 +48,7 @@ test('mostra il cartiglio editabile con righe tipologici del progetto', () => {
   expect(screen.getByText('1)')).toBeInTheDocument();
   expect(screen.getByText('3)')).toBeInTheDocument();
   expect(screen.getByText('7)')).toBeInTheDocument();
-  expect(screen.queryByText('Firma digitale')).not.toBeInTheDocument();
+  expect(screen.getByText('Firma digitale')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Disattiva export' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Nascondi cartiglio' })).toBeInTheDocument();
 });

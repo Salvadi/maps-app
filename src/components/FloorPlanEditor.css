@@ -308,10 +308,9 @@
 /* Canvas */
 .editor-main-column {
   flex: 1;
-  display: flex;
-  flex-direction: column;
   min-width: 0;
   min-height: 0;
+  position: relative;
 }
 
 .canvas-area {
@@ -328,17 +327,21 @@
   flex: 1;
 }
 
-.cartiglio-editor-panel {
-  background: #f7f7f7;
-  border-top: 1px solid #d8d8d8;
-  padding: 18px;
-  max-height: 34vh;
-  overflow: auto;
-  flex-shrink: 0;
+.cartiglio-floating-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 120;
 }
 
-.cartiglio-editor-panel.collapsed {
-  max-height: none;
+.cartiglio-preview-overlay {
+  position: absolute;
+  z-index: 110;
+  width: min(820px, calc(100% - 32px));
+  background: rgba(247, 247, 247, 0.96);
+  border: 1px solid #d8d8d8;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  padding: 14px;
 }
 
 .cartiglio-editor-header {
@@ -383,23 +386,25 @@
   border-color: #78b58a;
 }
 
+.cartiglio-drag-handle {
+  padding: 8px 12px;
+  border: 1px dashed #bf8d7f;
+  border-radius: 8px;
+  background: #fff7f4;
+  color: #8a4c3b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: move;
+  touch-action: none;
+}
+
 .cartiglio-layout {
   display: grid;
   gap: 12px;
-}
-
-.cartiglio-layout.single-column-typologies {
-  grid-template-columns: minmax(120px, 180px) minmax(320px, 1.35fr) minmax(260px, 1fr);
   grid-template-areas:
-    "tavola typologies company";
-}
-
-.cartiglio-layout.multi-column-typologies {
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
-  grid-template-areas:
-    "tavola tavola"
-    "typologies typologies"
-    "company company";
+    "tavola"
+    "typologies"
+    "bottom";
 }
 
 .cartiglio-box {
@@ -411,17 +416,14 @@
 
 .cartiglio-box-tavola {
   grid-area: tavola;
+  max-width: 180px;
 }
 
-.cartiglio-typology-columns {
+.cartiglio-box-typologies {
   grid-area: typologies;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-}
-
-.cartiglio-box-company {
-  grid-area: company;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
 
 .cartiglio-inline-label,
@@ -442,7 +444,7 @@
 
 .cartiglio-inline-label input,
 .cartiglio-stacked-field input,
-.cartiglio-typology-row input {
+.cartiglio-typology-row textarea {
   width: 100%;
   border: 1px solid #d6d6d6;
   border-radius: 6px;
@@ -454,21 +456,16 @@
 
 .cartiglio-inline-label input:focus,
 .cartiglio-stacked-field input:focus,
-.cartiglio-typology-row input:focus {
+.cartiglio-typology-row textarea:focus {
   outline: none;
   border-color: #2196f3;
   box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
 }
 
-.cartiglio-box-typologies {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-}
-
 .cartiglio-typology-row {
   padding: 6px 8px;
   border-bottom: 1px solid #ececec;
+  align-items: center;
 }
 
 .cartiglio-typology-row:last-child {
@@ -483,13 +480,45 @@
 }
 
 .cartiglio-typology-row span {
-  min-width: 30px;
+  min-width: 34px;
+  align-self: center;
 }
 
-.cartiglio-typology-row input {
+.cartiglio-typology-row textarea {
   border: none;
   padding: 4px 0;
   border-radius: 0;
+  min-height: 24px;
+  resize: vertical;
+  line-height: 1.35;
+  font: inherit;
+  color: #222;
+  background: transparent;
+}
+
+.cartiglio-bottom-row {
+  grid-area: bottom;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(320px, 1fr);
+  gap: 0;
+  align-items: stretch;
+}
+
+.cartiglio-box-signature-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  border-right-width: 1px;
+}
+
+.cartiglio-signature-placeholder {
+  color: #888;
+  font-size: 13px;
+}
+
+.cartiglio-box-company {
+  border-left-width: 1px;
 }
 
 .cartiglio-company-lines {
@@ -506,6 +535,10 @@
   align-items: stretch;
   gap: 6px;
   margin-top: 10px;
+}
+
+.cartiglio-stacked-field span {
+  font-weight: 400;
 }
 
 /* Side Menus */
@@ -842,25 +875,21 @@
     gap: 8px;
   }
 
-  .cartiglio-editor-panel {
-    padding: 14px;
-  }
-
   .cartiglio-editor-header {
     flex-direction: column;
   }
 
-  .cartiglio-layout.single-column-typologies,
-  .cartiglio-layout.multi-column-typologies {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "tavola"
-      "typologies"
-      "company";
+  .cartiglio-preview-overlay {
+    width: calc(100% - 24px);
   }
 
-  .cartiglio-typology-columns {
+  .cartiglio-bottom-row {
     grid-template-columns: 1fr;
+  }
+
+  .cartiglio-box-company {
+    border-left-width: 2px;
+    border-top-width: 1px;
   }
 }
 

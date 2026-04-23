@@ -78,6 +78,8 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
       const exportCartiglio = savedCartiglio?.enabled === false
         ? null
         : {
+            positionX: savedCartiglio?.positionX ?? 0.03,
+            positionY: savedCartiglio?.positionY ?? 0.68,
             tavola: savedCartiglio?.tavola ?? plan.floor,
             typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
             typologyValues: { ...(savedCartiglio?.typologyValues || {}) },

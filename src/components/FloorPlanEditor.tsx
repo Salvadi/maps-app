@@ -23,6 +23,8 @@ export interface UnmappedEntry {
 export interface FloorPlanCartiglioData {
   enabled: boolean;
   visible: boolean;
+  positionX: number;
+  positionY: number;
   tavola: string;
   committente: string;
   locali: string;
@@ -99,6 +101,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Ref to FloorPlanCanvas imperative handle
   const canvasRef = useRef<FloorPlanCanvasHandle>(null);
   const rotatedObjectUrlRef = useRef<string | null>(null);
+  const canvasStageRef = useRef<HTMLDivElement>(null);
+  const cartiglioPreviewRef = useRef<HTMLDivElement>(null);
 
   // ============================================
   // SEZIONE: Stato e inizializzazione
@@ -220,6 +224,8 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const buildCartiglioState = useCallback((): FloorPlanCartiglioData => ({
     enabled: initialCartiglio?.enabled ?? true,
     visible: initialCartiglio?.visible ?? true,
+    positionX: initialCartiglio?.positionX ?? 0.03,
+    positionY: initialCartiglio?.positionY ?? 0.68,
     tavola: initialCartiglio?.tavola ?? defaultTavola,
     committente: initialCartiglio?.committente ?? defaultCommittente,
     locali: initialCartiglio?.locali ?? '',
@@ -248,17 +254,6 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     return Array.from({ length: Math.max(1, cartiglio.standaloneRowCount ?? 1) }, (_, index) => index + 1);
   }, [allowCustomTypologyRows, cartiglio.standaloneRowCount, typologyNumbers]);
 
-  const splitTypologyColumns = React.useMemo(() => {
-    if (visibleTypologyNumbers.length <= 18) {
-      return [visibleTypologyNumbers];
-    }
-    const firstColumnCount = Math.ceil(visibleTypologyNumbers.length / 2);
-    return [
-      visibleTypologyNumbers.slice(0, firstColumnCount),
-      visibleTypologyNumbers.slice(firstColumnCount),
-    ];
-  }, [visibleTypologyNumbers]);
-
   const handleCartiglioFieldChange = useCallback((field: 'tavola' | 'committente' | 'locali', value: string) => {
     setCartiglio(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
@@ -269,12 +264,23 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     setHasUnsavedChanges(true);
   }, []);
 
+  const updateCartiglioPosition = useCallback((nextX: number, nextY: number) => {
+    setCartiglio(prev => ({
+      ...prev,
+      positionX: Math.max(0, Math.min(0.92, nextX)),
+      positionY: Math.max(0, Math.min(0.92, nextY)),
+    }));
+    setHasUnsavedChanges(true);
+  }, []);
+
   const buildExportCartiglio = useCallback(() => {
     if (!cartiglio.enabled) {
       return null;
     }
 
     return {
+      positionX: cartiglio.positionX,
+      positionY: cartiglio.positionY,
       tavola: cartiglio.tavola,
       typologyNumbers: visibleTypologyNumbers,
       typologyValues: cartiglio.typologyValues,
@@ -282,6 +288,87 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       locali: cartiglio.locali,
     };
   }, [cartiglio, visibleTypologyNumbers]);
+
+  useEffect(() => {
+    if (!cartiglio.visible) {
+      return undefined;
+    }
+
+    const stage = canvasStageRef.current;
+    const preview = cartiglioPreviewRef.current;
+    if (!stage || !preview) {
+      return undefined;
+    }
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    const handleMove = (clientX: number, clientY: number) => {
+      if (!dragging) return;
+      const stageRect = stage.getBoundingClientRect();
+      const previewRect = preview.getBoundingClientRect();
+      const usableWidth = Math.max(1, stageRect.width - previewRect.width);
+      const usableHeight = Math.max(1, stageRect.height - previewRect.height);
+      updateCartiglioPosition(
+        (clientX - stageRect.left - offsetX) / usableWidth,
+        (clientY - stageRect.top - offsetY) / usableHeight,
+      );
+    };
+
+    const handleMouseMove = (event: MouseEvent) => handleMove(event.clientX, event.clientY);
+    const handleTouchMove = (event: TouchEvent) => {
+      if (event.touches[0]) {
+        handleMove(event.touches[0].clientX, event.touches[0].clientY);
+      }
+    };
+    const stopDrag = () => {
+      dragging = false;
+    };
+
+    const dragHandle = preview.querySelector('.cartiglio-drag-handle') as HTMLElement | null;
+    if (!dragHandle) {
+      return undefined;
+    }
+
+    const startDrag = (clientX: number, clientY: number) => {
+      const previewRect = preview.getBoundingClientRect();
+      dragging = true;
+      offsetX = clientX - previewRect.left;
+      offsetY = clientY - previewRect.top;
+    };
+
+    const handleMouseDown = (event: Event) => {
+      const mouseEvent = event as MouseEvent;
+      startDrag(mouseEvent.clientX, mouseEvent.clientY);
+      mouseEvent.preventDefault();
+    };
+
+    const handleTouchStart = (event: Event) => {
+      const touchEvent = event as TouchEvent;
+      if (!touchEvent.touches[0]) return;
+      startDrag(touchEvent.touches[0].clientX, touchEvent.touches[0].clientY);
+    };
+
+    const handleMouseMoveEvent = (event: MouseEvent) => handleMouseMove(event);
+    const handleTouchMoveEvent = (event: TouchEvent) => handleTouchMove(event);
+
+    dragHandle.addEventListener('mousedown', handleMouseDown as EventListener);
+    dragHandle.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
+    window.addEventListener('mousemove', handleMouseMoveEvent);
+    window.addEventListener('mouseup', stopDrag);
+    window.addEventListener('touchmove', handleTouchMoveEvent, { passive: true });
+    window.addEventListener('touchend', stopDrag);
+
+    return () => {
+      dragHandle.removeEventListener('mousedown', handleMouseDown as EventListener);
+      dragHandle.removeEventListener('touchstart', handleTouchStart as EventListener);
+      window.removeEventListener('mousemove', handleMouseMoveEvent);
+      window.removeEventListener('mouseup', stopDrag);
+      window.removeEventListener('touchmove', handleTouchMoveEvent);
+      window.removeEventListener('touchend', stopDrag);
+    };
+  }, [cartiglio.visible, updateCartiglioPosition]);
 
   const handleTypologyValueChange = useCallback((number: number, value: string) => {
     setCartiglio(prev => ({
@@ -1081,7 +1168,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         {/* Canvas area */}
         <div className="editor-main-column">
           <div className="canvas-area">
-            <div className="canvas-stage">
+            <div className="canvas-stage" ref={canvasStageRef}>
               <FloorPlanCanvas
                 ref={canvasRef}
                 imageUrl={rotatedImageUrl}
@@ -1145,108 +1232,120 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda PPA'}
                 </button>
               )}
-            </div>
-          </div>
-
-          <div className={`cartiglio-editor-panel ${cartiglio.visible ? '' : 'collapsed'}`}>
-            <div className="cartiglio-editor-header">
-              <div>
-                <h3>Cartiglio planimetria</h3>
-                <p>
-                  {cartiglio.enabled
-                    ? 'Attivo per l\'export PDF.'
-                    : 'Disattivato: non verrà aggiunto al PDF esportato.'}
-                </p>
+              <div className="cartiglio-floating-controls">
+                <div className="cartiglio-row-actions">
+                  <button
+                    type="button"
+                    className={`cartiglio-row-btn ${cartiglio.enabled ? 'active' : ''}`}
+                    onClick={() => handleCartiglioToggle('enabled')}
+                  >
+                    {cartiglio.enabled ? 'Disattiva export' : 'Attiva export'}
+                  </button>
+                  <button
+                    type="button"
+                    className="cartiglio-row-btn"
+                    onClick={() => handleCartiglioToggle('visible')}
+                  >
+                    {cartiglio.visible ? 'Nascondi cartiglio' : 'Mostra cartiglio'}
+                  </button>
+                  {cartiglio.visible && allowCustomTypologyRows && typologyNumbers.length === 0 && (
+                    <>
+                      <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(-1)}>− Riga</button>
+                      <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(1)}>+ Riga</button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="cartiglio-row-actions">
-                <button
-                  type="button"
-                  className={`cartiglio-row-btn ${cartiglio.enabled ? 'active' : ''}`}
-                  onClick={() => handleCartiglioToggle('enabled')}
+
+              {cartiglio.visible && (
+                <div
+                  ref={cartiglioPreviewRef}
+                  className="cartiglio-preview-overlay"
+                  style={{
+                    left: `${cartiglio.positionX * 100}%`,
+                    top: `${cartiglio.positionY * 100}%`,
+                  }}
                 >
-                  {cartiglio.enabled ? 'Disattiva export' : 'Attiva export'}
-                </button>
-                <button
-                  type="button"
-                  className="cartiglio-row-btn"
-                  onClick={() => handleCartiglioToggle('visible')}
-                >
-                  {cartiglio.visible ? 'Nascondi cartiglio' : 'Mostra cartiglio'}
-                </button>
-                {cartiglio.visible && allowCustomTypologyRows && typologyNumbers.length === 0 && (
-                  <>
-                    <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(-1)}>− Riga</button>
-                    <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(1)}>+ Riga</button>
-                  </>
-                )}
-              </div>
-            </div>
+                  <div className="cartiglio-editor-header">
+                    <div>
+                      <h3>Cartiglio planimetria</h3>
+                      <p>
+                        {cartiglio.enabled
+                          ? 'Attivo per l\'export PDF.'
+                          : 'Disattivato: non verrà aggiunto al PDF esportato.'}
+                      </p>
+                    </div>
+                    <button type="button" className="cartiglio-drag-handle">Sposta</button>
+                  </div>
 
-            {cartiglio.visible && (
-              <div className={`cartiglio-layout ${splitTypologyColumns.length > 1 ? 'multi-column-typologies' : 'single-column-typologies'}`}>
-              <div className="cartiglio-box cartiglio-box-tavola">
-                <label className="cartiglio-inline-label">
-                  <span>TAVOLA</span>
-                  <input
-                    type="text"
-                    value={cartiglio.tavola}
-                    onChange={(e) => handleCartiglioFieldChange('tavola', e.target.value)}
-                    placeholder="Numero tavola"
-                  />
-                </label>
-              </div>
+                  <div className="cartiglio-layout">
+                    <div className="cartiglio-box cartiglio-box-tavola">
+                      <label className="cartiglio-inline-label">
+                        <span>TAVOLA</span>
+                        <input
+                          type="text"
+                          value={cartiglio.tavola}
+                          onChange={(e) => handleCartiglioFieldChange('tavola', e.target.value)}
+                          placeholder="Numero tavola"
+                        />
+                      </label>
+                    </div>
 
-              <div className="cartiglio-typology-columns">
-                {splitTypologyColumns.map((column, columnIndex) => (
-                  <div key={`typology-column-${columnIndex}`} className="cartiglio-box cartiglio-box-typologies">
-                    {column.length === 0 ? (
-                      <div className="cartiglio-typology-empty">Nessun tipologico nel progetto.</div>
-                    ) : (
-                      column.map((number) => (
-                        <label key={number} className="cartiglio-typology-row">
-                          <span>{number})</span>
+                    <div className="cartiglio-box cartiglio-box-typologies">
+                      {visibleTypologyNumbers.length === 0 ? (
+                        <div className="cartiglio-typology-empty">Nessun tipologico nel progetto.</div>
+                      ) : (
+                        visibleTypologyNumbers.map((number) => (
+                          <label key={number} className="cartiglio-typology-row">
+                            <span>{number})</span>
+                            <textarea
+                              value={cartiglio.typologyValues[String(number)] || ''}
+                              onChange={(e) => handleTypologyValueChange(number, e.target.value)}
+                              placeholder="Descrizione tipologico"
+                              rows={1}
+                            />
+                          </label>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="cartiglio-bottom-row">
+                      <div className="cartiglio-box cartiglio-box-signature-preview">
+                        <div className="cartiglio-signature-placeholder">Firma digitale</div>
+                      </div>
+
+                      <div className="cartiglio-box cartiglio-box-company">
+                        <div className="cartiglio-company-lines">
+                          <div>Installatore : Opi Firesafe SrL</div>
+                          <div>via G. Galilei, 9 - 33010 Tavagnacco (Ud)</div>
+                          <div>Tel : 0432 1901608</div>
+                          <div>mail : tecnico@opifiresafe.com</div>
+                          <div>web : www.opifiresafe.com</div>
+                        </div>
+                        <label className="cartiglio-stacked-field">
+                          <span>Committente</span>
                           <input
                             type="text"
-                            value={cartiglio.typologyValues[String(number)] || ''}
-                            onChange={(e) => handleTypologyValueChange(number, e.target.value)}
-                            placeholder="Descrizione tipologico"
+                            value={cartiglio.committente}
+                            onChange={(e) => handleCartiglioFieldChange('committente', e.target.value)}
+                            placeholder="Dati committente"
                           />
                         </label>
-                      ))
-                    )}
+                        <label className="cartiglio-stacked-field">
+                          <span>Locali</span>
+                          <input
+                            type="text"
+                            value={cartiglio.locali}
+                            onChange={(e) => handleCartiglioFieldChange('locali', e.target.value)}
+                            placeholder="Locali"
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-
-              <div className="cartiglio-box cartiglio-box-company">
-                <div className="cartiglio-company-lines">
-                  <div>Installatore : Opi Firesafe SrL</div>
-                  <div>via G. Galilei, 9 - 33010 Tavagnacco (Ud)</div>
-                  <div>Tel : 0432 1901608</div>
-                  <div>mail : tecnico@opifiresafe.com</div>
-                  <div>web : www.opifiresafe.com</div>
                 </div>
-                <label className="cartiglio-stacked-field">
-                  <span>Committente</span>
-                  <input
-                    type="text"
-                    value={cartiglio.committente}
-                    onChange={(e) => handleCartiglioFieldChange('committente', e.target.value)}
-                    placeholder="Dati committente"
-                  />
-                </label>
-                <label className="cartiglio-stacked-field">
-                  <span>Locali</span>
-                  <input
-                    type="text"
-                    value={cartiglio.locali}
-                    onChange={(e) => handleCartiglioFieldChange('locali', e.target.value)}
-                    placeholder="Locali"
-                  />
-                </label>
-              </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

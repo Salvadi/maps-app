@@ -29,6 +29,8 @@ const toExportCartiglio = (cartiglio?: Partial<FloorPlanCartiglioData> | null): 
 
   const rowCount = Math.max(1, cartiglio.standaloneRowCount ?? 1);
   return {
+    positionX: cartiglio.positionX ?? 0.03,
+    positionY: cartiglio.positionY ?? 0.68,
     tavola: cartiglio.tavola || '',
     typologyNumbers: Array.from({ length: rowCount }, (_, index) => index + 1),
     typologyValues: { ...(cartiglio.typologyValues || {}) },

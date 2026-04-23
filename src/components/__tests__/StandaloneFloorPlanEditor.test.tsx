@@ -328,6 +328,8 @@ test('export standalone usa il PDF originale quando pdfBlobBase64 e disponibile'
     { x: 0.22, y: 0.11 },
     {
       tavola: 'T-01',
+      positionX: 0.03,
+      positionY: 0.68,
       typologyNumbers: [1],
       typologyValues: { '1': 'Porta REI 120' },
       committente: 'Cliente prova',
@@ -373,6 +375,8 @@ test('export standalone senza pdfBlobBase64 passa undefined e usa il fallback ra
     { x: 0.22, y: 0.11 },
     {
       tavola: 'T-01',
+      positionX: 0.03,
+      positionY: 0.68,
       typologyNumbers: [1],
       typologyValues: { '1': 'Porta REI 120' },
       committente: 'Cliente prova',
