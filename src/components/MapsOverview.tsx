@@ -54,7 +54,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
 
   const totalPlans = projectsWithPlans.reduce((sum, p) => sum + p.floorPlans.length, 0);
 
-  const handleExportPlanPDF = async (plan: FloorPlan) => {
+  const handleExportPlanPDF = async (project: Project, plan: FloorPlan) => {
     setExportingPlanId(plan.id);
     try {
       const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
@@ -74,12 +74,26 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
         labelBackgroundColor: point.metadata?.labelBackgroundColor,
         labelTextColor: point.metadata?.labelTextColor,
       }));
+      const savedCartiglio = plan.metadata?.cartiglio;
+      const exportCartiglio = savedCartiglio?.enabled === false
+        ? null
+        : {
+            positionX: savedCartiglio?.positionX ?? 0.03,
+            positionY: savedCartiglio?.positionY ?? 0.68,
+            tavola: savedCartiglio?.tavola ?? plan.floor,
+            typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
+            typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
+            committente: savedCartiglio?.committente ?? [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
+            locali: savedCartiglio?.locali ?? '',
+          };
       await exportFloorPlanVectorPDF(
         exportReadyPlan.imageBlob,
         exportPoints,
         `Piano_${plan.floor}_annotato.pdf`,
         exportReadyPlan.pdfBlobBase64,
         exportReadyPlan.metadata?.rotation || 0,
+        undefined,
+        exportCartiglio,
       );
     } finally {
       setExportingPlanId(null);
@@ -143,7 +157,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
                         </div>
                       </div>
                       <button
-                        onClick={() => handleExportPlanPDF(plan)}
+                        onClick={() => handleExportPlanPDF(project, plan)}
                         disabled={exportingPlanId === plan.id}
                         title="Scarica PDF"
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 disabled:opacity-40 flex-shrink-0"

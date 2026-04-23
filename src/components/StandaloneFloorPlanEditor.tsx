@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ArrowLeft, Map, Upload, Database, FolderOpen, Trash2 } from 'lucide-react';
-import FloorPlanEditor from './FloorPlanEditor';
+import FloorPlanEditor, { FloorPlanCartiglioData } from './FloorPlanEditor';
 import { CanvasPoint, GridConfig } from './FloorPlanCanvas';
 import {
   User,
@@ -12,7 +12,7 @@ import {
   getFloorPlanBlobUrl,
   revokeFloorPlanBlobUrl,
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import { exportFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
 import { processFloorPlan, blobToBase64 } from '../utils/floorPlanUtils';
 
 interface StandaloneFloorPlanEditorProps {
@@ -21,6 +21,23 @@ interface StandaloneFloorPlanEditorProps {
 }
 
 type ProcessedStandaloneFile = Awaited<ReturnType<typeof processFloorPlan>>;
+
+const toExportCartiglio = (cartiglio?: Partial<FloorPlanCartiglioData> | null): ExportCartiglioData | null => {
+  if (!cartiglio?.enabled) {
+    return null;
+  }
+
+  const rowCount = Math.max(1, cartiglio.standaloneRowCount ?? 1);
+  return {
+    positionX: cartiglio.positionX ?? 0.03,
+    positionY: cartiglio.positionY ?? 0.68,
+    tavola: cartiglio.tavola || '',
+    typologyNumbers: Array.from({ length: rowCount }, (_, index) => index + 1),
+    typologyValues: { ...(cartiglio.typologyValues || {}) },
+    committente: cartiglio.committente || '',
+    locali: cartiglio.locali || '',
+  };
+};
 
 const DEFAULT_GRID_CONFIG: GridConfig = {
   enabled: false,
@@ -152,15 +169,17 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
     fileInputRef.current?.click();
   }, [points.length, projectName, resetEditorState]);
 
-  const handleSave = useCallback(async (savedPoints: CanvasPoint[], savedGridConfig: GridConfig) => {
+  const handleSave = useCallback(async (savedPoints: CanvasPoint[], savedGridConfig: GridConfig, savedCartiglio: FloorPlanCartiglioData) => {
     setPoints(savedPoints);
     setGridConfig(savedGridConfig);
+    setMapMetadata(prev => ({ ...prev, cartiglio: savedCartiglio }));
     alert('✅ Modifiche salvate localmente');
   }, []);
 
   const handleExportPDF = useCallback(async (context?: {
     points: CanvasPoint[];
     eiLegendPosition: { x: number; y: number } | null;
+    cartiglio?: FloorPlanCartiglioData;
   }) => {
     if (!currentImageBlob) {
       alert('❌ Nessuna planimetria caricata');
@@ -180,7 +199,6 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         labelTextColor: point.labelTextColor,
         eiRating: point.eiRating,
       }));
-
       const filename = projectName ? `${projectName}.pdf` : 'planimetria.pdf';
       await exportFloorPlanVectorPDF(
         currentImageBlob,
@@ -189,15 +207,16 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         currentPdfBlobBase64,
         rotation,
         context?.eiLegendPosition,
+        toExportCartiglio(context?.cartiglio ?? mapMetadata.cartiglio),
       );
       alert('✅ Planimetria esportata in PDF');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [currentImageBlob, currentPdfBlobBase64, points, projectName, rotation]);
+  }, [currentImageBlob, currentPdfBlobBase64, points, projectName, rotation, mapMetadata.cartiglio]);
 
-  const handleSaveToDatabase = useCallback(async (currentPoints: CanvasPoint[], currentGridConfig: GridConfig) => {
+  const handleSaveToDatabase = useCallback(async (currentPoints: CanvasPoint[], currentGridConfig: GridConfig, currentCartiglio: FloorPlanCartiglioData) => {
     if (!currentImageBlob) {
       alert('❌ Nessuna planimetria caricata');
       return;
@@ -205,6 +224,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
 
     setPoints(currentPoints);
     setGridConfig(currentGridConfig);
+    setMapMetadata(prev => ({ ...prev, cartiglio: currentCartiglio }));
     setShowNameDialog(true);
   }, [currentImageBlob]);
 
@@ -215,7 +235,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
       return;
     }
 
-    const standalonePoints = toStandalonePoints(points);
+      const standalonePoints = toStandalonePoints(points);
     const nextMetadata = { ...mapMetadata, rotation };
 
     setShowNameDialog(false);
@@ -529,12 +549,14 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
           initialGridConfig={gridConfig}
           mode="standalone"
           initialRotation={rotation}
+          initialCartiglio={mapMetadata.cartiglio}
           onRotationChange={handleRotationChange}
           onSave={handleSave}
           onNewFile={handleLoadFloorPlan}
           onOpenFile={handleOpenFromDatabase}
           onSaveFile={handleSaveToDatabase}
           onExportPDF={handleExportPDF}
+          allowCustomTypologyRows
         />
       </div>
 

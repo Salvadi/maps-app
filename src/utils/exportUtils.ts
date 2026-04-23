@@ -38,6 +38,16 @@ export interface ExportPoint {
   eiRating?: 30 | 60 | 90 | 120 | 180 | 240;  // Fire resistance rating (EI)
 }
 
+export interface ExportCartiglioData {
+  positionX?: number;
+  positionY?: number;
+  tavola?: string;
+  typologyNumbers?: number[];
+  typologyValues?: Record<string, string>;
+  committente?: string;
+  locali?: string;
+}
+
 // Costanti canvas originale (in px, su immagine a risoluzione piena)
 // Vengono moltiplicate per scale (min(pageW/imgW, pageH/imgH)) per ottenere pt nel PDF
 const CANVAS_FONT_SIZE   = 14;
@@ -47,6 +57,60 @@ const CANVAS_MIN_LABEL_W = 70;
 const CANVAS_MIN_LABEL_H = 36;
 const CANVAS_POINT_R     = 8;
 const EXPORT_DEFAULT_BG  = '#FAFAF0';
+const CARTIGLIO_INSTALLER_LINES = [
+  'Installatore : Opi Firesafe SrL',
+  'via G. Galilei, 9 - 33010 Tavagnacco (Ud)',
+  'Tel : 0432 1901608',
+  'mail : tecnico@opifiresafe.com',
+  'web : www.opifiresafe.com',
+] as const;
+
+interface PdfRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface CartiglioRow {
+  key: string;
+  label: string;
+  value: string;
+  wrappedLines: string[];
+  height: number;
+}
+
+interface CartiglioTypologyLayout extends PdfRect {
+  rows: CartiglioRow[];
+  prefixWidth: number;
+  rowHeight: number;
+  labelFontSize: number;
+  textFontSize: number;
+  rowPaddingY: number;
+  textInsetX: number;
+}
+
+interface CartiglioLayout {
+  height: number;
+  x: number;
+  y: number;
+  width: number;
+  tavolaBox: PdfRect & {
+    padding: number;
+    labelFontSize: number;
+    fieldFontSize: number;
+  };
+  typologyBox: CartiglioTypologyLayout;
+  infoBox: PdfRect & {
+    padding: number;
+    fontSize: number;
+    lineHeight: number;
+  };
+  signatureBox: PdfRect & {
+    padding: number;
+    fontSize: number;
+  };
+}
 
 /** Converte hex (#RRGGBB) in rgb() di pdf-lib */
 function hexToRgbLib(hex: string) {
@@ -65,6 +129,257 @@ function getExportPointColor(type: string): string {
     case 'generico':  return '#9933FF';
     default:          return '#333333';
   }
+}
+
+function wrapTextToWidth(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  if (!normalized) return [''];
+  const words = normalized.split(' ');
+  const lines: string[] = [];
+  let currentLine = words[0];
+
+  for (let i = 1; i < words.length; i++) {
+    const candidate = `${currentLine} ${words[i]}`;
+    if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+      currentLine = candidate;
+    } else {
+      lines.push(currentLine);
+      currentLine = words[i];
+    }
+  }
+
+  lines.push(currentLine);
+  return lines;
+}
+
+function buildCartiglioLayout(
+  pageW: number,
+  _planAreaH: number,
+  _fontBold: PDFFont,
+  fontRegular: PDFFont,
+  cartiglio?: ExportCartiglioData | null,
+): CartiglioLayout | null {
+  if (!cartiglio) {
+    return null;
+  }
+
+  const scale = Math.max(0.72, Math.min(pageW / 841.89, 1.1));
+  const outerMargin = 16 * scale;
+  const gap = 10 * scale;
+  const layoutWidth = Math.min(pageW - outerMargin * 2, 640 * scale);
+  const tavolaHeight = 24 * scale;
+  const tavolaWidth = 108 * scale;
+  const tavolaPadding = 6 * scale;
+  const tavolaLabelFontSize = 9 * scale;
+  const tavolaFieldFontSize = 10 * scale;
+  const prefixWidth = 26 * scale;
+  const typologyLabelFontSize = 8.5 * scale;
+  const typologyTextFontSize = 8.5 * scale;
+  const infoLineHeight = 11 * scale;
+  const infoPadding = 7 * scale;
+  const infoFontSize = 7.5 * scale;
+  const signatureFontSize = 8 * scale;
+  const sortedTypologyNumbers = [...(cartiglio.typologyNumbers || [])].sort((a, b) => a - b);
+  const signatureWidth = layoutWidth * 0.3;
+  const typologyWidth = layoutWidth;
+  const typologyTextWidth = typologyWidth - prefixWidth - 14 * scale;
+  const rawRows = (sortedTypologyNumbers.length > 0 ? sortedTypologyNumbers : [0]).map((num, index) => {
+    const key = num ? String(num) : `empty-${index}`;
+    const label = num ? `${num})` : '';
+    const value = cartiglio.typologyValues?.[key] || '';
+    const wrappedLines = wrapTextToWidth(value, fontRegular, typologyTextFontSize, typologyTextWidth);
+    return { key, label, value, wrappedLines };
+  });
+  const maxWrappedLines = Math.max(1, ...rawRows.map((row) => Math.max(1, row.wrappedLines.length)));
+  const uniformRowHeight = Math.max(18 * scale, maxWrappedLines * (typologyTextFontSize * 1.18) + 6 * scale);
+  const rows = rawRows.map((row) => ({ ...row, height: uniformRowHeight }));
+  const typologyHeight = rows.length * uniformRowHeight + 8 * scale;
+  const infoWidth = layoutWidth - signatureWidth - gap;
+  const infoBoxHeight = 86 * scale;
+  const signatureBoxHeight = infoBoxHeight;
+  const totalHeight = tavolaHeight + gap + typologyHeight + gap + infoBoxHeight;
+  const usableWidth = Math.max(1, pageW - layoutWidth);
+  const desiredX = (cartiglio.positionX ?? 0.03) * usableWidth;
+  const x = Math.max(outerMargin, Math.min(pageW - layoutWidth - outerMargin, desiredX));
+  const bottomMargin = 12 * scale;
+  const y = bottomMargin;
+  const topY = y + totalHeight;
+
+  return {
+    height: totalHeight + bottomMargin,
+    x,
+    y,
+    width: layoutWidth,
+    tavolaBox: {
+      x,
+      y: topY - tavolaHeight,
+      width: tavolaWidth,
+      height: tavolaHeight,
+      padding: tavolaPadding,
+      labelFontSize: tavolaLabelFontSize,
+      fieldFontSize: tavolaFieldFontSize,
+    },
+    typologyBox: {
+      x,
+      y: topY - tavolaHeight - gap - typologyHeight,
+      width: typologyWidth,
+      height: typologyHeight,
+      rows,
+      prefixWidth,
+      rowHeight: 0,
+      labelFontSize: typologyLabelFontSize,
+      textFontSize: typologyTextFontSize,
+      rowPaddingY: 4 * scale,
+      textInsetX: 8 * scale,
+    },
+    signatureBox: {
+      x: x + infoWidth + gap,
+      y,
+      width: signatureWidth,
+      height: signatureBoxHeight,
+      padding: infoPadding,
+      fontSize: signatureFontSize,
+    },
+    infoBox: {
+      x,
+      y,
+      width: infoWidth,
+      height: infoBoxHeight,
+      padding: infoPadding,
+      fontSize: infoFontSize,
+      lineHeight: infoLineHeight,
+    },
+  };
+}
+
+function drawCartiglioBorder(
+  page: ReturnType<PDFDocument['addPage']>,
+  rect: PdfRect,
+): void {
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    borderColor: rgb(0.882, 0.329, 0.235),
+    borderWidth: 1,
+    color: rgb(1, 1, 1),
+  });
+}
+
+function drawCartiglio(
+  page: ReturnType<PDFDocument['addPage']>,
+  fontBold: PDFFont,
+  fontRegular: PDFFont,
+  layout: CartiglioLayout,
+  cartiglio: ExportCartiglioData,
+): void {
+  drawCartiglioBorder(page, layout.tavolaBox);
+  page.drawText('TAVOLA', {
+    x: layout.tavolaBox.x + layout.tavolaBox.padding,
+    y: layout.tavolaBox.y + (layout.tavolaBox.height - layout.tavolaBox.labelFontSize) / 2,
+    font: fontBold,
+    size: layout.tavolaBox.labelFontSize,
+    color: rgb(0.1, 0.1, 0.1),
+  });
+  page.drawText(cartiglio.tavola || '', {
+    x: layout.tavolaBox.x + 46,
+    y: layout.tavolaBox.y + (layout.tavolaBox.height - layout.tavolaBox.fieldFontSize) / 2,
+    font: fontRegular,
+    size: layout.tavolaBox.fieldFontSize,
+    color: rgb(0.1, 0.1, 0.1),
+  });
+
+  drawCartiglioBorder(page, layout.typologyBox);
+  page.drawLine({
+    start: { x: layout.typologyBox.x + layout.typologyBox.prefixWidth, y: layout.typologyBox.y },
+    end: { x: layout.typologyBox.x + layout.typologyBox.prefixWidth, y: layout.typologyBox.y + layout.typologyBox.height },
+    color: rgb(0.882, 0.329, 0.235),
+    thickness: 1,
+  });
+  let cursorY = layout.typologyBox.y + layout.typologyBox.height - layout.typologyBox.rowPaddingY;
+  layout.typologyBox.rows.forEach((row, rowIndex) => {
+    const rowTop = cursorY;
+    const rowBottom = rowTop - row.height;
+
+    if (rowIndex > 0) {
+      page.drawLine({
+        start: { x: layout.typologyBox.x, y: rowTop },
+        end: { x: layout.typologyBox.x + layout.typologyBox.width, y: rowTop },
+        color: rgb(0.882, 0.329, 0.235),
+        thickness: 0.75,
+      });
+    }
+
+    if (row.label) {
+      page.drawText(row.label, {
+        x: layout.typologyBox.x + 4,
+        y: rowBottom + (row.height - layout.typologyBox.labelFontSize) / 2,
+        font: fontBold,
+        size: layout.typologyBox.labelFontSize,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+    }
+
+    const lineHeight = layout.typologyBox.textFontSize * 1.25;
+    const textBlockHeight = Math.max(lineHeight, row.wrappedLines.length * lineHeight);
+    let textY = rowBottom + (row.height + textBlockHeight) / 2 - lineHeight;
+    row.wrappedLines.forEach((line) => {
+      page.drawText(line, {
+        x: layout.typologyBox.x + layout.typologyBox.prefixWidth + layout.typologyBox.textInsetX,
+        y: textY,
+        font: fontRegular,
+        size: layout.typologyBox.textFontSize,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+      textY -= lineHeight;
+    });
+
+    cursorY = rowBottom;
+  });
+
+  drawCartiglioBorder(page, layout.infoBox);
+  const infoRows = [
+    ...CARTIGLIO_INSTALLER_LINES,
+    'Committente :',
+    'Locali :',
+  ];
+  const infoTop = layout.infoBox.y + layout.infoBox.height - layout.infoBox.padding;
+  const infoBottom = layout.infoBox.y + layout.infoBox.padding;
+  const rowSlotHeight = (infoTop - infoBottom) / infoRows.length;
+  infoRows.forEach((line, index) => {
+    const baselineY = infoTop - ((index + 1) * rowSlotHeight) + ((rowSlotHeight - layout.infoBox.fontSize) / 2);
+    if (index < CARTIGLIO_INSTALLER_LINES.length) {
+      page.drawText(line, {
+        x: layout.infoBox.x + layout.infoBox.padding,
+        y: baselineY,
+        font: fontRegular,
+        size: layout.infoBox.fontSize,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+      return;
+    }
+
+    page.drawText(line, {
+      x: layout.infoBox.x + layout.infoBox.padding,
+      y: baselineY,
+      font: fontRegular,
+      size: layout.infoBox.fontSize,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+
+    const isCommittente = index === CARTIGLIO_INSTALLER_LINES.length;
+    const labelWidth = fontRegular.widthOfTextAtSize(line, layout.infoBox.fontSize);
+    page.drawText(isCommittente ? (cartiglio.committente || '') : (cartiglio.locali || ''), {
+      x: layout.infoBox.x + layout.infoBox.padding + labelWidth + 6,
+      y: baselineY,
+      font: fontRegular,
+      size: layout.infoBox.fontSize,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+  });
+
+  drawCartiglioBorder(page, layout.signatureBox);
 }
 
 /** Calcola dimensioni etichetta usando i font pdf-lib.
@@ -422,10 +737,12 @@ async function _buildWithRasterBackground(
   imageBlob: Blob,
   points: ExportPoint[],
   eiLegendPosition?: { x: number; y: number } | null,
+  cartiglio?: ExportCartiglioData | null,
 ): Promise<Uint8Array> {
   const pdfDoc     = await PDFDocument.create();
   const fontBold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   const imgBytes     = await imageBlob.arrayBuffer();
   const isJpeg       = imageBlob.type === 'image/jpeg' || imageBlob.type === 'image/jpg';
@@ -437,18 +754,25 @@ async function _buildWithRasterBackground(
 
   const A4_W = 595.28;
   const A4_H = 841.89;
-  const [pageW, pageH] = aspectRatio > 1 ? [A4_H, A4_W] : [A4_W, A4_H];
+  const [pageW, basePageH] = aspectRatio > 1 ? [A4_H, A4_W] : [A4_W, A4_H];
+  const cartiglioLayout = buildCartiglioLayout(pageW, basePageH, fontBold, fontRegular, cartiglio);
+  const cartiglioHeight = cartiglioLayout?.height || 0;
+  const pageH = basePageH + cartiglioHeight;
 
-  const scale    = Math.min(pageW / imgW, pageH / imgH);
+  const scale    = Math.min(pageW / imgW, basePageH / imgH);
   const effectiveW = imgW * scale;
   const effectiveH = imgH * scale;
   const offsetX  = (pageW - effectiveW) / 2;
-  const offsetY  = (pageH - effectiveH) / 2;
+  const offsetY  = cartiglioHeight + (basePageH - effectiveH) / 2;
 
   const page = pdfDoc.addPage([pageW, pageH]);
   page.drawImage(embeddedImg, { x: offsetX, y: offsetY, width: effectiveW, height: effectiveH });
 
   _drawAnnotationsOnPage(page, points, pageH, effectiveW, effectiveH, offsetX, offsetY, scale, fontBold, fontItalic, eiLegendPosition);
+
+  if (cartiglioLayout) {
+    drawCartiglio(page, fontBold, fontRegular, cartiglioLayout, cartiglio || {});
+  }
 
   return pdfDoc.save();
 }
@@ -464,6 +788,7 @@ async function _buildFromOriginalPDF(
   points: ExportPoint[],
   rotation: number = 0,
   eiLegendPosition?: { x: number; y: number } | null,
+  cartiglio?: ExportCartiglioData | null,
 ): Promise<Uint8Array> {
   // Decodifica Base64 → bytes
   const binaryStr = atob(pdfBlobBase64);
@@ -475,60 +800,56 @@ async function _buildFromOriginalPDF(
 
   const fontBold   = await outDoc.embedFont(StandardFonts.HelveticaBold);
   const fontItalic = await outDoc.embedFont(StandardFonts.HelveticaOblique);
+  const fontRegular = await outDoc.embedFont(StandardFonts.Helvetica);
+  const srcPage = srcDoc.getPage(0);
+  const origW = srcPage.getWidth();
+  const origH = srcPage.getHeight();
+  const [pageW, planAreaH] = (rotation === 90 || rotation === 270)
+    ? [origH, origW]
+    : [origW, origH];
+  const cartiglioLayout = buildCartiglioLayout(pageW, planAreaH, fontBold, fontRegular, cartiglio);
+  const cartiglioHeight = cartiglioLayout?.height || 0;
+  const pageH = planAreaH + cartiglioHeight;
+  const page = outDoc.addPage([pageW, pageH]);
+  const embedded = await outDoc.embedPage(srcPage);
 
-  if (!rotation) {
-    // Nessuna rotazione: copia la pagina direttamente
-    const [copiedPage] = await outDoc.copyPages(srcDoc, [0]);
-    outDoc.addPage(copiedPage);
-    const pageW = copiedPage.getWidth();
-    const pageH = copiedPage.getHeight();
-    _drawAnnotationsOnPage(copiedPage, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic, eiLegendPosition);
-  } else {
-    // Con rotazione: embed la pagina originale come XObject e ruotala sulla nuova pagina.
-    // Le annotazioni sono già nel sistema di coordinate dell'immagine ruotata (0-1 norm.),
-    // quindi vengono disegnate direttamente senza trasformazione.
-    const [srcPage] = await srcDoc.copyPages(srcDoc, [0]);
-    const origW = srcPage.getWidth();
-    const origH = srcPage.getHeight();
+  let ex: number;
+  let ey: number;
+  let deg: number;
+  switch (rotation) {
+    case 90:
+      ex = 0;
+      ey = origW + cartiglioHeight;
+      deg = -90;
+      break;
+    case 180:
+      ex = origW;
+      ey = origH + cartiglioHeight;
+      deg = 180;
+      break;
+    case 270:
+      ex = origH;
+      ey = cartiglioHeight;
+      deg = 90;
+      break;
+    default:
+      ex = 0;
+      ey = cartiglioHeight;
+      deg = 0;
+  }
 
-    // Dimensioni della pagina di output (swap per 90°/270°)
-    const [pageW, pageH] = (rotation === 90 || rotation === 270)
-      ? [origH, origW]
-      : [origW, origH];
+  page.drawPage(embedded, {
+    x: ex,
+    y: ey,
+    width: origW,
+    height: origH,
+    rotate: degrees(deg),
+  });
 
-    const page = outDoc.addPage([pageW, pageH]);
+  _drawAnnotationsOnPage(page, points, pageH, pageW, planAreaH, 0, cartiglioHeight, 0.5, fontBold, fontItalic, eiLegendPosition);
 
-    // Embed la pagina originale come form XObject
-    const embedded = await outDoc.embedPage(srcPage);
-
-    // Parametri drawPage per ogni rotazione:
-    // Per -90° (90° CW visivo): x=0, y=origW; Per +90° (270° CW / 90° CCW): x=origH, y=0
-    // Per 180°: x=origW, y=origH; deriva dalla matrice di rotazione applicata al rettangolo della pagina.
-    let ex: number, ey: number, deg: number;
-    switch (rotation) {
-      case 90:
-        ex = 0; ey = origW; deg = -90;
-        break;
-      case 180:
-        ex = origW; ey = origH; deg = 180;
-        break;
-      case 270:
-        ex = origH; ey = 0; deg = 90;
-        break;
-      default:
-        ex = 0; ey = 0; deg = 0;
-    }
-
-    page.drawPage(embedded, {
-      x: ex,
-      y: ey,
-      width: origW,
-      height: origH,
-      rotate: degrees(deg),
-    });
-
-    // Le annotazioni sono nel sistema di coordinate dell'immagine ruotata → pageW × pageH
-    _drawAnnotationsOnPage(page, points, pageH, pageW, pageH, 0, 0, 0.5, fontBold, fontItalic, eiLegendPosition);
+  if (cartiglioLayout) {
+    drawCartiglio(page, fontBold, fontRegular, cartiglioLayout, cartiglio || {});
   }
 
   return outDoc.save();
@@ -573,12 +894,13 @@ export async function buildFloorPlanVectorPDF(
   pdfBlobBase64?: string,
   rotation: number = 0,
   eiLegendPosition?: { x: number; y: number } | null,
+  cartiglio?: ExportCartiglioData | null,
 ): Promise<Uint8Array> {
   if (pdfBlobBase64) {
-    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation, eiLegendPosition);
+    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation, eiLegendPosition, cartiglio);
   }
   const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
-  return _buildWithRasterBackground(blob, points, eiLegendPosition);
+  return _buildWithRasterBackground(blob, points, eiLegendPosition, cartiglio);
 }
 
 /**
@@ -593,8 +915,9 @@ export async function exportFloorPlanVectorPDF(
   pdfBlobBase64?: string,
   rotation: number = 0,
   eiLegendPosition?: { x: number; y: number } | null,
+  cartiglio?: ExportCartiglioData | null,
 ): Promise<void> {
-  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation, eiLegendPosition);
+  const pdfBytes = await buildFloorPlanVectorPDF(imageBlob, points, pdfBlobBase64, rotation, eiLegendPosition, cartiglio);
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

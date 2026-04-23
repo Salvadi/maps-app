@@ -516,7 +516,11 @@ const App: React.FC = () => {
                 offsetX: editorFloorPlan.gridConfig?.offsetX || 0,
                 offsetY: editorFloorPlan.gridConfig?.offsetY || 0,
               } : undefined}
-              onSave={async (points, gridConfig) => {
+              initialCartiglio={editorFloorPlan.metadata?.cartiglio}
+              defaultTavola={editorFloorPlan.floor}
+              defaultCommittente={[editorProject.client.trim() || editorProject.title.trim(), editorProject.address.trim()].filter(Boolean).join(' - ')}
+              typologyNumbers={[...(editorProject.typologies || [])].map(t => t.number).sort((a, b) => a - b)}
+              onSave={async (points, gridConfig, cartiglio) => {
                 try {
                   const initialIds = new Set(editorInitialPoints.map(p => p.id));
                   const currentPointIdSet = new Set(points.map(p => p.id));
@@ -555,8 +559,21 @@ const App: React.FC = () => {
                   }
                   await updateFloorPlan(editorFloorPlan.id, {
                     gridEnabled: gridConfig.enabled,
-                    gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY }
+                    gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY },
+                    metadata: {
+                      ...(editorFloorPlan.metadata || {}),
+                      cartiglio,
+                    },
                   });
+                  setEditorFloorPlan(prev => prev ? {
+                    ...prev,
+                    gridEnabled: gridConfig.enabled,
+                    gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY },
+                    metadata: {
+                      ...(prev.metadata || {}),
+                      cartiglio,
+                    },
+                  } : prev);
 
                   // Riconcilia gli ID ricariando i punti da Dexie
                   const saved = await getFloorPlanPoints(editorFloorPlan.id);

@@ -20,9 +20,21 @@ export interface UnmappedEntry {
   type: 'parete' | 'solaio';
 }
 
+export interface FloorPlanCartiglioData {
+  enabled: boolean;
+  positionX: number;
+  positionY: number;
+  tavola: string;
+  committente: string;
+  locali: string;
+  typologyValues: Record<string, string>;
+  standaloneRowCount?: number;
+}
+
 interface StandaloneExportContext {
   points: CanvasPoint[];
   eiLegendPosition: { x: number; y: number } | null;
+  cartiglio?: FloorPlanCartiglioData;
 }
 
 interface FloorPlanEditorProps {
@@ -32,12 +44,12 @@ interface FloorPlanEditorProps {
   mode?: 'mapping' | 'standalone' | 'view' | 'view-edit'; // mapping = linked to mapping entry, standalone = independent, view = read-only, view-edit = can move labels and add generico/perimetro
   maxPoints?: number; // Maximum number of points allowed (for mapping mode, typically 1)
   unmappedEntries?: UnmappedEntry[]; // Entries not yet positioned on floor plan (for view-edit mode)
-  onSave?: (points: CanvasPoint[], gridConfig: GridConfig) => Promise<void>;
+  onSave?: (points: CanvasPoint[], gridConfig: GridConfig, cartiglio: FloorPlanCartiglioData) => Promise<void>;
   onClose?: () => void;
   // Standalone mode handlers
   onNewFile?: () => void;
   onOpenFile?: () => void;
-  onSaveFile?: (points: CanvasPoint[], gridConfig: GridConfig) => Promise<void>;
+  onSaveFile?: (points: CanvasPoint[], gridConfig: GridConfig, cartiglio: FloorPlanCartiglioData) => Promise<void>;
   onExportPDF?: (context: StandaloneExportContext) => void | Promise<void>;
   onOpenMappingEntry?: (mappingEntryId: string) => void;
   onReorderPoints?: (sortedMappingEntryIds: string[]) => Promise<CanvasPoint[]>;
@@ -46,6 +58,11 @@ interface FloorPlanEditorProps {
   onRotationChange?: (rotation: number) => void;
   initialActiveTool?: Tool;
   initialEiRating?: EiRating;
+  initialCartiglio?: Partial<FloorPlanCartiglioData>;
+  defaultTavola?: string;
+  defaultCommittente?: string;
+  typologyNumbers?: number[];
+  allowCustomTypologyRows?: boolean;
 }
 
 const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
@@ -74,11 +91,15 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   onRotationChange,
   initialActiveTool,
   initialEiRating,
+  initialCartiglio,
+  defaultTavola = '',
+  defaultCommittente = '',
+  typologyNumbers = [],
+  allowCustomTypologyRows = false,
 }) => {
   // Ref to FloorPlanCanvas imperative handle
   const canvasRef = useRef<FloorPlanCanvasHandle>(null);
   const rotatedObjectUrlRef = useRef<string | null>(null);
-
   // ============================================
   // SEZIONE: Stato e inizializzazione
   // Dichiarazioni di stato, ref e inizializzazione dell'editor.
@@ -101,6 +122,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc' | 'recent'>('none');
   const [isReordering, setIsReordering] = useState(false);
+  const [showCartiglioPanel, setShowCartiglioPanel] = useState(false);
 
   // Rotation state
   const [rotation, setRotation] = useState<number>(initialRotation);
@@ -196,12 +218,83 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
   // EI Legend state (normalized 0-1 coordinates, null = hidden)
   const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>({ x: 0.02, y: 0.02 });
+  const buildCartiglioState = useCallback((): FloorPlanCartiglioData => ({
+    enabled: initialCartiglio?.enabled ?? true,
+    positionX: initialCartiglio?.positionX ?? 0.03,
+    positionY: initialCartiglio?.positionY ?? 0.68,
+    tavola: initialCartiglio?.tavola ?? defaultTavola,
+    committente: initialCartiglio?.committente ?? defaultCommittente,
+    locali: initialCartiglio?.locali ?? '',
+    typologyValues: { ...(initialCartiglio?.typologyValues || {}) },
+    standaloneRowCount: Math.max(1, initialCartiglio?.standaloneRowCount ?? 1),
+  }), [defaultCommittente, defaultTavola, initialCartiglio]);
+  const [cartiglio, setCartiglio] = useState<FloorPlanCartiglioData>(buildCartiglioState);
+
+  useEffect(() => {
+    setCartiglio(buildCartiglioState());
+  }, [buildCartiglioState]);
 
   // Handle EI legend move
   const handleEiLegendMove = useCallback((x: number, y: number) => {
     setEiLegendPosition({ x, y });
     setHasUnsavedChanges(true);
   }, []);
+
+  const visibleTypologyNumbers = React.useMemo(() => {
+    if (typologyNumbers.length > 0) {
+      return [...typologyNumbers].sort((a, b) => a - b);
+    }
+    if (!allowCustomTypologyRows) {
+      return [];
+    }
+    return Array.from({ length: Math.max(1, cartiglio.standaloneRowCount ?? 1) }, (_, index) => index + 1);
+  }, [allowCustomTypologyRows, cartiglio.standaloneRowCount, typologyNumbers]);
+
+  const handleCartiglioFieldChange = useCallback((field: 'tavola' | 'committente' | 'locali', value: string) => {
+    setCartiglio(prev => ({ ...prev, [field]: value }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const handleCartiglioToggle = useCallback((field: 'enabled') => {
+    setCartiglio(prev => ({ ...prev, [field]: !prev[field] }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const buildExportCartiglio = useCallback(() => {
+    if (!cartiglio.enabled) {
+      return null;
+    }
+
+    return {
+      positionX: cartiglio.positionX,
+      positionY: cartiglio.positionY,
+      tavola: cartiglio.tavola,
+      typologyNumbers: visibleTypologyNumbers,
+      typologyValues: cartiglio.typologyValues,
+      committente: cartiglio.committente,
+      locali: cartiglio.locali,
+    };
+  }, [cartiglio, visibleTypologyNumbers]);
+
+  const handleTypologyValueChange = useCallback((number: number, value: string) => {
+    setCartiglio(prev => ({
+      ...prev,
+      typologyValues: {
+        ...prev.typologyValues,
+        [String(number)]: value,
+      },
+    }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const handleStandaloneRowCountChange = useCallback((delta: number) => {
+    if (!allowCustomTypologyRows || typologyNumbers.length > 0) return;
+    setCartiglio(prev => ({
+      ...prev,
+      standaloneRowCount: Math.max(1, (prev.standaloneRowCount ?? 1) + delta),
+    }));
+    setHasUnsavedChanges(true);
+  }, [allowCustomTypologyRows, typologyNumbers.length]);
 
   // ============================================
   // SEZIONE: Gestione punti
@@ -346,9 +439,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
 
   // Handle save
   const handleSave = useCallback(async () => {
-    if (onSave) await onSave(points, gridConfig);
+    if (onSave) await onSave(points, gridConfig, cartiglio);
     setHasUnsavedChanges(false);
-  }, [points, gridConfig, onSave]);
+  }, [points, gridConfig, onSave, cartiglio]);
 
   // Handle close with unsaved changes check
   const handleClose = useCallback(async () => {
@@ -356,7 +449,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       const result = window.confirm('Hai modifiche non salvate. Salvare prima di chiudere?');
       if (result) {
         try {
-          if (onSave) await onSave(points, gridConfig);
+          if (onSave) await onSave(points, gridConfig, cartiglio);
           setHasUnsavedChanges(false);
         } catch (err) {
           console.error('Errore durante il salvataggio:', err);
@@ -366,7 +459,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
     }
     onClose?.();
-  }, [hasUnsavedChanges, onSave, points, gridConfig, onClose]);
+  }, [hasUnsavedChanges, onSave, points, gridConfig, cartiglio, onClose]);
 
   // ============================================
   // SEZIONE: Esportazione
@@ -379,6 +472,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       await onExportPDFProp({
         points,
         eiLegendPosition,
+        cartiglio,
       });
       return;
     }
@@ -401,13 +495,21 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         eiRating: p.eiRating,
       }));
 
-      await exportFloorPlanVectorPDF(imageBlob, exportPoints, 'planimetria-annotata.pdf', undefined, 0, eiLegendPosition);
+      await exportFloorPlanVectorPDF(
+        imageBlob,
+        exportPoints,
+        'planimetria-annotata.pdf',
+        undefined,
+        0,
+        eiLegendPosition,
+        buildExportCartiglio(),
+      );
       alert('✅ Planimetria esportata in PDF (vettoriale)');
     } catch (error) {
       console.error('Export PDF error:', error);
       alert('❌ Errore durante l\'esportazione PDF');
     }
-  }, [imageUrl, points, onExportPDFProp, eiLegendPosition]);
+  }, [imageUrl, points, onExportPDFProp, eiLegendPosition, cartiglio, buildExportCartiglio]);
 
   // Handle zoom
   const handleZoomIn = () => setZoomInTrigger(prev => prev + 1);
@@ -447,7 +549,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     if (hasUnsavedChanges) {
       const save = window.confirm('Ci sono modifiche non salvate. Salvare prima di riordinare?');
       if (save) {
-        if (onSave) await onSave(points, gridConfig);
+        if (onSave) await onSave(points, gridConfig, cartiglio);
         setHasUnsavedChanges(false);
       }
     }
@@ -478,7 +580,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     } finally {
       setIsReordering(false);
     }
-  }, [points, hasUnsavedChanges, onReorderPoints, onSave, gridConfig]);
+  }, [points, hasUnsavedChanges, onReorderPoints, onSave, gridConfig, cartiglio]);
 
   // Handle unmapped entry selection (for positioning)
   const handleUnmappedEntryClick = useCallback((entryId: string) => {
@@ -881,7 +983,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   <button className="menu-btn" onClick={onOpenFile}>
                     <span>📂</span> Apri Progetto
                   </button>
-                  <button className="menu-btn primary" onClick={async () => { if (onSaveFile) await onSaveFile(points, gridConfig); }}>
+                  <button className="menu-btn primary" onClick={async () => { if (onSaveFile) await onSaveFile(points, gridConfig, cartiglio); }}>
                     <span>💾</span> Salva Progetto
                   </button>
                 </div>
@@ -970,70 +1072,163 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         </div>
 
         {/* Canvas area */}
-        <div className="canvas-area">
-          <FloorPlanCanvas
-            ref={canvasRef}
-            imageUrl={rotatedImageUrl}
-            points={points}
-            gridConfig={gridConfig}
-            activeTool={activeTool}
-            onPointAdd={mode !== 'view' ? handlePointAdd : undefined}
-            onPointMove={mode !== 'view' ? handlePointMove : undefined}
-            onPointSelect={handlePointSelect}
-            selectedPointId={selectedPointId}
-            zoomInTrigger={zoomInTrigger}
-            zoomOutTrigger={zoomOutTrigger}
-            onPerimeterDrawingChange={handlePerimeterDrawingChange}
-            onCompletePerimeter={handleCompletePerimeter}
-            onCancelPerimeter={handleCancelPerimeter}
-            readOnlyPoints={readOnlyPoints}
-            eiLegendPosition={(mode === 'standalone' || mode === 'view-edit') ? eiLegendPosition : null}
-            onEiLegendMove={(mode === 'standalone' || mode === 'view-edit') ? handleEiLegendMove : undefined}
-          />
+        <div className="editor-main-column">
+          <div className="canvas-area">
+            <div className="canvas-stage">
+              <FloorPlanCanvas
+                ref={canvasRef}
+                imageUrl={rotatedImageUrl}
+                points={points}
+                gridConfig={gridConfig}
+                activeTool={activeTool}
+                onPointAdd={mode !== 'view' ? handlePointAdd : undefined}
+                onPointMove={mode !== 'view' ? handlePointMove : undefined}
+                onPointSelect={handlePointSelect}
+                selectedPointId={selectedPointId}
+                zoomInTrigger={zoomInTrigger}
+                zoomOutTrigger={zoomOutTrigger}
+                onPerimeterDrawingChange={handlePerimeterDrawingChange}
+                onCompletePerimeter={handleCompletePerimeter}
+                onCancelPerimeter={handleCancelPerimeter}
+                readOnlyPoints={readOnlyPoints}
+                eiLegendPosition={(mode === 'standalone' || mode === 'view-edit') ? eiLegendPosition : null}
+                onEiLegendMove={(mode === 'standalone' || mode === 'view-edit') ? handleEiLegendMove : undefined}
+              />
 
-          {/* Perimeter control buttons (V/X) */}
-          {isDrawingPerimeter && (
-            <div className="perimeter-controls">
-              <button
-                className="perimeter-btn complete"
-                onClick={handleCompletePerimeter}
-                title="Completa perimetro (Enter)"
-              >
-                ✓
-              </button>
-              <button
-                className="perimeter-btn cancel"
-                onClick={handleCancelPerimeter}
-                title="Annulla perimetro (Esc)"
-              >
-                ✕
-              </button>
+              {/* Perimeter control buttons (V/X) */}
+              {isDrawingPerimeter && (
+                <div className="perimeter-controls">
+                  <button
+                    className="perimeter-btn complete"
+                    onClick={handleCompletePerimeter}
+                    title="Completa perimetro (Enter)"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    className="perimeter-btn cancel"
+                    onClick={handleCancelPerimeter}
+                    title="Annulla perimetro (Esc)"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* EI Legend toggle button */}
+              {(mode === 'standalone' || mode === 'view-edit') && (
+                <button
+                  className={`ei-legend-toggle ${showCartiglioPanel ? 'cartiglio-open' : ''}`.trim()}
+                  onClick={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
+                  title={eiLegendPosition ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
+                >
+                  {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda PPA'}
+                </button>
+              )}
             </div>
-          )}
-
-          {/* EI Legend toggle button */}
-          {(mode === 'standalone' || mode === 'view-edit') && (
+          </div>
+          <div className={`cartiglio-bottom-section ${showCartiglioPanel ? 'open' : 'closed'}`.trim()}>
             <button
-              className="ei-legend-toggle"
-              onClick={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
-              title={eiLegendPosition ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
-              style={{
-                position: 'absolute',
-                bottom: '10px',
-                left: '10px',
-                zIndex: 100,
-                padding: '6px 10px',
-                background: 'white',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              }}
+              type="button"
+              className="cartiglio-bottom-toggle"
+              onClick={() => setShowCartiglioPanel(prev => !prev)}
             >
-              {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda PPA'}
+              {showCartiglioPanel ? 'Nascondi cartiglio' : 'Mostra cartiglio'}
             </button>
-          )}
+
+            {showCartiglioPanel && (
+              <div className="cartiglio-bottom-panel">
+                <div className="cartiglio-editor-header">
+                  <div>
+                    <h3>Cartiglio planimetria</h3>
+                    <p>
+                      {cartiglio.enabled
+                        ? 'Attivo per l\'export PDF.'
+                        : 'Disattivato: non verrà aggiunto al PDF esportato.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="cartiglio-row-actions">
+                  <button
+                    type="button"
+                    className={`cartiglio-row-btn ${cartiglio.enabled ? 'active' : ''}`}
+                    onClick={() => handleCartiglioToggle('enabled')}
+                  >
+                    {cartiglio.enabled ? 'Disattiva export' : 'Attiva export'}
+                  </button>
+                  {allowCustomTypologyRows && typologyNumbers.length === 0 && (
+                    <>
+                      <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(-1)}>− Riga</button>
+                      <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(1)}>+ Riga</button>
+                    </>
+                  )}
+                </div>
+
+                <div className="cartiglio-layout">
+                  <div className="cartiglio-box cartiglio-box-tavola">
+                    <label className="cartiglio-inline-label">
+                      <span>TAVOLA</span>
+                      <input
+                        type="text"
+                        value={cartiglio.tavola}
+                        onChange={(e) => handleCartiglioFieldChange('tavola', e.target.value)}
+                        placeholder="Numero tavola"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="cartiglio-box cartiglio-box-typologies">
+                    {visibleTypologyNumbers.length === 0 ? (
+                      <div className="cartiglio-typology-empty">Nessun tipologico nel progetto.</div>
+                    ) : (
+                      visibleTypologyNumbers.map((number) => (
+                        <label key={number} className="cartiglio-typology-row">
+                          <span>{number})</span>
+                          <textarea
+                            value={cartiglio.typologyValues[String(number)] || ''}
+                            onChange={(e) => handleTypologyValueChange(number, e.target.value)}
+                            placeholder="Descrizione tipologico"
+                            rows={1}
+                          />
+                        </label>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="cartiglio-bottom-row">
+                    <div className="cartiglio-box cartiglio-box-company">
+                      <div className="cartiglio-company-lines">
+                        <div>Installatore : Opi Firesafe SrL</div>
+                        <div>via G. Galilei, 9 - 33010 Tavagnacco (Ud)</div>
+                        <div>Tel : 0432 1901608</div>
+                        <div>mail : tecnico@opifiresafe.com</div>
+                        <div>web : www.opifiresafe.com</div>
+                      </div>
+                      <label className="cartiglio-stacked-field">
+                        <span>Committente</span>
+                        <input
+                          type="text"
+                          value={cartiglio.committente}
+                          onChange={(e) => handleCartiglioFieldChange('committente', e.target.value)}
+                          placeholder="Dati committente"
+                        />
+                      </label>
+                      <label className="cartiglio-stacked-field">
+                        <span>Locali</span>
+                        <input
+                          type="text"
+                          value={cartiglio.locali}
+                          onChange={(e) => handleCartiglioFieldChange('locali', e.target.value)}
+                          placeholder="Locali"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ============================================ */}
@@ -1141,7 +1336,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                             if (hasUnsavedChanges) {
                               const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
                               if (save) {
-                                if (onSave) await onSave(points, gridConfig);
+                                if (onSave) await onSave(points, gridConfig, cartiglio);
                                 setHasUnsavedChanges(false);
                               }
                             }
@@ -1250,11 +1445,11 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (hasUnsavedChanges) {
-                                const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
-                                if (save) {
-                                  if (onSave) await onSave(points, gridConfig);
+                              const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
+                              if (save) {
+                                  if (onSave) await onSave(points, gridConfig, cartiglio);
                                   setHasUnsavedChanges(false);
-                                }
+                              }
                               }
                               onOpenMappingEntry(point.mappingEntryId!);
                             }}
@@ -1298,7 +1493,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                           if (hasUnsavedChanges) {
                             const save = window.confirm('Salvare le modifiche prima di aprire la mappatura?');
                             if (save) {
-                              onSave?.(points, gridConfig);
+                              onSave?.(points, gridConfig, cartiglio);
                               setHasUnsavedChanges(false);
                             }
                           }
