@@ -308,6 +308,8 @@
 /* Canvas */
 .editor-main-column {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   position: relative;
@@ -327,20 +329,30 @@
   flex: 1;
 }
 
-.cartiglio-floating-controls {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 120;
+.cartiglio-bottom-section {
+  border-top: 1px solid #e0e0e0;
+  background: #fafafa;
+  max-height: 50vh;
+  overflow: auto;
+  flex-shrink: 0;
 }
 
-.cartiglio-preview-overlay {
-  position: absolute;
-  z-index: 110;
-  width: min(820px, calc(100% - 32px));
-  background: rgba(247, 247, 247, 0.96);
-  border: 1px solid #d8d8d8;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+.cartiglio-bottom-toggle {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: #f0f0f0;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cartiglio-bottom-toggle:hover {
+  background: #e8e8e8;
+}
+
+.cartiglio-bottom-panel {
   padding: 14px;
 }
 
@@ -368,6 +380,7 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 14px;
 }
 
 .cartiglio-row-btn {
@@ -384,18 +397,6 @@
 .cartiglio-row-btn.active {
   background: #dff1e4;
   border-color: #78b58a;
-}
-
-.cartiglio-drag-handle {
-  padding: 8px 12px;
-  border: 1px dashed #bf8d7f;
-  border-radius: 8px;
-  background: #fff7f4;
-  color: #8a4c3b;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: move;
-  touch-action: none;
 }
 
 .cartiglio-layout {
@@ -877,10 +878,6 @@
 
   .cartiglio-editor-header {
     flex-direction: column;
-  }
-
-  .cartiglio-preview-overlay {
-    width: calc(100% - 24px);
   }
 
   .cartiglio-bottom-row {
