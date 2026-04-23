@@ -1140,7 +1140,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               )}
             </div>
           </div>
-          <div className="cartiglio-bottom-section">
+          <div className={`cartiglio-bottom-section ${showCartiglioPanel ? 'open' : 'closed'}`.trim()}>
             <button
               type="button"
               className="cartiglio-bottom-toggle"
