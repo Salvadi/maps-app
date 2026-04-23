@@ -183,16 +183,17 @@ function buildCartiglioLayout(
   const signatureWidth = layoutWidth * 0.3;
   const typologyWidth = layoutWidth;
   const typologyTextWidth = typologyWidth - prefixWidth - 14 * scale;
-  const rows = (sortedTypologyNumbers.length > 0 ? sortedTypologyNumbers : [0]).map((num, index) => {
+  const rawRows = (sortedTypologyNumbers.length > 0 ? sortedTypologyNumbers : [0]).map((num, index) => {
     const key = num ? String(num) : `empty-${index}`;
     const label = num ? `${num})` : '';
     const value = cartiglio.typologyValues?.[key] || '';
     const wrappedLines = wrapTextToWidth(value, fontRegular, typologyTextFontSize, typologyTextWidth);
-    const lineCount = Math.max(wrappedLines.length, 1);
-    const rowHeight = Math.max(20 * scale, lineCount * (typologyTextFontSize * 1.25) + 8 * scale);
-    return { key, label, value, wrappedLines, height: rowHeight };
+    return { key, label, value, wrappedLines };
   });
-  const typologyHeight = rows.reduce((sum, row) => sum + row.height, 0) + 10 * scale;
+  const maxWrappedLines = Math.max(1, ...rawRows.map((row) => Math.max(1, row.wrappedLines.length)));
+  const uniformRowHeight = Math.max(18 * scale, maxWrappedLines * (typologyTextFontSize * 1.18) + 6 * scale);
+  const rows = rawRows.map((row) => ({ ...row, height: uniformRowHeight }));
+  const typologyHeight = rows.length * uniformRowHeight + 8 * scale;
   const infoWidth = layoutWidth - signatureWidth - gap;
   const infoBoxHeight = 86 * scale;
   const signatureBoxHeight = infoBoxHeight;
@@ -228,7 +229,7 @@ function buildCartiglioLayout(
       rowHeight: 0,
       labelFontSize: typologyLabelFontSize,
       textFontSize: typologyTextFontSize,
-      rowPaddingY: 5 * scale,
+      rowPaddingY: 4 * scale,
       textInsetX: 8 * scale,
     },
     signatureBox: {
@@ -344,8 +345,10 @@ function drawCartiglio(
     'Locali :',
   ];
   const infoTop = layout.infoBox.y + layout.infoBox.height - layout.infoBox.padding;
+  const infoBottom = layout.infoBox.y + layout.infoBox.padding;
+  const rowSlotHeight = (infoTop - infoBottom) / infoRows.length;
   infoRows.forEach((line, index) => {
-    const baselineY = infoTop - (index + 1) * layout.infoBox.lineHeight + 2;
+    const baselineY = infoTop - ((index + 1) * rowSlotHeight) + ((rowSlotHeight - layout.infoBox.fontSize) / 2);
     if (index < CARTIGLIO_INSTALLER_LINES.length) {
       page.drawText(line, {
         x: layout.infoBox.x + layout.infoBox.padding,
@@ -377,13 +380,6 @@ function drawCartiglio(
   });
 
   drawCartiglioBorder(page, layout.signatureBox);
-  page.drawText('Firma digitale', {
-    x: layout.signatureBox.x + layout.signatureBox.padding,
-    y: layout.signatureBox.y + layout.signatureBox.height / 2 - layout.signatureBox.fontSize / 2,
-    font: fontRegular,
-    size: layout.signatureBox.fontSize,
-    color: rgb(0.5, 0.5, 0.5),
-  });
 }
 
 /** Calcola dimensioni etichetta usando i font pdf-lib.
