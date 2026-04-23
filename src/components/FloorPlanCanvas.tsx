@@ -109,6 +109,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
   const [currentMousePos, setCurrentMousePos] = useState<{ x: number; y: number } | null>(null);
   const [isDraggingLegend, setIsDraggingLegend] = useState(false);
+  const initialViewKeyRef = useRef<string | null>(null);
 
   // ============================================
   // SEZIONE: Cache e costanti
@@ -183,6 +184,33 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     
     img.src = imageUrl;
   }, [imageUrl]);
+
+  // Initialize zoom/pan to fit the floor plan in the available viewport whenever the image changes
+  useEffect(() => {
+    if (!image || !imageLoaded) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const { clientWidth, clientHeight } = container;
+    if (clientWidth <= 0 || clientHeight <= 0) return;
+
+    const viewKey = `${imageUrl}|${clientWidth}x${clientHeight}`;
+    if (initialViewKeyRef.current === viewKey) return;
+
+    const scaleX = clientWidth / image.width;
+    const scaleY = clientHeight / image.height;
+    const fitZoom = Math.max(0.1, Math.min(5, Math.min(scaleX, scaleY)));
+
+    const centeredPan = {
+      x: (clientWidth - (image.width * fitZoom)) / 2,
+      y: (clientHeight - (image.height * fitZoom)) / 2,
+    };
+
+    setZoom(fitZoom);
+    setPan(centeredPan);
+    initialViewKeyRef.current = viewKey;
+  }, [image, imageLoaded, imageUrl]);
 
   // Convert normalized coordinates (0-1) to canvas coordinates
   const normalizedToCanvas = useCallback((nx: number, ny: number): { x: number; y: number } => {
