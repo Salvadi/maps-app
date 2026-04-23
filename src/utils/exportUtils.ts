@@ -200,9 +200,7 @@ function buildCartiglioLayout(
   const usableWidth = Math.max(1, pageW - layoutWidth);
   const desiredX = (cartiglio.positionX ?? 0.03) * usableWidth;
   const x = Math.max(outerMargin, Math.min(pageW - layoutWidth - outerMargin, desiredX));
-  const maxExtraSpace = totalHeight + 32 * scale;
-  const desiredY = -(cartiglio.positionY ?? 0.68) * maxExtraSpace;
-  const y = Math.max(-totalHeight, Math.min(0, desiredY));
+  const y = -totalHeight;
   const topY = y + totalHeight;
 
   return {
