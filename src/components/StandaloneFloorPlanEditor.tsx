@@ -31,6 +31,7 @@ const toExportCartiglio = (cartiglio?: Partial<FloorPlanCartiglioData> | null): 
   return {
     positionX: cartiglio.positionX ?? 0.03,
     positionY: cartiglio.positionY ?? 0.68,
+    scale: cartiglio.scale ?? 1,
     tavola: cartiglio.tavola || '',
     typologyNumbers: Array.from({ length: rowCount }, (_, index) => index + 1),
     typologyValues: { ...(cartiglio.typologyValues || {}) },

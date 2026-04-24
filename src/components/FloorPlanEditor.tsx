@@ -5,7 +5,14 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import FloorPlanCanvas, { CanvasPoint, GridConfig, Tool, FloorPlanCanvasHandle, EiRating } from './FloorPlanCanvas';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
+import {
+  exportFloorPlanVectorPDF,
+  ExportPoint,
+  CARTIGLIO_MIN_SCALE,
+  CARTIGLIO_MAX_SCALE,
+  CARTIGLIO_DEFAULT_POSITION_X,
+  CARTIGLIO_DEFAULT_POSITION_Y,
+} from '../utils/exportUtils';
 import ColorPickerModal from './ColorPickerModal';
 import './FloorPlanEditor.css';
 
@@ -24,6 +31,7 @@ export interface FloorPlanCartiglioData {
   enabled: boolean;
   positionX: number;
   positionY: number;
+  scale: number;
   tavola: string;
   committente: string;
   locali: string;
@@ -220,8 +228,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>({ x: 0.02, y: 0.02 });
   const buildCartiglioState = useCallback((): FloorPlanCartiglioData => ({
     enabled: initialCartiglio?.enabled ?? true,
-    positionX: initialCartiglio?.positionX ?? 0.03,
-    positionY: initialCartiglio?.positionY ?? 0.68,
+    positionX: initialCartiglio?.positionX ?? CARTIGLIO_DEFAULT_POSITION_X,
+    positionY: initialCartiglio?.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y,
+    scale: Math.max(CARTIGLIO_MIN_SCALE, Math.min(CARTIGLIO_MAX_SCALE, initialCartiglio?.scale ?? 1)),
     tavola: initialCartiglio?.tavola ?? defaultTavola,
     committente: initialCartiglio?.committente ?? defaultCommittente,
     locali: initialCartiglio?.locali ?? '',
@@ -229,6 +238,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     standaloneRowCount: Math.max(1, initialCartiglio?.standaloneRowCount ?? 1),
   }), [defaultCommittente, defaultTavola, initialCartiglio]);
   const [cartiglio, setCartiglio] = useState<FloorPlanCartiglioData>(buildCartiglioState);
+  const [showCartiglioOnCanvas, setShowCartiglioOnCanvas] = useState<boolean>(true);
 
   useEffect(() => {
     setCartiglio(buildCartiglioState());
@@ -237,6 +247,19 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   // Handle EI legend move
   const handleEiLegendMove = useCallback((x: number, y: number) => {
     setEiLegendPosition({ x, y });
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // Handle cartiglio move on canvas (normalized 0-1 coordinates)
+  const handleCartiglioMove = useCallback((x: number, y: number) => {
+    setCartiglio(prev => ({ ...prev, positionX: x, positionY: y }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // Handle cartiglio scale change (clamped to min/max)
+  const handleCartiglioScaleChange = useCallback((next: number) => {
+    const clamped = Math.max(CARTIGLIO_MIN_SCALE, Math.min(CARTIGLIO_MAX_SCALE, next));
+    setCartiglio(prev => ({ ...prev, scale: Math.round(clamped * 100) / 100 }));
     setHasUnsavedChanges(true);
   }, []);
 
@@ -268,6 +291,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     return {
       positionX: cartiglio.positionX,
       positionY: cartiglio.positionY,
+      scale: cartiglio.scale,
       tavola: cartiglio.tavola,
       typologyNumbers: visibleTypologyNumbers,
       typologyValues: cartiglio.typologyValues,
@@ -1093,6 +1117,10 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 readOnlyPoints={readOnlyPoints}
                 eiLegendPosition={(mode === 'standalone' || mode === 'view-edit') ? eiLegendPosition : null}
                 onEiLegendMove={(mode === 'standalone' || mode === 'view-edit') ? handleEiLegendMove : undefined}
+                cartiglio={cartiglio}
+                showCartiglioOnCanvas={showCartiglioOnCanvas && (mode === 'standalone' || mode === 'view-edit')}
+                visibleTypologyNumbers={visibleTypologyNumbers}
+                onCartiglioMove={(mode === 'standalone' || mode === 'view-edit') ? handleCartiglioMove : undefined}
               />
 
               {/* Perimeter control buttons (V/X) */}
@@ -1157,6 +1185,47 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   >
                     {cartiglio.enabled ? 'Disattiva export' : 'Attiva export'}
                   </button>
+                  {(mode === 'standalone' || mode === 'view-edit') && (
+                    <button
+                      type="button"
+                      className={`cartiglio-row-btn ${showCartiglioOnCanvas ? 'active' : ''}`}
+                      onClick={() => setShowCartiglioOnCanvas(prev => !prev)}
+                      title="Mostra/nascondi l'anteprima del cartiglio sul canvas"
+                    >
+                      {showCartiglioOnCanvas ? 'Nascondi anteprima canvas' : 'Mostra anteprima canvas'}
+                    </button>
+                  )}
+                  <div className="cartiglio-scale-control">
+                    <button
+                      type="button"
+                      className="cartiglio-row-btn"
+                      onClick={() => handleCartiglioScaleChange(cartiglio.scale - 0.1)}
+                      disabled={cartiglio.scale <= CARTIGLIO_MIN_SCALE + 1e-6}
+                      title="Riduci dimensioni cartiglio"
+                    >
+                      − Scala
+                    </button>
+                    <span className="cartiglio-scale-value">{Math.round(cartiglio.scale * 100)}%</span>
+                    <button
+                      type="button"
+                      className="cartiglio-row-btn"
+                      onClick={() => handleCartiglioScaleChange(cartiglio.scale + 0.1)}
+                      disabled={cartiglio.scale >= CARTIGLIO_MAX_SCALE - 1e-6}
+                      title="Aumenta dimensioni cartiglio"
+                    >
+                      + Scala
+                    </button>
+                    {Math.abs(cartiglio.scale - 1) > 1e-6 && (
+                      <button
+                        type="button"
+                        className="cartiglio-row-btn"
+                        onClick={() => handleCartiglioScaleChange(1)}
+                        title="Ripristina scala 100%"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                   {allowCustomTypologyRows && typologyNumbers.length === 0 && (
                     <>
                       <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(-1)}>− Riga</button>

@@ -433,6 +433,29 @@
   border-color: #78b58a;
 }
 
+.cartiglio-row-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cartiglio-scale-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.cartiglio-scale-value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
 .cartiglio-layout {
   display: grid;
   gap: 12px;

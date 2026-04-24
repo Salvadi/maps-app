@@ -4,7 +4,26 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import {
+  CARTIGLIO_INSTALLER_LINES,
+  CARTIGLIO_BORDER_COLOR_HEX,
+  CARTIGLIO_DEFAULT_POSITION_X,
+  CARTIGLIO_DEFAULT_POSITION_Y,
+  CARTIGLIO_MIN_SCALE,
+  CARTIGLIO_MAX_SCALE,
+} from '../utils/exportUtils';
 import './FloorPlanCanvas.css';
+
+export interface CartiglioCanvasData {
+  enabled: boolean;
+  positionX: number;
+  positionY: number;
+  scale: number;
+  tavola: string;
+  committente: string;
+  locali: string;
+  typologyValues: Record<string, string>;
+}
 
 // ============================================
 // SEZIONE: Interfacce e tipi
@@ -73,6 +92,11 @@ interface FloorPlanCanvasProps {
   // EI Legend
   eiLegendPosition?: { x: number; y: number } | null; // Normalized 0-1 position, null = hidden
   onEiLegendMove?: (x: number, y: number) => void; // Callback when legend is dragged
+  // Cartiglio preview (mirrors PDF layout)
+  cartiglio?: CartiglioCanvasData | null;
+  showCartiglioOnCanvas?: boolean;
+  visibleTypologyNumbers?: number[];
+  onCartiglioMove?: (x: number, y: number) => void; // Callback when cartiglio is dragged
 }
 
 const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(({
@@ -90,6 +114,10 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   readOnlyPoints = [],
   eiLegendPosition,
   onEiLegendMove,
+  cartiglio,
+  showCartiglioOnCanvas = false,
+  visibleTypologyNumbers = [],
+  onCartiglioMove,
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -109,6 +137,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   const [isDrawingPerimeter, setIsDrawingPerimeter] = useState(false);
   const [currentMousePos, setCurrentMousePos] = useState<{ x: number; y: number } | null>(null);
   const [isDraggingLegend, setIsDraggingLegend] = useState(false);
+  const [isDraggingCartiglio, setIsDraggingCartiglio] = useState(false);
 
   // ============================================
   // SEZIONE: Cache e costanti
@@ -332,10 +361,13 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     // Draw EI Legend (on top of everything)
     drawEiLegend(ctx);
 
+    // Draw Cartiglio preview (on top, after legend)
+    drawCartiglioPreview(ctx);
+
     // Restore context state
     ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints, eiLegendPosition]);
+  }, [image, imageLoaded, pan, zoom, points, gridConfig, perimeterPoints, isDrawingPerimeter, currentMousePos, readOnlyPoints, eiLegendPosition, cartiglio, showCartiglioOnCanvas, visibleTypologyNumbers]);
 
   // Draw grid
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
@@ -613,6 +645,241 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     return cx >= x && cx <= x + width && cy >= y && cy <= y + height;
   }, [eiLegendPosition, getUsedEiRatings, getEiLegendDimensions, normalizedToCanvas]);
 
+  // ============================================
+  // SEZIONE: Cartiglio preview
+  // Anteprima sul canvas del cartiglio che verrà esportato nel PDF.
+  // Replica (a meno del font) il layout di buildCartiglioLayout in
+  // exportUtils.ts per dare un preview fedele all'output.
+  // ============================================
+
+  const getCartiglioPreviewGeometry = useCallback(() => {
+    if (!cartiglio || !showCartiglioOnCanvas || !image) return null;
+
+    const userScale = Math.max(CARTIGLIO_MIN_SCALE, Math.min(CARTIGLIO_MAX_SCALE, cartiglio.scale ?? 1));
+    // Base scale equivalente al PDF: `pageW / 841.89`, qui usiamo la larghezza
+    // dell'immagine zoomata (in px canvas) come proxy di pageW.
+    const pageWLike = image.width * zoom;
+    const baseScale = Math.max(0.72, Math.min(pageWLike / 841.89, 1.1));
+    const s = baseScale * userScale;
+
+    const outerMargin = 16 * s;
+    const gap = 10 * s;
+    const layoutWidth = Math.min(pageWLike - outerMargin * 2, 640 * s);
+    const tavolaHeight = 24 * s;
+    const tavolaWidth = 108 * s;
+    const prefixWidth = 26 * s;
+    const typologyTextFontSize = 8.5 * s;
+    const typologyLabelFontSize = 8.5 * s;
+    const infoPadding = 7 * s;
+    const infoFontSize = 7.5 * s;
+    const infoLineHeight = 11 * s;
+    const signatureFontSize = 8 * s;
+
+    const sortedTypologies = [...visibleTypologyNumbers].sort((a, b) => a - b);
+    const effectiveNumbers = sortedTypologies.length > 0 ? sortedTypologies : [0];
+
+    // Line wrap via canvas measureText (approssima wrapTextToWidth del PDF).
+    const wrapLines = (text: string, font: string, maxW: number): string[] => {
+      if (!text) return [''];
+      const ctx = canvasRef.current?.getContext('2d');
+      if (!ctx) return [text];
+      const prevFont = ctx.font;
+      ctx.font = font;
+      const paragraphs = text.split(/\n/);
+      const out: string[] = [];
+      for (const para of paragraphs) {
+        const words = para.split(/\s+/).filter(Boolean);
+        if (words.length === 0) {
+          out.push('');
+          continue;
+        }
+        let line = '';
+        for (const word of words) {
+          const candidate = line ? `${line} ${word}` : word;
+          if (ctx.measureText(candidate).width <= maxW || line === '') {
+            line = candidate;
+          } else {
+            out.push(line);
+            line = word;
+          }
+        }
+        if (line) out.push(line);
+      }
+      ctx.font = prevFont;
+      return out.length ? out : [''];
+    };
+
+    const typologyTextWidth = layoutWidth - prefixWidth - 14 * s;
+    const typologyFont = `${typologyTextFontSize}px Helvetica, Arial`;
+    const rows = effectiveNumbers.map((num, index) => {
+      const key = num ? String(num) : `empty-${index}`;
+      const label = num ? `${num})` : '';
+      const value = cartiglio.typologyValues?.[key] || '';
+      const wrappedLines = wrapLines(value, typologyFont, typologyTextWidth);
+      return { key, label, value, wrappedLines };
+    });
+    const maxWrappedLines = Math.max(1, ...rows.map((r) => Math.max(1, r.wrappedLines.length)));
+    const uniformRowHeight = Math.max(18 * s, maxWrappedLines * (typologyTextFontSize * 1.18) + 6 * s);
+    const typologyHeight = rows.length * uniformRowHeight + 8 * s;
+    const infoBoxHeight = 86 * s;
+    const signatureWidth = layoutWidth * 0.3;
+    const infoWidth = layoutWidth - signatureWidth - gap;
+    const totalHeight = tavolaHeight + gap + typologyHeight + gap + infoBoxHeight;
+
+    // Posiziono in coordinate canvas. positionX/positionY sono frazioni
+    // dell'image bbox zoomata.
+    const posX = Math.max(0, Math.min(1, cartiglio.positionX ?? CARTIGLIO_DEFAULT_POSITION_X));
+    const posY = Math.max(0, Math.min(1, cartiglio.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y));
+    const imgLeft = pan.x;
+    const imgTop = pan.y;
+    const imgW = image.width * zoom;
+    const imgH = image.height * zoom;
+
+    const x = imgLeft + posX * imgW;
+    const y = imgTop + posY * imgH; // top-left corner of the bounding box
+    return {
+      x,
+      y,
+      width: layoutWidth,
+      totalHeight,
+      scale: s,
+      tavolaWidth,
+      tavolaHeight,
+      gap,
+      typologyHeight,
+      infoBoxHeight,
+      infoWidth,
+      signatureWidth,
+      prefixWidth,
+      rows,
+      uniformRowHeight,
+      typologyTextFontSize,
+      typologyLabelFontSize,
+      infoPadding,
+      infoFontSize,
+      infoLineHeight,
+      signatureFontSize,
+      imgLeft,
+      imgTop,
+      imgW,
+      imgH,
+    };
+  }, [cartiglio, showCartiglioOnCanvas, image, zoom, pan, visibleTypologyNumbers]);
+
+  const drawCartiglioPreview = useCallback((ctx: CanvasRenderingContext2D) => {
+    const g = getCartiglioPreviewGeometry();
+    if (!g) return;
+
+    const borderColor = CARTIGLIO_BORDER_COLOR_HEX;
+    const textColor = '#1a1a1a';
+
+    // Helper per box con bordo rosso + sfondo bianco.
+    const drawBorderedRect = (x: number, y: number, w: number, h: number) => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w, h);
+    };
+
+    // TAVOLA box (angolo in alto a sinistra)
+    const tavolaX = g.x;
+    const tavolaY = g.y;
+    drawBorderedRect(tavolaX, tavolaY, g.tavolaWidth, g.tavolaHeight);
+    const tavolaLabelFontSize = 9 * g.scale;
+    const tavolaFieldFontSize = 10 * g.scale;
+    const tavolaPadding = 6 * g.scale;
+    ctx.fillStyle = textColor;
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${tavolaLabelFontSize}px Helvetica, Arial`;
+    ctx.fillText('TAVOLA', tavolaX + tavolaPadding, tavolaY + g.tavolaHeight / 2);
+    ctx.font = `${tavolaFieldFontSize}px Helvetica, Arial`;
+    ctx.fillText(cartiglio?.tavola || '', tavolaX + 46 * g.scale, tavolaY + g.tavolaHeight / 2);
+
+    // Typology box
+    const typoX = g.x;
+    const typoY = g.y + g.tavolaHeight + g.gap;
+    drawBorderedRect(typoX, typoY, g.width, g.typologyHeight);
+    // Vertical separator after prefix
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(typoX + g.prefixWidth, typoY);
+    ctx.lineTo(typoX + g.prefixWidth, typoY + g.typologyHeight);
+    ctx.stroke();
+    // Rows
+    const rowPaddingY = 4 * g.scale;
+    let cursorY = typoY + rowPaddingY;
+    g.rows.forEach((row, rowIndex) => {
+      if (rowIndex > 0) {
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 0.75;
+        ctx.beginPath();
+        ctx.moveTo(typoX, cursorY);
+        ctx.lineTo(typoX + g.width, cursorY);
+        ctx.stroke();
+      }
+      const rowTop = cursorY;
+      const rowBottom = cursorY + g.uniformRowHeight;
+
+      if (row.label) {
+        ctx.fillStyle = textColor;
+        ctx.font = `bold ${g.typologyLabelFontSize}px Helvetica, Arial`;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(row.label, typoX + 4 * g.scale, (rowTop + rowBottom) / 2);
+      }
+
+      ctx.fillStyle = textColor;
+      ctx.font = `${g.typologyTextFontSize}px Helvetica, Arial`;
+      ctx.textBaseline = 'middle';
+      const lineHeight = g.typologyTextFontSize * 1.25;
+      const blockHeight = Math.max(lineHeight, row.wrappedLines.length * lineHeight);
+      let textY = (rowTop + rowBottom) / 2 - (blockHeight - lineHeight) / 2;
+      row.wrappedLines.forEach((line) => {
+        ctx.fillText(line, typoX + g.prefixWidth + 8 * g.scale, textY);
+        textY += lineHeight;
+      });
+
+      cursorY = rowBottom;
+    });
+
+    // Info + Signature row
+    const infoY = typoY + g.typologyHeight + g.gap;
+    drawBorderedRect(g.x, infoY, g.infoWidth, g.infoBoxHeight);
+    drawBorderedRect(g.x + g.infoWidth + g.gap, infoY, g.signatureWidth, g.infoBoxHeight);
+
+    const infoLines: string[] = [
+      ...CARTIGLIO_INSTALLER_LINES,
+      'Committente :',
+      'Locali :',
+    ];
+    const infoTop = infoY + g.infoPadding;
+    const infoBottom = infoY + g.infoBoxHeight - g.infoPadding;
+    const slotHeight = (infoBottom - infoTop) / infoLines.length;
+    ctx.font = `${g.infoFontSize}px Helvetica, Arial`;
+    ctx.fillStyle = textColor;
+    ctx.textBaseline = 'middle';
+    infoLines.forEach((line, index) => {
+      const centerY = infoTop + (index + 0.5) * slotHeight;
+      ctx.fillText(line, g.x + g.infoPadding, centerY);
+      if (index === CARTIGLIO_INSTALLER_LINES.length) {
+        // Committente value
+        const labelW = ctx.measureText(line).width;
+        ctx.fillText(cartiglio?.committente || '', g.x + g.infoPadding + labelW + 6, centerY);
+      } else if (index === CARTIGLIO_INSTALLER_LINES.length + 1) {
+        // Locali value
+        const labelW = ctx.measureText(line).width;
+        ctx.fillText(cartiglio?.locali || '', g.x + g.infoPadding + labelW + 6, centerY);
+      }
+    });
+  }, [cartiglio, getCartiglioPreviewGeometry]);
+
+  const isPointOnCartiglio = useCallback((cx: number, cy: number): boolean => {
+    const g = getCartiglioPreviewGeometry();
+    if (!g) return false;
+    return cx >= g.x && cx <= g.x + g.width && cy >= g.y && cy <= g.y + g.totalHeight;
+  }, [getCartiglioPreviewGeometry]);
+
   // Helper function to find closest point on a line segment to a given point
   const getClosestPointOnSegment = (
     p1: { x: number; y: number },
@@ -789,7 +1056,14 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
       setIsDragging(true);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     } else if (activeTool === 'move') {
-      // Check if clicking on EI legend first
+      // Cartiglio takes priority (largest overlay, user likely wants to move it)
+      if (isPointOnCartiglio(x, y)) {
+        setIsDraggingCartiglio(true);
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+        return;
+      }
+      // Check if clicking on EI legend next
       if (isPointOnEiLegend(x, y)) {
         setIsDraggingLegend(true);
         setIsDragging(true);
@@ -857,6 +1131,22 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
+    } else if (activeTool === 'move' && isDraggingCartiglio && cartiglio) {
+      // Handle cartiglio dragging (asymmetric clamp: x bounded in image,
+      // y allows going below the image — PDF page will extend to fit).
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+
+      if (image) {
+        const g = getCartiglioPreviewGeometry();
+        const widthNorm = g ? (g.width / (image.width * zoom)) : 0;
+        const newX = (cartiglio.positionX ?? CARTIGLIO_DEFAULT_POSITION_X) + (deltaX / (image.width * zoom));
+        const newY = (cartiglio.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y) + (deltaY / (image.height * zoom));
+        const clampedX = Math.max(0, Math.min(Math.max(0, 1 - widthNorm), newX));
+        const clampedY = Math.max(0, Math.min(1, newY));
+        onCartiglioMove?.(clampedX, clampedY);
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
     } else if (activeTool === 'move' && isDraggingLegend && eiLegendPosition) {
       // Handle legend dragging
       const deltaX = e.clientX - dragStart.x;
@@ -893,6 +1183,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     setIsDragging(false);
     setDraggedPoint(null);
     setIsDraggingLegend(false);
+    setIsDraggingCartiglio(false);
   };
 
   // Handle double click to complete perimeter
@@ -1081,7 +1372,13 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         setIsDragging(true);
         setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
       } else if (activeTool === 'move') {
-        // Check if touching EI legend first
+        if (isPointOnCartiglio(x, y)) {
+          setIsDraggingCartiglio(true);
+          setIsDragging(true);
+          setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+          return;
+        }
+        // Check if touching EI legend next
         if (isPointOnEiLegend(x, y)) {
           setIsDraggingLegend(true);
           setIsDragging(true);
@@ -1150,6 +1447,20 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
           x: e.touches[0].clientX - dragStart.x,
           y: e.touches[0].clientY - dragStart.y,
         });
+      } else if (activeTool === 'move' && isDraggingCartiglio && cartiglio) {
+        const deltaX = e.touches[0].clientX - dragStart.x;
+        const deltaY = e.touches[0].clientY - dragStart.y;
+
+        if (image) {
+          const g = getCartiglioPreviewGeometry();
+          const widthNorm = g ? (g.width / (image.width * zoom)) : 0;
+          const newX = (cartiglio.positionX ?? CARTIGLIO_DEFAULT_POSITION_X) + (deltaX / (image.width * zoom));
+          const newY = (cartiglio.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y) + (deltaY / (image.height * zoom));
+          const clampedX = Math.max(0, Math.min(Math.max(0, 1 - widthNorm), newX));
+          const clampedY = Math.max(0, Math.min(1, newY));
+          onCartiglioMove?.(clampedX, clampedY);
+          setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        }
       } else if (activeTool === 'move' && isDraggingLegend && eiLegendPosition) {
         // Handle legend dragging on touch
         const deltaX = e.touches[0].clientX - dragStart.x;
@@ -1186,6 +1497,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     setIsDragging(false);
     setDraggedPoint(null);
     setIsDraggingLegend(false);
+    setIsDraggingCartiglio(false);
     setLastTouchDistance(null);
     setLastTouchCenter(null);
   };

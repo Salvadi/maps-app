@@ -331,6 +331,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         : {
             positionX: savedCartiglio?.positionX ?? 0.03,
             positionY: savedCartiglio?.positionY ?? 0.68,
+            scale: savedCartiglio?.scale ?? 1,
             tavola: savedCartiglio?.tavola ?? plan.floor,
             typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
             typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
