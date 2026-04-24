@@ -656,11 +656,13 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     if (!cartiglio || !showCartiglioOnCanvas || !image) return null;
 
     const userScale = Math.max(CARTIGLIO_MIN_SCALE, Math.min(CARTIGLIO_MAX_SCALE, cartiglio.scale ?? 1));
-    // Base scale equivalente al PDF: `pageW / 841.89`, qui usiamo la larghezza
-    // dell'immagine zoomata (in px canvas) come proxy di pageW.
+    // Base scale equivalente al PDF: `pageW / 841.89`. Dipende SOLO dalla
+    // dimensione naturale dell'immagine, non dal zoom corrente — così il
+    // cartiglio scala linearmente con lo zoom (come le etichette dei punti)
+    // invece di saturare al clamp [0.72, 1.1].
+    const baseScale = Math.max(0.72, Math.min(image.width / 841.89, 1.1));
+    const s = baseScale * userScale * zoom;
     const pageWLike = image.width * zoom;
-    const baseScale = Math.max(0.72, Math.min(pageWLike / 841.89, 1.1));
-    const s = baseScale * userScale;
 
     const outerMargin = 16 * s;
     const gap = 10 * s;
