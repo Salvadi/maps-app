@@ -2,6 +2,7 @@
 export * from './database';
 export * from './projects';
 export * from './mappings';
+export * from './structures';
 export * from './auth';
 export * from './floorPlans';
 
@@ -61,5 +62,20 @@ export { getTypologyPrices, upsertTypologyPrice, deleteTypologyPrice } from './p
 export type { TypologyPrice } from './database';
 
 // SAL exports
-export { getSalsForProject, createSal, updateSal, deleteSal, assignCrossingsToSal } from './sal';
+export { getSalsForProject, createSal, updateSal, deleteSal, assignCrossingsToSal, assignStructuresToSal } from './sal';
 export type { Sal } from './database';
+
+// Structures exports
+export {
+  createStructureEntry,
+  getStructureEntry,
+  getStructureEntriesForProject,
+  updateStructureEntry,
+  deleteStructureEntry,
+  getPhotosForStructure,
+  addPhotosToStructure,
+  removePhotoFromStructure,
+  getStructureCountForProject,
+  convertRemoteToLocalStructure,
+} from './structures';
+export type { Structure, StructureEntry } from './database';

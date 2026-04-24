@@ -1,6 +1,7 @@
-import { db, MappingEntry, Sal, generateId, now, SyncQueueItem } from './database';
+import { db, MappingEntry, StructureEntry, Sal, generateId, now, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { getMappingEntriesForProject } from './mappings';
+import { getStructureEntriesForProject } from './structures';
 import { supabase } from '../lib/supabase';
 import {
   applyPendingWrites,
@@ -21,6 +22,33 @@ function convertRemoteToLocalSal(remote: any): Sal {
     createdAt: new Date(remote.created_at).getTime(),
     synced: 1,
   };
+}
+
+async async function enqueueStructureEntryUpdate(entry: StructureEntry): Promise<void> {
+  const existingSyncItem = await db.syncQueue
+    .where('entityType')
+    .equals('structure_entry')
+    .and((item) => item.entityId === entry.id && item.synced === 0 && item.operation !== 'DELETE')
+    .first();
+
+  if (existingSyncItem) {
+    await db.syncQueue.update(existingSyncItem.id, {
+      payload: entry,
+      timestamp: now(),
+    });
+    return;
+  }
+
+  await db.syncQueue.add({
+    id: generateId(),
+    operation: 'UPDATE',
+    entityType: 'structure_entry',
+    entityId: entry.id,
+    payload: entry,
+    timestamp: now(),
+    retryCount: 0,
+    synced: 0,
+  });
 }
 
 async function enqueueMappingEntryUpdate(entry: MappingEntry): Promise<void> {
@@ -160,10 +188,13 @@ export async function deleteSal(
   projectId: string,
   userId: string
 ): Promise<number> {
-  const entries = await getMappingEntriesForProject(projectId);
+  const [entries, structEntries] = await Promise.all([
+    getMappingEntriesForProject(projectId),
+    getStructureEntriesForProject(projectId),
+  ]);
   let unassignedCount = 0;
 
-  await db.transaction('rw', [db.mappingEntries, db.sals, db.syncQueue], async () => {
+  await db.transaction('rw', [db.mappingEntries, db.structureEntries, db.sals, db.syncQueue], async () => {
     for (const entry of entries) {
       const hasSalCrossings = entry.crossings?.some((crossing) => crossing.salId === salId);
       if (!hasSalCrossings) {
@@ -191,6 +222,35 @@ export async function deleteSal(
 
       await db.mappingEntries.put(updatedEntry);
       await enqueueMappingEntryUpdate(updatedEntry);
+    }
+
+    for (const entry of structEntries) {
+      const hasSalStructures = entry.structures?.some((s) => s.salId === salId);
+      if (!hasSalStructures) {
+        continue;
+      }
+
+      let entryUnassigned = 0;
+      const updatedStructures = entry.structures.map((s) => {
+        if (s.salId === salId) {
+          entryUnassigned += 1;
+          return { ...s, salId: undefined };
+        }
+        return s;
+      });
+      unassignedCount += entryUnassigned;
+
+      const updatedEntry: StructureEntry = {
+        ...entry,
+        structures: updatedStructures,
+        modifiedBy: userId,
+        lastModified: now(),
+        version: (entry.version ?? 0) + 1,
+        synced: 0,
+      };
+
+      await db.structureEntries.put(updatedEntry);
+      await enqueueStructureEntryUpdate(updatedEntry);
     }
 
     const sal = await db.sals.get(salId);
@@ -256,6 +316,58 @@ export async function assignCrossingsToSal(
 
       await db.mappingEntries.put(updatedEntry);
       await enqueueMappingEntryUpdate(updatedEntry);
+    }
+  });
+
+  if (assignedCount > 0) {
+    triggerImmediateUpload();
+  }
+
+  return assignedCount;
+}
+
+export async function assignStructuresToSal(
+  projectId: string,
+  salId: string,
+  userId: string,
+  includeToComplete = false
+): Promise<number> {
+  const entries = await getStructureEntriesForProject(projectId);
+  let assignedCount = 0;
+
+  await db.transaction('rw', [db.structureEntries, db.syncQueue], async () => {
+    for (const entry of entries) {
+      if (!includeToComplete && entry.toComplete) {
+        continue;
+      }
+
+      const hasUnassigned = entry.structures?.some((s) => !s.salId);
+      if (!hasUnassigned) {
+        continue;
+      }
+
+      let entryAssigned = 0;
+      const updatedStructures = entry.structures.map((s) => {
+        if (!s.salId) {
+          entryAssigned += 1;
+          return { ...s, salId };
+        }
+        return s;
+      });
+
+      assignedCount += entryAssigned;
+
+      const updatedEntry: StructureEntry = {
+        ...entry,
+        structures: updatedStructures,
+        modifiedBy: userId,
+        lastModified: now(),
+        version: (entry.version ?? 0) + 1,
+        synced: 0,
+      };
+
+      await db.structureEntries.put(updatedEntry);
+      await enqueueStructureEntryUpdate(updatedEntry);
     }
   });
 

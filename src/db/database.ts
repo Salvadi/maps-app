@@ -26,10 +26,13 @@ export interface Project {
 export interface Typology {
   id: string;
   number: number;
+  category?: 'attraversamento' | 'struttura'; // undefined = 'attraversamento' (retrocompatibile)
   supporto: string;
   tipoSupporto: string;
   attraversamento: string;
   attraversamentoCustom?: string;
+  struttura?: string;       // solo per category='struttura'
+  tipoStruttura?: string;   // solo per category='struttura'
   marcaProdottoUtilizzato: string;
   prodottiSelezionati: string[];
 }
@@ -65,6 +68,40 @@ export function calcAsolaMq(b: number, h: number): number {
   return Math.max(0.2, (b * h) / 10000);
 }
 
+// ============================================
+// STRUTTURE INTERFACES
+// ============================================
+
+export interface Structure {
+  id: string;
+  struttura: string;          // "Parete" | "Soffitto" | "Cassonetto porta-impianto" | "Altro"
+  strutturaCustom?: string;   // usato quando struttura === 'Altro'
+  tipoStruttura?: string;     // es. "Flessibile", "Rigido"
+  tipologicoId?: string;      // → Project.typologies (category='struttura')
+  superficie?: number;        // mq
+  lunghezza?: number;         // ml (per cassonetti)
+  notes?: string;
+  salId?: string;             // UUID del SAL a cui è assegnato (undefined = non contabilizzato)
+}
+
+export interface StructureEntry {
+  id: string;
+  projectId: string;
+  floor: string;
+  room?: string;
+  intervention?: string;
+  photos: PhotoMetadata[];
+  structures: Structure[];
+  toComplete?: boolean;
+  timestamp: number;
+  createdBy: string;
+  lastModified: number;
+  modifiedBy: string;
+  version: number;
+  synced: 0 | 1;
+  hasRemotePhotos?: boolean;
+}
+
 export interface MappingEntry {
   id: string; // UUID
   projectId: string;
@@ -88,6 +125,7 @@ export interface Photo {
   blob?: Blob;
   thumbnailBlob?: Blob;
   mappingEntryId: string;
+  entryType?: 'mapping' | 'structure'; // undefined = 'mapping' (retrocompatibile)
   metadata: {
     width: number;
     height: number;
@@ -106,7 +144,7 @@ export interface Photo {
 export interface SyncQueueItem {
   id: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
-  entityType: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price';
+  entityType: 'project' | 'mapping_entry' | 'photo' | 'floor_plan' | 'floor_plan_point' | 'standalone_map' | 'sal' | 'typology_price' | 'structure_entry';
   entityId: string;
   payload: any; // The actual data to sync
   timestamp: number;
@@ -187,7 +225,8 @@ export interface FloorPlan {
 export interface FloorPlanPoint {
   id: string;
   floorPlanId: string;
-  mappingEntryId: string;
+  mappingEntryId?: string;      // opzionale: usato quando il punto è collegato a un MappingEntry
+  structureEntryId?: string;    // opzionale: usato quando il punto è collegato a un StructureEntry
   pointType: 'parete' | 'solaio' | 'perimetro' | 'generico';
   pointX: number; // Normalized 0-1
   pointY: number; // Normalized 0-1
@@ -253,7 +292,8 @@ export interface StandaloneMap {
 export interface TypologyPrice {
   id: string;
   projectId: string;
-  attraversamento: string;  // chiave: tipo attraversamento (es. "Tubo metallico NUDO", "Asola")
+  category?: 'attraversamento' | 'struttura'; // undefined = 'attraversamento' (retrocompatibile)
+  attraversamento: string;  // chiave: tipo (es. "Tubo metallico NUDO", "Parete")
   tipologicoId?: string;
   pricePerUnit: number;
   unit: 'piece' | 'sqm';
@@ -326,6 +366,9 @@ export class MappingDatabase extends Dexie {
 
   // SAL (STATO AVANZAMENTO LAVORI)
   sals!: Table<Sal, string>;
+
+  // STRUTTURE
+  structureEntries!: Table<StructureEntry, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -501,6 +544,27 @@ export class MappingDatabase extends Dexie {
       typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
       sals: 'id, projectId, number, createdAt'
     });
+
+    // Define schema v11 - add strutture (structures) table
+    this.version(11).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      projectCachePrefs: 'projectId, offlinePinned, updatedAt',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
+      sals: 'id, projectId, number, createdAt',
+      // STRUTTURE
+      structureEntries: 'id, projectId, floor, createdBy, synced, timestamp'
+    });
   }
 }
 
@@ -558,6 +622,7 @@ export async function clearDatabase(): Promise<void> {
       db.productsCache,
       db.typologyPrices,
       db.sals,
+      db.structureEntries,
     ],
     async () => {
       await db.projects.clear();
@@ -574,6 +639,7 @@ export async function clearDatabase(): Promise<void> {
       await db.productsCache.clear();
       await db.typologyPrices.clear();
       await db.sals.clear();
+      await db.structureEntries.clear();
     }
   );
   // Keep metadata
@@ -590,7 +656,8 @@ export async function getDatabaseStats() {
     userCount,
     floorPlanCount,
     floorPlanPointCount,
-    standaloneMapCount
+    standaloneMapCount,
+    structureEntryCount
   ] = await Promise.all([
     db.projects.count(),
     db.mappingEntries.count(),
@@ -599,7 +666,8 @@ export async function getDatabaseStats() {
     db.users.count(),
     db.floorPlans.count(),
     db.floorPlanPoints.count(),
-    db.standaloneMaps.count()
+    db.standaloneMaps.count(),
+    db.structureEntries.count()
   ]);
 
   // Calculate approximate storage size
@@ -621,6 +689,7 @@ export async function getDatabaseStats() {
   return {
     projects: projectCount,
     mappingEntries: mappingCount,
+    structureEntries: structureEntryCount,
     photos: photoCount,
     pendingSync: pendingSyncCount,
     users: userCount,
