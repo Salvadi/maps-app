@@ -41,12 +41,20 @@ export interface ExportPoint {
 export interface ExportCartiglioData {
   positionX?: number;
   positionY?: number;
+  scale?: number;
   tavola?: string;
   typologyNumbers?: number[];
   typologyValues?: Record<string, string>;
   committente?: string;
   locali?: string;
 }
+
+export const CARTIGLIO_MIN_SCALE = 0.5;
+export const CARTIGLIO_MAX_SCALE = 2;
+export const CARTIGLIO_DEFAULT_POSITION_X = 0.03;
+export const CARTIGLIO_DEFAULT_POSITION_Y = 0.68;
+export const CARTIGLIO_BORDER_COLOR_HEX = '#e1543c';
+export const CARTIGLIO_BORDER_COLOR_RGB = { r: 0.882, g: 0.329, b: 0.235 };
 
 // Costanti canvas originale (in px, su immagine a risoluzione piena)
 // Vengono moltiplicate per scale (min(pageW/imgW, pageH/imgH)) per ottenere pt nel PDF
@@ -57,7 +65,7 @@ const CANVAS_MIN_LABEL_W = 70;
 const CANVAS_MIN_LABEL_H = 36;
 const CANVAS_POINT_R     = 8;
 const EXPORT_DEFAULT_BG  = '#FAFAF0';
-const CARTIGLIO_INSTALLER_LINES = [
+export const CARTIGLIO_INSTALLER_LINES = [
   'Installatore : Opi Firesafe SrL',
   'via G. Galilei, 9 - 33010 Tavagnacco (Ud)',
   'Tel : 0432 1901608',
@@ -152,35 +160,32 @@ function wrapTextToWidth(text: string, font: PDFFont, fontSize: number, maxWidth
   return lines;
 }
 
-function buildCartiglioLayout(
-  pageW: number,
-  _planAreaH: number,
-  _fontBold: PDFFont,
-  fontRegular: PDFFont,
-  cartiglio?: ExportCartiglioData | null,
-): CartiglioLayout | null {
-  if (!cartiglio) {
-    return null;
-  }
+export interface CartiglioLayoutSize {
+  width: number;
+  totalHeight: number;
+}
 
-  const scale = Math.max(0.72, Math.min(pageW / 841.89, 1.1));
+/**
+ * Dimensioni intrinseche del cartiglio (senza posizionamento), utili per
+ * calcolare eventuale overflow sotto l'immagine prima di conoscere la page
+ * height finale. Replica la stessa logica di scale interna di
+ * `buildCartiglioLayout` così che le dimensioni coincidano.
+ */
+function computeCartiglioSize(
+  pageW: number,
+  fontRegular: PDFFont,
+  cartiglio: ExportCartiglioData,
+): { size: CartiglioLayoutSize; rows: CartiglioRow[]; scale: number; layoutWidth: number; typologyHeight: number; infoBoxHeight: number; gap: number; tavolaHeight: number } {
+  const userScale = Math.max(CARTIGLIO_MIN_SCALE, Math.min(CARTIGLIO_MAX_SCALE, cartiglio.scale ?? 1));
+  const baseScale = Math.max(0.72, Math.min(pageW / 841.89, 1.1));
+  const scale = baseScale * userScale;
   const outerMargin = 16 * scale;
   const gap = 10 * scale;
   const layoutWidth = Math.min(pageW - outerMargin * 2, 640 * scale);
   const tavolaHeight = 24 * scale;
-  const tavolaWidth = 108 * scale;
-  const tavolaPadding = 6 * scale;
-  const tavolaLabelFontSize = 9 * scale;
-  const tavolaFieldFontSize = 10 * scale;
   const prefixWidth = 26 * scale;
-  const typologyLabelFontSize = 8.5 * scale;
   const typologyTextFontSize = 8.5 * scale;
-  const infoLineHeight = 11 * scale;
-  const infoPadding = 7 * scale;
-  const infoFontSize = 7.5 * scale;
-  const signatureFontSize = 8 * scale;
   const sortedTypologyNumbers = [...(cartiglio.typologyNumbers || [])].sort((a, b) => a - b);
-  const signatureWidth = layoutWidth * 0.3;
   const typologyWidth = layoutWidth;
   const typologyTextWidth = typologyWidth - prefixWidth - 14 * scale;
   const rawRows = (sortedTypologyNumbers.length > 0 ? sortedTypologyNumbers : [0]).map((num, index) => {
@@ -192,21 +197,105 @@ function buildCartiglioLayout(
   });
   const maxWrappedLines = Math.max(1, ...rawRows.map((row) => Math.max(1, row.wrappedLines.length)));
   const uniformRowHeight = Math.max(18 * scale, maxWrappedLines * (typologyTextFontSize * 1.18) + 6 * scale);
-  const rows = rawRows.map((row) => ({ ...row, height: uniformRowHeight }));
+  const rows: CartiglioRow[] = rawRows.map((row) => ({ ...row, height: uniformRowHeight }));
   const typologyHeight = rows.length * uniformRowHeight + 8 * scale;
-  const infoWidth = layoutWidth - signatureWidth - gap;
   const infoBoxHeight = 86 * scale;
-  const signatureBoxHeight = infoBoxHeight;
   const totalHeight = tavolaHeight + gap + typologyHeight + gap + infoBoxHeight;
-  const usableWidth = Math.max(1, pageW - layoutWidth);
-  const desiredX = (cartiglio.positionX ?? 0.03) * usableWidth;
-  const x = Math.max(outerMargin, Math.min(pageW - layoutWidth - outerMargin, desiredX));
-  const bottomMargin = 12 * scale;
-  const y = bottomMargin;
-  const topY = y + totalHeight;
+  return {
+    size: { width: layoutWidth, totalHeight },
+    rows,
+    scale,
+    layoutWidth,
+    typologyHeight,
+    infoBoxHeight,
+    gap,
+    tavolaHeight,
+  };
+}
+
+/**
+ * Calcola l'overflow verticale (in pt) che il cartiglio richiederebbe sotto
+ * l'area immagine dati position e dimensioni normalizzate. Serve a capire
+ * quanto estendere la pagina PRIMA di costruire il layout definitivo.
+ */
+function computeCartiglioOverflow(
+  pageW: number,
+  imageH: number,
+  fontRegular: PDFFont,
+  cartiglio?: ExportCartiglioData | null,
+): number {
+  if (!cartiglio) return 0;
+  const { size } = computeCartiglioSize(pageW, fontRegular, cartiglio);
+  const desiredTopFromImageTop = Math.max(0, Math.min(1, cartiglio.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y)) * imageH;
+  const overflow = (desiredTopFromImageTop + size.totalHeight) - imageH;
+  return Math.max(0, overflow);
+}
+
+/**
+ * Costruisce il layout del cartiglio in coordinate PDF (origine bottom-left).
+ *
+ * - `imageX` / `imageY` / `imageW` / `imageH`: rettangolo dell'immagine sulla
+ *   pagina PDF finale (già traslato verticalmente se la pagina è stata estesa
+ *   per contenere il cartiglio).
+ * - `positionX` / `positionY` in `cartiglio` sono normalizzati 0..1 e
+ *   rappresentano l'angolo in alto a sinistra del cartiglio relativamente
+ *   all'angolo in alto a sinistra dell'immagine (top-down come sul canvas).
+ *   `positionY = 1` colloca il cartiglio con il bordo superiore sul bordo
+ *   inferiore dell'immagine (modalità "striscia in fondo").
+ */
+function buildCartiglioLayout(
+  pageW: number,
+  imageX: number,
+  imageY: number,
+  imageW: number,
+  imageH: number,
+  _fontBold: PDFFont,
+  fontRegular: PDFFont,
+  cartiglio?: ExportCartiglioData | null,
+): CartiglioLayout | null {
+  if (!cartiglio) {
+    return null;
+  }
+
+  const sized = computeCartiglioSize(pageW, fontRegular, cartiglio);
+  const { scale, layoutWidth, typologyHeight, infoBoxHeight, gap, tavolaHeight, rows } = sized;
+  const totalHeight = sized.size.totalHeight;
+  const outerMargin = 16 * scale;
+  const tavolaWidth = 108 * scale;
+  const tavolaPadding = 6 * scale;
+  const tavolaLabelFontSize = 9 * scale;
+  const tavolaFieldFontSize = 10 * scale;
+  const prefixWidth = 26 * scale;
+  const typologyLabelFontSize = 8.5 * scale;
+  const typologyTextFontSize = 8.5 * scale;
+  const infoLineHeight = 11 * scale;
+  const infoPadding = 7 * scale;
+  const infoFontSize = 7.5 * scale;
+  const signatureFontSize = 8 * scale;
+  const signatureWidth = layoutWidth * 0.3;
+  const typologyWidth = layoutWidth;
+  const infoWidth = layoutWidth - signatureWidth - gap;
+
+  // Posizione desiderata in coord canvas-like (top-down), relativa all'angolo
+  // in alto a sinistra dell'immagine.
+  const desiredLeft = imageX + Math.max(0, Math.min(1, cartiglio.positionX ?? CARTIGLIO_DEFAULT_POSITION_X)) * imageW;
+  const desiredTopFromImageTop = Math.max(0, Math.min(1, cartiglio.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y)) * imageH;
+
+  // Clamp laterale: il cartiglio non può uscire orizzontalmente dalla pagina
+  // (tiene `outerMargin` di sicurezza se c'è spazio).
+  const minX = Math.min(outerMargin, imageX);
+  const maxX = Math.max(minX, pageW - layoutWidth - outerMargin);
+  const x = Math.max(minX, Math.min(maxX, desiredLeft));
+
+  // Converti top-down → pdf-lib bottom-up.
+  // Il `y` del box è il bordo inferiore in coordinate PDF.
+  const imageTopPdf = imageY + imageH;
+  const topPdf = imageTopPdf - desiredTopFromImageTop;
+  const y = topPdf - totalHeight;
+  const topY = topPdf;
 
   return {
-    height: totalHeight + bottomMargin,
+    height: totalHeight,
     x,
     y,
     width: layoutWidth,
@@ -236,7 +325,7 @@ function buildCartiglioLayout(
       x: x + infoWidth + gap,
       y,
       width: signatureWidth,
-      height: signatureBoxHeight,
+      height: infoBoxHeight,
       padding: infoPadding,
       fontSize: signatureFontSize,
     },
@@ -755,15 +844,20 @@ async function _buildWithRasterBackground(
   const A4_W = 595.28;
   const A4_H = 841.89;
   const [pageW, basePageH] = aspectRatio > 1 ? [A4_H, A4_W] : [A4_W, A4_H];
-  const cartiglioLayout = buildCartiglioLayout(pageW, basePageH, fontBold, fontRegular, cartiglio);
-  const cartiglioHeight = cartiglioLayout?.height || 0;
-  const pageH = basePageH + cartiglioHeight;
 
   const scale    = Math.min(pageW / imgW, basePageH / imgH);
   const effectiveW = imgW * scale;
   const effectiveH = imgH * scale;
-  const offsetX  = (pageW - effectiveW) / 2;
-  const offsetY  = cartiglioHeight + (basePageH - effectiveH) / 2;
+
+  // L'immagine resta centrata orizzontalmente e verticalmente nell'A4 base.
+  // Se il cartiglio sborda sotto l'immagine, la pagina viene estesa verso il
+  // basso di `overflow` e l'immagine trasla verso l'alto di `overflow`.
+  const overflow = computeCartiglioOverflow(pageW, effectiveH, fontRegular, cartiglio);
+  const pageH = basePageH + overflow;
+  const offsetX = (pageW - effectiveW) / 2;
+  const offsetY = overflow + (basePageH - effectiveH) / 2;
+
+  const cartiglioLayout = buildCartiglioLayout(pageW, offsetX, offsetY, effectiveW, effectiveH, fontBold, fontRegular, cartiglio);
 
   const page = pdfDoc.addPage([pageW, pageH]);
   page.drawImage(embeddedImg, { x: offsetX, y: offsetY, width: effectiveW, height: effectiveH });
@@ -807,9 +901,13 @@ async function _buildFromOriginalPDF(
   const [pageW, planAreaH] = (rotation === 90 || rotation === 270)
     ? [origH, origW]
     : [origW, origH];
-  const cartiglioLayout = buildCartiglioLayout(pageW, planAreaH, fontBold, fontRegular, cartiglio);
-  const cartiglioHeight = cartiglioLayout?.height || 0;
-  const pageH = planAreaH + cartiglioHeight;
+
+  // L'immagine (pagina PDF ruotata) occupa l'intera planArea alla base. Se
+  // il cartiglio sborda, la pagina si estende in basso dell'overflow e
+  // l'immagine trasla verso l'alto di overflow.
+  const overflow = computeCartiglioOverflow(pageW, planAreaH, fontRegular, cartiglio);
+  const pageH = planAreaH + overflow;
+  const imageOffsetY = overflow;
   const page = outDoc.addPage([pageW, pageH]);
   const embedded = await outDoc.embedPage(srcPage);
 
@@ -819,22 +917,22 @@ async function _buildFromOriginalPDF(
   switch (rotation) {
     case 90:
       ex = 0;
-      ey = origW + cartiglioHeight;
+      ey = origW + imageOffsetY;
       deg = -90;
       break;
     case 180:
       ex = origW;
-      ey = origH + cartiglioHeight;
+      ey = origH + imageOffsetY;
       deg = 180;
       break;
     case 270:
       ex = origH;
-      ey = cartiglioHeight;
+      ey = imageOffsetY;
       deg = 90;
       break;
     default:
       ex = 0;
-      ey = cartiglioHeight;
+      ey = imageOffsetY;
       deg = 0;
   }
 
@@ -846,7 +944,9 @@ async function _buildFromOriginalPDF(
     rotate: degrees(deg),
   });
 
-  _drawAnnotationsOnPage(page, points, pageH, pageW, planAreaH, 0, cartiglioHeight, 0.5, fontBold, fontItalic, eiLegendPosition);
+  const cartiglioLayout = buildCartiglioLayout(pageW, 0, imageOffsetY, pageW, planAreaH, fontBold, fontRegular, cartiglio);
+
+  _drawAnnotationsOnPage(page, points, pageH, pageW, planAreaH, 0, imageOffsetY, 0.5, fontBold, fontItalic, eiLegendPosition);
 
   if (cartiglioLayout) {
     drawCartiglio(page, fontBold, fontRegular, cartiglioLayout, cartiglio || {});
