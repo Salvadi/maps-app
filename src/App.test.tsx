@@ -2,6 +2,10 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import App from './App';
 
+jest.mock('./lib/forcedMigration', () => ({
+  enforceForcedMigrationIfNeeded: jest.fn().mockResolvedValue(false),
+}));
+
 describe('OPImaPPA App', () => {
   test('renders login page after initialization', async () => {
     render(<App />);

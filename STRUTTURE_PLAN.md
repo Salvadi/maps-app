@@ -293,3 +293,45 @@ Valori iniziali: `struttura` → [Parete, Soffitto, Cassonetto porta-impianto, A
 - `Typology.number` è condiviso: `Project.typologies` contiene sia attraversamenti che strutture, numerati insieme. Il modal dei tipologici mostra tutti in lista unica (con una colonna/badge che indica il tipo), oppure con un filtro per categoria che non cambia il numero
 - `Structure.salId` (non su `StructureEntry`)
 - `StructureEntry.photos` e gestione foto speculare a `MappingEntry`
+
+---
+
+## Adversarial review (stato reale del branch al 2026-04-25)
+
+### Sintesi stato di avanzamento
+
+| Area piano | Stato | Evidenza rapida |
+|---|---|---|
+| Modello dati locale (`Structure`, `StructureEntry`, Dexie v11) | ✅ Completato | `src/db/database.ts` include interfacce + store `structureEntries` |
+| Persistenza strutture (`src/db/structures.ts`) | ✅ Completato | CRUD + online-first + foto dedicata |
+| Sync upload/download strutture | ✅ Completato | handler `structure_entry` in upload/download |
+| Schema Supabase (`structure_entries`, FK alternative, seed dropdown) | ✅ Completato | blocchi SQL presenti in `supabase/schema.sql` |
+| SAL unificato attraversamenti+strutture | ✅ Completato | `assignStructuresToSal`, delete SAL con unassign anche strutture |
+| Typology modal con categoria struttura | ✅ Completato | tab e campi struttura presenti |
+| Wizard/Card strutture | ✅ Completato | `StructureWizard.tsx`, `StructureEntryCard.tsx` presenti |
+| CostsTab con vista strutture + sheet XLSX dedicato | ❌ Non completato | `CostsTab.tsx` lavora solo su `MappingEntry/crossings` |
+| Navigazione progetto con tab “Strutture” dedicata | ❌ Non completato | `ProjectDetail.tsx` non espone sub-tab strutture |
+| Integrazione floor plan “open entry” typed (`mapping|structure`) | ⚠️ Parziale/non verificata E2E | piano previsto ma non coperto in modo esplicito dai componenti principali |
+
+### Bug e rischi emersi (adversarial)
+
+1. **Build breaker**: in `src/db/sal.ts` era presente `async async function ...` (errore sintattico bloccante).  
+   ✅ **Risolto** in questo branch.
+
+2. **Rischio contaminazione foto mapping/structure in locale**: in `src/db/structures.ts` il fallback locale leggeva per `mappingEntryId` senza filtrare `entryType`.  
+   ✅ **Mitigato** filtrando esplicitamente `entryType === 'structure'`.
+
+3. **Gap funzionale rilevante**: la contabilità costi non include ancora strutture; questo impatta l’obiettivo business “SAL/contabilità unica”.
+
+### Piano di completamento consigliato (ordine minimo a rischio ridotto)
+
+1. **CostsTab**: introdurre dataset strutture parallelo + tab Attraversamenti/Strutture/Riepilogo + export sheet “Strutture”.
+2. **ProjectDetail / Navigation**: aggiungere sub-tab “Strutture” con lista `StructureEntryCard` e CTA “Aggiungi Struttura”.
+3. **FloorPlan linking**: verificare end-to-end collegamento perimetro ↔ structure entry + callback typed.
+4. **Test regressione**: smoke test per build + test logici su pricing category, SAL assign/unassign e sync foto struttura.
+
+### Decisioni di prodotto confermate (post-review)
+
+1. **Unità strutture**: solo `mq` anche per cassonetti; `lunghezza` resta dato descrittivo/informativo.
+2. **Riepilogo economico**: totale unico progetto con subtotali per categoria.
+3. **UI progetto**: tab **separata** “Strutture” in ProjectDetail.

@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   db, initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
-  User, Project, MappingEntry, FloorPlan,
+  User, Project, MappingEntry, FloorPlan, StructureEntry,
   getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -24,12 +24,13 @@ import './App.css';
 const ProjectForm = React.lazy(() => import('./components/ProjectForm'));
 const ProjectDetail = React.lazy(() => import('./components/ProjectDetail'));
 const MappingWizard = React.lazy(() => import('./components/MappingWizard'));
+const StructureWizard = React.lazy(() => import('./components/StructureWizard'));
 const MapsOverview = React.lazy(() => import('./components/MapsOverview'));
 const SettingsPage = React.lazy(() => import('./components/SettingsPage'));
 const StandaloneFloorPlanEditor = React.lazy(() => import('./components/StandaloneFloorPlanEditor'));
 const FloorPlanEditor = React.lazy(() => import('./components/FloorPlanEditor'));
 
-type View = 'login' | 'passwordReset' | 'tabs' | 'projectForm' | 'projectEdit' | 'mapping' | 'projectDetail' | 'standaloneEditor' | 'floorPlanEditor';
+type View = 'login' | 'passwordReset' | 'tabs' | 'projectForm' | 'projectEdit' | 'mapping' | 'structure' | 'projectDetail' | 'standaloneEditor' | 'floorPlanEditor';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -38,8 +39,10 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
+  const [currentStructureProject, setCurrentStructureProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [editingMappingEntry, setEditingMappingEntry] = useState<MappingEntry | undefined>(undefined);
+  const [editingStructureEntry, setEditingStructureEntry] = useState<StructureEntry | undefined>(undefined);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
@@ -65,8 +68,10 @@ const App: React.FC = () => {
         if (state.view === 'tabs') {
           setSelectedProject(null);
           setCurrentMappingProject(null);
+          setCurrentStructureProject(null);
           setViewingProject(null);
           setEditingMappingEntry(undefined);
+          setEditingStructureEntry(undefined);
         }
       } else {
         window.history.pushState({ view: currentView, tab: activeTab }, '', window.location.href);
@@ -315,6 +320,22 @@ const App: React.FC = () => {
     setEditingMappingEntry(undefined);
   };
 
+  const handleEnterStructure = (project: Project) => {
+    setCurrentStructureProject(project);
+    setEditingStructureEntry(undefined);
+    setCurrentView('structure');
+  };
+
+  const handleBackFromStructure = () => {
+    if (viewingProject) {
+      setCurrentView('projectDetail');
+    } else {
+      setCurrentView('tabs');
+    }
+    setCurrentStructureProject(null);
+    setEditingStructureEntry(undefined);
+  };
+
   const handleAddMappingFromDetail = () => {
     if (viewingProject) {
       handleEnterMapping(viewingProject);
@@ -326,6 +347,20 @@ const App: React.FC = () => {
       setCurrentMappingProject(viewingProject);
       setEditingMappingEntry(entry);
       setCurrentView('mapping');
+    }
+  };
+
+  const handleAddStructureFromDetail = () => {
+    if (viewingProject) {
+      handleEnterStructure(viewingProject);
+    }
+  };
+
+  const handleEditStructureFromDetail = (entry: StructureEntry) => {
+    if (viewingProject) {
+      setCurrentStructureProject(viewingProject);
+      setEditingStructureEntry(entry);
+      setCurrentView('structure');
     }
   };
 
@@ -480,6 +515,18 @@ const App: React.FC = () => {
           />
         );
 
+      case 'structure':
+        return (
+          <StructureWizard
+            project={currentStructureProject}
+            currentUser={currentUser}
+            onBack={handleBackFromStructure}
+            editingEntry={editingStructureEntry}
+            onSync={handleManualSync}
+            isSyncing={syncStats.isSyncing}
+          />
+        );
+
       case 'projectDetail':
         return viewingProject ? (
           <ProjectDetail
@@ -488,6 +535,8 @@ const App: React.FC = () => {
             onBack={() => { setViewingProject(null); setCurrentView('tabs'); setActiveTab('projects'); }}
             onAddMapping={handleAddMappingFromDetail}
             onEditMapping={handleEditMappingFromDetail}
+            onAddStructure={handleAddStructureFromDetail}
+            onEditStructure={handleEditStructureFromDetail}
             onOpenFloorPlanEditor={handleOpenFloorPlanEditor}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}

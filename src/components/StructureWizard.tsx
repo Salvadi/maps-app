@@ -7,7 +7,7 @@ import {
 import { validateFileSignature } from '../utils/validation';
 import {
   Project, Structure, User, StructureEntry,
-  createStructureEntry, getStructureEntriesForProject,
+  createStructureEntry,
   updateStructureEntry, deleteStructureEntry, getPhotosForStructure, ensurePhotoBlob,
   addPhotosToStructure, removePhotoFromStructure,
 } from '../db';
@@ -203,7 +203,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       }));
 
       if (editingEntry) {
-        const updatedEntry = await updateStructureEntry(editingEntry.id, {
+        await updateStructureEntry(editingEntry.id, {
           floor,
           room: roomNumber || undefined,
           intervention: interventionNumber || undefined,
@@ -225,7 +225,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
         onSync?.();
         onBack();
       } else {
-        const entry = await createStructureEntry({
+        await createStructureEntry({
           projectId: project.id,
           floor,
           room: roomNumber || undefined,
