@@ -17,6 +17,8 @@ interface CostsTabProps {
 
 type GroupBy = 'floor' | 'tipologico' | 'supporto' | 'attraversamento';
 
+const collator = new Intl.Collator('it', { numeric: true, sensitivity: 'base' });
+
 interface AggregatedRow {
   floor: string;
   tipologicoId?: string;
@@ -1228,7 +1230,9 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           </div>
         ) : (
           <>
-            {Array.from(grouped.entries()).map(([groupKey, groupRows]) => {
+            {Array.from(grouped.entries())
+              .sort(([a], [b]) => collator.compare(a, b))
+              .map(([groupKey, groupRows]) => {
               const summaryRows = groupedSummaryRows.get(groupKey) ?? [];
               const groupTotal = groupRows.reduce((s, r) => s + r.total, 0);
               const scopedKey = `${groupBy}::${selectedSalId}::${groupKey}`;

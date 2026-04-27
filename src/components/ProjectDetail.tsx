@@ -158,6 +158,18 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     };
   }, [mappings, showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento]);
 
+  const structureFloorGroups = useMemo(() => {
+    const grouped: Record<string, StructureEntry[]> = {};
+    for (const entry of structures) {
+      const floor = entry.floor || 'N/D';
+      if (!grouped[floor]) grouped[floor] = [];
+      grouped[floor].push(entry);
+    }
+    return Object.keys(grouped)
+      .sort((a, b) => parseFloat(a) - parseFloat(b))
+      .map(floor => ({ floor, entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp) }));
+  }, [structures]);
+
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,7 +400,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   };
 
   const subTabs: { id: SubTab; label: string; icon: typeof Camera; count?: number }[] = [
-    { id: 'mappings', label: 'Mappature', icon: Camera, count: mappings.length },
+    { id: 'mappings', label: 'Attraversamenti', icon: Camera, count: mappings.length },
     { id: 'structures', label: 'Strutture', icon: ClipboardList, count: structures.length },
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
     { id: 'info', label: 'Info', icon: Info },
@@ -768,28 +780,49 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
             {activeTab === 'structures' && (
               <div className="px-4 pt-4">
                 <div className="space-y-3">
-                  {structures.map(entry => (
-                    <StructureEntryCard
-                      key={entry.id}
-                      entry={entry}
-                      photos={structurePhotos[entry.id] || []}
-                      isExpanded={expandedStructures.has(entry.id)}
-                      onToggleExpand={() => toggleStructureExpand(entry.id)}
-                      onEdit={(e) => {
-                        e.stopPropagation();
-                        onEditStructure(entry);
-                      }}
-                      onDelete={(e) => {
-                        e.stopPropagation();
-                        handleDeleteStructure(entry);
-                      }}
-                      onPhotoPreview={(url, alt) => setSelectedPhoto({ url, alt })}
-                      getTipologicoLabel={(tipologicoId: string) => {
-                        const tip = project.typologies.find(t => t.id === tipologicoId);
-                        if (!tip) return tipologicoId;
-                        return `Tip. ${tip.number}`;
-                      }}
-                    />
+                  {structureFloorGroups.map(group => (
+                    <div key={group.floor}>
+                      <button
+                        onClick={() => toggleFloor(group.floor)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white rounded-xl shadow-card mb-2"
+                      >
+                        {expandedFloors.has(group.floor) ? (
+                          <ChevronDown size={16} className="text-brand-500" />
+                        ) : (
+                          <ChevronRight size={16} className="text-brand-500" />
+                        )}
+                        <span className="text-sm font-semibold text-brand-700">Piano {group.floor}</span>
+                        <span className="text-xs text-brand-400 ml-auto">{group.entries.length} strutture</span>
+                      </button>
+
+                      {expandedFloors.has(group.floor) && (
+                        <div className="space-y-2 ml-2">
+                          {group.entries.map(entry => (
+                            <StructureEntryCard
+                              key={entry.id}
+                              entry={entry}
+                              photos={structurePhotos[entry.id] || []}
+                              isExpanded={expandedStructures.has(entry.id)}
+                              onToggleExpand={() => toggleStructureExpand(entry.id)}
+                              onEdit={(e) => {
+                                e.stopPropagation();
+                                onEditStructure(entry);
+                              }}
+                              onDelete={(e) => {
+                                e.stopPropagation();
+                                handleDeleteStructure(entry);
+                              }}
+                              onPhotoPreview={(url, alt) => setSelectedPhoto({ url, alt })}
+                              getTipologicoLabel={(tipologicoId: string) => {
+                                const tip = project.typologies.find(t => t.id === tipologicoId);
+                                if (!tip) return tipologicoId;
+                                return `Tip. ${tip.number}`;
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
 

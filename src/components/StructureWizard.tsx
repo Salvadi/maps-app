@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import imageCompression from 'browser-image-compression';
 import {
-  ArrowLeft, ArrowRight, Check, Camera,
-  Plus, X, ChevronDown, Image, Eye
+  ArrowLeft, ArrowRight, Check, Camera, MapPin,
+  Plus, X, ChevronDown, Image, Eye, AlertTriangle
 } from 'lucide-react';
 import { validateFileSignature } from '../utils/validation';
 import {
@@ -10,10 +10,16 @@ import {
   createStructureEntry,
   updateStructureEntry, deleteStructureEntry, getPhotosForStructure, ensurePhotoBlob,
   addPhotosToStructure, removePhotoFromStructure,
+  FloorPlan, FloorPlanPoint, getFloorPlanByProjectAndFloor, getFloorPlanBlobUrl,
+  ensureFloorPlanAsset, getFloorPlanPoints, getFloorPlanPointByMappingEntry,
+  createFloorPlanPoint, updateFloorPlanPoint, updateFloorPlan
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import TypologyViewerModal from './TypologyViewerModal';
+import FloorPlanEditor from './FloorPlanEditor';
+import type { CanvasPoint, GridConfig } from './FloorPlanCanvas';
+import { EiRating } from './FloorPlanCanvas';
 
 interface StructureWizardProps {
   project: Project | null;
@@ -78,6 +84,13 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
   const [initialPhotoCount, setInitialPhotoCount] = useState(0);
   const [photosToRemove, setPhotosToRemove] = useState<string[]>([]);
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<{ url: string; alt: string } | null>(null);
+  const [eiRating, setEiRating] = useState<EiRating | undefined>(undefined);
+  const [showFloorPlanEditor, setShowFloorPlanEditor] = useState(false);
+  const [currentFloorPlan, setCurrentFloorPlan] = useState<FloorPlan | null>(null);
+  const [currentFloorPlanPoint, setCurrentFloorPlanPoint] = useState<FloorPlanPoint | null>(null);
+  const [floorPlanImageUrl, setFloorPlanImageUrl] = useState<string | null>(null);
+  const [readOnlyPoints, setReadOnlyPoints] = useState<CanvasPoint[]>([]);
+  const [savedDraftEntry, setSavedDraftEntry] = useState<StructureEntry | null>(null);
 
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
   const [projectTypologies, setProjectTypologies] = useState(project?.typologies || []);
@@ -121,6 +134,15 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       })();
     }
   }, [editingEntry]);
+
+  useEffect(() => {
+    if (!project || !floor) return;
+    (async () => {
+      const fp = await getFloorPlanByProjectAndFloor(project.id, floor);
+      setCurrentFloorPlan(fp || null);
+      setFloorPlanImageUrl(getFloorPlanBlobUrl(fp?.imageBlob, fp?.imageUrl));
+    })();
+  }, [floor, project?.id]);
 
   const structureTypologies = projectTypologies.filter(t => (t.category ?? 'attraversamento') === 'struttura');
 
@@ -248,6 +270,120 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  const handleOpenFloorPlanEditor = async () => {
+    if (!currentFloorPlan || !project) return;
+    const hydratedFloorPlan = await ensureFloorPlanAsset(currentFloorPlan.id, 'full') || currentFloorPlan;
+    const hydratedImageUrl = getFloorPlanBlobUrl(hydratedFloorPlan.imageBlob, hydratedFloorPlan.imageUrl);
+    if (!hydratedImageUrl) {
+      alert('Immagine planimetria non disponibile. Verifica la connessione e riprova.');
+      return;
+    }
+    setCurrentFloorPlan(hydratedFloorPlan);
+    setFloorPlanImageUrl(hydratedImageUrl);
+    const currentEntry = editingEntry || savedDraftEntry;
+    if (!currentEntry) {
+      setIsSubmitting(true);
+      try {
+        const draft = await createStructureEntry({
+          projectId: project.id,
+          floor,
+          room: roomNumber || undefined,
+          intervention: interventionNumber || undefined,
+          structures,
+          toComplete: true,
+          createdBy: currentUser.id,
+        }, []);
+        setSavedDraftEntry(draft);
+        savedDraftEntryRef.current = draft;
+      } catch { return; } finally { setIsSubmitting(false); }
+    }
+    const entryToCheck = editingEntry || savedDraftEntryRef.current;
+    if (entryToCheck) {
+      const pt = await getFloorPlanPointByMappingEntry(entryToCheck.id);
+      setCurrentFloorPlanPoint(pt || null);
+      if (pt?.eiRating) setEiRating(pt.eiRating as EiRating);
+    }
+    try {
+      const allPts = await getFloorPlanPoints(hydratedFloorPlan.id);
+      const cid = entryToCheck?.id;
+      setReadOnlyPoints(allPts.filter(p => p.mappingEntryId !== cid).map(p => ({
+        id: p.id, type: p.pointType as CanvasPoint['type'],
+        pointX: p.pointX, pointY: p.pointY, labelX: p.labelX, labelY: p.labelY,
+        labelText: p.metadata?.labelText || ['Punto'], perimeterPoints: p.perimeterPoints,
+        mappingEntryId: p.mappingEntryId, eiRating: p.eiRating,
+      })));
+    } catch { setReadOnlyPoints([]); }
+    setShowFloorPlanEditor(true);
+  };
+
+  const handleSaveFloorPlanPoint = async (points: CanvasPoint[], gridConfig: GridConfig) => {
+    if (!currentFloorPlan) return;
+    const entry = editingEntry || savedDraftEntryRef.current;
+    if (!entry) return;
+    const point = points[0];
+    if (!point) { setShowFloorPlanEditor(false); return; }
+    try {
+      if (currentFloorPlanPoint) {
+        await updateFloorPlanPoint(currentFloorPlanPoint.id, {
+          pointType: point.type,
+          pointX: point.pointX,
+          pointY: point.pointY,
+          labelX: point.labelX,
+          labelY: point.labelY,
+          perimeterPoints: point.perimeterPoints,
+          customText: point.customText,
+          eiRating: point.eiRating,
+        });
+      } else {
+        await createFloorPlanPoint(
+          currentFloorPlan.id,
+          entry.id,
+          point.type,
+          point.pointX,
+          point.pointY,
+          point.labelX,
+          point.labelY,
+          currentUser.id,
+          { perimeterPoints: point.perimeterPoints, customText: point.customText, eiRating: point.eiRating }
+        );
+      }
+      await updateFloorPlan(currentFloorPlan.id, {
+        gridEnabled: gridConfig.enabled,
+        gridConfig: { rows: gridConfig.rows, cols: gridConfig.cols, offsetX: gridConfig.offsetX, offsetY: gridConfig.offsetY },
+      });
+      alert('Punto salvato sulla planimetria!');
+    } catch {
+      alert('Errore nel salvataggio del punto');
+    }
+  };
+
+  if (showFloorPlanEditor && currentFloorPlan && floorPlanImageUrl) {
+    const initialPoint = currentFloorPlanPoint ? [{
+      id: currentFloorPlanPoint.id,
+      type: currentFloorPlanPoint.pointType as CanvasPoint['type'],
+      pointX: currentFloorPlanPoint.pointX, pointY: currentFloorPlanPoint.pointY,
+      labelX: currentFloorPlanPoint.labelX, labelY: currentFloorPlanPoint.labelY,
+      labelText: currentFloorPlanPoint.metadata?.labelText || ['Struttura'],
+      perimeterPoints: currentFloorPlanPoint.perimeterPoints,
+      mappingEntryId: currentFloorPlanPoint.mappingEntryId,
+      eiRating: currentFloorPlanPoint.eiRating,
+    }] : [];
+
+    return (
+      <FloorPlanEditor
+        imageUrl={floorPlanImageUrl}
+        initialPoints={initialPoint}
+        mode="mapping"
+        maxPoints={1}
+        readOnlyPoints={readOnlyPoints}
+        onSave={handleSaveFloorPlanPoint}
+        onClose={() => setShowFloorPlanEditor(false)}
+        initialActiveTool="perimetro"
+        initialEiRating={eiRating}
+      />
+    );
+  }
 
   const canProceedStep0 = floor !== '';
   const canProceedStep1 = structures.every(s => s.struttura !== '');
@@ -490,6 +626,29 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
         {/* STEP 2: Foto */}
         {step === 2 && (
           <div className="space-y-4">
+            <div className="bg-white rounded-xl p-3 border border-brand-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-brand-700">Posizione su planimetria</div>
+                  <div className="text-xs text-brand-500 mt-1">
+                    Segna la struttura sul piano corrente usando il tool perimetro (selezionato automaticamente).
+                  </div>
+                </div>
+                <button
+                  onClick={handleOpenFloorPlanEditor}
+                  disabled={!currentFloorPlan}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40"
+                >
+                  <MapPin size={13} />
+                  Posiziona su planimetria
+                </button>
+              </div>
+              {!currentFloorPlan && (
+                <div className="mt-2 text-xs text-warning flex items-center gap-1.5">
+                  <AlertTriangle size={12} /> Nessuna planimetria trovata per il piano selezionato.
+                </div>
+              )}
+            </div>
             <p className="text-sm text-brand-500">Aggiungi foto per documentare le strutture.</p>
 
             {compressionProgress && (
