@@ -190,14 +190,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_typology_prices_unique_specific
   ON public.typology_prices(project_id, category, attraversamento, tipologico_id)
   WHERE tipologico_id IS NOT NULL;
 
--- 5) Seed dropdown options strutture (idempotente)
+-- 5) Seed dropdown options strutture (idempotente, senza dipendere da UNIQUE(category, value))
 INSERT INTO public.dropdown_options (category, value, label, sort_order, is_active)
-VALUES
-  ('struttura', 'Parete',                    'Parete',                    10, true),
-  ('struttura', 'Soffitto',                  'Soffitto',                  20, true),
-  ('struttura', 'Cassonetto porta-impianto', 'Cassonetto porta-impianto', 30, true),
-  ('struttura', 'Altro',                     'Altro',                     99, true),
-  ('tipo_struttura', 'Flessibile', 'Flessibile', 10, true),
-  ('tipo_struttura', 'Rigido',     'Rigido',     20, true)
-ON CONFLICT (category, value) DO NOTHING;
-
+SELECT v.category, v.value, v.label, v.sort_order, v.is_active
+FROM (
+  VALUES
+    ('struttura', 'Parete',                    'Parete',                    10, true),
+    ('struttura', 'Soffitto',                  'Soffitto',                  20, true),
+    ('struttura', 'Cassonetto porta-impianto', 'Cassonetto porta-impianto', 30, true),
+    ('struttura', 'Altro',                     'Altro',                     99, true),
+    ('tipo_struttura', 'Flessibile',           'Flessibile',                10, true),
+    ('tipo_struttura', 'Rigido',               'Rigido',                    20, true)
+) AS v(category, value, label, sort_order, is_active)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.dropdown_options d
+  WHERE d.category = v.category
+    AND d.value = v.value
+);
