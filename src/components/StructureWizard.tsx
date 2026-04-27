@@ -142,7 +142,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       setCurrentFloorPlan(fp || null);
       setFloorPlanImageUrl(getFloorPlanBlobUrl(fp?.imageBlob, fp?.imageUrl));
     })();
-  }, [floor, project?.id]);
+  }, [floor, project]);
 
   const structureTypologies = projectTypologies.filter(t => (t.category ?? 'attraversamento') === 'struttura');
 
