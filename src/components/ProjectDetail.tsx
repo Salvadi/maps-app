@@ -19,7 +19,6 @@ import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
 import SalTab from './SalTab';
-import StructureEntryCard from './StructureEntryCard';
 
 interface ProjectDetailProps {
   project: Project;
@@ -157,6 +156,19 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         .map(floor => ({ floor, entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp) })),
     };
   }, [mappings, showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento]);
+
+  // Compute grouped structures by floor (mirrors filteredFloorGroups for mappings)
+  const structureFloorGroups = useMemo(() => {
+    const grouped: Record<string, StructureEntry[]> = {};
+    for (const entry of structures) {
+      const floor = entry.floor || 'N/D';
+      if (!grouped[floor]) grouped[floor] = [];
+      grouped[floor].push(entry);
+    }
+    return Object.keys(grouped)
+      .sort((a, b) => parseFloat(a) - parseFloat(b))
+      .map(floor => ({ floor, entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp) }));
+  }, [structures]);
 
   useEffect(() => {
     loadData();
@@ -764,32 +776,162 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               </div>
             )}
 
-            {/* Plans Tab */}
+            {/* Structures Tab */}
             {activeTab === 'structures' && (
               <div className="px-4 pt-4">
                 <div className="space-y-3">
-                  {structures.map(entry => (
-                    <StructureEntryCard
-                      key={entry.id}
-                      entry={entry}
-                      photos={structurePhotos[entry.id] || []}
-                      isExpanded={expandedStructures.has(entry.id)}
-                      onToggleExpand={() => toggleStructureExpand(entry.id)}
-                      onEdit={(e) => {
-                        e.stopPropagation();
-                        onEditStructure(entry);
-                      }}
-                      onDelete={(e) => {
-                        e.stopPropagation();
-                        handleDeleteStructure(entry);
-                      }}
-                      onPhotoPreview={(url, alt) => setSelectedPhoto({ url, alt })}
-                      getTipologicoLabel={(tipologicoId: string) => {
-                        const tip = project.typologies.find(t => t.id === tipologicoId);
-                        if (!tip) return tipologicoId;
-                        return `Tip. ${tip.number}`;
-                      }}
-                    />
+                  {structureFloorGroups.map(group => (
+                    <div key={group.floor}>
+                      <button
+                        onClick={() => toggleFloor(group.floor)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white rounded-xl shadow-card mb-2"
+                      >
+                        {expandedFloors.has(group.floor) ? (
+                          <ChevronDown size={16} className="text-brand-500" />
+                        ) : (
+                          <ChevronRight size={16} className="text-brand-500" />
+                        )}
+                        <span className="text-sm font-semibold text-brand-700">Piano {group.floor}</span>
+                        <span className="text-xs text-brand-400 ml-auto">
+                          {group.entries.length} struttur{group.entries.length === 1 ? 'a' : 'e'}
+                        </span>
+                      </button>
+
+                      {expandedFloors.has(group.floor) && (
+                        <div className="space-y-2 ml-2">
+                          {group.entries.map(entry => {
+                            const photos = structurePhotos[entry.id] || [];
+                            const isExpanded = expandedStructures.has(entry.id);
+
+                            return (
+                              <div key={entry.id} className="bg-white rounded-xl shadow-card overflow-hidden">
+                                {/* Entry header */}
+                                <button
+                                  onClick={() => toggleStructureExpand(entry.id)}
+                                  className="w-full flex items-center gap-3 p-3 text-left"
+                                >
+                                  {/* Thumbnail */}
+                                  <div className="w-12 h-12 rounded-lg bg-brand-50 flex-shrink-0 overflow-hidden">
+                                    <EntryThumbnail
+                                      blob={photos.length > 0 ? photos[0].thumbnailBlob || photos[0].blob : undefined}
+                                      remoteUrl={photos.length > 0 ? photos[0].thumbnailRemoteUrl || photos[0].remoteUrl : undefined}
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-sm font-medium text-brand-700">
+                                        {entry.room ? `St. ${entry.room}` : 'Piano ' + entry.floor}
+                                        {entry.intervention && ` · Int. ${entry.intervention}`}
+                                      </span>
+                                      {entry.toComplete && (
+                                        <span className="w-2 h-2 rounded-full bg-warning flex-shrink-0" title="Da completare" />
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-brand-500 mt-0.5">
+                                      {entry.structures?.length || 0} struttur{entry.structures?.length === 1 ? 'a' : 'e'} · {photos.length} foto
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <span className="text-[11px] text-brand-400">
+                                      {new Date(entry.timestamp).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                    <ChevronDown size={14} className={`text-brand-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                  </div>
+                                </button>
+
+                                {/* Expanded content */}
+                                {isExpanded && (
+                                  <div className="border-t border-brand-100 px-3 pb-3 pt-2">
+                                    {/* Structures */}
+                                    {entry.structures && entry.structures.length > 0 && (
+                                      <div className="mb-3">
+                                        {entry.structures.map((s, si) => {
+                                          const linkedTypology = s.tipologicoId
+                                            ? project.typologies?.find(t => t.id === s.tipologicoId)
+                                            : undefined;
+                                          const strutturaLabel = s.struttura === 'Altro' && s.strutturaCustom
+                                            ? s.strutturaCustom
+                                            : s.struttura || 'N/A';
+                                          return (
+                                            <div key={si} className="text-xs text-brand-600 py-1.5">
+                                              <div className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-brand-300 flex-shrink-0" />
+                                                <span>
+                                                  {strutturaLabel}
+                                                  {s.tipoStruttura && ` · ${s.tipoStruttura}`}
+                                                  {s.superficie !== undefined && ` · ${s.superficie} mq`}
+                                                  {s.lunghezza !== undefined && ` · ${s.lunghezza} ml`}
+                                                </span>
+                                                {linkedTypology && (
+                                                  <span className="text-[10px] font-bold text-accent bg-accent/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                                                    T#{linkedTypology.number}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {linkedTypology && (
+                                                <div className="ml-[17px] mt-1 space-y-0.5">
+                                                  {linkedTypology.marcaProdottoUtilizzato && (
+                                                    <div className="flex items-center gap-1.5 text-brand-500">
+                                                      <Tag size={10} className="text-brand-400" />
+                                                      <span>{linkedTypology.marcaProdottoUtilizzato}</span>
+                                                    </div>
+                                                  )}
+                                                  {linkedTypology.prodottiSelezionati && linkedTypology.prodottiSelezionati.length > 0 && (
+                                                    <div className="flex items-center gap-1.5 text-brand-500">
+                                                      <Package size={10} className="text-brand-400" />
+                                                      <span>{linkedTypology.prodottiSelezionati.join(', ')}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+                                              {s.notes && (
+                                                <div className="ml-[17px] mt-1 text-brand-500 italic">{s.notes}</div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+
+                                    {/* Photo grid */}
+                                    {photos.length > 0 && (
+                                      <div className="grid grid-cols-4 gap-1.5 mb-3">
+                                        {photos.map((photo, pi) => (
+                                          <PhotoGridItem
+                                            key={photo.id || pi}
+                                            blob={photo.blob}
+                                            remoteUrl={photo.remoteUrl}
+                                            alt={`Foto ${pi + 1}`}
+                                            onSelect={(url) => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
+                                          />
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => onEditStructure(entry)}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-brand-50 text-brand-600 rounded-lg text-xs font-medium hover:bg-brand-100 transition-colors"
+                                      >
+                                        <Pencil size={13} />
+                                        Modifica
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteStructure(entry)}
+                                        className="flex items-center justify-center w-10 py-2 bg-red-50 text-danger rounded-lg hover:bg-red-100 transition-colors"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
 
