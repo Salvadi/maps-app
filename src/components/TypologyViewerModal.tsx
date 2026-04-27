@@ -14,13 +14,20 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
   const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
   const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
   const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
+  const STRUTTURA_OPTIONS = useDropdownOptions('struttura');
+  const TIPO_STRUTTURA_OPTIONS = useDropdownOptions('tipo_struttura');
   const MARCA_PRODOTTO_OPTIONS = useBrandOptions();
 
+  const [activeTab, setActiveTab] = useState<'attraversamento' | 'struttura'>('attraversamento');
   const [typologies, setTypologies] = useState<Typology[]>([...project.typologies]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const hasChanges = JSON.stringify(typologies) !== JSON.stringify(project.typologies);
+
+  const visibleTypologies = [...typologies]
+    .filter(t => (t.category ?? 'attraversamento') === activeTab)
+    .sort((a, b) => a.number - b.number);
 
   const getLabel = (options: { value: string; label: string }[], value: string) => {
     const option = options.find(opt => opt.value === value);
@@ -32,9 +39,12 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
     const newTyp: Typology = {
       id: Date.now().toString(),
       number: maxNumber + 1,
+      category: activeTab,
       supporto: '',
       tipoSupporto: '',
       attraversamento: '',
+      struttura: '',
+      tipoStruttura: '',
       marcaProdottoUtilizzato: '',
       prodottiSelezionati: [],
     };
@@ -69,6 +79,9 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
 
   const selectCls = 'w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none';
 
+  const struttureCounts = typologies.filter(t => (t.category ?? 'attraversamento') === 'struttura').length;
+  const attraversamentoCounts = typologies.filter(t => (t.category ?? 'attraversamento') === 'attraversamento').length;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       {/* Backdrop */}
@@ -92,9 +105,33 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
           </button>
         </div>
 
+        {/* Tab selector */}
+        <div className="flex border-b border-brand-100 px-4 gap-1 pt-2">
+          <button
+            onClick={() => setActiveTab('attraversamento')}
+            className={`flex-1 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+              activeTab === 'attraversamento'
+                ? 'text-accent border-b-2 border-accent'
+                : 'text-brand-400 hover:text-brand-600'
+            }`}
+          >
+            Attraversamenti {attraversamentoCounts > 0 && <span className="text-xs opacity-70">({attraversamentoCounts})</span>}
+          </button>
+          <button
+            onClick={() => setActiveTab('struttura')}
+            className={`flex-1 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+              activeTab === 'struttura'
+                ? 'text-accent border-b-2 border-accent'
+                : 'text-brand-400 hover:text-brand-600'
+            }`}
+          >
+            Strutture {struttureCounts > 0 && <span className="text-xs opacity-70">({struttureCounts})</span>}
+          </button>
+        </div>
+
         {/* Body */}
         <div className="flex-1 overflow-auto p-4 space-y-3">
-          {[...typologies].sort((a, b) => a.number - b.number).map((tip) => (
+          {visibleTypologies.map((tip) => (
             <div key={tip.id} className="bg-brand-50 rounded-xl p-3.5">
               {editingId === tip.id ? (
                 /* ---- Edit mode ---- */
@@ -126,48 +163,86 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] font-medium text-brand-500 mb-1 block">Supporto</label>
-                      <div className="relative">
-                        <select value={tip.supporto} onChange={e => handleChange(tip.id, 'supporto', e.target.value)} className={selectCls}>
-                          <option value="">Seleziona...</option>
-                          {SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                  {activeTab === 'attraversamento' ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] font-medium text-brand-500 mb-1 block">Supporto</label>
+                          <div className="relative">
+                            <select value={tip.supporto} onChange={e => handleChange(tip.id, 'supporto', e.target.value)} className={selectCls}>
+                              <option value="">Seleziona...</option>
+                              {SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-medium text-brand-500 mb-1 block">Tipo Supporto</label>
+                          <div className="relative">
+                            <select value={tip.tipoSupporto} onChange={e => handleChange(tip.id, 'tipoSupporto', e.target.value)} className={selectCls}>
+                              <option value="">Seleziona...</option>
+                              {TIPO_SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-brand-500 mb-1 block">Tipo Supporto</label>
-                      <div className="relative">
-                        <select value={tip.tipoSupporto} onChange={e => handleChange(tip.id, 'tipoSupporto', e.target.value)} className={selectCls}>
-                          <option value="">Seleziona...</option>
-                          {TIPO_SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
-                      </div>
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="text-[11px] font-medium text-brand-500 mb-1 block">Attraversamento</label>
-                    <div className="relative">
-                      <select value={tip.attraversamento} onChange={e => handleChange(tip.id, 'attraversamento', e.target.value)} className={selectCls}>
-                        <option value="">Seleziona...</option>
-                        {ATTRAVERSAMENTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
-                    </div>
-                    {tip.attraversamento === 'Altro' && (
-                      <input
-                        type="text"
-                        value={tip.attraversamentoCustom || ''}
-                        onChange={e => handleChange(tip.id, 'attraversamentoCustom', e.target.value)}
-                        placeholder="Specifica tipo..."
-                        className={`${selectCls} mt-2`}
-                      />
-                    )}
-                  </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-brand-500 mb-1 block">Attraversamento</label>
+                        <div className="relative">
+                          <select value={tip.attraversamento} onChange={e => handleChange(tip.id, 'attraversamento', e.target.value)} className={selectCls}>
+                            <option value="">Seleziona...</option>
+                            {ATTRAVERSAMENTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                        </div>
+                        {tip.attraversamento === 'Altro' && (
+                          <input
+                            type="text"
+                            value={tip.attraversamentoCustom || ''}
+                            onChange={e => handleChange(tip.id, 'attraversamentoCustom', e.target.value)}
+                            placeholder="Specifica tipo..."
+                            className={`${selectCls} mt-2`}
+                          />
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] font-medium text-brand-500 mb-1 block">Struttura</label>
+                          <div className="relative">
+                            <select value={tip.struttura || ''} onChange={e => handleChange(tip.id, 'struttura', e.target.value)} className={selectCls}>
+                              <option value="">Seleziona...</option>
+                              {STRUTTURA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                          </div>
+                          {tip.struttura === 'Altro' && (
+                            <input
+                              type="text"
+                              value={tip.attraversamentoCustom || ''}
+                              onChange={e => handleChange(tip.id, 'attraversamentoCustom', e.target.value)}
+                              placeholder="Specifica tipo..."
+                              className={`${selectCls} mt-2`}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-medium text-brand-500 mb-1 block">Tipo</label>
+                          <div className="relative">
+                            <select value={tip.tipoStruttura || ''} onChange={e => handleChange(tip.id, 'tipoStruttura', e.target.value)} className={selectCls}>
+                              <option value="">Seleziona...</option>
+                              {TIPO_STRUTTURA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="text-[11px] font-medium text-brand-500 mb-1 block">Marca prodotto</label>
@@ -192,13 +267,14 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
               ) : (
                 /* ---- View mode ---- */
                 <>
-                  {/* Number badge + crossing type + edit button */}
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold text-white bg-accent px-2.5 py-1 rounded-full">
                       #{tip.number}
                     </span>
                     <span className="text-sm font-semibold text-brand-800 truncate flex-1">
-                      {getLabel(ATTRAVERSAMENTO_OPTIONS, tip.attraversamento)}
+                      {activeTab === 'struttura'
+                        ? (getLabel(STRUTTURA_OPTIONS, tip.struttura || '') || tip.struttura || '—')
+                        : getLabel(ATTRAVERSAMENTO_OPTIONS, tip.attraversamento)}
                     </span>
                     <button
                       onClick={() => setEditingId(tip.id)}
@@ -208,19 +284,28 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
                     </button>
                   </div>
 
-                  {/* Support info */}
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-2">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-wider text-brand-400 font-medium">Supporto</span>
-                      <div className="text-xs text-brand-700">{getLabel(SUPPORTO_OPTIONS, tip.supporto)}</div>
+                  {activeTab === 'attraversamento' ? (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-2">
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-brand-400 font-medium">Supporto</span>
+                        <div className="text-xs text-brand-700">{getLabel(SUPPORTO_OPTIONS, tip.supporto)}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-brand-400 font-medium">Tipo Supporto</span>
+                        <div className="text-xs text-brand-700">{getLabel(TIPO_SUPPORTO_OPTIONS, tip.tipoSupporto)}</div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] uppercase tracking-wider text-brand-400 font-medium">Tipo Supporto</span>
-                      <div className="text-xs text-brand-700">{getLabel(TIPO_SUPPORTO_OPTIONS, tip.tipoSupporto)}</div>
+                  ) : (
+                    <div className="mb-2">
+                      {tip.tipoStruttura && (
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider text-brand-400 font-medium">Tipo</span>
+                          <div className="text-xs text-brand-700">{getLabel(TIPO_STRUTTURA_OPTIONS, tip.tipoStruttura)}</div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
 
-                  {/* Brand */}
                   {tip.marcaProdottoUtilizzato && (
                     <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-brand-200/60">
                       <Tag size={12} className="text-accent flex-shrink-0" />
@@ -228,7 +313,6 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
                     </div>
                   )}
 
-                  {/* Products */}
                   {tip.prodottiSelezionati && tip.prodottiSelezionati.length > 0 && (
                     <div className="flex items-start gap-1.5 mt-1.5">
                       <Package size={12} className="text-accent flex-shrink-0 mt-0.5" />
@@ -246,22 +330,20 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
             </div>
           ))}
 
-          {typologies.length === 0 && (
+          {visibleTypologies.length === 0 && (
             <div className="text-center py-8 text-brand-400 text-sm">
-              Nessun tipologico configurato
+              {activeTab === 'struttura' ? 'Nessun tipologico struttura configurato' : 'Nessun tipologico attraversamento configurato'}
             </div>
           )}
 
-          {/* Add button */}
           <button
             onClick={handleAdd}
             className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-brand-300 rounded-xl text-sm font-medium text-brand-500 hover:border-accent hover:text-accent transition-colors"
           >
-            <Plus size={16} /> Aggiungi tipologico
+            <Plus size={16} /> Aggiungi tipologico {activeTab === 'struttura' ? 'struttura' : 'attraversamento'}
           </button>
         </div>
 
-        {/* Footer with save button (only when changes exist) */}
         {hasChanges && (
           <div className="px-4 py-3 border-t border-brand-100 flex gap-3">
             <button

@@ -6,7 +6,9 @@ import {
   updateSal,
   deleteSal,
   assignCrossingsToSal,
+  assignStructuresToSal,
   getMappingEntriesForProject,
+  getStructureEntriesForProject,
 } from '../db';
 import { PlusCircle, Edit, Link, Trash, Info, AlertTriangle } from 'lucide-react';
 
@@ -19,7 +21,8 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   const [sals, setSals] = useState<Sal[]>([]);
   const [unassignedCount, setUnassignedCount] = useState(0);
   const [toCompleteUnassignedCount, setToCompleteUnassignedCount] = useState(0);
-  const [salCrossingsMap, setSalCrossingsMap] = useState<Record<string, number>>({});
+  const [unassignedStructuresCount, setUnassignedStructuresCount] = useState(0);
+  const [salItemsMap, setSalItemsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,13 +35,16 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [projectSals, allMappings] = await Promise.all([
+    const [projectSals, allMappings, allStructureEntries] = await Promise.all([
       getSalsForProject(project.id),
       getMappingEntriesForProject(project.id),
+      getStructureEntriesForProject(project.id),
     ]);
     setSals(projectSals.sort((a, b) => (b.date || 0) - (a.date || 0)));
 
     const allCrossings = allMappings.flatMap(m => m.crossings || []);
+    const allStructures = allStructureEntries.flatMap(e => e.structures || []);
+
     const unassigned = allMappings
       .filter(m => !m.toComplete)
       .flatMap(m => m.crossings || [])
@@ -47,14 +53,22 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
       .filter(m => m.toComplete)
       .flatMap(m => m.crossings || [])
       .filter(c => !c.salId).length;
+    const unassignedStructures = allStructureEntries
+      .filter(e => !e.toComplete)
+      .flatMap(e => e.structures || [])
+      .filter(s => !s.salId).length;
+
     setUnassignedCount(unassigned);
     setToCompleteUnassignedCount(toCompleteUnassigned);
+    setUnassignedStructuresCount(unassignedStructures);
 
     const salMap: Record<string, number> = {};
     for (const sal of projectSals) {
-      salMap[sal.id] = allCrossings.filter(c => c.salId === sal.id).length;
+      const crossingCount = allCrossings.filter(c => c.salId === sal.id).length;
+      const structureCount = allStructures.filter(s => s.salId === sal.id).length;
+      salMap[sal.id] = crossingCount + structureCount;
     }
-    setSalCrossingsMap(salMap);
+    setSalItemsMap(salMap);
     setLoading(false);
   }, [project.id]);
 
@@ -123,10 +137,13 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   const handleAssignCrossings = async (salId: string) => {
     setAssigning(salId);
     try {
-      await assignCrossingsToSal(project.id, salId, currentUser.id);
+      await Promise.all([
+        assignCrossingsToSal(project.id, salId, currentUser.id),
+        assignStructuresToSal(project.id, salId, currentUser.id),
+      ]);
       await loadData();
     } catch (error) {
-      console.error('Error assigning crossings:', error);
+      console.error('Error assigning items:', error);
     } finally {
       setAssigning(null);
     }
@@ -154,11 +171,14 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-4">
-      {unassignedCount > 0 && (
+      {(unassignedCount > 0 || unassignedStructuresCount > 0) && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center space-x-2">
           <Info size={20} className="text-yellow-600 flex-shrink-0" />
           <p className="text-sm text-yellow-800">
-            {unassignedCount} crossing non contabilizzati
+            {[
+              unassignedCount > 0 && `${unassignedCount} attraversament${unassignedCount === 1 ? 'o' : 'i'}`,
+              unassignedStructuresCount > 0 && `${unassignedStructuresCount} struttur${unassignedStructuresCount === 1 ? 'a' : 'e'}`,
+            ].filter(Boolean).join(' + ')} non contabilizzat{unassignedCount + unassignedStructuresCount === 1 ? 'o' : 'i'}
           </p>
         </div>
       )}
@@ -263,7 +283,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                 </button>
                 <button
                   onClick={() => handleAssignCrossings(sal.id)}
-                  disabled={unassignedCount === 0 || assigning !== null}
+                  disabled={(unassignedCount === 0 && unassignedStructuresCount === 0) || assigning !== null}
                   className="px-3 py-2 text-accent hover:bg-brand-50 rounded-xl text-sm flex items-center space-x-1 disabled:opacity-50"
                 >
                   {assigning === sal.id ? (
@@ -308,15 +328,14 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                   : 'Non specificata'}
               </p>
               <p className="text-sm">
-                {salCrossingsMap[sal.id] || 0} crossing assegnati
+                {salItemsMap[sal.id] || 0} element{(salItemsMap[sal.id] || 0) === 1 ? 'o' : 'i'} assegnat{(salItemsMap[sal.id] || 0) === 1 ? 'o' : 'i'}
               </p>
               {sal.notes && <p className="text-sm">Note: {sal.notes}</p>}
 
               {confirmDeleteId === sal.id && (
                 <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
                   <p className="text-sm text-red-800">
-                    Eliminare SAL {sal.number}? I crossing assegnati torneranno non
-                    contabilizzati.
+                    Eliminare SAL {sal.number}? Gli attraversamenti e le strutture assegnate torneranno non contabilizzati.
                   </p>
                   <div className="flex space-x-2">
                     <button

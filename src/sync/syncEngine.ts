@@ -19,6 +19,7 @@ import {
   downloadStandaloneMapsFromSupabase,
   downloadSalsFromSupabase,
   downloadTypologyPricesFromSupabase,
+  downloadStructureEntriesFromSupabase,
   updateRemotePhotosFlags
 } from './syncDownloadHandlers';
 
@@ -478,6 +479,7 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
 
     const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+    await downloadStructureEntriesFromSupabase(session.user.id, isAdmin);
     await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
     const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: false });
     const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
@@ -680,6 +682,7 @@ export async function phasedSyncFromSupabase(options?: {
   // Phase 2: Mapping entries + SALs + prices + mappe standalone
   progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
   const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+  await downloadStructureEntriesFromSupabase(session.user.id, isAdmin);
   const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
   await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
   progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
@@ -801,6 +804,7 @@ export async function clearAndSync(): Promise<{
 
     const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
+    await downloadStructureEntriesFromSupabase(session.user.id, isAdmin);
     await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
     const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
       includeImageBlobs: true,

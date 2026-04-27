@@ -13,6 +13,7 @@ function convertRemoteToLocalTypologyPrice(remote: any): TypologyPrice {
   return {
     id: remote.id,
     projectId: remote.project_id,
+    category: remote.category || 'attraversamento',
     attraversamento: remote.attraversamento,
     tipologicoId: remote.tipologico_id || undefined,
     pricePerUnit: remote.price_per_unit,
@@ -74,17 +75,19 @@ export async function upsertTypologyPrice(
   attraversamento: string,
   pricePerUnit: number,
   unit: 'piece' | 'sqm',
-  tipologicoId?: string
+  tipologicoId?: string,
+  category: 'attraversamento' | 'struttura' = 'attraversamento'
 ): Promise<void> {
   const existing = tipologicoId
     ? await db.typologyPrices
         .where('[projectId+attraversamento+tipologicoId]')
         .equals([projectId, attraversamento, tipologicoId])
+        .filter((price) => (price.category ?? 'attraversamento') === category)
         .first()
     : await db.typologyPrices
         .where('[projectId+attraversamento]')
         .equals([projectId, attraversamento])
-        .filter((price) => !price.tipologicoId)
+        .filter((price) => !price.tipologicoId && (price.category ?? 'attraversamento') === category)
         .first();
 
   const timestamp = now();
@@ -105,6 +108,7 @@ export async function upsertTypologyPrice(
   const createdPrice: TypologyPrice = {
     id: generateId(),
     projectId,
+    category,
     attraversamento,
     tipologicoId,
     pricePerUnit,

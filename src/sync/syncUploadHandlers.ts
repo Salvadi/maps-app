@@ -5,7 +5,7 @@
  * Ogni gestore gestisce CREATE, UPDATE e DELETE con conversione formato locale → remoto.
  */
 
-import { db, Project, MappingEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
+import { db, Project, MappingEntry, StructureEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -46,6 +46,10 @@ export async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
     case 'typology_price':
       await syncTypologyPrice(item);
+      break;
+
+    case 'structure_entry':
+      await syncStructureEntry(item);
       break;
 
     default:
@@ -290,11 +294,14 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
     }
 
     // Create photo metadata record in Supabase
+    const isStructurePhoto = photoMeta.entryType === 'structure';
     const { error: metaError } = await supabase
       .from('photos')
       .upsert({
         id: photoMeta.id,
-        mapping_entry_id: photoMeta.mappingEntryId,
+        ...(isStructurePhoto
+          ? { structure_entry_id: photoMeta.mappingEntryId }
+          : { mapping_entry_id: photoMeta.mappingEntryId }),
         storage_path: fileName,
         url: null,
         metadata: photoMeta.metadata,
@@ -819,6 +826,85 @@ async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
 
     if (error) {
       throw new Error(`Supabase typology price delete failed: ${error.message}`);
+    }
+  }
+}
+
+// ============================================
+// SEZIONE: Upload Structure Entries (Structure Entry Upload)
+// Gestisce CREATE/UPDATE/DELETE di structure entries verso Supabase.
+// Speculare a syncMappingEntry.
+// ============================================
+
+async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
+  const entry = item.payload as StructureEntry;
+
+  if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    const supabaseEntry = {
+      id: entry.id,
+      project_id: entry.projectId,
+      floor: entry.floor,
+      room: entry.room || null,
+      intervention: entry.intervention || null,
+      structures: entry.structures,
+      to_complete: entry.toComplete || false,
+      timestamp: entry.timestamp,
+      last_modified: entry.lastModified,
+      version: entry.version,
+      created_by: entry.createdBy,
+      modified_by: entry.modifiedBy,
+      photos: entry.photos,
+      synced: true,
+      created_at: new Date(entry.timestamp).toISOString(),
+      updated_at: new Date(entry.lastModified).toISOString()
+    };
+
+    const { error } = await supabase
+      .from('structure_entries')
+      .upsert(supabaseEntry, { onConflict: 'id' });
+
+    if (error) {
+      throw new Error(`Supabase structure entry upsert failed: ${error.message}`);
+    }
+
+    await db.structureEntries.update(entry.id, { synced: 1 });
+
+    // Sync photos associated with this structure entry
+    const photos = await db.photos
+      .where('mappingEntryId')
+      .equals(entry.id)
+      .toArray();
+
+    for (const photo of photos) {
+      if (!photo.uploaded) {
+        const photoSyncItemId = `${entry.id}-photo-${photo.id}`;
+        const existingPhotoSyncItem = await db.syncQueue.get(photoSyncItemId);
+        if (existingPhotoSyncItem?.synced === 2 || existingPhotoSyncItem?.synced === 0) {
+          continue;
+        }
+
+        const photoSyncItem: SyncQueueItem = {
+          id: photoSyncItemId,
+          operation: 'CREATE',
+          entityType: 'photo',
+          entityId: photo.id,
+          payload: photo,
+          timestamp: Date.now(),
+          retryCount: 0,
+          synced: 0
+        };
+
+        await db.syncQueue.put(photoSyncItem);
+      }
+    }
+  } else if (item.operation === 'DELETE') {
+    const { error } = await supabase
+      .from('structure_entries')
+      .delete()
+      .eq('id', entry.id);
+
+    if (error) {
+      throw new Error(`Supabase structure entry delete failed: ${error.message}`);
     }
   }
 }

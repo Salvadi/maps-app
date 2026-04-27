@@ -1,6 +1,7 @@
 import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice, StandaloneMap } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
+import { convertRemoteToLocalStructure } from '../db/structures';
 import { getPendingEntityIds } from '../db/onlineFirst';
 import { pruneProjectLocal } from '../db/projects';
 
@@ -863,6 +864,41 @@ export async function downloadTypologyPricesFromSupabase(userId: string, isAdmin
     : [];
   const toDeletePrices = localPriceIds.filter((id) => !remotePriceIds.has(id) && !pendingIds.has(id));
   if (toDeletePrices.length > 0) await db.typologyPrices.bulkDelete(toDeletePrices);
+
+  return downloadedCount;
+}
+
+export async function downloadStructureEntriesFromSupabase(userId: string, isAdmin = false): Promise<number> {
+  ensureOnline();
+
+  const projects = await getSyncEligibleProjects(userId, isAdmin);
+  const projectIds = projects.map((project) => project.id);
+  if (projectIds.length === 0) {
+    return 0;
+  }
+
+  const data = await fetchRowsByIds('structure_entries', 'project_id', projectIds);
+
+  const pendingIds = await getPendingEntityIds('structure_entry');
+  let downloadedCount = 0;
+
+  for (const remoteEntry of data || []) {
+    if (pendingIds.has(remoteEntry.id)) {
+      continue;
+    }
+
+    const entry = convertRemoteToLocalStructure(remoteEntry);
+    await db.structureEntries.put(entry);
+    downloadedCount += 1;
+  }
+
+  // Pruning: rimuovere localmente le structure entries non più presenti remoto
+  const remoteEntryIds = new Set((data || []).map((r: any) => r.id));
+  const localEntryIds = projectIds.length > 0
+    ? await db.structureEntries.where('projectId').anyOf(projectIds).primaryKeys() as string[]
+    : [];
+  const toDeleteEntries = localEntryIds.filter((id) => !remoteEntryIds.has(id) && !pendingIds.has(id));
+  if (toDeleteEntries.length > 0) await db.structureEntries.bulkDelete(toDeleteEntries);
 
   return downloadedCount;
 }
