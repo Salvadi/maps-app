@@ -24,7 +24,7 @@ function convertRemoteToLocalSal(remote: any): Sal {
   };
 }
 
-async async function enqueueStructureEntryUpdate(entry: StructureEntry): Promise<void> {
+async function enqueueStructureEntryUpdate(entry: StructureEntry): Promise<void> {
   const existingSyncItem = await db.syncQueue
     .where('entityType')
     .equals('structure_entry')

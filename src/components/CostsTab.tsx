@@ -3,11 +3,11 @@ import { Download, ChevronDown, Plus, Trash2, X, AlertTriangle, Tag, Package } f
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
-  Project, MappingEntry, User, Sal, calcAsolaMq,
-  getMappingEntriesForProject,
+  Project, MappingEntry, StructureEntry, User, Sal, calcAsolaMq,
+  getMappingEntriesForProject, getStructureEntriesForProject,
   getTypologyPrices, upsertTypologyPrice,
   TypologyPrice,
-  getSalsForProject, createSal, assignCrossingsToSal, deleteSal,
+  getSalsForProject, createSal, assignCrossingsToSal, assignStructuresToSal, deleteSal,
 } from '../db';
 
 interface CostsTabProps {
@@ -53,6 +53,22 @@ interface SummaryGroupRow {
   toComplete: boolean;
 }
 
+interface StructureCostRow {
+  structureEntryId: string;
+  structureId: string;
+  floor: string;
+  struttura: string;
+  tipologicoId?: string;
+  tipologicoLabel: string;
+  quantity: number;
+  unit: 'sqm';
+  priceConfigKey: string;
+  pricePerUnit: number;
+  total: number;
+  salId?: string;
+  toComplete: boolean;
+}
+
 const GROUP_LABELS: Record<GroupBy, string> = {
   floor: 'Piano',
   tipologico: 'Tipologico',
@@ -65,6 +81,10 @@ const NO_TIPOLOGICO_KEY = '__none__';
 
 function buildPriceConfigKey(attraversamento: string, tipologicoId?: string): string {
   return `${attraversamento}::${tipologicoId ?? NO_TIPOLOGICO_KEY}`;
+}
+
+function buildStructurePriceKey(struttura: string, tipologicoId?: string): string {
+  return `struttura::${struttura}::${tipologicoId ?? NO_TIPOLOGICO_KEY}`;
 }
 
 function joinLabelParts(parts: Array<string | undefined>): string {
@@ -208,6 +228,7 @@ function setColumnWidths(worksheet: XLSX.WorkSheet, widths: number[]) {
 
 const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
+  const [structures, setStructures] = useState<StructureEntry[]>([]);
   const [prices, setPrices] = useState<TypologyPrice[]>([]);
   const [groupBy, setGroupBy] = useState<GroupBy>('floor');
   const [localPrices, setLocalPrices] = useState<Record<string, { price: string; unit: 'piece' | 'sqm' }>>({});
@@ -225,12 +246,14 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
-    const [entries, loadedPrices, loadedSals] = await Promise.all([
+    const [entries, structureEntries, loadedPrices, loadedSals] = await Promise.all([
       getMappingEntriesForProject(project.id),
+      getStructureEntriesForProject(project.id),
       getTypologyPrices(project.id),
       getSalsForProject(project.id),
     ]);
     setMappings(entries);
+    setStructures(structureEntries);
     setPrices(loadedPrices);
     setSals(loadedSals);
 
@@ -277,7 +300,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const { genericPriceMap, specificPriceMap } = React.useMemo(() => {
     const generic: Record<string, TypologyPrice> = {};
     const specific: Record<string, TypologyPrice> = {};
-    for (const p of prices) {
+    for (const p of prices.filter((x) => (x.category ?? 'attraversamento') === 'attraversamento')) {
       if (p.tipologicoId) {
         specific[buildPriceConfigKey(p.attraversamento, p.tipologicoId)] = p;
       } else {
@@ -287,6 +310,22 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return {
       genericPriceMap: generic,
       specificPriceMap: specific,
+    };
+  }, [prices]);
+
+  const { structureGenericPriceMap, structureSpecificPriceMap } = React.useMemo(() => {
+    const generic: Record<string, TypologyPrice> = {};
+    const specific: Record<string, TypologyPrice> = {};
+    for (const p of prices.filter((x) => (x.category ?? 'attraversamento') === 'struttura')) {
+      if (p.tipologicoId) {
+        specific[buildStructurePriceKey(p.attraversamento, p.tipologicoId)] = p;
+      } else {
+        generic[p.attraversamento] = p;
+      }
+    }
+    return {
+      structureGenericPriceMap: generic,
+      structureSpecificPriceMap: specific,
     };
   }, [prices]);
 
@@ -389,6 +428,41 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return result;
   }, [genericPriceMap, mappings, specificPriceMap, typologyMap]);
 
+  const structureRows: StructureCostRow[] = React.useMemo(() => {
+    const result: StructureCostRow[] = [];
+    for (const entry of structures) {
+      for (const structure of entry.structures || []) {
+        const strutturaLabel = structure.struttura === 'Altro' && structure.strutturaCustom
+          ? structure.strutturaCustom
+          : structure.struttura || '';
+        if (!strutturaLabel) continue;
+        const priceKey = buildStructurePriceKey(strutturaLabel, structure.tipologicoId);
+        const price = structure.tipologicoId
+          ? structureSpecificPriceMap[priceKey] ?? structureGenericPriceMap[strutturaLabel]
+          : structureGenericPriceMap[strutturaLabel];
+        const pricePerUnit = price?.pricePerUnit ?? 0;
+        const quantity = structure.superficie ?? 0;
+        const tipObj = structure.tipologicoId ? typologyMap[structure.tipologicoId] : undefined;
+        result.push({
+          structureEntryId: entry.id,
+          structureId: structure.id,
+          floor: entry.floor,
+          struttura: strutturaLabel,
+          tipologicoId: structure.tipologicoId,
+          tipologicoLabel: tipObj?.listLabel || 'Senza tipologico',
+          quantity,
+          unit: 'sqm',
+          priceConfigKey: priceKey,
+          pricePerUnit,
+          total: quantity * pricePerUnit,
+          salId: structure.salId,
+          toComplete: entry.toComplete || false,
+        });
+      }
+    }
+    return result;
+  }, [structureGenericPriceMap, structureSpecificPriceMap, structures, typologyMap]);
+
   // Filtered rows based on SAL selection
   const filteredRows = React.useMemo(() => {
     if (selectedSalId === 'all') return rows;
@@ -396,7 +470,15 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return rows.filter(r => r.salId === selectedSalId);
   }, [rows, selectedSalId]);
 
+  const filteredStructureRows = React.useMemo(() => {
+    if (selectedSalId === 'all') return structureRows;
+    if (selectedSalId === 'unassigned') return structureRows.filter(r => !r.salId);
+    return structureRows.filter(r => r.salId === selectedSalId);
+  }, [structureRows, selectedSalId]);
+
   const grandTotal = filteredRows.reduce((s, r) => s + r.total, 0);
+  const structuresGrandTotal = filteredStructureRows.reduce((s, r) => s + r.total, 0);
+  const overallGrandTotal = grandTotal + structuresGrandTotal;
 
   // Cumulative total from prior SALs (only when viewing a specific SAL)
   const selectedSal = React.useMemo(
@@ -410,9 +492,17 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return rows.filter(r => r.salId && priorSalIds.has(r.salId)).reduce((s, r) => s + r.total, 0);
   }, [selectedSal, sals, rows]);
 
+  const cumulativePriorStructuresTotal = React.useMemo(() => {
+    if (!selectedSal) return 0;
+    const priorSalIds = new Set(sals.filter(s => s.number < selectedSal.number).map(s => s.id));
+    return structureRows.filter(r => r.salId && priorSalIds.has(r.salId)).reduce((s, r) => s + r.total, 0);
+  }, [selectedSal, sals, structureRows]);
+
   // Unassigned rows count/total for create SAL preview
   const unassignedRows = React.useMemo(() => rows.filter(r => !r.salId), [rows]);
+  const unassignedStructureRows = React.useMemo(() => structureRows.filter(r => !r.salId), [structureRows]);
   const unassignedTotal = unassignedRows.reduce((s, r) => s + r.total, 0);
+  const unassignedStructureTotal = unassignedStructureRows.reduce((s, r) => s + r.total, 0);
 
   // Group rows by selected dimension
   const grouped = React.useMemo(() => {
@@ -608,6 +698,27 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     return map;
   }, [priceFormRows]);
 
+  const structurePriceFormRows = React.useMemo(() => {
+    const uniqueRows = new Map<string, { key: string; struttura: string; tipologicoId?: string; tipologicoLabel: string }>();
+    for (const row of structureRows) {
+      if (!uniqueRows.has(row.priceConfigKey)) {
+        uniqueRows.set(row.priceConfigKey, {
+          key: row.priceConfigKey,
+          struttura: row.struttura,
+          tipologicoId: row.tipologicoId,
+          tipologicoLabel: row.tipologicoLabel,
+        });
+      }
+    }
+    return Array.from(uniqueRows.values()).sort((a, b) => a.struttura.localeCompare(b.struttura, 'it'));
+  }, [structureRows]);
+
+  const structurePriceFormMap = React.useMemo(() => {
+    const map = new Map<string, typeof structurePriceFormRows[number]>();
+    for (const row of structurePriceFormRows) map.set(row.key, row);
+    return map;
+  }, [structurePriceFormRows]);
+
   const handlePriceChange = (key: string, field: 'price' | 'unit', value: string) => {
     setLocalPrices(prev => ({
       ...prev,
@@ -622,28 +733,42 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const handlePriceSave = useCallback(async (key: string) => {
     const lp = localPrices[key];
     const priceRow = priceFormMap.get(key);
-    if (!lp || !priceRow) return;
+    const structurePriceRow = structurePriceFormMap.get(key);
+    if (!lp || (!priceRow && !structurePriceRow)) return;
     const parsed = parseFloat(lp.price.replace(',', '.'));
     if (isNaN(parsed)) return;
     setSaving(prev => ({ ...prev, [key]: true }));
     try {
-      await upsertTypologyPrice(
-        project.id,
-        priceRow.attraversamento,
-        parsed,
-        lp.unit,
-        priceRow.isAsola ? undefined : priceRow.tipologicoId
-      );
+      if (structurePriceRow) {
+        await upsertTypologyPrice(
+          project.id,
+          structurePriceRow.struttura,
+          parsed,
+          'sqm',
+          structurePriceRow.tipologicoId,
+          'struttura'
+        );
+      } else if (priceRow) {
+        await upsertTypologyPrice(
+          project.id,
+          priceRow.attraversamento,
+          parsed,
+          lp.unit,
+          priceRow.isAsola ? undefined : priceRow.tipologicoId
+        );
+      }
       const updated = await getTypologyPrices(project.id);
       setPrices(updated);
     } finally {
       setSaving(prev => ({ ...prev, [key]: false }));
     }
-  }, [localPrices, priceFormMap, project.id]);
+  }, [localPrices, priceFormMap, project.id, structurePriceFormMap]);
 
   const handleExport = () => {
     const exportRows = filteredRows;
+    const exportStructureRows = filteredStructureRows;
     const exportTotal = grandTotal;
+    const exportStructureTotal = structuresGrandTotal;
     const exportedAt = Date.now();
     const reportTitle = selectedSal
       ? `Contabilita SAL ${selectedSal.number}`
@@ -651,7 +776,9 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     const salLabel = selectedSal
       ? `SAL ${selectedSal.number}${selectedSal.name ? ` — ${selectedSal.name}` : ''}`
       : 'Tutte le contabilizzazioni';
-    const projectTotal = selectedSal ? exportTotal + cumulativePriorTotal : exportTotal;
+    const projectTotal = selectedSal
+      ? exportTotal + exportStructureTotal + cumulativePriorTotal + cumulativePriorStructuresTotal
+      : exportTotal + exportStructureTotal;
 
     const formatExportTypology = (row: AggregatedRow) => (
       joinLabelParts([
@@ -683,11 +810,15 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       ['Riepilogo economico', 'Valore'],
       ['Attraversamenti esportati', exportRows.length],
       ['Totale documento', exportTotal],
+      ['Strutture esportate', exportStructureRows.length],
+      ['Totale strutture', exportStructureTotal],
+      ['Totale documento complessivo', exportTotal + exportStructureTotal],
     );
 
     if (selectedSal) {
       summaryData.push(
-        ['Cumulativo SAL precedenti', cumulativePriorTotal],
+        ['Cumulativo SAL precedenti (attraversamenti)', cumulativePriorTotal],
+        ['Cumulativo SAL precedenti (strutture)', cumulativePriorStructuresTotal],
         ['Totale complessivo progetto', projectTotal],
       );
     }
@@ -741,8 +872,35 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       ]);
     }
 
+    const structureData: any[][] = [
+      ['Report strutture'],
+      [project.title],
+      [],
+      ['Progetto', 'Vista export', 'Data export'],
+      [project.title, salLabel, formatDateTime(exportedAt)],
+      [],
+      ['Progetto', 'Piano', 'Struttura', 'Tipologico', 'ID Struttura Entry', 'ID Struttura', 'Quantita', 'Unita', 'Prezzo unit.', 'Totale', 'SAL'],
+    ];
+
+    for (const row of exportStructureRows) {
+      structureData.push([
+        project.title,
+        row.floor,
+        row.struttura,
+        row.tipologicoLabel,
+        row.structureEntryId,
+        row.structureId,
+        Number(row.quantity.toFixed(2)),
+        formatUnitLabel(row.unit),
+        row.pricePerUnit,
+        row.total,
+        selectedSal ? salLabel : (row.salId ? 'Contabilizzato' : 'Non contabilizzato'),
+      ]);
+    }
+
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
     const detailSheet = XLSX.utils.aoa_to_sheet(detailData);
+    const structureSheet = XLSX.utils.aoa_to_sheet(structureData);
     const summaryDetailTitleRow = summaryData.findIndex(row => row[0] === 'Dettaglio attraversamenti') + 1;
     const summaryTableHeaderRow = summaryDetailTitleRow + 1;
 
@@ -755,21 +913,30 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       XLSX.utils.decode_range('A1:M1'),
       XLSX.utils.decode_range('A2:M2'),
     ];
+    structureSheet['!merges'] = [
+      XLSX.utils.decode_range('A1:K1'),
+      XLSX.utils.decode_range('A2:K2'),
+    ];
 
     setColumnWidths(summarySheet, [14, 34, 20, 26, 12, 10, 14, 14]);
     setColumnWidths(detailSheet, [24, 12, 34, 18, 22, 18, 20, 28, 12, 10, 14, 14, 20]);
+    setColumnWidths(structureSheet, [24, 12, 22, 32, 24, 18, 12, 10, 14, 14, 20]);
 
     summarySheet['!autofilter'] = { ref: `A${summaryTableHeaderRow}:H${Math.max(summaryData.length, summaryTableHeaderRow)}` };
     detailSheet['!autofilter'] = { ref: `A7:M${Math.max(detailData.length, 7)}` };
+    structureSheet['!autofilter'] = { ref: `A7:K${Math.max(structureData.length, 7)}` };
 
     applyColumnFormats(summarySheet, [6, 7], CURRENCY_XLS_FORMAT, summaryTableHeaderRow);
     applyColumnFormats(detailSheet, [10, 11], CURRENCY_XLS_FORMAT, 7);
+    applyColumnFormats(structureSheet, [8, 9], CURRENCY_XLS_FORMAT, 7);
     applyColumnFormats(summarySheet, [4], QUANTITY_XLS_FORMAT, summaryTableHeaderRow);
     applyColumnFormats(detailSheet, [8], QUANTITY_XLS_FORMAT, 7);
+    applyColumnFormats(structureSheet, [6], QUANTITY_XLS_FORMAT, 7);
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Riepilogo');
     XLSX.utils.book_append_sheet(wb, detailSheet, 'Dettaglio');
+    XLSX.utils.book_append_sheet(wb, structureSheet, 'Strutture');
 
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
@@ -798,7 +965,10 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     try {
       const dateTs = new Date(salDate).getTime();
       const newSal = await createSal(project.id, salName || undefined, dateTs, salNotes || undefined);
-      await assignCrossingsToSal(project.id, newSal.id, currentUser.id);
+      await Promise.all([
+        assignCrossingsToSal(project.id, newSal.id, currentUser.id),
+        assignStructuresToSal(project.id, newSal.id, currentUser.id),
+      ]);
       await loadData();
       setSelectedSalId(newSal.id);
       setShowCreateSalModal(false);
@@ -873,7 +1043,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
 
         <button
           onClick={openCreateSalModal}
-          disabled={unassignedRows.length === 0}
+          disabled={unassignedRows.length === 0 && unassignedStructureRows.length === 0}
           className="flex items-center gap-1 text-xs font-semibold text-white bg-accent px-3 py-1.5 rounded-full active:scale-95 transition-transform disabled:opacity-40 disabled:pointer-events-none"
         >
           <Plus size={13} />
@@ -961,6 +1131,74 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             })}
           </div>
         )}
+      </div>
+
+      {/* Price management — strutture */}
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-brand-100">
+          <h3 className="text-sm font-bold text-brand-800">Gestione Prezzi Strutture</h3>
+          <p className="text-xs text-brand-400 mt-0.5">Prezzo al mq per tipologia struttura</p>
+        </div>
+        {structurePriceFormRows.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-brand-500">
+            Nessuna struttura registrata
+          </div>
+        ) : (
+          <div className="divide-y divide-brand-50">
+            {structurePriceFormRows.map(row => {
+              const effectivePrice = row.tipologicoId
+                ? structureSpecificPriceMap[row.key] ?? structureGenericPriceMap[row.struttura]
+                : structureGenericPriceMap[row.struttura];
+              const lp = localPrices[row.key] ?? {
+                price: effectivePrice ? String(effectivePrice.pricePerUnit) : '',
+                unit: 'sqm' as const,
+              };
+              const isSavingNow = saving[row.key];
+              return (
+                <div key={row.key} className="px-4 py-3">
+                  <div className="text-xs font-medium text-brand-700 mb-1">{row.struttura}</div>
+                  <div className="text-[11px] text-brand-400 mb-2">{row.tipologicoLabel}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center flex-1 bg-brand-50 border border-brand-200 rounded-xl overflow-hidden">
+                      <span className="px-3 text-sm text-brand-500 select-none">€</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={lp.price}
+                        onChange={e => handlePriceChange(row.key, 'price', e.target.value)}
+                        onBlur={() => handlePriceSave(row.key)}
+                        className="flex-1 py-2 bg-transparent text-sm text-brand-800 focus:outline-none"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <span className="bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-700 px-2.5 py-2">
+                      al mq
+                    </span>
+                    {isSavingNow && (
+                      <span className="text-[11px] text-brand-400">salvo...</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-card p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-brand-800">Riepilogo strutture</h3>
+          <span className="text-xs text-brand-500">{filteredStructureRows.length} righe</span>
+        </div>
+        <div className="mt-2 text-xs text-brand-600">
+          Totale strutture: <strong>{formatCurrency(structuresGrandTotal)}</strong>
+          {' · '}
+          Non contabilizzato: <strong>{formatCurrency(unassignedStructureTotal)}</strong>
+        </div>
+        <div className="mt-2 text-xs text-brand-600">
+          Totale combinato (attraversamenti + strutture): <strong>{formatCurrency(overallGrandTotal)}</strong>
+        </div>
       </div>
 
       {/* Summary table */}
@@ -1172,13 +1410,14 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             <div className="bg-accent/5 rounded-xl px-4 py-3">
               <p className="text-xs text-brand-600">
                 Verranno contabilizzati <span className="font-bold text-accent">{unassignedRows.length}</span> attraversamenti
-                per un totale di <span className="font-bold text-accent">{formatCurrency(unassignedTotal)}</span>
+                + <span className="font-bold text-accent">{unassignedStructureRows.length}</span> strutture
+                per un totale di <span className="font-bold text-accent">{formatCurrency(unassignedTotal + unassignedStructureTotal)}</span>
               </p>
             </div>
 
             <button
               onClick={handleCreateSal}
-              disabled={isCreatingSal || unassignedRows.length === 0}
+              disabled={isCreatingSal || (unassignedRows.length === 0 && unassignedStructureRows.length === 0)}
               className="w-full py-3 bg-accent text-white text-sm font-bold rounded-xl active:scale-[0.98] transition-transform disabled:opacity-40"
             >
               {isCreatingSal ? 'Creazione...' : 'Conferma'}

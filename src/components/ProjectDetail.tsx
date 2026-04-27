@@ -10,6 +10,7 @@ import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry,
+  StructureEntry, getStructureEntriesForProject, getPhotosForStructure, deleteStructureEntry,
   getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers, ensureFloorPlanAsset,
   ProjectCachePref, getProjectCachePref, setProjectOfflinePinned, hydrateProjectForOffline,
 } from '../db';
@@ -18,6 +19,7 @@ import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
 import SalTab from './SalTab';
+import StructureEntryCard from './StructureEntryCard';
 
 interface ProjectDetailProps {
   project: Project;
@@ -25,13 +27,15 @@ interface ProjectDetailProps {
   onBack: () => void;
   onAddMapping: () => void;
   onEditMapping: (entry: MappingEntry) => void;
+  onAddStructure: () => void;
+  onEditStructure: (entry: StructureEntry) => void;
   onOpenFloorPlanEditor: (project: Project, floorPlan: FloorPlan) => void;
   onExport?: () => void;
   onSync?: () => void;
   isSyncing?: boolean;
 }
 
-type SubTab = 'mappings' | 'plans' | 'info' | 'costs' | 'sal';
+type SubTab = 'mappings' | 'structures' | 'plans' | 'info' | 'costs' | 'sal';
 
 const ProjectDetail: React.FC<ProjectDetailProps> = ({
   project,
@@ -39,6 +43,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   onBack,
   onAddMapping,
   onEditMapping,
+  onAddStructure,
+  onEditStructure,
   onOpenFloorPlanEditor,
   onSync,
   isSyncing,
@@ -69,6 +75,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   }, []);
   const [mappings, setMappings] = useState<MappingEntry[]>([]);
   const [mappingPhotos, setMappingPhotos] = useState<Record<string, Photo[]>>({});
+  const [structures, setStructures] = useState<StructureEntry[]>([]);
+  const [structurePhotos, setStructurePhotos] = useState<Record<string, Photo[]>>({});
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [floorPlanPoints, setFloorPlanPoints] = useState<Record<string, FloorPlanPoint[]>>({});
   const [users, setUsers] = useState<User[]>([]);
@@ -76,6 +84,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; alt: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedMappings, setExpandedMappings] = useState<Set<string>>(new Set());
+  const [expandedStructures, setExpandedStructures] = useState<Set<string>>(new Set());
   const [exportingPlanId, setExportingPlanId] = useState<string | null>(null);
   const [projectCachePref, setProjectCachePref] = useState<ProjectCachePref | null>(null);
   const [isUpdatingOfflineCache, setIsUpdatingOfflineCache] = useState(false);
@@ -165,8 +174,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   const loadData = async () => {
     setIsLoading(true);
-    const entries = await getMappingEntriesForProject(project.id);
+    const [entries, structureEntries] = await Promise.all([
+      getMappingEntriesForProject(project.id),
+      getStructureEntriesForProject(project.id),
+    ]);
     setMappings(entries);
+    setStructures(structureEntries);
 
     // Auto-expand first floor
     const floorSet: Record<string, boolean> = {};
@@ -178,6 +191,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
     const photosMap = await getPhotosForMappings(entries.map(entry => entry.id));
     setMappingPhotos(photosMap);
+
+    const structurePhotoPairs = await Promise.all(
+      structureEntries.map(async (entry) => [entry.id, await getPhotosForStructure(entry.id)] as const)
+    );
+    setStructurePhotos(Object.fromEntries(structurePhotoPairs));
 
     // Load floor plans + their points
     const plans = await getFloorPlansByProject(project.id);
@@ -240,9 +258,25 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     });
   };
 
+  const toggleStructureExpand = (id: string) => {
+    setExpandedStructures(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleDelete = async (entry: MappingEntry) => {
     if (window.confirm('Eliminare questa mappatura?')) {
       await deleteMappingEntry(entry.id);
+      loadData();
+    }
+  };
+
+  const handleDeleteStructure = async (entry: StructureEntry) => {
+    if (window.confirm('Eliminare questa struttura?')) {
+      await deleteStructureEntry(entry.id);
       loadData();
     }
   };
@@ -354,6 +388,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   const subTabs: { id: SubTab; label: string; icon: typeof Camera; count?: number }[] = [
     { id: 'mappings', label: 'Mappature', icon: Camera, count: mappings.length },
+    { id: 'structures', label: 'Strutture', icon: ClipboardList, count: structures.length },
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
     { id: 'info', label: 'Info', icon: Info },
     { id: 'costs', label: 'Contabilità', icon: DollarSign },
@@ -729,6 +764,52 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
             )}
 
             {/* Plans Tab */}
+            {activeTab === 'structures' && (
+              <div className="px-4 pt-4">
+                <div className="space-y-3">
+                  {structures.map(entry => (
+                    <StructureEntryCard
+                      key={entry.id}
+                      entry={entry}
+                      photos={structurePhotos[entry.id] || []}
+                      isExpanded={expandedStructures.has(entry.id)}
+                      onToggleExpand={() => toggleStructureExpand(entry.id)}
+                      onEdit={(e) => {
+                        e.stopPropagation();
+                        onEditStructure(entry);
+                      }}
+                      onDelete={(e) => {
+                        e.stopPropagation();
+                        handleDeleteStructure(entry);
+                      }}
+                      onPhotoPreview={(url, alt) => setSelectedPhoto({ url, alt })}
+                      getTipologicoLabel={(tipologicoId: string) => {
+                        const tip = project.typologies.find(t => t.id === tipologicoId);
+                        if (!tip) return tipologicoId;
+                        return `Tip. ${tip.number}`;
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {structures.length === 0 && (
+                  <div className="text-center py-12">
+                    <ClipboardList size={40} className="mx-auto text-brand-300 mb-3" />
+                    <p className="text-brand-500 text-sm">Nessuna struttura</p>
+                    <p className="text-brand-400 text-xs mt-1">Usa il pulsante qui sotto per inserire una struttura</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={onAddStructure}
+                  className="w-full mt-4 py-3.5 bg-accent text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-card"
+                >
+                  Aggiungi struttura
+                </button>
+              </div>
+            )}
+
+            {/* Plans Tab */}
             {activeTab === 'plans' && (
               <div className="px-4 pt-4">
                 {floorPlans.length === 0 ? (
@@ -967,4 +1048,3 @@ const PlanThumbnail: React.FC<{ blob: Blob | undefined; remoteUrl?: string; alt:
 };
 
 export default ProjectDetail;
-

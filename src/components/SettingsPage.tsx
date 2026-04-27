@@ -12,7 +12,7 @@ import {
   setSyncIncludeArchivedProjects
 } from '../sync/syncEngine';
 
-type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento';
+type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento' | 'struttura' | 'tipo_struttura';
 
 interface DropdownItem { id: string; category: string; value: string; label: string; sort_order: number; is_active: boolean; }
 interface ProductItem { id: string; brand: string; name: string; sort_order: number; is_active: boolean; }
@@ -430,6 +430,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                       <option value="supporto">Supporto</option>
                       <option value="tipo_supporto">Tipo Supporto</option>
                       <option value="attraversamento">Attraversamento</option>
+                      <option value="struttura">Struttura</option>
+                      <option value="tipo_struttura">Tipo Struttura</option>
                     </select>
                     <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
                   </div>

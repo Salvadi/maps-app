@@ -8,6 +8,20 @@ import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import { MARCA_PRODOTTO_OPTIONS } from '../config/marcaProdotto';
 import { PRODUCTS_BY_BRAND } from '../config/products';
 
+const STRUTTURA_OPTIONS: MenuOption[] = [
+  { value: '', label: '' },
+  { value: 'Parete', label: 'Parete' },
+  { value: 'Soffitto', label: 'Soffitto' },
+  { value: 'Cassonetto porta-impianto', label: 'Cassonetto porta-impianto' },
+  { value: 'Altro', label: 'Altro' },
+];
+
+const TIPO_STRUTTURA_OPTIONS: MenuOption[] = [
+  { value: '', label: '' },
+  { value: 'Flessibile', label: 'Flessibile' },
+  { value: 'Rigido', label: 'Rigido' },
+];
+
 export interface MenuOption {
   value: string;
   label: string;
@@ -221,6 +235,8 @@ function getFallbackOptions(category: string): MenuOption[] {
     case 'supporto': return SUPPORTO_OPTIONS;
     case 'tipo_supporto': return TIPO_SUPPORTO_OPTIONS;
     case 'attraversamento': return ATTRAVERSAMENTO_OPTIONS;
+    case 'struttura': return STRUTTURA_OPTIONS;
+    case 'tipo_struttura': return TIPO_STRUTTURA_OPTIONS;
     default: return [{ value: '', label: '' }];
   }
 }

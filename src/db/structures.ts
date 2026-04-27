@@ -318,7 +318,8 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
       if (error) throw error;
 
       const rows = data || [];
-      const localPhotos = await db.photos.where('mappingEntryId').equals(structureEntryId).toArray();
+      const localPhotos = (await db.photos.where('mappingEntryId').equals(structureEntryId).toArray())
+        .filter((p) => p.entryType === 'structure');
       const localById = new Map(localPhotos.map((p) => [p.id, p]));
 
       const remotePhotos: Photo[] = rows.map((row: any) => ({
@@ -344,7 +345,8 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
     }
   }
 
-  return db.photos.where('mappingEntryId').equals(structureEntryId).toArray();
+  return (await db.photos.where('mappingEntryId').equals(structureEntryId).toArray())
+    .filter((p) => p.entryType === 'structure');
 }
 
 export async function addPhotosToStructure(
