@@ -309,9 +309,9 @@ Valori iniziali: `struttura` → [Parete, Soffitto, Cassonetto porta-impianto, A
 | SAL unificato attraversamenti+strutture | ✅ Completato | `assignStructuresToSal`, delete SAL con unassign anche strutture |
 | Typology modal con categoria struttura | ✅ Completato | tab e campi struttura presenti |
 | Wizard/Card strutture | ✅ Completato | `StructureWizard.tsx`, `StructureEntryCard.tsx` presenti |
-| CostsTab con vista strutture + sheet XLSX dedicato | ❌ Non completato | `CostsTab.tsx` lavora solo su `MappingEntry/crossings` |
-| Navigazione progetto con tab “Strutture” dedicata | ❌ Non completato | `ProjectDetail.tsx` non espone sub-tab strutture |
-| Integrazione floor plan “open entry” typed (`mapping|structure`) | ⚠️ Parziale/non verificata E2E | piano previsto ma non coperto in modo esplicito dai componenti principali |
+| CostsTab con vista strutture + sheet XLSX dedicato | ✅ Completato | pricing/summary strutture + export sheet `Strutture` |
+| Navigazione progetto con tab “Strutture” dedicata | ✅ Completato | `ProjectDetail.tsx` espone sub-tab strutture con CTA/wizard |
+| Integrazione floor plan “open entry” typed (`mapping|structure`) | ⚠️ Parziale/non verificata E2E | i point editor restano ancora mapping-centric in callback/UI |
 
 ### Bug e rischi emersi (adversarial)
 
@@ -321,17 +321,27 @@ Valori iniziali: `struttura` → [Parete, Soffitto, Cassonetto porta-impianto, A
 2. **Rischio contaminazione foto mapping/structure in locale**: in `src/db/structures.ts` il fallback locale leggeva per `mappingEntryId` senza filtrare `entryType`.  
    ✅ **Mitigato** filtrando esplicitamente `entryType === 'structure'`.
 
-3. **Gap funzionale rilevante**: la contabilità costi non include ancora strutture; questo impatta l’obiettivo business “SAL/contabilità unica”.
+3. **Gap funzionale residuo**: la planimetria è ancora parzialmente mapping-centrica per apertura entry/collegamento typed `mapping|structure`.
 
 ### Piano di completamento consigliato (ordine minimo a rischio ridotto)
 
-1. **CostsTab**: introdurre dataset strutture parallelo + tab Attraversamenti/Strutture/Riepilogo + export sheet “Strutture”.
-2. **ProjectDetail / Navigation**: aggiungere sub-tab “Strutture” con lista `StructureEntryCard` e CTA “Aggiungi Struttura”.
-3. **FloorPlan linking**: verificare end-to-end collegamento perimetro ↔ structure entry + callback typed.
-4. **Test regressione**: smoke test per build + test logici su pricing category, SAL assign/unassign e sync foto struttura.
+1. **FloorPlan linking**: completare callback typed `onOpenEntry(id, type)` e wiring UI per aprire mapping/structure da punto planimetria.
+2. **FloorPlan persistence API**: valutare estensione `createFloorPlanPoint` per accettare anche `structureEntryId` senza overload ambiguo.
+3. **Test regressione**: aggiungere test integrati su contabilità strutture (pricing/export) e linkage planimetrico structure.
 
 ### Decisioni di prodotto confermate (post-review)
 
 1. **Unità strutture**: solo `mq` anche per cassonetti; `lunghezza` resta dato descrittivo/informativo.
 2. **Riepilogo economico**: totale unico progetto con subtotali per categoria.
 3. **UI progetto**: tab **separata** “Strutture” in ProjectDetail.
+
+### Checklist migrazione (DB/Supabase) da validare in staging prima di prod
+
+1. Eseguire la migration SQL con:
+   - creazione `structure_entries`,
+   - alter su `photos` e `floor_plan_points` (`mapping_entry_id` nullable + `structure_entry_id`),
+   - alter su `typology_prices` (`category`),
+   - seed dropdown `struttura`/`tipo_struttura`.
+2. Verificare che tutte le policy RLS per `photos` e `floor_plan_points` coprano entrambe le FK alternative.
+3. Verificare indice/unique di `typology_prices` con `category` (evita collisioni tra attraversamenti e strutture).
+4. Eseguire smoke test online-first: create/update/delete struttura con foto + assegnazione SAL + export contabilità.
