@@ -331,64 +331,6 @@
   flex: 1;
 }
 
-.cartiglio-bottom-section {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 140;
-  max-width: min(560px, calc(100% - 24px));
-}
-
-.cartiglio-bottom-section.closed {
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.cartiglio-bottom-section.open {
-  left: 12px;
-  right: 12px;
-  width: auto;
-  max-width: none;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  background: #fafafa;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.cartiglio-bottom-toggle {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #d0d0d0;
-  border-radius: 8px;
-  background: #f0f0f0;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.cartiglio-bottom-section.open .cartiglio-bottom-toggle {
-  border: none;
-  border-bottom: 1px solid #e0e0e0;
-  border-radius: 0;
-}
-
-.cartiglio-bottom-toggle:hover {
-  background: #e8e8e8;
-}
-
-.cartiglio-bottom-panel {
-  padding: 14px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
 
 .cartiglio-editor-header {
   display: flex;
@@ -666,13 +608,13 @@
 
 .menu-content {
   padding: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .floor-plan-editor.standalone-mode .menu-content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   padding-bottom: 48px;
   padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
 }
@@ -1302,35 +1244,3 @@
   border-color: #999;
 }
 
-/* EI Legend */
-.ei-legend-toggle {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 220;
-  padding: 6px 10px;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.ei-legend-toggle:hover {
-  background: #f5f5f5;
-}
-
-.ei-legend-toggle.cartiglio-open {
-  top: 10px;
-}
-
-@media (max-width: 768px) {
-  .ei-legend-toggle,
-  .ei-legend-toggle.cartiglio-open {
-    top: 8px;
-    left: 8px;
-    z-index: 240;
-  }
-}

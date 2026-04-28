@@ -1091,7 +1091,160 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               )}
             </div>
 
-            {/* Export options - only in standalone mode (MappingView has its own export) */}
+            {/* Visualizzazione: legenda EI + cartiglio */}
+            {(mode === 'standalone' || mode === 'view-edit') && (
+              <div className="menu-section">
+                <h4>Visualizzazione</h4>
+                <label className="menu-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={!!eiLegendPosition}
+                    onChange={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
+                  />
+                  <span>🔥 Legenda PPA</span>
+                </label>
+                <label className="menu-checkbox" style={{ marginTop: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={showCartiglioPanel}
+                    onChange={() => setShowCartiglioPanel(prev => !prev)}
+                  />
+                  <span>Cartiglio</span>
+                </label>
+
+                {showCartiglioPanel && (
+                  <div style={{ marginTop: '12px' }}>
+                    <div className="cartiglio-editor-header">
+                      <div>
+                        <h3>Cartiglio planimetria</h3>
+                        <p>
+                          {cartiglio.enabled
+                            ? 'Attivo per l\'export PDF.'
+                            : 'Disattivato: non verrà aggiunto al PDF esportato.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="cartiglio-row-actions">
+                      <button
+                        type="button"
+                        className={`cartiglio-row-btn ${cartiglio.enabled ? 'active' : ''}`}
+                        onClick={() => handleCartiglioToggle('enabled')}
+                      >
+                        {cartiglio.enabled ? 'Disattiva export' : 'Attiva export'}
+                      </button>
+                      <button
+                        type="button"
+                        className={`cartiglio-row-btn ${showCartiglioOnCanvas ? 'active' : ''}`}
+                        onClick={() => setShowCartiglioOnCanvas(prev => !prev)}
+                        title="Mostra/nascondi l'anteprima del cartiglio sul canvas"
+                      >
+                        {showCartiglioOnCanvas ? 'Nascondi anteprima' : 'Mostra anteprima'}
+                      </button>
+                      <div className="cartiglio-scale-control">
+                        <button
+                          type="button"
+                          className="cartiglio-row-btn"
+                          onClick={() => handleCartiglioScaleChange(cartiglio.scale - 0.1)}
+                          disabled={cartiglio.scale <= CARTIGLIO_MIN_SCALE + 1e-6}
+                          title="Riduci dimensioni cartiglio"
+                        >
+                          − Scala
+                        </button>
+                        <span className="cartiglio-scale-value">{Math.round(cartiglio.scale * 100)}%</span>
+                        <button
+                          type="button"
+                          className="cartiglio-row-btn"
+                          onClick={() => handleCartiglioScaleChange(cartiglio.scale + 0.1)}
+                          disabled={cartiglio.scale >= CARTIGLIO_MAX_SCALE - 1e-6}
+                          title="Aumenta dimensioni cartiglio"
+                        >
+                          + Scala
+                        </button>
+                        {Math.abs(cartiglio.scale - 1) > 1e-6 && (
+                          <button
+                            type="button"
+                            className="cartiglio-row-btn"
+                            onClick={() => handleCartiglioScaleChange(1)}
+                            title="Ripristina scala 100%"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      {allowCustomTypologyRows && typologyNumbers.length === 0 && (
+                        <>
+                          <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(-1)}>− Riga</button>
+                          <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(1)}>+ Riga</button>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="cartiglio-layout">
+                      <div className="cartiglio-box cartiglio-box-tavola">
+                        <label className="cartiglio-inline-label">
+                          <span>TAVOLA</span>
+                          <input
+                            type="text"
+                            value={cartiglio.tavola}
+                            onChange={(e) => handleCartiglioFieldChange('tavola', e.target.value)}
+                            placeholder="Numero tavola"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="cartiglio-box cartiglio-box-typologies">
+                        {visibleTypologyNumbers.length === 0 ? (
+                          <div className="cartiglio-typology-empty">Nessun tipologico nel progetto.</div>
+                        ) : (
+                          visibleTypologyNumbers.map((number) => (
+                            <label key={number} className="cartiglio-typology-row">
+                              <span>{number})</span>
+                              <textarea
+                                value={cartiglio.typologyValues[String(number)] || ''}
+                                onChange={(e) => handleTypologyValueChange(number, e.target.value)}
+                                placeholder="Descrizione tipologico"
+                                rows={1}
+                              />
+                            </label>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="cartiglio-bottom-row">
+                        <div className="cartiglio-box cartiglio-box-company">
+                          <div className="cartiglio-company-lines">
+                            <div>Installatore : Opi Firesafe SrL</div>
+                            <div>via G. Galilei, 9 - 33010 Tavagnacco (Ud)</div>
+                            <div>Tel : 0432 1901608</div>
+                            <div>mail : tecnico@opifiresafe.com</div>
+                            <div>web : www.opifiresafe.com</div>
+                          </div>
+                          <label className="cartiglio-stacked-field">
+                            <span>Committente</span>
+                            <input
+                              type="text"
+                              value={cartiglio.committente}
+                              onChange={(e) => handleCartiglioFieldChange('committente', e.target.value)}
+                              placeholder="Dati committente"
+                            />
+                          </label>
+                          <label className="cartiglio-stacked-field">
+                            <span>Locali</span>
+                            <input
+                              type="text"
+                              value={cartiglio.locali}
+                              onChange={(e) => handleCartiglioFieldChange('locali', e.target.value)}
+                              placeholder="Locali"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1143,160 +1296,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 </div>
               )}
 
-              {/* EI Legend toggle button */}
-              {(mode === 'standalone' || mode === 'view-edit') && (
-                <button
-                  className={`ei-legend-toggle ${showCartiglioPanel ? 'cartiglio-open' : ''}`.trim()}
-                  onClick={() => setEiLegendPosition(eiLegendPosition ? null : { x: 0.02, y: 0.02 })}
-                  title={eiLegendPosition ? 'Nascondi legenda EI' : 'Mostra legenda EI'}
-                >
-                  {eiLegendPosition ? '🔥 Nascondi Legenda' : '🔥 Legenda PPA'}
-                </button>
-              )}
             </div>
-          </div>
-          <div className={`cartiglio-bottom-section ${showCartiglioPanel ? 'open' : 'closed'}`.trim()}>
-            <button
-              type="button"
-              className="cartiglio-bottom-toggle"
-              onClick={() => setShowCartiglioPanel(prev => !prev)}
-            >
-              {showCartiglioPanel ? 'Nascondi cartiglio' : 'Mostra cartiglio'}
-            </button>
-
-            {showCartiglioPanel && (
-              <div className="cartiglio-bottom-panel">
-                <div className="cartiglio-editor-header">
-                  <div>
-                    <h3>Cartiglio planimetria</h3>
-                    <p>
-                      {cartiglio.enabled
-                        ? 'Attivo per l\'export PDF.'
-                        : 'Disattivato: non verrà aggiunto al PDF esportato.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="cartiglio-row-actions">
-                  <button
-                    type="button"
-                    className={`cartiglio-row-btn ${cartiglio.enabled ? 'active' : ''}`}
-                    onClick={() => handleCartiglioToggle('enabled')}
-                  >
-                    {cartiglio.enabled ? 'Disattiva export' : 'Attiva export'}
-                  </button>
-                  {(mode === 'standalone' || mode === 'view-edit') && (
-                    <button
-                      type="button"
-                      className={`cartiglio-row-btn ${showCartiglioOnCanvas ? 'active' : ''}`}
-                      onClick={() => setShowCartiglioOnCanvas(prev => !prev)}
-                      title="Mostra/nascondi l'anteprima del cartiglio sul canvas"
-                    >
-                      {showCartiglioOnCanvas ? 'Nascondi anteprima canvas' : 'Mostra anteprima canvas'}
-                    </button>
-                  )}
-                  <div className="cartiglio-scale-control">
-                    <button
-                      type="button"
-                      className="cartiglio-row-btn"
-                      onClick={() => handleCartiglioScaleChange(cartiglio.scale - 0.1)}
-                      disabled={cartiglio.scale <= CARTIGLIO_MIN_SCALE + 1e-6}
-                      title="Riduci dimensioni cartiglio"
-                    >
-                      − Scala
-                    </button>
-                    <span className="cartiglio-scale-value">{Math.round(cartiglio.scale * 100)}%</span>
-                    <button
-                      type="button"
-                      className="cartiglio-row-btn"
-                      onClick={() => handleCartiglioScaleChange(cartiglio.scale + 0.1)}
-                      disabled={cartiglio.scale >= CARTIGLIO_MAX_SCALE - 1e-6}
-                      title="Aumenta dimensioni cartiglio"
-                    >
-                      + Scala
-                    </button>
-                    {Math.abs(cartiglio.scale - 1) > 1e-6 && (
-                      <button
-                        type="button"
-                        className="cartiglio-row-btn"
-                        onClick={() => handleCartiglioScaleChange(1)}
-                        title="Ripristina scala 100%"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  {allowCustomTypologyRows && typologyNumbers.length === 0 && (
-                    <>
-                      <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(-1)}>− Riga</button>
-                      <button type="button" className="cartiglio-row-btn" onClick={() => handleStandaloneRowCountChange(1)}>+ Riga</button>
-                    </>
-                  )}
-                </div>
-
-                <div className="cartiglio-layout">
-                  <div className="cartiglio-box cartiglio-box-tavola">
-                    <label className="cartiglio-inline-label">
-                      <span>TAVOLA</span>
-                      <input
-                        type="text"
-                        value={cartiglio.tavola}
-                        onChange={(e) => handleCartiglioFieldChange('tavola', e.target.value)}
-                        placeholder="Numero tavola"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="cartiglio-box cartiglio-box-typologies">
-                    {visibleTypologyNumbers.length === 0 ? (
-                      <div className="cartiglio-typology-empty">Nessun tipologico nel progetto.</div>
-                    ) : (
-                      visibleTypologyNumbers.map((number) => (
-                        <label key={number} className="cartiglio-typology-row">
-                          <span>{number})</span>
-                          <textarea
-                            value={cartiglio.typologyValues[String(number)] || ''}
-                            onChange={(e) => handleTypologyValueChange(number, e.target.value)}
-                            placeholder="Descrizione tipologico"
-                            rows={1}
-                          />
-                        </label>
-                      ))
-                    )}
-                  </div>
-
-                  <div className="cartiglio-bottom-row">
-                    <div className="cartiglio-box cartiglio-box-company">
-                      <div className="cartiglio-company-lines">
-                        <div>Installatore : Opi Firesafe SrL</div>
-                        <div>via G. Galilei, 9 - 33010 Tavagnacco (Ud)</div>
-                        <div>Tel : 0432 1901608</div>
-                        <div>mail : tecnico@opifiresafe.com</div>
-                        <div>web : www.opifiresafe.com</div>
-                      </div>
-                      <label className="cartiglio-stacked-field">
-                        <span>Committente</span>
-                        <input
-                          type="text"
-                          value={cartiglio.committente}
-                          onChange={(e) => handleCartiglioFieldChange('committente', e.target.value)}
-                          placeholder="Dati committente"
-                        />
-                      </label>
-                      <label className="cartiglio-stacked-field">
-                        <span>Locali</span>
-                        <input
-                          type="text"
-                          value={cartiglio.locali}
-                          onChange={(e) => handleCartiglioFieldChange('locali', e.target.value)}
-                          placeholder="Locali"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
