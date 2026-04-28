@@ -328,25 +328,67 @@ export async function downloadPhotosFromSupabase(
 
   const mappingEntries = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
   const mappingEntryIds = mappingEntries.map((entry) => entry.id);
-  if (mappingEntryIds.length === 0) {
+  const structureEntries = await db.structureEntries.where('projectId').anyOf(projectIds).toArray();
+  const structureEntryIds = structureEntries.map((entry) => entry.id);
+  if (mappingEntryIds.length === 0 && structureEntryIds.length === 0) {
     return { downloaded: 0, failed: 0 };
   }
 
   const pendingIds = await getPendingEntityIds('photo');
-  const expectedPhotoIds = new Set(
-    mappingEntries.flatMap((entry) =>
-      Array.isArray(entry.photos)
-        ? entry.photos
-            .map((photo) => photo.id)
-            .filter((photoId): photoId is string => typeof photoId === 'string' && photoId.length > 0)
-        : []
-    )
+  const expectedPhotoIds = new Set<string>();
+  const photoRows: any[] = [];
+
+  const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
+  for (const batch of mappingEntryIdBatches) {
+    const { data, error } = await supabase
+      .from('photos')
+      .select('*')
+      .in('mapping_entry_id', batch);
+
+    if (error) {
+      throw new Error(`Failed to download photos: ${error.message}`);
+    }
+
+    for (const row of data || []) {
+      expectedPhotoIds.add(row.id);
+    }
+
+    photoRows.push(...(data || []));
+  }
+
+  const structureEntryIdBatches = chunkArray(structureEntryIds, SUPABASE_IN_BATCH_SIZE);
+  for (const batch of structureEntryIdBatches) {
+    const { data, error } = await supabase
+      .from('photos')
+      .select('*')
+      .in('structure_entry_id', batch);
+
+    if (error) {
+      throw new Error(`Failed to download photos: ${error.message}`);
+    }
+
+    for (const row of data || []) {
+      expectedPhotoIds.add(row.id);
+    }
+
+    photoRows.push(...(data || []));
+  }
+
+  const localPhotoScopeEntryIds = [...mappingEntryIds, ...structureEntryIds];
+  const localPhotos = localPhotoScopeEntryIds.length > 0
+    ? await db.photos.where('mappingEntryId').anyOf(localPhotoScopeEntryIds).toArray()
+    : [];
+  const locallyUnsyncedPhotoIds = new Set(
+    localPhotos.filter((photo) => !photo.uploaded).map((photo) => photo.id)
   );
-  const localPhotos = await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).toArray();
   const localPhotoIdSet = new Set(localPhotos.map((photo) => photo.id));
   const staleLocalPhotoIds = localPhotos
     .map((photo) => photo.id)
-    .filter((photoId) => !expectedPhotoIds.has(photoId) && !pendingIds.has(photoId));
+    .filter((photoId) =>
+      !expectedPhotoIds.has(photoId)
+      && !pendingIds.has(photoId)
+      && !locallyUnsyncedPhotoIds.has(photoId)
+    );
 
   if (staleLocalPhotoIds.length > 0) {
     await db.photos.bulkDelete(staleLocalPhotoIds);
@@ -354,41 +396,38 @@ export async function downloadPhotosFromSupabase(
 
   const missingPhotoIds = Array.from(expectedPhotoIds).filter((photoId) => !localPhotoIdSet.has(photoId));
   const shouldFetchAllRows = options?.includeBlobs === true;
-  const photoRows: any[] = [];
 
   if (!shouldFetchAllRows && missingPhotoIds.length === 0) {
     return { downloaded: 0, failed: 0 };
   }
 
   if (!shouldFetchAllRows) {
+    const fetchedById = new Map(photoRows.map((row) => [row.id, row]));
     const photoIdBatches = chunkArray(missingPhotoIds, SUPABASE_IN_BATCH_SIZE);
     for (const batch of photoIdBatches) {
-      const { data, error } = await supabase
-        .from('photos')
-        .select('*')
-        .in('id', batch);
-
-      if (error) {
-        throw new Error(`Failed to download photos: ${error.message}`);
+      const unresolvedIds = batch.filter((id) => !fetchedById.has(id));
+      if (unresolvedIds.length === 0) {
+        continue;
       }
 
-      photoRows.push(...(data || []));
+      const { data, error } = await supabase.from('photos').select('*').in('id', unresolvedIds);
+      if (error) throw new Error(`Failed to download photos: ${error.message}`);
+      for (const row of data || []) {
+        fetchedById.set(row.id, row);
+      }
+    }
+
+    photoRows.length = 0;
+    for (const photoId of missingPhotoIds) {
+      const row = fetchedById.get(photoId);
+      if (row) {
+        photoRows.push(row);
+      }
     }
   } else {
-    const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
-
-    for (const batch of mappingEntryIdBatches) {
-      const { data, error } = await supabase
-        .from('photos')
-        .select('*')
-        .in('mapping_entry_id', batch);
-
-      if (error) {
-        throw new Error(`Failed to download photos: ${error.message}`);
-      }
-
-      photoRows.push(...(data || []));
-    }
+    const photoRowById = new Map(photoRows.map((row) => [row.id, row]));
+    photoRows.length = 0;
+    photoRows.push(...Array.from(photoRowById.values()));
   }
 
   let downloaded = 0;
@@ -417,7 +456,8 @@ export async function downloadPhotosFromSupabase(
 
       const photo: Photo = {
         id: remotePhoto.id,
-        mappingEntryId: remotePhoto.mapping_entry_id,
+        mappingEntryId: remotePhoto.mapping_entry_id || remotePhoto.structure_entry_id,
+        entryType: remotePhoto.structure_entry_id ? 'structure' : 'mapping',
         blob,
         thumbnailBlob,
         metadata: remotePhoto.metadata,
@@ -438,10 +478,14 @@ export async function downloadPhotosFromSupabase(
 
   // Pruning: rimuovere localmente le foto non più presenti remoto
   const remotePhotoIds = new Set(photoRows.map((r: any) => r.id));
-  const localPhotoIds = mappingEntryIds.length > 0
-    ? await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).primaryKeys() as string[]
+  const localPhotoIds = localPhotoScopeEntryIds.length > 0
+    ? await db.photos.where('mappingEntryId').anyOf(localPhotoScopeEntryIds).primaryKeys() as string[]
     : [];
-  const toDeletePhotos = localPhotoIds.filter((id) => !remotePhotoIds.has(id) && !pendingIds.has(id));
+  const toDeletePhotos = localPhotoIds.filter((id) =>
+    !remotePhotoIds.has(id)
+    && !pendingIds.has(id)
+    && !locallyUnsyncedPhotoIds.has(id)
+  );
   if (toDeletePhotos.length > 0) await db.photos.bulkDelete(toDeletePhotos);
 
   return { downloaded, failed };
@@ -902,4 +946,3 @@ export async function downloadStructureEntriesFromSupabase(userId: string, isAdm
 
   return downloadedCount;
 }
-
