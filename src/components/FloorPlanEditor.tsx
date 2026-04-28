@@ -1155,7 +1155,14 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
               )}
             </div>
           </div>
-          <div className={`cartiglio-bottom-section ${showCartiglioPanel ? 'open' : 'closed'}`.trim()}>
+          <div
+            className={`cartiglio-bottom-section ${showCartiglioPanel ? 'open' : 'closed'}`.trim()}
+            style={{
+              right: showRightMenu ? '312px' : '12px',
+              ...(showCartiglioPanel && { left: showLeftMenu ? '312px' : '12px' }),
+              transition: 'left 0.3s ease, right 0.3s ease',
+            }}
+          >
             <button
               type="button"
               className="cartiglio-bottom-toggle"
