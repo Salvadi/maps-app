@@ -26,6 +26,125 @@ function getRemotePhotoTimestamp(metadata: any): number {
   return typeof rawTimestamp === 'number' ? rawTimestamp : now();
 }
 
+function compareInterventionValues(a?: string, b?: string): number {
+  const valueA = (a || '').trim();
+  const valueB = (b || '').trim();
+  const numA = Number(valueA);
+  const numB = Number(valueB);
+  const aIsNum = valueA !== '' && Number.isFinite(numA);
+  const bIsNum = valueB !== '' && Number.isFinite(numB);
+
+  if (aIsNum && bIsNum) {
+    return numA - numB;
+  }
+  return valueA.localeCompare(valueB, 'it', { numeric: true, sensitivity: 'base' });
+}
+
+function buildFloorPlanLabel(entry: MappingEntry): string[] {
+  const parts: string[] = [];
+  if (entry.floor) parts.push(`P${entry.floor}`);
+  if (entry.room) parts.push(`S${entry.room}`);
+  if (entry.intervention) parts.push(`Int${entry.intervention}`);
+  return [parts.length > 0 ? parts.join('_') : 'Punto'];
+}
+
+async function upsertPendingSyncItem(
+  entityType: SyncQueueItem['entityType'],
+  entityId: string,
+  payload: unknown
+): Promise<void> {
+  const existingSyncItem = await db.syncQueue
+    .where('entityType')
+    .equals(entityType)
+    .and((item) => item.entityId === entityId && item.synced === 0 && item.operation !== 'DELETE')
+    .first();
+
+  if (existingSyncItem) {
+    await db.syncQueue.update(existingSyncItem.id, {
+      payload,
+      timestamp: now(),
+    });
+    return;
+  }
+
+  await db.syncQueue.add({
+    id: generateId(),
+    operation: 'UPDATE',
+    entityType,
+    entityId,
+    payload,
+    timestamp: now(),
+    retryCount: 0,
+    synced: 0,
+  });
+}
+
+export async function resequenceMappingInterventions(projectId: string): Promise<void> {
+  const entries = await db.mappingEntries.where('projectId').equals(projectId).toArray();
+  if (entries.length === 0) return;
+
+  const groups = new Map<string, MappingEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.floor || ''}__${entry.room || ''}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(entry);
+  }
+
+  let hasChanges = false;
+
+  for (const groupEntries of Array.from(groups.values())) {
+    groupEntries.sort((a, b) => {
+      const byIntervention = compareInterventionValues(a.intervention, b.intervention);
+      if (byIntervention !== 0) return byIntervention;
+      return a.timestamp - b.timestamp;
+    });
+
+    for (let index = 0; index < groupEntries.length; index += 1) {
+      const entry = groupEntries[index];
+      const nextIntervention = String(index + 1);
+      if ((entry.intervention || '') === nextIntervention) {
+        continue;
+      }
+
+      const updatedEntry: MappingEntry = {
+        ...entry,
+        intervention: nextIntervention,
+        lastModified: now(),
+        version: entry.version + 1,
+        synced: 0,
+      };
+
+      await db.mappingEntries.put(updatedEntry);
+      await upsertPendingSyncItem('mapping_entry', updatedEntry.id, updatedEntry);
+
+      const linkedPoints = await db.floorPlanPoints
+        .where('mappingEntryId')
+        .equals(updatedEntry.id)
+        .toArray();
+
+      for (const point of linkedPoints) {
+        const updatedPoint = {
+          ...point,
+          metadata: {
+            ...point.metadata,
+            labelText: buildFloorPlanLabel(updatedEntry),
+          },
+          updatedAt: now(),
+          synced: 0 as const,
+        };
+        await db.floorPlanPoints.put(updatedPoint);
+        await upsertPendingSyncItem('floor_plan_point', updatedPoint.id, updatedPoint);
+      }
+
+      hasChanges = true;
+    }
+  }
+
+  if (hasChanges) {
+    triggerImmediateUpload();
+  }
+}
+
 function buildLocalPhotoFromRemoteRow(
   row: RemotePhotoRow,
   localPhoto: Photo | undefined,

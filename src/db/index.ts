@@ -21,7 +21,7 @@ export {
   setProjectOfflinePinned,
   hydrateProjectForOffline,
 } from './projects';
-export { createMappingEntry, getMappingEntry, getMappingEntriesForProject, updateMappingEntry, deleteMappingEntry, getPhotosForMapping, getPhotosForMappings, ensurePhotoBlob, addPhotosToMapping, removePhotoFromMapping } from './mappings';
+export { createMappingEntry, getMappingEntry, getMappingEntriesForProject, updateMappingEntry, deleteMappingEntry, resequenceMappingInterventions, getPhotosForMapping, getPhotosForMappings, ensurePhotoBlob, addPhotosToMapping, removePhotoFromMapping } from './mappings';
 export { login, signUp, logout, getCurrentUser, isAdmin, initializeMockUsers, onAuthStateChange, sendPasswordResetEmail, updatePassword } from './auth';
 
 // Floor Plans exports
@@ -72,6 +72,7 @@ export {
   getStructureEntriesForProject,
   updateStructureEntry,
   deleteStructureEntry,
+  resequenceStructureInterventions,
   getPhotosForStructure,
   addPhotosToStructure,
   removePhotoFromStructure,

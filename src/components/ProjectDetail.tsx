@@ -9,8 +9,8 @@ import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
-  getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry,
-  StructureEntry, getStructureEntriesForProject, getPhotosForStructure, deleteStructureEntry,
+  getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry, resequenceMappingInterventions,
+  StructureEntry, getStructureEntriesForProject, getPhotosForStructure, deleteStructureEntry, resequenceStructureInterventions,
   getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers, ensureFloorPlanAsset,
   ProjectCachePref, getProjectCachePref, setProjectOfflinePinned, hydrateProjectForOffline,
 } from '../db';
@@ -36,6 +36,7 @@ interface ProjectDetailProps {
 }
 
 type SubTab = 'mappings' | 'structures' | 'plans' | 'info' | 'costs' | 'sal';
+type InterventionSortOrder = 'az' | 'za';
 
 const ProjectDetail: React.FC<ProjectDetailProps> = ({
   project,
@@ -107,6 +108,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
     return localStorage.getItem(`pd_${project.id}_filtersOpen`) === 'true';
   });
+  const [mappingInterventionSort, setMappingInterventionSort] = useState<InterventionSortOrder>(() => {
+    return (localStorage.getItem(`pd_${project.id}_mappingInterventionSort`) as InterventionSortOrder) || 'az';
+  });
+  const [structureInterventionSort, setStructureInterventionSort] = useState<InterventionSortOrder>(() => {
+    return (localStorage.getItem(`pd_${project.id}_structureInterventionSort`) as InterventionSortOrder) || 'az';
+  });
 
   const hasActiveFilters = showOnlyToComplete || !!filterTipologico || !!filterSupporto || !!filterAttraversamento;
 
@@ -137,6 +144,33 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   useEffect(() => {
     localStorage.setItem(`pd_${project.id}_filtersOpen`, String(filtersOpen));
   }, [filtersOpen, project.id]);
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_mappingInterventionSort`, mappingInterventionSort);
+  }, [mappingInterventionSort, project.id]);
+  useEffect(() => {
+    localStorage.setItem(`pd_${project.id}_structureInterventionSort`, structureInterventionSort);
+  }, [structureInterventionSort, project.id]);
+
+  const compareIntervention = (a?: string, b?: string, order: InterventionSortOrder = 'az'): number => {
+    const valueA = (a || '').trim();
+    const valueB = (b || '').trim();
+    const numA = Number(valueA);
+    const numB = Number(valueB);
+    const aIsNum = valueA !== '' && Number.isFinite(numA);
+    const bIsNum = valueB !== '' && Number.isFinite(numB);
+
+    let result = 0;
+    if (aIsNum && bIsNum) {
+      result = numA - numB;
+    } else {
+      result = valueA.localeCompare(valueB, 'it', { numeric: true, sensitivity: 'base' });
+    }
+
+    if (result === 0) {
+      result = valueA.localeCompare(valueB, 'it', { numeric: true, sensitivity: 'base' });
+    }
+    return order === 'az' ? result : -result;
+  };
 
   // Compute filtered + grouped mappings
   const filteredFloorGroups = useMemo(() => {
@@ -156,9 +190,16 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       count: filtered.length,
       groups: Object.keys(grouped)
         .sort((a, b) => parseFloat(a) - parseFloat(b))
-        .map(floor => ({ floor, entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp) })),
+        .map(floor => ({
+          floor,
+          entries: grouped[floor].sort((a, b) => {
+            const byIntervention = compareIntervention(a.intervention, b.intervention, mappingInterventionSort);
+            if (byIntervention !== 0) return byIntervention;
+            return b.timestamp - a.timestamp;
+          })
+        })),
     };
-  }, [mappings, showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento]);
+  }, [mappings, showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento, mappingInterventionSort]);
 
   // Compute grouped structures by floor (mirrors filteredFloorGroups for mappings)
   const structureFloorGroups = useMemo(() => {
@@ -170,8 +211,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     }
     return Object.keys(grouped)
       .sort((a, b) => parseFloat(a) - parseFloat(b))
-      .map(floor => ({ floor, entries: grouped[floor].sort((a, b) => b.timestamp - a.timestamp) }));
-  }, [structures]);
+      .map(floor => ({
+        floor,
+        entries: grouped[floor].sort((a, b) => {
+          const byIntervention = compareIntervention(a.intervention, b.intervention, structureInterventionSort);
+          if (byIntervention !== 0) return byIntervention;
+          return b.timestamp - a.timestamp;
+        })
+      }));
+  }, [structures, structureInterventionSort]);
 
   useEffect(() => {
     loadData();
@@ -285,6 +333,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleDelete = async (entry: MappingEntry) => {
     if (window.confirm('Eliminare questa mappatura?')) {
       await deleteMappingEntry(entry.id);
+      const shouldResequence = window.confirm(
+        'Vuoi risequenziare automaticamente gli Intervento n. dopo l’eliminazione?'
+      );
+      if (shouldResequence) {
+        await resequenceMappingInterventions(project.id);
+      }
       loadData();
     }
   };
@@ -292,6 +346,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleDeleteStructure = async (entry: StructureEntry) => {
     if (window.confirm('Eliminare questa struttura?')) {
       await deleteStructureEntry(entry.id);
+      const shouldResequence = window.confirm(
+        'Vuoi risequenziare automaticamente gli Intervento n. dopo l’eliminazione?'
+      );
+      if (shouldResequence) {
+        await resequenceStructureInterventions(project.id);
+      }
       loadData();
     }
   };
@@ -493,6 +553,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                 {mappings.length > 0 && (
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-xs text-brand-500">{mappings.length} mappature</span>
+                    <select
+                      value={mappingInterventionSort}
+                      onChange={e => setMappingInterventionSort(e.target.value as InterventionSortOrder)}
+                      className="text-[11px] bg-white border border-brand-200 rounded-lg px-2 py-1 text-brand-600"
+                      title="Ordina per Intervento"
+                    >
+                      <option value="az">Int. n A-Z</option>
+                      <option value="za">Int. n Z-A</option>
+                    </select>
                     {totalToComplete > 0 && (
                       <span className="flex items-center gap-1 text-xs text-warning font-medium bg-orange-50 px-2 py-0.5 rounded-full">
                         <AlertTriangle size={11} />
@@ -782,6 +851,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
             {/* Structures Tab */}
             {activeTab === 'structures' && (
               <div className="px-4 pt-4">
+                {structures.length > 0 && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs text-brand-500">{structures.length} strutture</span>
+                    <select
+                      value={structureInterventionSort}
+                      onChange={e => setStructureInterventionSort(e.target.value as InterventionSortOrder)}
+                      className="text-[11px] bg-white border border-brand-200 rounded-lg px-2 py-1 text-brand-600"
+                      title="Ordina per Intervento"
+                    >
+                      <option value="az">Int. n A-Z</option>
+                      <option value="za">Int. n Z-A</option>
+                    </select>
+                  </div>
+                )}
                 <div className="space-y-3">
                   {structureFloorGroups.map(group => (
                     <div key={group.floor}>

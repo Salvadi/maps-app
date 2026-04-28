@@ -11,6 +11,7 @@ import {
   getMappingEntriesForProject,
   getPhotosForMappings,
   deleteMappingEntry,
+  resequenceMappingInterventions,
   updateMappingEntry,
   getAllUsers,
   FloorPlan,
@@ -581,6 +582,12 @@ const MappingView: React.FC<MappingViewProps> = ({
 
     try {
       await deleteMappingEntry(mappingId);
+      const shouldResequence = window.confirm(
+        'Vuoi risequenziare automaticamente gli Intervento n. dopo l’eliminazione?'
+      );
+      if (shouldResequence) {
+        await resequenceMappingInterventions(project.id);
+      }
 
       // Remove from local state
       setMappings(prev => prev.filter(m => m.id !== mappingId));
