@@ -400,7 +400,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   };
 
   const subTabs: { id: SubTab; label: string; icon: typeof Camera; count?: number }[] = [
-    { id: 'mappings', label: 'Mappature', icon: Camera, count: mappings.length },
+    { id: 'mappings', label: 'Attraversamenti', icon: Camera, count: mappings.length },
     { id: 'structures', label: 'Strutture', icon: ClipboardList, count: structures.length },
     { id: 'plans', label: 'Planimetrie', icon: Map, count: floorPlans.length },
     { id: 'info', label: 'Info', icon: Info },

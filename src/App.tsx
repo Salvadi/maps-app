@@ -9,10 +9,12 @@ import BottomTabBar, { TabId } from './components/BottomTabBar';
 import {
   db, initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, StructureEntry,
-  getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint
+  getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint,
+  getMappingEntriesForProject, getPhotosForMappings
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { enforceForcedMigrationIfNeeded } from './lib/forcedMigration';
+import type { UnmappedEntry } from './components/FloorPlanEditor';
 import {
   startAutoSync, stopAutoSync, lockedSync,
   getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
@@ -57,6 +59,7 @@ const App: React.FC = () => {
   const [editorImageUrl, setEditorImageUrl] = useState<string | null>(null);
   const [editorProject, setEditorProject] = useState<Project | null>(null);
   const [editorInitialPoints, setEditorInitialPoints] = useState<import('./components/FloorPlanCanvas').CanvasPoint[]>([]);
+  const [editorUnmappedEntries, setEditorUnmappedEntries] = useState<UnmappedEntry[]>([]);
 
   // Handle browser back button
   useEffect(() => {
@@ -412,6 +415,9 @@ const App: React.FC = () => {
     setEditorImageUrl(hydratedImageUrl);
     try {
       const dbPoints = await getFloorPlanPoints(hydratedPlan.id);
+      const mappings = await getMappingEntriesForProject(project.id);
+      const photosByMapping = await getPhotosForMappings(mappings.map((m) => m.id));
+      const placedMappingIds = new Set(dbPoints.map((p) => p.mappingEntryId).filter(Boolean));
       const canvasPoints = dbPoints.map(p => ({
         id: p.id,
         type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
@@ -427,9 +433,26 @@ const App: React.FC = () => {
         eiRating: p.eiRating,
       }));
       setEditorInitialPoints(canvasPoints);
+      const unmappedEntries: UnmappedEntry[] = mappings
+        .filter((m) => m.floor === hydratedPlan.floor && !placedMappingIds.has(m.id))
+        .map((m) => {
+          const photoCount = (photosByMapping[m.id] || []).length;
+          const labelParts = [`P${m.floor}`];
+          if (m.room) labelParts.push(`S${m.room}`);
+          if (m.intervention) labelParts.push(`Int${m.intervention}`);
+          if (photoCount > 1) labelParts[0] = `${labelParts[0]}_01-${String(photoCount).padStart(2, '0')}`;
+          const supporto = m.crossings?.[0]?.supporto?.toLowerCase() || '';
+          return {
+            id: m.id,
+            labelText: [labelParts.join('_')],
+            type: supporto === 'solaio' ? 'solaio' : 'parete',
+          };
+        });
+      setEditorUnmappedEntries(unmappedEntries);
     } catch (err) {
       console.warn('Could not load floor plan points:', err);
       setEditorInitialPoints([]);
+      setEditorUnmappedEntries([]);
     }
     setCurrentView('floorPlanEditor');
   };
@@ -449,6 +472,7 @@ const App: React.FC = () => {
     setEditorImageUrl(null);
     setEditorProject(null);
     setEditorInitialPoints([]);
+    setEditorUnmappedEntries([]);
   };
 
   const handleOpenStandaloneEditor = () => {
@@ -558,6 +582,7 @@ const App: React.FC = () => {
               imageUrl={editorImageUrl}
               initialPoints={editorInitialPoints}
               mode="view-edit"
+              unmappedEntries={editorUnmappedEntries}
               initialGridConfig={editorFloorPlan.gridEnabled ? {
                 enabled: editorFloorPlan.gridEnabled,
                 rows: editorFloorPlan.gridConfig?.rows || 10,
