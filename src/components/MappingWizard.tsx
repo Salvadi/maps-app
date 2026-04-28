@@ -26,6 +26,7 @@ interface MappingWizardProps {
   project: Project | null;
   currentUser: User;
   onBack: () => void;
+  onSaved?: () => void;
   editingEntry?: MappingEntry;
   onSync?: () => void;
   isSyncing?: boolean;
@@ -48,7 +49,7 @@ function determineSuggestedTool(crossings: Crossing[]): Tool {
 }
 
 const MappingWizard: React.FC<MappingWizardProps> = ({
-  project, currentUser, onBack, editingEntry, onSync, isSyncing
+  project, currentUser, onBack, onSaved, editingEntry, onSync, isSyncing
 }) => {
   const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
   const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
@@ -439,7 +440,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       }
       // Segna come completato prima di uscire: impedisce al cleanup di cancellare la draft
       finalizedRef.current = true;
-      onBack();
+      if (editingEntry) { onBack(); } else { onSaved ? onSaved() : onBack(); }
     } catch (err) {
       console.error('Save error:', err);
       setError('Errore nel salvataggio. Riprova.');
@@ -958,7 +959,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       </div>
 
       {/* Bottom action buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 py-3 pb-safe-bottom z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 pt-3 z-40" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="flex gap-3 max-w-lg mx-auto">
           {step > 0 && (
             <button

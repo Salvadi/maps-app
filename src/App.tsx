@@ -45,6 +45,8 @@ const App: React.FC = () => {
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [editingMappingEntry, setEditingMappingEntry] = useState<MappingEntry | undefined>(undefined);
   const [editingStructureEntry, setEditingStructureEntry] = useState<StructureEntry | undefined>(undefined);
+  const [mappingWizardKey, setMappingWizardKey] = useState(0);
+  const [structureWizardKey, setStructureWizardKey] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
@@ -323,6 +325,11 @@ const App: React.FC = () => {
     setEditingMappingEntry(undefined);
   };
 
+  const handleMappingSaved = () => {
+    setEditingMappingEntry(undefined);
+    setMappingWizardKey(k => k + 1);
+  };
+
   const handleEnterStructure = (project: Project) => {
     setCurrentStructureProject(project);
     setEditingStructureEntry(undefined);
@@ -337,6 +344,11 @@ const App: React.FC = () => {
     }
     setCurrentStructureProject(null);
     setEditingStructureEntry(undefined);
+  };
+
+  const handleStructureSaved = () => {
+    setEditingStructureEntry(undefined);
+    setStructureWizardKey(k => k + 1);
   };
 
   const handleAddMappingFromDetail = () => {
@@ -530,9 +542,11 @@ const App: React.FC = () => {
       case 'mapping':
         return (
           <MappingWizard
+            key={mappingWizardKey}
             project={currentMappingProject}
             currentUser={currentUser}
             onBack={handleBackFromMapping}
+            onSaved={handleMappingSaved}
             editingEntry={editingMappingEntry}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}
@@ -542,9 +556,11 @@ const App: React.FC = () => {
       case 'structure':
         return (
           <StructureWizard
+            key={structureWizardKey}
             project={currentStructureProject}
             currentUser={currentUser}
             onBack={handleBackFromStructure}
+            onSaved={handleStructureSaved}
             editingEntry={editingStructureEntry}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}

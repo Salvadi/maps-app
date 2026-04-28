@@ -12,7 +12,8 @@ import {
   addPhotosToStructure, removePhotoFromStructure,
   FloorPlan, FloorPlanPoint, getFloorPlanByProjectAndFloor, getFloorPlanBlobUrl,
   ensureFloorPlanAsset, getFloorPlanPoints, getFloorPlanPointByMappingEntry,
-  createFloorPlanPoint, updateFloorPlanPoint, updateFloorPlan
+  createFloorPlanPoint, updateFloorPlanPoint, updateFloorPlan,
+  getStructureEntriesForProject,
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import PhotoPreviewModal from './PhotoPreviewModal';
@@ -25,6 +26,7 @@ interface StructureWizardProps {
   project: Project | null;
   currentUser: User;
   onBack: () => void;
+  onSaved?: () => void;
   editingEntry?: StructureEntry;
   onSync?: () => void;
   isSyncing?: boolean;
@@ -35,7 +37,7 @@ type Step = 0 | 1 | 2;
 const STEP_LABELS = ['Posizione', 'Strutture', 'Foto'];
 
 const StructureWizard: React.FC<StructureWizardProps> = ({
-  project, currentUser, onBack, editingEntry,
+  project, currentUser, onBack, onSaved, editingEntry,
 }) => {
   const STRUTTURA_OPTIONS = useDropdownOptions('struttura');
   const TIPO_STRUTTURA_OPTIONS = useDropdownOptions('tipo_struttura');
@@ -134,6 +136,20 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       })();
     }
   }, [editingEntry]);
+
+  // Auto-calculate intervention number
+  useEffect(() => {
+    if (!editingEntry && project?.useInterventionNumbering) {
+      (async () => {
+        const entries = await getStructureEntriesForProject(project.id);
+        const max = entries.reduce((m, e) => {
+          const n = parseInt(e.intervention || '0');
+          return !isNaN(n) && n > m ? n : m;
+        }, 0);
+        setInterventionNumber((max + 1).toString());
+      })();
+    }
+  }, [project, editingEntry]);
 
   useEffect(() => {
     if (!project || !floor) return;
@@ -260,7 +276,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       finalizedRef.current = true;
       savedDraftEntryRef.current = null;
       localStorage.setItem('lastUsedFloor', floor);
-      onBack();
+      if (editingEntry) { onBack(); } else { onSaved ? onSaved() : onBack(); }
     } catch (err) {
       console.error('Failed to save structure entry:', err);
       setError('Errore nel salvataggio. Riprova.');
@@ -741,7 +757,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       </div>
 
       {/* Bottom action buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 py-3 pb-safe-bottom z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 pt-3 z-40" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="flex gap-3 max-w-lg mx-auto">
           {step > 0 && (
             <button
