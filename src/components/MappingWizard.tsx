@@ -26,6 +26,7 @@ interface MappingWizardProps {
   project: Project | null;
   currentUser: User;
   onBack: () => void;
+  onSaved?: () => void;
   editingEntry?: MappingEntry;
   onSync?: () => void;
   isSyncing?: boolean;
@@ -48,7 +49,7 @@ function determineSuggestedTool(crossings: Crossing[]): Tool {
 }
 
 const MappingWizard: React.FC<MappingWizardProps> = ({
-  project, currentUser, onBack, editingEntry, onSync, isSyncing
+  project, currentUser, onBack, onSaved, editingEntry, onSync, isSyncing
 }) => {
   const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
   const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
@@ -439,7 +440,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       }
       // Segna come completato prima di uscire: impedisce al cleanup di cancellare la draft
       finalizedRef.current = true;
-      onBack();
+      if (editingEntry) { onBack(); } else { onSaved ? onSaved() : onBack(); }
     } catch (err) {
       console.error('Save error:', err);
       setError('Errore nel salvataggio. Riprova.');

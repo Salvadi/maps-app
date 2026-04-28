@@ -19,6 +19,7 @@ import { useMappingExports } from './useMappingExports';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
 import SalTab from './SalTab';
+import TypologyViewerModal from './TypologyViewerModal';
 
 interface ProjectDetailProps {
   project: Project;
@@ -87,6 +88,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const [exportingPlanId, setExportingPlanId] = useState<string | null>(null);
   const [projectCachePref, setProjectCachePref] = useState<ProjectCachePref | null>(null);
   const [isUpdatingOfflineCache, setIsUpdatingOfflineCache] = useState(false);
+  const [showTypologyViewer, setShowTypologyViewer] = useState(false);
+  const [localTypologies, setLocalTypologies] = useState(project.typologies || []);
 
   // Filters (persisted in localStorage)
   const [showOnlyToComplete, setShowOnlyToComplete] = useState<boolean>(() => {
@@ -1096,13 +1099,24 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                 </div>
 
                 {/* Typologies */}
-                {project.typologies && project.typologies.length > 0 && (
+                {(localTypologies.length > 0 || true) && (
                   <div>
-                    <h3 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">
-                      Tipologici ({project.typologies.length})
-                    </h3>
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <h3 className="text-xs font-semibold text-brand-500 uppercase tracking-wider">
+                        Tipologici ({localTypologies.length})
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowTypologyViewer(true)}
+                        className="flex items-center gap-1 text-xs font-semibold text-accent"
+                      >
+                        <Pencil size={12} />
+                        Gestisci
+                      </button>
+                    </div>
+                    {localTypologies.length > 0 && (
                     <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
-                      {project.typologies.sort((a, b) => a.number - b.number).map(tip => (
+                      {localTypologies.slice().sort((a, b) => a.number - b.number).map(tip => (
                         <div key={tip.id} className="px-4 py-3">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
@@ -1128,6 +1142,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                         </div>
                       ))}
                     </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1142,6 +1157,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
           imageUrl={selectedPhoto.url}
           altText={selectedPhoto.alt}
           onClose={() => setSelectedPhoto(null)}
+        />
+      )}
+
+      {/* Typology Manager Modal */}
+      {showTypologyViewer && (
+        <TypologyViewerModal
+          project={{ ...project, typologies: localTypologies }}
+          onClose={() => setShowTypologyViewer(false)}
+          onTypologiesChanged={(updated) => setLocalTypologies(updated)}
         />
       )}
     </div>
