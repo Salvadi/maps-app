@@ -9,8 +9,8 @@ import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
-  getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry,
-  StructureEntry, getStructureEntriesForProject, getPhotosForStructure, deleteStructureEntry,
+  getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry, resequenceMappingInterventions,
+  StructureEntry, getStructureEntriesForProject, getPhotosForStructure, deleteStructureEntry, resequenceStructureInterventions,
   getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers, ensureFloorPlanAsset,
   ProjectCachePref, getProjectCachePref, setProjectOfflinePinned, hydrateProjectForOffline,
 } from '../db';
@@ -333,6 +333,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleDelete = async (entry: MappingEntry) => {
     if (window.confirm('Eliminare questa mappatura?')) {
       await deleteMappingEntry(entry.id);
+      const shouldResequence = window.confirm(
+        'Vuoi risequenziare automaticamente gli Intervento n. dopo l’eliminazione?'
+      );
+      if (shouldResequence) {
+        await resequenceMappingInterventions(project.id);
+      }
       loadData();
     }
   };
@@ -340,6 +346,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleDeleteStructure = async (entry: StructureEntry) => {
     if (window.confirm('Eliminare questa struttura?')) {
       await deleteStructureEntry(entry.id);
+      const shouldResequence = window.confirm(
+        'Vuoi risequenziare automaticamente gli Intervento n. dopo l’eliminazione?'
+      );
+      if (shouldResequence) {
+        await resequenceStructureInterventions(project.id);
+      }
       loadData();
     }
   };

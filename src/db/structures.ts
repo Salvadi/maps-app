@@ -62,7 +62,7 @@ async function upsertPendingSyncItem(
   });
 }
 
-async function resequenceProjectInterventions(projectId: string): Promise<void> {
+export async function resequenceStructureInterventions(projectId: string): Promise<void> {
   const entries = await db.structureEntries.where('projectId').equals(projectId).toArray();
   if (entries.length === 0) return;
 
@@ -358,7 +358,6 @@ export async function updateStructureEntry(
 
 export async function deleteStructureEntry(id: string): Promise<void> {
   try {
-    const entry = await db.structureEntries.get(id);
     const photos = await db.photos.where('mappingEntryId').equals(id).toArray();
     await db.photos.where('mappingEntryId').equals(id).delete();
 
@@ -415,10 +414,6 @@ export async function deleteStructureEntry(id: string): Promise<void> {
         retryCount: 0,
         synced: 0,
       });
-    }
-
-    if (entry?.projectId) {
-      await resequenceProjectInterventions(entry.projectId);
     }
 
     triggerImmediateUpload();
