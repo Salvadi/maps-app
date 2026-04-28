@@ -622,51 +622,6 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Supporto</label>
-                    <div className="relative">
-                      <select
-                        value={crossing.supporto}
-                        onChange={e => handleCrossingChange(i, 'supporto', e.target.value)}
-                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
-                      >
-                        <option value="">Seleziona...</option>
-                        {SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Tipo Supporto</label>
-                    <div className="relative">
-                      <select
-                        value={crossing.tipoSupporto}
-                        onChange={e => handleCrossingChange(i, 'tipoSupporto', e.target.value)}
-                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
-                      >
-                        <option value="">Seleziona...</option>
-                        {TIPO_SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Attraversamento</label>
-                    <div className="relative">
-                      <select
-                        value={crossing.attraversamento}
-                        onChange={e => handleCrossingChange(i, 'attraversamento', e.target.value)}
-                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
-                      >
-                        <option value="">Seleziona...</option>
-                        {ATTRAVERSAMENTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
-                    </div>
-                  </div>
-
                   {/* Typology selector */}
                   {projectTypologies.length > 0 && (
                     <div>
@@ -728,6 +683,51 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                       })()}
                     </div>
                   )}
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Supporto</label>
+                    <div className="relative">
+                      <select
+                        value={crossing.supporto}
+                        onChange={e => handleCrossingChange(i, 'supporto', e.target.value)}
+                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
+                      >
+                        <option value="">Seleziona...</option>
+                        {SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Tipo Supporto</label>
+                    <div className="relative">
+                      <select
+                        value={crossing.tipoSupporto}
+                        onChange={e => handleCrossingChange(i, 'tipoSupporto', e.target.value)}
+                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
+                      >
+                        <option value="">Seleziona...</option>
+                        {TIPO_SUPPORTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Attraversamento</label>
+                    <div className="relative">
+                      <select
+                        value={crossing.attraversamento}
+                        onChange={e => handleCrossingChange(i, 'attraversamento', e.target.value)}
+                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
+                      >
+                        <option value="">Seleziona...</option>
+                        {ATTRAVERSAMENTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
