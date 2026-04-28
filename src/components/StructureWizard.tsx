@@ -757,7 +757,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
       </div>
 
       {/* Bottom action buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 py-3 pb-safe-bottom z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 pt-3 z-40" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="flex gap-3 max-w-lg mx-auto">
           {step > 0 && (
             <button
