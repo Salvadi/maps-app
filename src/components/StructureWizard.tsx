@@ -662,34 +662,9 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
           </div>
         )}
 
-        {/* STEP 2: Foto */}
+        {/* STEP 2: Photos & Floor Plan */}
         {step === 2 && (
           <div className="space-y-4">
-            {/* Floor plan placement card */}
-            <div className="bg-white rounded-2xl shadow-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-brand-700">Posizione su planimetria</div>
-                  <div className="text-xs text-brand-500 mt-1">
-                    Segna la struttura sul piano corrente usando il tool perimetro (selezionato automaticamente).
-                  </div>
-                </div>
-                <button
-                  onClick={handleOpenFloorPlanEditor}
-                  disabled={!currentFloorPlan}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-40 flex-shrink-0"
-                >
-                  <MapPin size={13} />
-                  Posiziona
-                </button>
-              </div>
-              {!currentFloorPlan && (
-                <div className="mt-2 text-xs text-warning flex items-center gap-1.5">
-                  <AlertTriangle size={12} /> Nessuna planimetria trovata per il piano selezionato.
-                </div>
-              )}
-            </div>
-
             {/* Photo buttons */}
             <div className="flex gap-3">
               <button
@@ -728,6 +703,24 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Floor plan button */}
+            {currentFloorPlan && (
+              <button
+                onClick={handleOpenFloorPlanEditor}
+                className="w-full bg-white rounded-2xl shadow-card p-4 flex items-center gap-3 active:scale-[0.99] transition-transform"
+              >
+                <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                  <MapPin size={18} className="text-success" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-sm font-semibold text-brand-700">
+                    {editingEntry ? 'Modifica punto su planimetria' : 'Posiziona su planimetria'}
+                  </div>
+                  <div className="text-xs text-brand-500">Piano {floor}</div>
+                </div>
+              </button>
             )}
 
             {/* To complete checkbox */}
