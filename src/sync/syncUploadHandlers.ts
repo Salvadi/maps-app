@@ -293,6 +293,8 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       throw new Error(`Supabase photo upload failed: ${uploadError.message}`);
     }
 
+    const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(fileName);
+
     // Create photo metadata record in Supabase
     const isStructurePhoto = photoMeta.entryType === 'structure';
     const { error: metaError } = await supabase
@@ -303,7 +305,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
           ? { structure_entry_id: photoMeta.mappingEntryId }
           : { mapping_entry_id: photoMeta.mappingEntryId }),
         storage_path: fileName,
-        url: null,
+        url: publicUrl,
         metadata: photoMeta.metadata,
         uploaded: true,
         created_at: new Date(photoMeta.metadata.captureTimestamp).toISOString(),
@@ -317,7 +319,11 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
     }
 
     // Mark local photo as uploaded
-    await db.photos.update(photoMeta.id, { uploaded: true });
+    await db.photos.update(photoMeta.id, {
+      uploaded: true,
+      storagePath: fileName,
+      remoteUrl: publicUrl
+    });
   } else if (item.operation === 'DELETE') {
     // Use explicit storage paths from the sync queue payload because
     // the photo may already be gone from IndexedDB when DELETE runs.
