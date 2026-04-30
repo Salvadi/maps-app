@@ -78,7 +78,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
   const [structures, setStructures] = useState<Structure[]>(
     editingEntry && editingEntry.structures.length > 0
       ? editingEntry.structures
-      : [{ id: `${Date.now()}-0`, struttura: '', tipoStruttura: '', tipologicoId: undefined, superficie: undefined, lunghezza: undefined, notes: '' }]
+      : [{ id: `${Date.now()}-0`, struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }]
   );
 
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -185,7 +185,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
   const addStructure = () => {
     setStructures(prev => [
       ...prev,
-      { id: `${Date.now()}-${prev.length}`, struttura: '', tipoStruttura: '', tipologicoId: undefined, superficie: undefined, lunghezza: undefined, notes: '' }
+      { id: `${Date.now()}-${prev.length}`, struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }
     ]);
   };
 
@@ -255,6 +255,8 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
 
       const safeStructures = structures.map(s => ({
         ...s,
+        base: s.base || undefined,
+        altezza: s.altezza || undefined,
         superficie: s.superficie || undefined,
         lunghezza: s.lunghezza || undefined,
       }));
@@ -646,29 +648,55 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Superficie (mq)</label>
+                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Base (m)</label>
                       <input
                         type="number"
-                        value={s.superficie ?? ''}
-                        onChange={e => updateStructure(s.id, { superficie: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        placeholder="Es. 12.5"
+                        value={s.base ?? ''}
+                        onChange={e => {
+                          const base = e.target.value ? parseFloat(e.target.value) : undefined;
+                          const superficie = base !== undefined && s.altezza !== undefined ? parseFloat((base * s.altezza).toFixed(4)) : undefined;
+                          updateStructure(s.id, { base, superficie });
+                        }}
+                        placeholder="Es. 4.0"
                         min="0"
                         step="0.01"
                         className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Lunghezza (ml)</label>
+                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Altezza (m)</label>
                       <input
                         type="number"
-                        value={s.lunghezza ?? ''}
-                        onChange={e => updateStructure(s.id, { lunghezza: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        placeholder="Es. 3.5"
+                        value={s.altezza ?? ''}
+                        onChange={e => {
+                          const altezza = e.target.value ? parseFloat(e.target.value) : undefined;
+                          const superficie = s.base !== undefined && altezza !== undefined ? parseFloat((s.base * altezza).toFixed(4)) : undefined;
+                          updateStructure(s.id, { altezza, superficie });
+                        }}
+                        placeholder="Es. 3.0"
                         min="0"
                         step="0.01"
                         className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
                       />
                     </div>
+                  </div>
+                  {s.base !== undefined && s.altezza !== undefined && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-accent/10 rounded-xl">
+                      <span className="text-[11px] font-medium text-brand-500">Superficie calcolata:</span>
+                      <span className="text-sm font-semibold text-accent">{(s.base * s.altezza).toFixed(2)} mq</span>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Lunghezza (ml)</label>
+                    <input
+                      type="number"
+                      value={s.lunghezza ?? ''}
+                      onChange={e => updateStructure(s.id, { lunghezza: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      placeholder="Es. 3.5"
+                      min="0"
+                      step="0.01"
+                      className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                    />
                   </div>
 
                   <div>

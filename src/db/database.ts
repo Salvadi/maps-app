@@ -78,7 +78,9 @@ export interface Structure {
   strutturaCustom?: string;   // usato quando struttura === 'Altro'
   tipoStruttura?: string;     // es. "Flessibile", "Rigido"
   tipologicoId?: string;      // → Project.typologies (category='struttura')
-  superficie?: number;        // mq
+  base?: number;              // m (larghezza)
+  altezza?: number;           // m (altezza)
+  superficie?: number;        // mq (calcolato da base × altezza)
   lunghezza?: number;         // ml (per cassonetti)
   notes?: string;
   salId?: string;             // UUID del SAL a cui è assegnato (undefined = non contabilizzato)
