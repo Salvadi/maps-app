@@ -898,7 +898,9 @@ async function _buildFromOriginalPDF(
   const srcPage = srcDoc.getPage(0);
   const origW = srcPage.getWidth();
   const origH = srcPage.getHeight();
-  const [pageW, planAreaH] = (rotation === 90 || rotation === 270)
+  const sourceRotation = ((srcPage.getRotation().angle % 360) + 360) % 360;
+  const effectiveRotation = ((sourceRotation + rotation) % 360 + 360) % 360;
+  const [pageW, planAreaH] = (effectiveRotation === 90 || effectiveRotation === 270)
     ? [origH, origW]
     : [origW, origH];
 
@@ -914,7 +916,7 @@ async function _buildFromOriginalPDF(
   let ex: number;
   let ey: number;
   let deg: number;
-  switch (rotation) {
+  switch (effectiveRotation) {
     case 90:
       ex = 0;
       ey = origW + imageOffsetY;
