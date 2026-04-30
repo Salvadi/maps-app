@@ -10,7 +10,7 @@ import {
   db, initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, StructureEntry,
   getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint,
-  getMappingEntriesForProject, getPhotosForMappings
+  getMappingEntriesForProject, getPhotosForMappings, getMappingEntry, getStructureEntry,
 } from './db';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { enforceForcedMigrationIfNeeded } from './lib/forcedMigration';
@@ -47,6 +47,8 @@ const App: React.FC = () => {
   const [editingStructureEntry, setEditingStructureEntry] = useState<StructureEntry | undefined>(undefined);
   const [mappingWizardKey, setMappingWizardKey] = useState(0);
   const [structureWizardKey, setStructureWizardKey] = useState(0);
+  const [editingMappingEntryInitialStep, setEditingMappingEntryInitialStep] = useState(0);
+  const [editingStructureEntryInitialStep, setEditingStructureEntryInitialStep] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [syncStats, setSyncStats] = useState<SyncStats>({
@@ -323,11 +325,13 @@ const App: React.FC = () => {
     }
     setCurrentMappingProject(null);
     setEditingMappingEntry(undefined);
+    setEditingMappingEntryInitialStep(0);
   };
 
   const handleMappingSaved = () => {
     setEditingMappingEntry(undefined);
     setMappingWizardKey(k => k + 1);
+    setEditingMappingEntryInitialStep(0);
   };
 
   const handleEnterStructure = (project: Project) => {
@@ -344,11 +348,13 @@ const App: React.FC = () => {
     }
     setCurrentStructureProject(null);
     setEditingStructureEntry(undefined);
+    setEditingStructureEntryInitialStep(0);
   };
 
   const handleStructureSaved = () => {
     setEditingStructureEntry(undefined);
     setStructureWizardKey(k => k + 1);
+    setEditingStructureEntryInitialStep(0);
   };
 
   const handleAddMappingFromDetail = () => {
@@ -430,34 +436,52 @@ const App: React.FC = () => {
       const mappings = await getMappingEntriesForProject(project.id);
       const photosByMapping = await getPhotosForMappings(mappings.map((m) => m.id));
       const placedMappingIds = new Set(dbPoints.map((p) => p.mappingEntryId).filter(Boolean));
-      const canvasPoints = dbPoints.map(p => ({
-        id: p.id,
-        type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
-        pointX: p.pointX,
-        pointY: p.pointY,
-        labelX: p.labelX,
-        labelY: p.labelY,
-        labelText: p.metadata?.labelText || ['Punto'],
-        perimeterPoints: p.perimeterPoints,
-        mappingEntryId: p.mappingEntryId,
-        labelBackgroundColor: p.metadata?.labelBackgroundColor,
-        labelTextColor: p.metadata?.labelTextColor,
-        eiRating: p.eiRating,
-      }));
+
+      const buildMappingLabel = (m: MappingEntry, photoCount: number): string[] => {
+        const parts: string[] = [];
+        if (project.floors && project.floors.length > 1) parts.push(`P${m.floor}`);
+        if (project.useRoomNumbering && m.room) parts.push(`S${m.room}`);
+        if (project.useInterventionNumbering && m.intervention) parts.push(`Int${m.intervention}`);
+        let firstLine = parts.join('_') || 'Punto';
+        if (photoCount > 1) firstLine += `_01-${photoCount.toString().padStart(2, '0')}`;
+        const tipNums = m.crossings
+          .map(c => c.tipologicoId ? project.typologies?.find(t => t.id === c.tipologicoId)?.number : null)
+          .filter((n): n is number => n !== null)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .sort((a, b) => a - b);
+        return [firstLine, tipNums.length > 0 ? `Tip. ${tipNums.join(' - ')}` : ''].filter(Boolean);
+      };
+
+      const canvasPoints = dbPoints.map(p => {
+        const mappingEntry = mappings.find(m => m.id === p.mappingEntryId);
+        const labelText = mappingEntry
+          ? buildMappingLabel(mappingEntry, (photosByMapping[mappingEntry.id] || []).length)
+          : (p.metadata?.labelText || ['Punto']);
+        return {
+          id: p.id,
+          type: p.pointType as import('./components/FloorPlanCanvas').CanvasPoint['type'],
+          pointX: p.pointX,
+          pointY: p.pointY,
+          labelX: p.labelX,
+          labelY: p.labelY,
+          labelText,
+          perimeterPoints: p.perimeterPoints,
+          mappingEntryId: p.mappingEntryId,
+          labelBackgroundColor: p.metadata?.labelBackgroundColor,
+          labelTextColor: p.metadata?.labelTextColor,
+          eiRating: p.eiRating,
+        };
+      });
       setEditorInitialPoints(canvasPoints);
       const unmappedEntries: UnmappedEntry[] = mappings
         .filter((m) => m.floor === hydratedPlan.floor && !placedMappingIds.has(m.id))
         .map((m) => {
           const photoCount = (photosByMapping[m.id] || []).length;
-          const labelParts = [`P${m.floor}`];
-          if (m.room) labelParts.push(`S${m.room}`);
-          if (m.intervention) labelParts.push(`Int${m.intervention}`);
-          if (photoCount > 1) labelParts[0] = `${labelParts[0]}_01-${String(photoCount).padStart(2, '0')}`;
           const supporto = m.crossings?.[0]?.supporto?.toLowerCase() || '';
           return {
             id: m.id,
-            labelText: [labelParts.join('_')],
-            type: supporto === 'solaio' ? 'solaio' : 'parete',
+            labelText: buildMappingLabel(m, photoCount),
+            type: (supporto === 'solaio' ? 'solaio' : 'parete') as 'parete' | 'solaio',
           };
         });
       setEditorUnmappedEntries(unmappedEntries);
@@ -550,6 +574,7 @@ const App: React.FC = () => {
             editingEntry={editingMappingEntry}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}
+            initialStep={editingMappingEntryInitialStep as 0 | 1 | 2}
           />
         );
 
@@ -564,6 +589,7 @@ const App: React.FC = () => {
             editingEntry={editingStructureEntry}
             onSync={handleManualSync}
             isSyncing={syncStats.isSyncing}
+            initialStep={editingStructureEntryInitialStep as 0 | 1 | 2}
           />
         );
 
@@ -690,6 +716,30 @@ const App: React.FC = () => {
                 }
               }}
               onClose={handleBackFromFloorPlanEditor}
+              onOpenMappingEntry={async (entryId) => {
+                const project = editorProject;
+                if (editorImageUrl?.startsWith('blob:')) URL.revokeObjectURL(editorImageUrl);
+                setEditorFloorPlan(null);
+                setEditorImageUrl(null);
+                setEditorProject(null);
+                setEditorInitialPoints([]);
+                setEditorUnmappedEntries([]);
+                const mappingEntry = await getMappingEntry(entryId);
+                if (mappingEntry && project) {
+                  setCurrentMappingProject(project);
+                  setEditingMappingEntry(mappingEntry);
+                  setEditingMappingEntryInitialStep(1);
+                  setCurrentView('mapping');
+                  return;
+                }
+                const structureEntry = await getStructureEntry(entryId);
+                if (structureEntry && project) {
+                  setCurrentStructureProject(project);
+                  setEditingStructureEntry(structureEntry);
+                  setEditingStructureEntryInitialStep(1);
+                  setCurrentView('structure');
+                }
+              }}
             />
           );
         }

@@ -13,7 +13,7 @@ import {
   FloorPlan, FloorPlanPoint, getFloorPlanByProjectAndFloor, getFloorPlanBlobUrl,
   ensureFloorPlanAsset, getFloorPlanPoints, getFloorPlanPointByMappingEntry,
   createFloorPlanPoint, updateFloorPlanPoint, updateFloorPlan,
-  getStructureEntriesForProject,
+  updateFloorPlanLabelsForMapping, getStructureEntriesForProject,
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
 import PhotoPreviewModal from './PhotoPreviewModal';
@@ -30,6 +30,7 @@ interface StructureWizardProps {
   editingEntry?: StructureEntry;
   onSync?: () => void;
   isSyncing?: boolean;
+  initialStep?: Step;
 }
 
 type Step = 0 | 1 | 2;
@@ -37,12 +38,12 @@ type Step = 0 | 1 | 2;
 const STEP_LABELS = ['Posizione', 'Strutture', 'Foto'];
 
 const StructureWizard: React.FC<StructureWizardProps> = ({
-  project, currentUser, onBack, onSaved, editingEntry,
+  project, currentUser, onBack, onSaved, editingEntry, initialStep,
 }) => {
   const STRUTTURA_OPTIONS = useDropdownOptions('struttura');
   const TIPO_STRUTTURA_OPTIONS = useDropdownOptions('tipo_struttura');
 
-  const [step, setStep] = useState<Step>(0);
+  const [step, setStep] = useState<Step>(initialStep ?? 0);
 
   useEffect(() => {
     window.history.pushState(
@@ -162,6 +163,20 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
 
   const structureTypologies = projectTypologies.filter(t => (t.category ?? 'attraversamento') === 'struttura');
 
+  const generateLabelText = (): string[] => {
+    const labelParts: string[] = [];
+    if (project && project.floors && project.floors.length > 1) labelParts.push(`P${floor}`);
+    if (project?.useRoomNumbering && roomNumber) labelParts.push(`S${roomNumber}`);
+    if (project?.useInterventionNumbering && interventionNumber) labelParts.push(`Int${interventionNumber}`);
+    const firstLine = labelParts.join('_') || 'Struttura';
+    const tipNumbers = structures
+      .map(s => s.tipologicoId ? projectTypologies.find(t => t.id === s.tipologicoId)?.number : null)
+      .filter((n): n is number => n !== null)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .sort((a, b) => a - b);
+    return [firstLine, tipNumbers.length > 0 ? `Tip. ${tipNumbers.join(' - ')}` : ''].filter(Boolean);
+  };
+
   const handleFloorChange = (v: string) => {
     setFloor(v);
     localStorage.setItem('lastUsedFloor', v);
@@ -252,6 +267,8 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
           structures: safeStructures,
           toComplete,
         }, currentUser.id);
+
+        try { await updateFloorPlanLabelsForMapping(editingEntry.id, () => generateLabelText()); } catch {}
 
         for (const photoId of photosToRemove) {
           await removePhotoFromStructure(editingEntry.id, photoId, currentUser.id);
