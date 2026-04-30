@@ -30,6 +30,7 @@ interface MappingWizardProps {
   editingEntry?: MappingEntry;
   onSync?: () => void;
   isSyncing?: boolean;
+  initialStep?: Step;
 }
 
 type Step = 0 | 1 | 2;
@@ -49,13 +50,13 @@ function determineSuggestedTool(crossings: Crossing[]): Tool {
 }
 
 const MappingWizard: React.FC<MappingWizardProps> = ({
-  project, currentUser, onBack, onSaved, editingEntry, onSync, isSyncing
+  project, currentUser, onBack, onSaved, editingEntry, onSync, isSyncing, initialStep,
 }) => {
   const SUPPORTO_OPTIONS = useDropdownOptions('supporto');
   const TIPO_SUPPORTO_OPTIONS = useDropdownOptions('tipo_supporto');
   const ATTRAVERSAMENTO_OPTIONS = useDropdownOptions('attraversamento');
 
-  const [step, setStep] = useState<Step>(0);
+  const [step, setStep] = useState<Step>(initialStep ?? 0);
 
   // Push history on step change so Android back steps backward within the wizard
   useEffect(() => {
@@ -289,7 +290,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       .filter((v, i, a) => a.indexOf(v) === i)
       .sort((a, b) => a - b)
       .join(' - ');
-    return [photoName, tipNumbers ? `tip. ${tipNumbers}` : ''].filter(Boolean);
+    return [photoName, tipNumbers ? `Tip. ${tipNumbers}` : ''].filter(Boolean);
   };
 
   const handleCopyPrevious = async () => {
