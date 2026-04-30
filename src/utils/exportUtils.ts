@@ -878,12 +878,18 @@ async function _buildWithRasterBackground(
  * (nessuna trasformazione dei punti necessaria).
  */
 async function _buildFromOriginalPDF(
-  srcDoc: PDFDocument,
+  pdfBlobBase64: string,
   points: ExportPoint[],
   rotation: number = 0,
   eiLegendPosition?: { x: number; y: number } | null,
   cartiglio?: ExportCartiglioData | null,
 ): Promise<Uint8Array> {
+  // Decodifica Base64 → bytes
+  const binaryStr = atob(pdfBlobBase64);
+  const srcBytes  = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) srcBytes[i] = binaryStr.charCodeAt(i);
+
+  const srcDoc  = await PDFDocument.load(srcBytes);
   const outDoc  = await PDFDocument.create();
 
   const fontBold   = await outDoc.embedFont(StandardFonts.HelveticaBold);
@@ -949,21 +955,6 @@ async function _buildFromOriginalPDF(
   return outDoc.save();
 }
 
-function decodePdfBase64(pdfBlobBase64: string): Uint8Array {
-  const binaryStr = atob(pdfBlobBase64);
-  const srcBytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    srcBytes[i] = binaryStr.charCodeAt(i);
-  }
-  return srcBytes;
-}
-
-export function shouldUseOriginalPdfBackgroundForExport(sourceRotation: number, userRotation: number): boolean {
-  const normalizedSourceRotation = ((sourceRotation % 360) + 360) % 360;
-  const normalizedUserRotation = ((userRotation % 360) + 360) % 360;
-  return normalizedSourceRotation === 0 && normalizedUserRotation === 0;
-}
-
 /**
  * Ruota un Blob immagine di `rotation` gradi in senso orario usando un canvas offscreen.
  * Restituisce un nuovo Blob PNG con l'immagine ruotata.
@@ -1006,15 +997,7 @@ export async function buildFloorPlanVectorPDF(
   cartiglio?: ExportCartiglioData | null,
 ): Promise<Uint8Array> {
   if (pdfBlobBase64) {
-    const srcDoc = await PDFDocument.load(decodePdfBase64(pdfBlobBase64));
-    const sourceRotation = srcDoc.getPage(0).getRotation().angle || 0;
-
-    // Se il PDF originale o la planimetria salvata richiedono una rotazione,
-    // usiamo lo stesso blob raster mostrato nel canvas: evita mismatch tra la
-    // geometria renderizzata da pdf.js e quella del PDF sorgente.
-    if (shouldUseOriginalPdfBackgroundForExport(sourceRotation, rotation)) {
-      return _buildFromOriginalPDF(srcDoc, points, rotation, eiLegendPosition, cartiglio);
-    }
+    return _buildFromOriginalPDF(pdfBlobBase64, points, rotation, eiLegendPosition, cartiglio);
   }
   const blob = rotation ? await rotateBlob(imageBlob, rotation) : imageBlob;
   return _buildWithRasterBackground(blob, points, eiLegendPosition, cartiglio);
