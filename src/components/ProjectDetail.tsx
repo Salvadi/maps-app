@@ -11,11 +11,16 @@ import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry, resequenceMappingInterventions,
   StructureEntry, getStructureEntriesForProject, getPhotosForStructure, deleteStructureEntry, resequenceStructureInterventions,
-  getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers, ensureFloorPlanAsset,
+  getFloorPlansByProject, getFloorPlanPointsForPlans, getAllUsers,
   ProjectCachePref, getProjectCachePref, setProjectOfflinePinned, hydrateProjectForOffline,
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useMappingExports } from './useMappingExports';
+import {
+  buildFloorPlanExportPoints,
+  buildFloorPlanLabelResolver,
+  exportPreparedFloorPlanPdf,
+  prepareFloorPlanExport,
+} from '../utils/floorPlanExport';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
 import SalTab from './SalTab';
@@ -411,52 +416,16 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleExportPlanPDF = async (plan: FloorPlan) => {
     setExportingPlanId(plan.id);
     try {
-      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
-      const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
-      if (!exportReadyPlan?.imageBlob) {
+      const preparedExport = await prepareFloorPlanExport(plan);
+      if (!preparedExport) {
         return;
       }
 
       const rawPoints = floorPlanPoints[plan.id] || [];
-      const exportPoints: ExportPoint[] = rawPoints.map(point => ({
-        type: point.pointType,
-        pointX: point.pointX,
-        pointY: point.pointY,
-        labelX: point.labelX,
-        labelY: point.labelY,
-        labelText: point.metadata?.labelText || ((() => {
-          const entry = mappings.find(m => m.id === point.mappingEntryId);
-          if (!entry) return ['Punto'];
-          const photos = mappingPhotos[entry.id] || [];
-          return generateMappingLabel(entry, photos.length);
-        })()),
-        perimeterPoints: point.perimeterPoints,
-        labelBackgroundColor: point.metadata?.labelBackgroundColor,
-        labelTextColor: point.metadata?.labelTextColor,
-      }));
-      const savedCartiglio = plan.metadata?.cartiglio;
-      const exportCartiglio = savedCartiglio?.enabled === false
-        ? null
-        : {
-            positionX: savedCartiglio?.positionX ?? 0.03,
-            positionY: savedCartiglio?.positionY ?? 0.68,
-            scale: savedCartiglio?.scale ?? 1,
-            tavola: savedCartiglio?.tavola ?? plan.floor,
-            typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
-            typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
-            committente: savedCartiglio?.committente ?? [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
-            locali: savedCartiglio?.locali ?? '',
-          };
-      await exportFloorPlanVectorPDF(
-        exportReadyPlan.imageBlob,
-        exportPoints,
-        `Piano_${plan.floor}_annotato.pdf`,
-        exportReadyPlan.pdfBlobBase64,
-        exportReadyPlan.metadata?.rotation || 0,
-        undefined,
-        exportCartiglio,
-      );
-      setFloorPlans(prev => prev.map(existing => existing.id === exportReadyPlan.id ? exportReadyPlan : existing));
+      const resolveExportLabel = buildFloorPlanLabelResolver(mappings, mappingPhotos, generateMappingLabel);
+      const exportPoints = buildFloorPlanExportPoints(rawPoints, resolveExportLabel);
+      await exportPreparedFloorPlanPdf(preparedExport, exportPoints, `Piano_${plan.floor}_annotato.pdf`, project, plan);
+      setFloorPlans(prev => prev.map(existing => existing.id === preparedExport.plan.id ? preparedExport.plan : existing));
     } finally {
       setExportingPlanId(null);
     }

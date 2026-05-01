@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Map, FolderOpen, Plus, ChevronRight, FileDown, RefreshCw } from 'lucide-react';
 import {
   Project, User, FloorPlan,
-  getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints, ensureFloorPlanAsset
+  getAllProjects, getProjectsForUser, getFloorPlansByProject, getFloorPlanPoints
 } from '../db';
-import { exportFloorPlanVectorPDF, ExportPoint } from '../utils/exportUtils';
 import { useBlobUrl } from '../hooks/useBlobUrl';
+import {
+  buildFloorPlanExportPoints,
+  exportPreparedFloorPlanPdf,
+  prepareFloorPlanExport,
+} from '../utils/floorPlanExport';
 
 interface MapsOverviewProps {
   currentUser: User;
@@ -57,44 +61,13 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
   const handleExportPlanPDF = async (project: Project, plan: FloorPlan) => {
     setExportingPlanId(plan.id);
     try {
-      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
-      const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
-      if (!exportReadyPlan?.imageBlob) {
+      const preparedExport = await prepareFloorPlanExport(plan);
+      if (!preparedExport) {
         return;
       }
       const rawPoints = await getFloorPlanPoints(plan.id);
-      const exportPoints: ExportPoint[] = rawPoints.map(point => ({
-        type: point.pointType,
-        pointX: point.pointX,
-        pointY: point.pointY,
-        labelX: point.labelX,
-        labelY: point.labelY,
-        labelText: point.metadata?.labelText || ['Punto'],
-        perimeterPoints: point.perimeterPoints,
-        labelBackgroundColor: point.metadata?.labelBackgroundColor,
-        labelTextColor: point.metadata?.labelTextColor,
-      }));
-      const savedCartiglio = plan.metadata?.cartiglio;
-      const exportCartiglio = savedCartiglio?.enabled === false
-        ? null
-        : {
-            positionX: savedCartiglio?.positionX ?? 0.03,
-            positionY: savedCartiglio?.positionY ?? 0.68,
-            tavola: savedCartiglio?.tavola ?? plan.floor,
-            typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
-            typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
-            committente: savedCartiglio?.committente ?? [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean).join(' - '),
-            locali: savedCartiglio?.locali ?? '',
-          };
-      await exportFloorPlanVectorPDF(
-        exportReadyPlan.imageBlob,
-        exportPoints,
-        `Piano_${plan.floor}_annotato.pdf`,
-        exportReadyPlan.pdfBlobBase64,
-        exportReadyPlan.metadata?.rotation || 0,
-        undefined,
-        exportCartiglio,
-      );
+      const exportPoints = buildFloorPlanExportPoints(rawPoints, (point) => point.metadata?.labelText || ['Punto']);
+      await exportPreparedFloorPlanPdf(preparedExport, exportPoints, `Piano_${plan.floor}_annotato.pdf`, project, plan);
     } finally {
       setExportingPlanId(null);
     }

@@ -654,7 +654,16 @@ const App: React.FC = () => {
                         editorFloorPlan.id, point.mappingEntryId || '',
                         point.type, point.pointX, point.pointY,
                         point.labelX, point.labelY, currentUser.id,
-                        { perimeterPoints: point.perimeterPoints, customText: point.customText }
+                        {
+                          perimeterPoints: point.perimeterPoints,
+                          customText: point.customText,
+                          eiRating: point.eiRating,
+                          metadata: {
+                            labelText: point.labelText,
+                            labelBackgroundColor: point.labelBackgroundColor,
+                            labelTextColor: point.labelTextColor,
+                          },
+                        }
                       );
                     } else {
                       await updateFloorPlanPoint(point.id, {
