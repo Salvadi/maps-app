@@ -767,6 +767,7 @@ const MappingView: React.FC<MappingViewProps> = ({
             labelX: canvasPoint.labelX,
             labelY: canvasPoint.labelY,
             perimeterPoints: canvasPoint.perimeterPoints,
+            eiRating: canvasPoint.eiRating,
             metadata: {
               ...currentPoint?.metadata,
               labelText: canvasPoint.labelText, // Salva labelText custom
@@ -789,6 +790,13 @@ const MappingView: React.FC<MappingViewProps> = ({
               currentUser.id,
               {
                 perimeterPoints: canvasPoint.perimeterPoints,
+                customText: canvasPoint.customText,
+                eiRating: canvasPoint.eiRating,
+                metadata: {
+                  labelText: canvasPoint.labelText,
+                  labelBackgroundColor: canvasPoint.labelBackgroundColor,
+                  labelTextColor: canvasPoint.labelTextColor,
+                },
               }
             );
           } else if (canvasPoint.type === 'generico' || canvasPoint.type === 'perimetro') {
@@ -805,6 +813,12 @@ const MappingView: React.FC<MappingViewProps> = ({
               {
                 perimeterPoints: canvasPoint.perimeterPoints,
                 customText: canvasPoint.customText,
+                eiRating: canvasPoint.eiRating,
+                metadata: {
+                  labelText: canvasPoint.labelText,
+                  labelBackgroundColor: canvasPoint.labelBackgroundColor,
+                  labelTextColor: canvasPoint.labelTextColor,
+                },
               }
             );
           }

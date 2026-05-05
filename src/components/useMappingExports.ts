@@ -9,7 +9,6 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { exportFloorPlanVectorPDF, buildFloorPlanVectorPDF, ExportPoint, ExportCartiglioData } from '../utils/exportUtils';
 import {
   Project,
   MappingEntry,
@@ -18,10 +17,16 @@ import {
   FloorPlan,
   FloorPlanPoint,
   ensurePhotoBlob,
-  ensureFloorPlanAsset,
   getFloorPlanPoints,
   updateFloorPlanLabelsForMapping,
 } from '../db';
+import {
+  buildFloorPlanExportPoints,
+  buildFloorPlanLabelResolver,
+  buildPreparedFloorPlanPdf,
+  exportPreparedFloorPlanPdf,
+  prepareFloorPlanExport,
+} from '../utils/floorPlanExport';
 
 // ============================================
 // SEZIONE: Interfaccia parametri hook
@@ -61,23 +66,7 @@ export function useMappingExports({
 }: UseMappingExportsParams) {
   const [isExporting, setIsExporting] = useState(false);
   const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
-  const buildCartiglioData = (plan: FloorPlan): ExportCartiglioData | null => {
-    const savedCartiglio = plan.metadata?.cartiglio;
-    if (savedCartiglio?.enabled === false) {
-      return null;
-    }
-
-    const committenteParts = [project.client.trim() || project.title.trim(), project.address.trim()].filter(Boolean);
-    return {
-      positionX: savedCartiglio?.positionX ?? 0.03,
-      positionY: savedCartiglio?.positionY ?? 0.68,
-      tavola: savedCartiglio?.tavola ?? plan.floor,
-      typologyNumbers: [...(project.typologies || [])].map((typology) => typology.number).sort((a, b) => a - b),
-      typologyValues: { ...(savedCartiglio?.typologyValues || {}) },
-      committente: savedCartiglio?.committente ?? committenteParts.join(' - '),
-      locali: savedCartiglio?.locali ?? '',
-    };
-  };
+  const resolveExportLabel = buildFloorPlanLabelResolver(mappings, mappingPhotos, generateMappingLabel);
 
   // ============================================
   // SEZIONE: Export Excel
@@ -343,45 +332,16 @@ export function useMappingExports({
         // Only export if there are points
         if (rawPoints.length === 0) continue;
 
-        const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
-        const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
-        if (!exportReadyPlan?.imageBlob) {
+        const preparedExport = await prepareFloorPlanExport(plan);
+        if (!preparedExport) {
           console.warn(`⚠️  Skipping floor plan ${plan.id} - no image blob available`);
           continue;
         }
 
-        // Converti FloorPlanPoint[] → ExportPoint[]
-        const exportPoints: ExportPoint[] = rawPoints.map(point => {
-          let labelText: string[] = point.metadata?.labelText || ['Punto'];
-          if (!point.metadata?.labelText) {
-            const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-            if (mappingEntry) {
-              const photos = mappingPhotos[mappingEntry.id] || [];
-              labelText = generateMappingLabel(mappingEntry, photos.length);
-            }
-          }
-          return {
-            type: point.pointType,
-            pointX: point.pointX,
-            pointY: point.pointY,
-            labelX: point.labelX,
-            labelY: point.labelY,
-            labelText,
-            perimeterPoints: point.perimeterPoints,
-            labelBackgroundColor: point.metadata?.labelBackgroundColor,
-            labelTextColor: point.metadata?.labelTextColor,
-          };
-        });
+        const exportPoints = buildFloorPlanExportPoints(rawPoints, resolveExportLabel);
 
         try {
-          const pdfBytes = await buildFloorPlanVectorPDF(
-            exportReadyPlan.imageBlob,
-            exportPoints,
-            exportReadyPlan.pdfBlobBase64,
-            exportReadyPlan.metadata?.rotation || 0,
-            undefined,
-            buildCartiglioData(plan),
-          );
+          const pdfBytes = await buildPreparedFloorPlanPdf(preparedExport, exportPoints, project, plan);
           zip.file(`Planimetrie/Piano_${plan.floor}_annotato.pdf`, pdfBytes);
         } catch (error) {
           console.error(`Error creating PDF for plan ${plan.floor}:`, error);
@@ -460,47 +420,17 @@ export function useMappingExports({
 
   const handleExportFloorPlan = async (plan: FloorPlan) => {
     try {
-      const hydratedPlan = await ensureFloorPlanAsset(plan.id, 'full');
-      const exportReadyPlan = hydratedPlan ? await ensureFloorPlanAsset(plan.id, 'pdf') : undefined;
-      if (!exportReadyPlan?.imageBlob) {
+      const preparedExport = await prepareFloorPlanExport(plan);
+      if (!preparedExport) {
         alert('Errore: immagine della planimetria non disponibile.');
         return;
       }
 
       const rawPoints = floorPlanPoints[plan.id] || [];
+      const exportPoints = buildFloorPlanExportPoints(rawPoints, resolveExportLabel);
 
-      const exportPoints: ExportPoint[] = rawPoints.map(point => {
-        let labelText: string[] = point.metadata?.labelText || ['Punto'];
-        if (!point.metadata?.labelText) {
-          const mappingEntry = mappings.find(m => m.id === point.mappingEntryId);
-          if (mappingEntry) {
-            const photos = mappingPhotos[mappingEntry.id] || [];
-            labelText = generateMappingLabel(mappingEntry, photos.length);
-          }
-        }
-        return {
-          type: point.pointType,
-          pointX: point.pointX,
-          pointY: point.pointY,
-          labelX: point.labelX,
-          labelY: point.labelY,
-          labelText,
-          perimeterPoints: point.perimeterPoints,
-          labelBackgroundColor: point.metadata?.labelBackgroundColor,
-          labelTextColor: point.metadata?.labelTextColor,
-        };
-      });
-
-      await exportFloorPlanVectorPDF(
-        exportReadyPlan.imageBlob,
-        exportPoints,
-        `Piano_${plan.floor}_annotato.pdf`,
-        exportReadyPlan.pdfBlobBase64,
-        exportReadyPlan.metadata?.rotation || 0,
-        undefined,
-        buildCartiglioData(plan),
-      );
-      const qualityNote = exportReadyPlan.pdfBlobBase64 ? ' (sfondo vettoriale)' : ' (sfondo raster)';
+      await exportPreparedFloorPlanPdf(preparedExport, exportPoints, `Piano_${plan.floor}_annotato.pdf`, project, plan);
+      const qualityNote = preparedExport.pdfBlobBase64 ? ' (sfondo vettoriale)' : ' (sfondo raster)';
       alert(`✅ Planimetria esportata in PDF${qualityNote}`);
     } catch (error) {
       console.error('Failed to export floor plan:', error);
