@@ -117,16 +117,16 @@ export function buildFloorPlanLabelResolver(
   fallbackLabel: string[] = ['Punto'],
 ): (point: FloorPlanPoint) => string[] {
   return (point: FloorPlanPoint) => {
-    if (point.metadata?.labelText) {
+    const mappingEntry = mappings.find((mapping) => mapping.id === point.mappingEntryId);
+    if (mappingEntry) {
+      const photos = mappingPhotos[mappingEntry.id] || [];
+      return generateMappingLabel(mappingEntry, photos.length);
+    }
+
+    if (point.metadata?.labelText?.length > 0) {
       return point.metadata.labelText;
     }
 
-    const mappingEntry = mappings.find((mapping) => mapping.id === point.mappingEntryId);
-    if (!mappingEntry) {
-      return fallbackLabel;
-    }
-
-    const photos = mappingPhotos[mappingEntry.id] || [];
-    return generateMappingLabel(mappingEntry, photos.length);
+    return fallbackLabel;
   };
 }

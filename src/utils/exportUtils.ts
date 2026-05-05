@@ -597,7 +597,7 @@ function _drawAnnotationsOnPage(
     if (point.type !== 'perimetro' || !point.perimeterPoints || point.perimeterPoints.length < 2) continue;
     const svgPath = point.perimeterPoints
       .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.x).toFixed(2)} ${toSvgY(p.y).toFixed(2)}`)
-      .join(' ') + ' Z';
+      .join(' ');
     page.drawSvgPath(svgPath, {
       x: 0,
       y: pageH,

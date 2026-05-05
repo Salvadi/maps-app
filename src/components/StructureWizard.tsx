@@ -279,6 +279,21 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
           await addPhotosToStructure(editingEntry.id, compressedBlobs, currentUser.id);
         }
         alert('Struttura aggiornata!');
+      } else if (savedDraftEntry) {
+        // A draft was created when the floor plan editor was opened; finalize it in place
+        // to avoid leaving an orphaned draft alongside the new entry.
+        await updateStructureEntry(savedDraftEntry.id, {
+          floor,
+          room: project.useRoomNumbering ? roomNumber : undefined,
+          intervention: project.useInterventionNumbering ? interventionNumber : undefined,
+          structures: safeStructures,
+          toComplete,
+        }, currentUser.id);
+        try { await updateFloorPlanLabelsForMapping(savedDraftEntry.id, () => generateLabelText()); } catch {}
+        if (compressedBlobs.length > 0) {
+          await addPhotosToStructure(savedDraftEntry.id, compressedBlobs, currentUser.id);
+        }
+        alert('Struttura salvata!');
       } else {
         await createStructureEntry({
           projectId: project.id,
@@ -357,6 +372,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
     const point = points[0];
     if (!point) { setShowFloorPlanEditor(false); return; }
     try {
+      const labelText = generateLabelText();
       if (currentFloorPlanPoint) {
         await updateFloorPlanPoint(currentFloorPlanPoint.id, {
           pointType: point.type,
@@ -367,6 +383,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
           perimeterPoints: point.perimeterPoints,
           customText: point.customText,
           eiRating: point.eiRating,
+          metadata: { ...currentFloorPlanPoint.metadata, labelText },
         });
       } else {
         await createFloorPlanPoint(
@@ -378,7 +395,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
           point.labelX,
           point.labelY,
           currentUser.id,
-          { perimeterPoints: point.perimeterPoints, customText: point.customText, eiRating: point.eiRating }
+          { perimeterPoints: point.perimeterPoints, customText: point.customText, eiRating: point.eiRating, metadata: { labelText } }
         );
       }
       await updateFloorPlan(currentFloorPlan.id, {
