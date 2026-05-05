@@ -123,8 +123,8 @@ export function buildFloorPlanLabelResolver(
       return generateMappingLabel(mappingEntry, photos.length);
     }
 
-    if (point.metadata?.labelText?.length > 0) {
-      return point.metadata.labelText;
+    if ((point.metadata?.labelText?.length ?? 0) > 0) {
+      return point.metadata!.labelText;
     }
 
     return fallbackLabel;
