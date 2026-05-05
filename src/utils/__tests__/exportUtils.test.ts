@@ -42,4 +42,56 @@ describe('buildFloorPlanVectorPDF', () => {
 
     expect(exportedPage.getHeight()).toBeGreaterThan(exportedPage.getWidth());
   });
+
+  test('PDF senza rotazione nativa e senza rotazione utente produce pagina portrait', async () => {
+    const pdfBlobBase64 = await createRotatedPdfBase64(595, 842, 0);
+
+    const exportedBytes = await buildFloorPlanVectorPDF(
+      new Blob(['unused'], { type: 'image/png' }),
+      [],
+      pdfBlobBase64,
+      0,
+    );
+
+    const exportedDoc = await PDFDocument.load(exportedBytes);
+    const exportedPage = exportedDoc.getPage(0);
+
+    expect(exportedPage.getWidth()).toBe(595);
+    expect(exportedPage.getHeight()).toBe(842);
+  });
+
+  test('PDF senza rotazione nativa con rotazione utente 90 produce pagina landscape', async () => {
+    const pdfBlobBase64 = await createRotatedPdfBase64(595, 842, 0);
+
+    const exportedBytes = await buildFloorPlanVectorPDF(
+      new Blob(['unused'], { type: 'image/png' }),
+      [],
+      pdfBlobBase64,
+      90,
+    );
+
+    const exportedDoc = await PDFDocument.load(exportedBytes);
+    const exportedPage = exportedDoc.getPage(0);
+
+    expect(exportedPage.getWidth()).toBeGreaterThan(exportedPage.getHeight());
+  });
+
+  test('PDF con rotazione nativa 90 e rotazione utente 0: dimensioni esatte della pagina visuale', async () => {
+    // Pagina memorizzata come portrait 595x842 con /Rotate:90 -> visuale landscape 842x595.
+    // L'export senza rotazione utente deve produrre una pagina esattamente 842x595.
+    const pdfBlobBase64 = await createRotatedPdfBase64(595, 842, 90);
+
+    const exportedBytes = await buildFloorPlanVectorPDF(
+      new Blob(['unused'], { type: 'image/png' }),
+      [],
+      pdfBlobBase64,
+      0,
+    );
+
+    const exportedDoc = await PDFDocument.load(exportedBytes);
+    const exportedPage = exportedDoc.getPage(0);
+
+    expect(exportedPage.getWidth()).toBe(842);
+    expect(exportedPage.getHeight()).toBe(595);
+  });
 });
