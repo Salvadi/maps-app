@@ -165,7 +165,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     }
   }, [editingEntry]);
 
-  // Auto-calculate intervention number (shared counter with structure entries)
+  // Auto-calculate intervention number (shared counter with structure entries, per floor)
   useEffect(() => {
     if (!editingEntry && project?.useInterventionNumbering) {
       (async () => {
@@ -173,15 +173,15 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           getMappingEntriesForProject(project.id),
           getStructureEntriesForProject(project.id),
         ]);
-        const allEntries = [...mappingEntries, ...structureEntries];
-        const max = allEntries.reduce((m, e) => {
+        const floorEntries = [...mappingEntries, ...structureEntries].filter(e => e.floor === floor);
+        const max = floorEntries.reduce((m, e) => {
           const n = parseInt(e.intervention || '0');
           return !isNaN(n) && n > m ? n : m;
         }, 0);
         setInterventionNumber((max + 1).toString());
       })();
     }
-  }, [project, editingEntry]);
+  }, [project, editingEntry, floor]);
 
   // Load floor plan for current floor
   useEffect(() => {

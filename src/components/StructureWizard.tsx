@@ -138,7 +138,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
     }
   }, [editingEntry]);
 
-  // Auto-calculate intervention number (shared counter with mapping entries)
+  // Auto-calculate intervention number (shared counter with mapping entries, per floor)
   useEffect(() => {
     if (!editingEntry && project?.useInterventionNumbering) {
       (async () => {
@@ -146,15 +146,15 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
           getMappingEntriesForProject(project.id),
           getStructureEntriesForProject(project.id),
         ]);
-        const allEntries = [...mappingEntries, ...structureEntries];
-        const max = allEntries.reduce((m, e) => {
+        const floorEntries = [...mappingEntries, ...structureEntries].filter(e => e.floor === floor);
+        const max = floorEntries.reduce((m, e) => {
           const n = parseInt(e.intervention || '0');
           return !isNaN(n) && n > m ? n : m;
         }, 0);
         setInterventionNumber((max + 1).toString());
       })();
     }
-  }, [project, editingEntry]);
+  }, [project, editingEntry, floor]);
 
   useEffect(() => {
     if (!project || !floor) return;
