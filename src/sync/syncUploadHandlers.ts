@@ -614,12 +614,33 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
       }
     }
 
+    // Determine correct FK column: structure entries must go to structure_entry_id,
+    // not mapping_entry_id (which has an FK constraint to mapping_entries only).
+    // Handle legacy data where structure entry IDs were incorrectly stored in mappingEntryId.
+    let resolvedMappingEntryId: string | null = null;
+    let resolvedStructureEntryId: string | null = null;
+
+    if (effectivePoint.structureEntryId) {
+      resolvedStructureEntryId = effectivePoint.structureEntryId;
+      resolvedMappingEntryId = effectivePoint.mappingEntryId || null;
+    } else if (effectivePoint.mappingEntryId) {
+      const isStructureEntry = !!(await db.structureEntries.get(effectivePoint.mappingEntryId));
+      if (isStructureEntry) {
+        resolvedStructureEntryId = effectivePoint.mappingEntryId;
+        // Migrate local record so future syncs use the correct field
+        await db.floorPlanPoints.update(effectivePoint.id, { structureEntryId: effectivePoint.mappingEntryId });
+      } else {
+        resolvedMappingEntryId = effectivePoint.mappingEntryId;
+      }
+    }
+
     const { error } = await supabase
       .from('floor_plan_points')
       .upsert({
         id: point.id,
         floor_plan_id: point.floorPlanId,
-        mapping_entry_id: point.mappingEntryId,
+        mapping_entry_id: resolvedMappingEntryId,
+        structure_entry_id: resolvedStructureEntryId,
         point_type: point.pointType,
         point_x: point.pointX,
         point_y: point.pointY,
