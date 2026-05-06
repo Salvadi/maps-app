@@ -7,7 +7,7 @@ import {
 import { validateFileSignature } from '../utils/validation';
 import {
   Project, Crossing, User, MappingEntry, calcAsolaMq,
-  createMappingEntry, getMappingEntriesForProject,
+  createMappingEntry, getMappingEntriesForProject, getStructureEntriesForProject,
   updateMappingEntry, deleteMappingEntry, getPhotosForMapping, ensurePhotoBlob,
   addPhotosToMapping, removePhotoFromMapping,
   FloorPlan, FloorPlanPoint,
@@ -165,12 +165,16 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     }
   }, [editingEntry]);
 
-  // Auto-calculate intervention number
+  // Auto-calculate intervention number (shared counter with structure entries)
   useEffect(() => {
     if (!editingEntry && project?.useInterventionNumbering) {
       (async () => {
-        const entries = await getMappingEntriesForProject(project.id);
-        const max = entries.reduce((m, e) => {
+        const [mappingEntries, structureEntries] = await Promise.all([
+          getMappingEntriesForProject(project.id),
+          getStructureEntriesForProject(project.id),
+        ]);
+        const allEntries = [...mappingEntries, ...structureEntries];
+        const max = allEntries.reduce((m, e) => {
           const n = parseInt(e.intervention || '0');
           return !isNaN(n) && n > m ? n : m;
         }, 0);

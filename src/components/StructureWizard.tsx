@@ -7,7 +7,7 @@ import {
 import { validateFileSignature } from '../utils/validation';
 import {
   Project, Structure, User, StructureEntry,
-  createStructureEntry,
+  createStructureEntry, getMappingEntriesForProject,
   updateStructureEntry, deleteStructureEntry, getPhotosForStructure, ensurePhotoBlob,
   addPhotosToStructure, removePhotoFromStructure,
   FloorPlan, FloorPlanPoint, getFloorPlanByProjectAndFloor, getFloorPlanBlobUrl,
@@ -138,12 +138,16 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
     }
   }, [editingEntry]);
 
-  // Auto-calculate intervention number
+  // Auto-calculate intervention number (shared counter with mapping entries)
   useEffect(() => {
     if (!editingEntry && project?.useInterventionNumbering) {
       (async () => {
-        const entries = await getStructureEntriesForProject(project.id);
-        const max = entries.reduce((m, e) => {
+        const [mappingEntries, structureEntries] = await Promise.all([
+          getMappingEntriesForProject(project.id),
+          getStructureEntriesForProject(project.id),
+        ]);
+        const allEntries = [...mappingEntries, ...structureEntries];
+        const max = allEntries.reduce((m, e) => {
           const n = parseInt(e.intervention || '0');
           return !isNaN(n) && n > m ? n : m;
         }, 0);
