@@ -896,13 +896,25 @@ async function _buildFromOriginalPDF(
   const fontItalic = await outDoc.embedFont(StandardFonts.HelveticaOblique);
   const fontRegular = await outDoc.embedFont(StandardFonts.Helvetica);
   const srcPage = srcDoc.getPage(0);
-  const origW = srcPage.getWidth();
-  const origH = srcPage.getHeight();
   const sourceRotation = ((srcPage.getRotation().angle % 360) + 360) % 360;
+  // Usa la CropBox come bounding box per embedPage: pdfjsLib renderizza la CropBox
+  // (area visibile all'utente), ma embedPage di default usa la MediaBox. Passando
+  // esplicitamente la CropBox, embedded.width/height riflettono le dimensioni visibili
+  // e il drawPage mostra solo l'area che l'utente ha visto nell'editor.
+  // getCropBox() restituisce la MediaBox se la CropBox non è impostata.
+  const cropBox = srcPage.getCropBox();
+  const embedded = await outDoc.embedPage(srcPage, {
+    left: cropBox.x,
+    bottom: cropBox.y,
+    right: cropBox.x + cropBox.width,
+    top: cropBox.y + cropBox.height,
+  });
+  const embW = embedded.width;
+  const embH = embedded.height;
   const effectiveRotation = ((sourceRotation + rotation) % 360 + 360) % 360;
   const [pageW, planAreaH] = (effectiveRotation === 90 || effectiveRotation === 270)
-    ? [origH, origW]
-    : [origW, origH];
+    ? [embH, embW]
+    : [embW, embH];
 
   // L'immagine (pagina PDF ruotata) occupa l'intera planArea alla base. Se
   // il cartiglio sborda, la pagina si estende in basso dell'overflow e
@@ -911,7 +923,6 @@ async function _buildFromOriginalPDF(
   const pageH = planAreaH + overflow;
   const imageOffsetY = overflow;
   const page = outDoc.addPage([pageW, pageH]);
-  const embedded = await outDoc.embedPage(srcPage);
 
   let ex: number;
   let ey: number;
@@ -919,16 +930,16 @@ async function _buildFromOriginalPDF(
   switch (effectiveRotation) {
     case 90:
       ex = 0;
-      ey = origW + imageOffsetY;
+      ey = embW + imageOffsetY;
       deg = -90;
       break;
     case 180:
-      ex = origW;
-      ey = origH + imageOffsetY;
+      ex = embW;
+      ey = embH + imageOffsetY;
       deg = 180;
       break;
     case 270:
-      ex = origH;
+      ex = embH;
       ey = imageOffsetY;
       deg = 90;
       break;
@@ -941,8 +952,8 @@ async function _buildFromOriginalPDF(
   page.drawPage(embedded, {
     x: ex,
     y: ey,
-    width: origW,
-    height: origH,
+    width: embW,
+    height: embH,
     rotate: degrees(deg),
   });
 
