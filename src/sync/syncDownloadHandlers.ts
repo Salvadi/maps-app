@@ -611,7 +611,10 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
     const point: FloorPlanPoint = {
       id: remotePoint.id,
       floorPlanId: remotePoint.floor_plan_id,
-      mappingEntryId: remotePoint.mapping_entry_id,
+      // Keep mappingEntryId populated (from either column) so the editor can display the point.
+      // structureEntryId is set when the point is linked to a structure_entry.
+      mappingEntryId: remotePoint.mapping_entry_id || remotePoint.structure_entry_id || undefined,
+      structureEntryId: remotePoint.structure_entry_id || undefined,
       pointType: remotePoint.point_type,
       pointX: remotePoint.point_x,
       pointY: remotePoint.point_y,

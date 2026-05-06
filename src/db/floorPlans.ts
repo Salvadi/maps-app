@@ -52,7 +52,8 @@ function convertRemoteToLocalFloorPlanPoint(remote: any): FloorPlanPoint {
   return {
     id: remote.id,
     floorPlanId: remote.floor_plan_id,
-    mappingEntryId: remote.mapping_entry_id || undefined,
+    mappingEntryId: remote.mapping_entry_id || remote.structure_entry_id || undefined,
+    structureEntryId: remote.structure_entry_id || undefined,
     pointType: remote.point_type,
     pointX: remote.point_x,
     pointY: remote.point_y,
