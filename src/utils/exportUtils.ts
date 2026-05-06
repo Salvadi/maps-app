@@ -641,8 +641,9 @@ function _drawAnnotationsOnPage(
     });
   }
 
-  // 3. Cerchi punto
+  // 3. Cerchi punto (non per i perimetri: rappresentati solo dalla linea tratteggiata)
   for (const point of points) {
+    if (point.type === 'perimetro') continue;
     page.drawCircle({
       x: toX(point.pointX),
       y: toY(point.pointY),
