@@ -425,19 +425,22 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
       ctx.setLineDash([]);
     }
 
-    // Draw point dot
-    ctx.fillStyle = isSelected ? '#FF0000' : getPointColor(point.type);
-    ctx.beginPath();
-    ctx.arc(x, y, isSelected ? 6 : 4, 0, 2 * Math.PI);
-    ctx.fill();
-
-    // Draw selection ring
-    if (isSelected) {
-      ctx.strokeStyle = '#FF0000';
-      ctx.lineWidth = 2;
+    // Perimetro selection is shown via line color change; no dot or ring needed
+    if (point.type !== 'perimetro') {
+      // Draw point dot
+      ctx.fillStyle = isSelected ? '#FF0000' : getPointColor(point.type);
       ctx.beginPath();
-      ctx.arc(x, y, 10, 0, 2 * Math.PI);
-      ctx.stroke();
+      ctx.arc(x, y, isSelected ? 6 : 4, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Draw selection ring
+      if (isSelected) {
+        ctx.strokeStyle = '#FF0000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
     }
   };
 

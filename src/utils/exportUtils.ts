@@ -597,7 +597,7 @@ function _drawAnnotationsOnPage(
     if (point.type !== 'perimetro' || !point.perimeterPoints || point.perimeterPoints.length < 2) continue;
     const svgPath = point.perimeterPoints
       .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.x).toFixed(2)} ${toSvgY(p.y).toFixed(2)}`)
-      .join(' ') + ' Z';
+      .join(' ');
     page.drawSvgPath(svgPath, {
       x: 0,
       y: pageH,
@@ -641,8 +641,9 @@ function _drawAnnotationsOnPage(
     });
   }
 
-  // 3. Cerchi punto
+  // 3. Cerchi punto (non per i perimetri: rappresentati solo dalla linea tratteggiata)
   for (const point of points) {
+    if (point.type === 'perimetro') continue;
     page.drawCircle({
       x: toX(point.pointX),
       y: toY(point.pointY),
