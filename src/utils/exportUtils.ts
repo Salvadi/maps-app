@@ -897,10 +897,18 @@ async function _buildFromOriginalPDF(
   const fontRegular = await outDoc.embedFont(StandardFonts.Helvetica);
   const srcPage = srcDoc.getPage(0);
   const sourceRotation = ((srcPage.getRotation().angle % 360) + 360) % 360;
-  // embedPage prima delle dimensioni: pdf-lib usa CropBox come bounding box quando
-  // disponibile, quindi embedded.width/height riflettono l'area visibile reale
-  // (vs getWidth/getHeight che restituiscono sempre la MediaBox).
-  const embedded = await outDoc.embedPage(srcPage);
+  // Usa la CropBox come bounding box per embedPage: pdfjsLib renderizza la CropBox
+  // (area visibile all'utente), ma embedPage di default usa la MediaBox. Passando
+  // esplicitamente la CropBox, embedded.width/height riflettono le dimensioni visibili
+  // e il drawPage mostra solo l'area che l'utente ha visto nell'editor.
+  // getCropBox() restituisce la MediaBox se la CropBox non è impostata.
+  const cropBox = srcPage.getCropBox();
+  const embedded = await outDoc.embedPage(srcPage, {
+    left: cropBox.x,
+    bottom: cropBox.y,
+    right: cropBox.x + cropBox.width,
+    top: cropBox.y + cropBox.height,
+  });
   const embW = embedded.width;
   const embH = embedded.height;
   const effectiveRotation = ((sourceRotation + rotation) % 360 + 360) % 360;
