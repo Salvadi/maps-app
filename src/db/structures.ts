@@ -445,23 +445,53 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
         .toArray();
       const pendingDeleteIds = new Set(pendingDeletes.map((item) => item.entityId));
 
-      const remotePhotos: Photo[] = rows
-        .filter((row: any) => !pendingDeleteIds.has(row.id))
-        .map((row: any) => ({
-          id: row.id,
-          mappingEntryId: structureEntryId,
-          entryType: 'structure' as const,
-          blob: localById.get(row.id)?.blob,
-          thumbnailBlob: localById.get(row.id)?.thumbnailBlob,
-          metadata: row.metadata || localById.get(row.id)?.metadata || {
-            width: 0, height: 0, size: 0, mimeType: 'image/jpeg', captureTimestamp: now(),
-          },
-          uploaded: true,
-          remoteUrl: row.url ?? undefined,
-          thumbnailRemoteUrl: row.thumbnail_url ?? undefined,
-          storagePath: row.storage_path ?? undefined,
-          thumbnailStoragePath: row.thumbnail_storage_path ?? undefined,
-        }));
+      const filteredRows = rows.filter((row: any) => !pendingDeleteIds.has(row.id));
+
+      // Generate signed URLs (bucket is private, public URLs don't work)
+      const fullPaths = filteredRows
+        .map((row: any) => row.storage_path)
+        .filter((p: any): p is string => Boolean(p));
+      const thumbPaths = filteredRows
+        .map((row: any) => row.thumbnail_storage_path)
+        .filter((p: any): p is string => Boolean(p));
+
+      const signedByPath = new Map<string, string>();
+      const signedThumbByPath = new Map<string, string>();
+
+      await Promise.all([
+        fullPaths.length > 0 ? (async () => {
+          const { data: sd } = await supabase.storage.from('photos').createSignedUrls(fullPaths, 60 * 60);
+          for (const item of sd || []) {
+            if (item.path && item.signedUrl) signedByPath.set(item.path, item.signedUrl);
+          }
+        })() : Promise.resolve(),
+        thumbPaths.length > 0 ? (async () => {
+          const { data: sd } = await supabase.storage.from('photos').createSignedUrls(thumbPaths, 60 * 60);
+          for (const item of sd || []) {
+            if (item.path && item.signedUrl) signedThumbByPath.set(item.path, item.signedUrl);
+          }
+        })() : Promise.resolve(),
+      ]);
+
+      const remotePhotos: Photo[] = filteredRows.map((row: any) => ({
+        id: row.id,
+        mappingEntryId: structureEntryId,
+        entryType: 'structure' as const,
+        blob: localById.get(row.id)?.blob,
+        thumbnailBlob: localById.get(row.id)?.thumbnailBlob,
+        metadata: row.metadata || localById.get(row.id)?.metadata || {
+          width: 0, height: 0, size: 0, mimeType: 'image/jpeg', captureTimestamp: now(),
+        },
+        uploaded: true,
+        remoteUrl: row.storage_path
+          ? signedByPath.get(row.storage_path) ?? row.url ?? undefined
+          : row.url ?? undefined,
+        thumbnailRemoteUrl: row.thumbnail_storage_path
+          ? signedThumbByPath.get(row.thumbnail_storage_path) ?? row.thumbnail_url ?? undefined
+          : row.thumbnail_url ?? (row.storage_path ? signedByPath.get(row.storage_path) ?? row.url ?? undefined : row.url ?? undefined),
+        storagePath: row.storage_path ?? undefined,
+        thumbnailStoragePath: row.thumbnail_storage_path ?? undefined,
+      }));
 
       // Merge local-only photos not yet synced to remote
       const remoteIds = new Set(remotePhotos.map((p) => p.id));
