@@ -364,6 +364,14 @@ export async function processSyncQueue(): Promise<SyncResult> {
     console.warn(`⚠️  Sync partial: ${processedCount} success, ${failedCount} failed`);
   }
 
+  // Handlers (e.g. syncStructureEntry, syncMappingEntry) can enqueue new items
+  // (photos) during a cycle. Re-trigger so they are processed promptly instead
+  // of waiting for the next periodic sync.
+  const newPendingCount = await db.syncQueue.where('synced').equals(0).count();
+  if (newPendingCount > 0) {
+    triggerImmediateUpload();
+  }
+
   await emitSyncComplete();
   return result;
 }
