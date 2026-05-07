@@ -438,21 +438,38 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
         .filter((p) => p.entryType === 'structure');
       const localById = new Map(localPhotos.map((p) => [p.id, p]));
 
-      const remotePhotos: Photo[] = rows.map((row: any) => ({
-        id: row.id,
-        mappingEntryId: structureEntryId,
-        entryType: 'structure' as const,
-        blob: localById.get(row.id)?.blob,
-        thumbnailBlob: localById.get(row.id)?.thumbnailBlob,
-        metadata: row.metadata || localById.get(row.id)?.metadata || {
-          width: 0, height: 0, size: 0, mimeType: 'image/jpeg', captureTimestamp: now(),
-        },
-        uploaded: true,
-        remoteUrl: row.url ?? undefined,
-        thumbnailRemoteUrl: row.thumbnail_url ?? undefined,
-        storagePath: row.storage_path ?? undefined,
-        thumbnailStoragePath: row.thumbnail_storage_path ?? undefined,
-      }));
+      const pendingDeletes = await db.syncQueue
+        .where('entityType')
+        .equals('photo')
+        .and((item) => item.synced === 0 && item.operation === 'DELETE')
+        .toArray();
+      const pendingDeleteIds = new Set(pendingDeletes.map((item) => item.entityId));
+
+      const remotePhotos: Photo[] = rows
+        .filter((row: any) => !pendingDeleteIds.has(row.id))
+        .map((row: any) => ({
+          id: row.id,
+          mappingEntryId: structureEntryId,
+          entryType: 'structure' as const,
+          blob: localById.get(row.id)?.blob,
+          thumbnailBlob: localById.get(row.id)?.thumbnailBlob,
+          metadata: row.metadata || localById.get(row.id)?.metadata || {
+            width: 0, height: 0, size: 0, mimeType: 'image/jpeg', captureTimestamp: now(),
+          },
+          uploaded: true,
+          remoteUrl: row.url ?? undefined,
+          thumbnailRemoteUrl: row.thumbnail_url ?? undefined,
+          storagePath: row.storage_path ?? undefined,
+          thumbnailStoragePath: row.thumbnail_storage_path ?? undefined,
+        }));
+
+      // Merge local-only photos not yet synced to remote
+      const remoteIds = new Set(remotePhotos.map((p) => p.id));
+      for (const localPhoto of localPhotos) {
+        if (!pendingDeleteIds.has(localPhoto.id) && !remoteIds.has(localPhoto.id)) {
+          remotePhotos.push(localPhoto);
+        }
+      }
 
       return remotePhotos;
     } catch (err) {
