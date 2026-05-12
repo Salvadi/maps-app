@@ -114,6 +114,14 @@
   background: none;
 }
 
+/* Fallback for Safari < 15 which lacks aspect-ratio support */
+@supports not (aspect-ratio: 1) {
+  .recent-color-btn {
+    padding-bottom: 100%;
+    height: 0;
+  }
+}
+
 .recent-color-btn:hover {
   border-color: #2196f3;
   transform: scale(1.1);
