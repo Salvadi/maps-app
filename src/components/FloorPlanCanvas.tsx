@@ -171,7 +171,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
   // Expose completePerimeter/cancelPerimeter to parent via ref instead of window globals
   useImperativeHandle(ref, () => ({
     completePerimeter: () => {
-      if (isDrawingPerimeter && perimeterPoints.length >= 3 && onPointAdd) {
+      if (isDrawingPerimeter && perimeterPoints.length >= 2 && onPointAdd) {
         onPointAdd({
           type: 'perimetro',
           pointX: perimeterPoints[0].x,
