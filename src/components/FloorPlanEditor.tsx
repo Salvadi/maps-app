@@ -389,6 +389,16 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         // Allow moving all points and labels in all modes (except view-only)
         if (isLabel) {
           return { ...p, labelX: newX, labelY: newY };
+        } else if (p.type === 'perimetro' && p.perimeterPoints && p.perimeterPoints.length > 0) {
+          // For perimeter points, move all vertices by the same delta so the polygon moves
+          const dx = newX - p.pointX;
+          const dy = newY - p.pointY;
+          return {
+            ...p,
+            pointX: newX,
+            pointY: newY,
+            perimeterPoints: p.perimeterPoints.map(pt => ({ x: pt.x + dx, y: pt.y + dy })),
+          };
         } else {
           return { ...p, pointX: newX, pointY: newY };
         }
