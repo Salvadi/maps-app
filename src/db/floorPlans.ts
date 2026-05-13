@@ -2,6 +2,7 @@ import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from '.
 import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap, blobToBase64 } from '../utils/floorPlanUtils';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { supabase } from '../lib/supabase';
+import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
@@ -144,7 +145,7 @@ async function signFloorPlanUrls(plans: FloorPlan[]): Promise<FloorPlan[]> {
   for (const [bucket, paths] of Array.from(groupedPaths.entries())) {
     const pathList = Array.from(paths);
     for (const batch of chunkArray(pathList, FLOOR_PLAN_SIGN_BATCH_SIZE)) {
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(batch, 60 * 60);
+      const { data, error } = await apiStorageFrom(bucket).createSignedUrls(batch, 60 * 60);
       if (error) {
         console.warn('[online-first] signFloorPlanUrls failed', bucket, error);
         continue;
@@ -376,33 +377,35 @@ export async function ensureFloorPlanAsset(
     if (mode === 'thumbnail' && !refreshedPlan.thumbnailBlob && refreshedPlan.thumbnailUrl) {
       const location = extractStorageLocation(refreshedPlan.thumbnailUrl);
       if (location) {
-        const { data, error } = await supabase.storage.from(location.bucket).download(location.path);
+        const { data, error } = await apiStorageFrom(location.bucket).download(location.path);
         if (error) {
           throw error;
         }
-        updatedPlan = { ...updatedPlan, thumbnailBlob: data };
+        if (data) updatedPlan = { ...updatedPlan, thumbnailBlob: data };
       }
     }
 
     if (mode === 'full' && !updatedPlan.imageBlob && updatedPlan.imageUrl) {
       const location = extractStorageLocation(updatedPlan.imageUrl);
       if (location) {
-        const { data, error } = await supabase.storage.from(location.bucket).download(location.path);
+        const { data, error } = await apiStorageFrom(location.bucket).download(location.path);
         if (error) {
           throw error;
         }
-        updatedPlan = { ...updatedPlan, imageBlob: data };
+        if (data) updatedPlan = { ...updatedPlan, imageBlob: data };
       }
     }
 
     if (mode === 'pdf' && !updatedPlan.pdfBlobBase64 && updatedPlan.pdfUrl) {
       const location = extractStorageLocation(updatedPlan.pdfUrl);
       if (location) {
-        const { data, error } = await supabase.storage.from(location.bucket).download(location.path);
+        const { data, error } = await apiStorageFrom(location.bucket).download(location.path);
         if (error) {
           throw error;
         }
-        updatedPlan = { ...updatedPlan, pdfBlobBase64: await blobToBase64(data) };
+        if (data) {
+          updatedPlan = { ...updatedPlan, pdfBlobBase64: await blobToBase64(data) };
+        }
       }
     }
 

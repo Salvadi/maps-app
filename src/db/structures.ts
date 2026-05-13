@@ -1,6 +1,7 @@
 import { db, generateId, now, StructureEntry, Photo, PhotoMetadata, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { supabase } from '../lib/supabase';
+import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
@@ -460,13 +461,13 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
 
       await Promise.all([
         fullPaths.length > 0 ? (async () => {
-          const { data: sd } = await supabase.storage.from('photos').createSignedUrls(fullPaths, 60 * 60);
+          const { data: sd } = await apiStorageFrom('photos').createSignedUrls(fullPaths, 60 * 60);
           for (const item of sd || []) {
             if (item.path && item.signedUrl) signedByPath.set(item.path, item.signedUrl);
           }
         })() : Promise.resolve(),
         thumbPaths.length > 0 ? (async () => {
-          const { data: sd } = await supabase.storage.from('photos').createSignedUrls(thumbPaths, 60 * 60);
+          const { data: sd } = await apiStorageFrom('photos').createSignedUrls(thumbPaths, 60 * 60);
           for (const item of sd || []) {
             if (item.path && item.signedUrl) signedThumbByPath.set(item.path, item.signedUrl);
           }

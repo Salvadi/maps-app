@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Login from './components/Login';
 import PasswordReset from './components/PasswordReset';
 import Dashboard from './components/Dashboard';
@@ -66,6 +66,20 @@ const App: React.FC = () => {
   const [editorProject, setEditorProject] = useState<Project | null>(null);
   const [editorInitialPoints, setEditorInitialPoints] = useState<import('./components/FloorPlanCanvas').CanvasPoint[]>([]);
   const [editorUnmappedEntries, setEditorUnmappedEntries] = useState<UnmappedEntry[]>([]);
+
+  // Refs per stale-view guard (evitano stale closure nell'handler SSE)
+  const viewingProjectRef = useRef<Project | null>(null);
+  const currentMappingProjectRef = useRef<Project | null>(null);
+  const currentStructureProjectRef = useRef<Project | null>(null);
+  const editorProjectRef = useRef<Project | null>(null);
+  const selectedProjectRef = useRef<Project | null>(null);
+
+  // Mantieni i ref allineati allo stato
+  useEffect(() => { viewingProjectRef.current = viewingProject; }, [viewingProject]);
+  useEffect(() => { currentMappingProjectRef.current = currentMappingProject; }, [currentMappingProject]);
+  useEffect(() => { currentStructureProjectRef.current = currentStructureProject; }, [currentStructureProject]);
+  useEffect(() => { editorProjectRef.current = editorProject; }, [editorProject]);
+  useEffect(() => { selectedProjectRef.current = selectedProject; }, [selectedProject]);
 
   // Handle browser back button
   useEffect(() => {
@@ -193,16 +207,47 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isInitialized || !currentUser) return;
     let active = true;
+
+    // Guard: se il progetto correntemente visualizzato viene eliminato da remoto,
+    // torna alla vista tabs e azzera tutti i riferimenti al progetto.
+    const handleStaleView = async (ev: import('./realtime/eventStream').ChangeLogRow) => {
+      if (ev.table_name !== 'projects' || ev.op !== 'DELETE') return;
+      const deletedId = ev.row_id;
+      const isStale =
+        viewingProjectRef.current?.id === deletedId ||
+        currentMappingProjectRef.current?.id === deletedId ||
+        currentStructureProjectRef.current?.id === deletedId ||
+        editorProjectRef.current?.id === deletedId ||
+        selectedProjectRef.current?.id === deletedId;
+      if (!isStale) return;
+      setCurrentView('tabs');
+      setViewingProject(null);
+      setCurrentMappingProject(null);
+      setCurrentStructureProject(null);
+      setEditorProject(null);
+      setSelectedProject(null);
+      // Fix H3: azzera lo stato del floor plan editor
+      setEditorFloorPlan(null);
+      setEditorImageUrl(null);
+      // Fix M3: azzera le entry in modifica (come fa handlePopState quando torna a 'tabs')
+      setEditingMappingEntry(undefined);
+      setEditingStructureEntry(undefined);
+      // Fix M4: sostituisce la history entry stale per evitare che il tasto Back la ripristini
+      window.history.replaceState({ view: 'tabs', tab: activeTab }, '', window.location.pathname);
+    };
+
     const run = async () => {
       await eventStream.init();
       if (!active) return;
       eventStream.subscribe(handleProjectDeleteLocal);
+      eventStream.subscribe(handleStaleView);
       eventStream.start();
     };
     run();
     return () => {
       active = false;
       eventStream.unsubscribe(handleProjectDeleteLocal);
+      eventStream.unsubscribe(handleStaleView);
       eventStream.stop();
     };
   }, [isInitialized, currentUser]);

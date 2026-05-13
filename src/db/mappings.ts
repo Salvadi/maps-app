@@ -1,6 +1,7 @@
 import { db, generateId, now, MappingEntry, Photo, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { supabase, type Database } from '../lib/supabase';
+import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
@@ -193,7 +194,7 @@ async function signPhotoPaths(rows: RemotePhotoRow[]): Promise<{
     (async () => {
       if (fullPaths.length > 0) {
         for (const batch of chunkArray(fullPaths, PHOTO_SIGN_BATCH_SIZE)) {
-          const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
+          const { data, error } = await apiStorageFrom('photos').createSignedUrls(batch, 60 * 60);
           if (error) throw error;
           for (const item of data || []) {
             if (item.path && item.signedUrl) signedByPath.set(item.path, item.signedUrl);
@@ -204,7 +205,7 @@ async function signPhotoPaths(rows: RemotePhotoRow[]): Promise<{
     (async () => {
       if (thumbPaths.length > 0) {
         for (const batch of chunkArray(thumbPaths, PHOTO_SIGN_BATCH_SIZE)) {
-          const { data, error } = await supabase.storage.from('photos').createSignedUrls(batch, 60 * 60);
+          const { data, error } = await apiStorageFrom('photos').createSignedUrls(batch, 60 * 60);
           if (error) throw error;
           for (const item of data || []) {
             if (item.path && item.signedUrl) signedThumbByPath.set(item.path, item.signedUrl);
@@ -603,7 +604,7 @@ export async function ensurePhotoBlob(photoId: string): Promise<Photo | undefine
     let blob: Blob | null = null;
 
     if (photo.storagePath) {
-      const { data, error } = await supabase.storage.from('photos').download(photo.storagePath);
+      const { data, error } = await apiStorageFrom('photos').download(photo.storagePath);
       if (error) {
         throw error;
       }

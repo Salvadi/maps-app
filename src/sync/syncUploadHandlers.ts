@@ -7,6 +7,7 @@
 
 import { db, Project, MappingEntry, StructureEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
 import { supabase } from '../lib/supabase';
+import { apiStorageFrom } from '../lib/storageShim';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
 // ============================================
@@ -293,7 +294,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       throw new Error(`Supabase photo upload failed: ${uploadError.message}`);
     }
 
-    const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(fileName);
+    const { data: { publicUrl } } = apiStorageFrom('photos').getPublicUrl(fileName);
 
     let thumbnailStoragePath = fileName;
     let thumbnailPublicUrl = publicUrl;
@@ -309,9 +310,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
 
       if (!thumbnailUploadError) {
         thumbnailStoragePath = thumbnailFileName;
-        const { data: { publicUrl: computedThumbnailPublicUrl } } = supabase.storage
-          .from('photos')
-          .getPublicUrl(thumbnailFileName);
+        const { data: { publicUrl: computedThumbnailPublicUrl } } = apiStorageFrom('photos').getPublicUrl(thumbnailFileName);
         thumbnailPublicUrl = computedThumbnailPublicUrl;
       } else {
         console.warn(`Thumbnail upload failed for photo ${photoMeta.id}, falling back to main asset: ${thumbnailUploadError.message}`);

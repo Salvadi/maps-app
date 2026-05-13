@@ -1,5 +1,6 @@
 import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice, StandaloneMap } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { apiStorageFrom } from '../lib/storageShim';
 import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
 import { convertRemoteToLocalStructure } from '../db/structures';
 import { getPendingEntityIds } from '../db/onlineFirst';
@@ -16,9 +17,7 @@ async function downloadStorageBlobFromPublicUrl(publicUrl: string): Promise<Blob
 
   const [, bucketName, rawObjectPath] = match;
   const objectPath = decodeURIComponent(rawObjectPath);
-  const { data: blob, error } = await supabase.storage
-    .from(bucketName)
-    .download(objectPath);
+  const { data: blob, error } = await apiStorageFrom(bucketName).download(objectPath);
 
   if (error || !blob) {
     console.warn(`⚠️  Failed to download storage object ${objectPath}: ${error?.message}`);
@@ -201,11 +200,11 @@ async function fetchStorageBlob(
   fallbackUrl?: string | undefined
 ): Promise<Blob | undefined> {
   if (storagePath) {
-    const { data, error } = await supabase.storage.from('photos').download(storagePath);
+    const { data, error } = await apiStorageFrom('photos').download(storagePath);
     if (error) {
       throw error;
     }
-    return data;
+    return data ?? undefined;
   }
 
   if (fallbackUrl) {
@@ -224,11 +223,11 @@ async function fetchBucketBlob(
   fallbackUrl?: string | undefined
 ): Promise<Blob | undefined> {
   if (location) {
-    const { data, error } = await supabase.storage.from(location.bucket).download(location.path);
+    const { data, error } = await apiStorageFrom(location.bucket).download(location.path);
     if (error) {
       throw error;
     }
-    return data;
+    return data ?? undefined;
   }
 
   if (fallbackUrl) {
