@@ -28,6 +28,8 @@ CLAUDE.md
 .claude/worktrees/
 supabase/.temp/
 nul
+__pycache__/
+*.py[cod]
 
 # logs
 npm-debug.log*

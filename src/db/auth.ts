@@ -1,6 +1,88 @@
-import { db, User } from './database';
+import { db, User, AuthCache } from './database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { syncFromSupabase } from '../sync/syncEngine';
+
+// ============================================
+// PBKDF2 offline auth — costanti e helper
+// ============================================
+
+const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_HASH = 'SHA-256';
+const SALT_BYTES = 16;
+const IV_BYTES = 12;
+const OFFLINE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 giorni
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+
+async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function saveOfflineAuth(email: string, password: string, user: User): Promise<void> {
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
+    const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+    const key = await deriveKey(password, salt);
+    const plaintext = new TextEncoder().encode(
+      JSON.stringify({ user, expiresAt: Date.now() + OFFLINE_TTL_MS })
+    );
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+    await db.authCache.put({
+      id: email.toLowerCase(),
+      email: email.toLowerCase(),
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
+      createdAt: Date.now(),
+      expiresAt: Date.now() + OFFLINE_TTL_MS,
+    });
+  } catch (err) {
+    console.warn('⚠️ saveOfflineAuth fallito (non bloccante):', err);
+  }
+}
+
+// Rate-limit persistito in db.realtimeState (sopravvive a clearDatabase e clearAndSync)
+const RATE_LIMIT_KEY = (email: string) => `offline_fails_${email.toLowerCase()}`;
+
+interface OfflineFails { count: number; lastFail: number; }
+
+async function getOfflineFails(email: string): Promise<OfflineFails> {
+  const row = await db.realtimeState.get(RATE_LIMIT_KEY(email));
+  if (!row) return { count: 0, lastFail: 0 };
+  try { return JSON.parse(row.value) as OfflineFails; }
+  catch { return { count: 0, lastFail: 0 }; }
+}
+
+async function setOfflineFails(email: string, fails: OfflineFails): Promise<void> {
+  await db.realtimeState.put({ key: RATE_LIMIT_KEY(email), value: JSON.stringify(fails) });
+}
+
+async function clearOfflineFails(email: string): Promise<void> {
+  await db.realtimeState.delete(RATE_LIMIT_KEY(email));
+}
 
 /**
  * Supabase Authentication with offline-first fallback
@@ -84,6 +166,9 @@ export async function login(email: string, password: string): Promise<User | nul
       await db.users.put(user);
       await db.metadata.put({ key: 'currentUser', value: user });
 
+      // Salva token cifrato con PBKDF2 per il login offline
+      await saveOfflineAuth(email, password, user);
+
       console.log('✅ User logged in (Supabase):', user.email);
 
       // Sync data from Supabase to local database
@@ -109,34 +194,69 @@ export async function login(email: string, password: string): Promise<User | nul
 }
 
 /**
- * Offline login fallback
- * Only allows re-authentication for users who have previously logged in online.
- * This prevents unauthorized access via mock users during Supabase outages.
+ * Offline login fallback con PBKDF2 (600k iterations, AES-GCM, TTL 7gg).
+ * Verifica le credenziali decifrando il token salvato al login online.
+ * Include rate-limit locale per prevenire brute-force.
  */
-async function loginOffline(email: string, _password: string): Promise<User | null> {
-  console.log('📦 Using offline login');
+async function loginOffline(email: string, password: string): Promise<User | null> {
+  const emailKey = email.toLowerCase();
 
-  // La sessione offline è valida SOLO se Supabase ha una sessione attiva
-  // con l'email corrispondente. Senza verifica sessione, chiunque conosca
-  // un'email potrebbe autenticarsi su dispositivo condiviso/compromesso.
+  // Rate limit persistito: max 5 tentativi falliti, poi backoff esponenziale
+  const fails = await getOfflineFails(email);
+  if (fails.count >= 5) {
+    const cooldown = Math.min(60_000, Math.pow(2, fails.count - 5) * 1000);
+    if (Date.now() - fails.lastFail < cooldown) {
+      console.warn('⚠️ Offline login: troppi tentativi per', email);
+      return null;
+    }
+  }
+
+  // Prova PBKDF2 decrypt dalla cache locale
+  const cached = await db.authCache.get(emailKey);
+  if (cached) {
+    try {
+      const key = await deriveKey(password, base64ToBytes(cached.salt));
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: base64ToBytes(cached.iv) },
+        key,
+        base64ToBytes(cached.ciphertext)
+      );
+      const { user, expiresAt } = JSON.parse(new TextDecoder().decode(decrypted));
+      if (Date.now() > expiresAt) {
+        await db.authCache.delete(emailKey);
+        console.warn('⚠️ Offline token scaduto per', email);
+        return null;
+      }
+      await clearOfflineFails(email);
+      console.log('✅ Offline login PBKDF2 OK:', email);
+      return user as User;
+    } catch {
+      await setOfflineFails(email, { count: fails.count + 1, lastFail: Date.now() });
+      console.warn('⚠️ Offline login: credenziali non valide per', email);
+      return null;
+    }
+  }
+
+  // Fallback legacy: verifica sessione Supabase attiva (nessuna cache PBKDF2 disponibile)
+  console.log('📦 Offline login fallback (no cache PBKDF2) per', email);
   if (supabase) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.email?.toLowerCase() === email.toLowerCase()) {
+      if (session?.user?.email?.toLowerCase() === emailKey) {
         // Sessione valida: recupera i metadati utente dalla cache locale
         const cachedMeta = await db.metadata.get('currentUser');
         const cachedUser = cachedMeta?.value as User | null;
-        if (cachedUser && cachedUser.email.toLowerCase() === email.toLowerCase()) {
-          console.log('✅ User re-authenticated (offline, valid session):', cachedUser.email);
+        if (cachedUser && cachedUser.email.toLowerCase() === emailKey) {
+          console.log('✅ User re-authenticated (offline, sessione legacy):', cachedUser.email);
           return cachedUser;
         }
       }
     } catch (err) {
-      console.warn('⚠️ Could not check session for offline login:', err);
+      console.warn('⚠️ Offline login fallback fallito:', err);
     }
   }
 
-  console.warn('⚠️ Offline login failed: no valid cached session for', email);
+  console.warn('⚠️ Offline login fallito: nessuna cache valida per', email);
   return null;
 }
 

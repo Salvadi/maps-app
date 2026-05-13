@@ -12,6 +12,18 @@ if (typeof global.structuredClone === 'undefined') {
 }
 
 /**
+ * Polyfill for crypto.randomUUID (required by eventStream e generateId in ambienti Jest/JSDOM)
+ */
+if (typeof global.crypto === 'undefined' || typeof (global.crypto as any).randomUUID === 'undefined') {
+  const nodeCrypto = require('crypto');
+  if (typeof global.crypto === 'undefined') {
+    (global as any).crypto = nodeCrypto.webcrypto ?? { randomUUID: () => nodeCrypto.randomUUID() };
+  } else {
+    (global.crypto as any).randomUUID = () => nodeCrypto.randomUUID();
+  }
+}
+
+/**
  * Mock IndexedDB for tests
  * The app uses Dexie.js which requires IndexedDB
  */

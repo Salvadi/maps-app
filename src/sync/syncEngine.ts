@@ -8,6 +8,7 @@
 
 import { db, SyncQueueItem } from '../db/database';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { eventStream } from '../realtime/eventStream';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
 import { processSyncItem } from './syncUploadHandlers';
 import {
@@ -769,6 +770,7 @@ export async function clearAndSync(): Promise<{
   } | null = null;
 
   try {
+    eventStream.stop();
     await clearBrowserCaches();
 
     // Clear all data from IndexedDB
@@ -798,6 +800,7 @@ export async function clearAndSync(): Promise<{
       await db.metadata.put(includeArchivedMeta);
     }
     await db.metadata.put({ key: LAST_SYNC_TIME_KEY, value: 0 });
+    await db.realtimeState.put({ key: 'appliedSeq', value: '0' });
 
     console.log('✅ Local data cleared successfully');
 
@@ -846,6 +849,8 @@ export async function clearAndSync(): Promise<{
     throw err;
   } finally {
     await releaseSyncLock();
+    await eventStream.init();
+    eventStream.start();
   }
 
   await emitSyncComplete();

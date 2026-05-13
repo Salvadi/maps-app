@@ -320,6 +320,33 @@ export interface Sal {
 }
 
 // ============================================
+// AUTH CACHE INTERFACE (PBKDF2 offline auth)
+// ============================================
+
+export interface AuthCache {
+  id: string;         // email normalizzata (PK)
+  email: string;
+  salt: string;       // base64
+  iv: string;         // base64
+  ciphertext: string; // base64
+  createdAt: number;  // epoch ms
+  expiresAt: number;  // epoch ms (createdAt + 7gg)
+}
+
+// ============================================
+// REALTIME STATE
+// ============================================
+
+// Tabella KV generica persistente. Usata da:
+//   - eventStream (chiavi: 'appliedSeq')
+//   - auth.ts offline rate-limit (chiavi: 'offline_fails_<email>')
+// Le chiavi sono namespace-isolated per convenzione; non aggiungere chiavi senza prefisso.
+export interface PersistentKVEntry {
+  key: string;   // PK, es. 'appliedSeq' | 'tabId' | 'offline_fails_<email>'
+  value: string; // stringa (seq come string BigInt, tabId come UUID, counter come stringa)
+}
+
+// ============================================
 // DROPDOWN OPTIONS CACHE INTERFACES
 // ============================================
 
@@ -371,6 +398,12 @@ export class MappingDatabase extends Dexie {
 
   // STRUTTURE
   structureEntries!: Table<StructureEntry, string>;
+
+  // AUTH CACHE (PBKDF2 offline auth)
+  authCache!: Table<AuthCache, string>;
+
+  // REALTIME STATE / KV persistente (seq cursor SSE, offline rate-limit auth)
+  realtimeState!: Table<PersistentKVEntry, string>;
 
   constructor() {
     super('MappingDatabase');
@@ -567,6 +600,51 @@ export class MappingDatabase extends Dexie {
       // STRUTTURE
       structureEntries: 'id, projectId, floor, createdBy, synced, timestamp'
     });
+
+    // Define schema v12 - aggiunge tabella authCache per PBKDF2 offline auth
+    this.version(12).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      projectCachePrefs: 'projectId, offlinePinned, updatedAt',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
+      sals: 'id, projectId, number, createdAt',
+      structureEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      // AUTH CACHE PBKDF2
+      authCache: 'id, email'
+    });
+
+    // Define schema v13 - aggiunge tabella realtimeState per SSE cursor (appliedSeq, tabId)
+    this.version(13).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      projectCachePrefs: 'projectId, offlinePinned, updatedAt',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
+      sals: 'id, projectId, number, createdAt',
+      structureEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      authCache: 'id, email',
+      // REALTIME STATE: sopravvive ai sync reset come authCache e metadata
+      realtimeState: 'key'
+    });
   }
 }
 
@@ -652,7 +730,7 @@ export async function clearDatabase(): Promise<void> {
       await db.structureEntries.clear();
     }
   );
-  // Keep metadata
+  // Keep metadata e authCache (sopravvivono ai sync reset come le credenziali offline)
   console.log('Database cleared');
 }
 

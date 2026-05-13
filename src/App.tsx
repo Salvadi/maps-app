@@ -19,6 +19,8 @@ import {
   startAutoSync, stopAutoSync, lockedSync,
   getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
 } from './sync/syncEngine';
+import { eventStream } from './realtime/eventStream';
+import { handleProjectDeleteLocal } from './realtime/projectCascade';
 import './App.css';
 
 // Lazy-loaded components: these pull in heavy libraries (jsPDF, pdf-lib, pdfjs-dist, xlsx)
@@ -186,6 +188,24 @@ const App: React.FC = () => {
     updateSyncStats();
     return () => offSyncComplete(handler);
   }, []);
+
+  // EventStream: connessione SSE realtime (solo se autenticato e inizializzato)
+  useEffect(() => {
+    if (!isInitialized || !currentUser) return;
+    let active = true;
+    const run = async () => {
+      await eventStream.init();
+      if (!active) return;
+      eventStream.subscribe(handleProjectDeleteLocal);
+      eventStream.start();
+    };
+    run();
+    return () => {
+      active = false;
+      eventStream.unsubscribe(handleProjectDeleteLocal);
+      eventStream.stop();
+    };
+  }, [isInitialized, currentUser]);
 
   // Service Worker message handler
   useEffect(() => {
