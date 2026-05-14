@@ -39,6 +39,73 @@ const TABLE_ORDER: Record<string, number> = {
   floor_plan_points: 4,
 };
 
+async function reverseStorageCopy(cutoverTs: string): Promise<number> {
+  const storageTables = ['photos', 'floor_plans', 'standalone_maps'] as const;
+  const pathColumns: Record<string, string[]> = {
+    photos: ['storage_path'],
+    floor_plans: ['image_storage_path', 'thumbnail_storage_path', 'pdf_storage_path'],
+    standalone_maps: ['image_storage_path', 'thumbnail_storage_path', 'pdf_storage_path'],
+  };
+  const buckets: Record<string, string> = {
+    photos: 'photos',
+    floor_plans: 'planimetrie',
+    standalone_maps: 'planimetrie',
+  };
+
+  const endpoint = process.env.MINIO_ENDPOINT;
+  const accessKeyId = process.env.MINIO_API_ACCESS_KEY;
+  const secretAccessKey = process.env.MINIO_API_SECRET_KEY;
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    throw new Error('MINIO_ENDPOINT / MINIO_API_ACCESS_KEY / MINIO_API_SECRET_KEY mancanti');
+  }
+
+  const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+  const s3 = new S3Client({
+    endpoint,
+    region: 'us-east-1',
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+  });
+
+  let storageErrors = 0;
+
+  for (const table of storageTables) {
+    const rows = await local<Array<{ row_id: string }>>`
+      SELECT DISTINCT row_id FROM change_log
+      WHERE table_name = ${table} AND op IN ('INSERT', 'UPDATE') AND changed_at > ${cutoverTs}
+    `;
+    console.log(`  Storage ${table}: ${rows.length} righe da copiare MinIO→Supabase`);
+
+    for (const { row_id } of rows) {
+      try {
+        const [record] = await local`SELECT * FROM ${local(table)} WHERE id = ${row_id}`;
+        if (!record) { console.warn(`  ${table} ${row_id}: riga non trovata, skip`); continue; }
+
+        const cols = pathColumns[table];
+        for (const col of cols) {
+          const storagePath: string | undefined = record[col];
+          if (!storagePath) continue;
+
+          const bucket = buckets[table];
+          const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: storagePath }));
+          const chunks: Buffer[] = [];
+          for await (const chunk of obj.Body as AsyncIterable<Buffer>) chunks.push(Buffer.from(chunk));
+          const buffer = Buffer.concat(chunks);
+
+          const { error } = await sb.storage.from(bucket).upload(storagePath, buffer, { upsert: true });
+          if (error) throw error;
+          console.log(`    ${table} ${row_id} [${col}]: copiato ${storagePath}`);
+        }
+      } catch (e) {
+        console.error(`    ${table} ${row_id}: errore - ${(e as Error).message}`);
+        storageErrors++;
+      }
+    }
+  }
+
+  return storageErrors;
+}
+
 async function main() {
   console.log(`Reverse-delta da cutover: ${CUTOVER_TS}`);
 
@@ -106,7 +173,7 @@ async function main() {
 
   // Storage reverse sync
   console.log('\nAvvio storage reverse sync...');
-  await reverseStorageSync(CUTOVER_TS);
+  errors += await reverseStorageCopy(CUTOVER_TS);
 
   await local.end();
   if (errors > 0) {
@@ -114,25 +181,6 @@ async function main() {
     process.exit(1);
   }
   console.log('\n✅ Reverse-delta completato.');
-}
-
-async function reverseStorageSync(cutoverTs: string) {
-  const tables = ['photos', 'floor_plans', 'standalone_maps'];
-  for (const table of tables) {
-    const rows = await local<Array<{ row_id: string }>>`
-      SELECT DISTINCT row_id FROM change_log
-      WHERE table_name = ${table} AND changed_at > ${cutoverTs}
-        AND op IN ('INSERT', 'UPDATE')
-    `;
-    if (rows.length > 0) {
-      console.log(`  Storage ${table}: ${rows.length} righe da sincronizzare (implementazione MinIO→Supabase richiesta manualmente)`);
-      // TODO Sprint 8: implementare copia file MinIO → Supabase Storage per ogni row_id
-      // Per ora: lista i row_id da gestire manualmente
-      for (const { row_id } of rows) {
-        console.log(`    - ${table}:${row_id}`);
-      }
-    }
-  }
 }
 
 main().catch((e) => {

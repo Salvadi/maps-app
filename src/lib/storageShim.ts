@@ -83,5 +83,25 @@ export function apiStorageFrom(bucket: string) {
         return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
       }
     },
+
+    async remove(
+      paths: string[],
+    ): Promise<{ data: Array<{ name: string }> | null; error: Error | null }> {
+      try {
+        const res = await fetch('/api/storage/remove', {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bucket, paths }),
+        });
+        if (!res.ok) {
+          return { data: null, error: new Error(`storage remove ${res.status}`) };
+        }
+        const json = await res.json();
+        return { data: json.deleted ?? null, error: null };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+      }
+    },
   };
 }

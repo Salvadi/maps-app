@@ -211,3 +211,51 @@ describe('apiStorageFrom.download', () => {
     expect(result.error!.message).toContain('404');
   });
 });
+
+// ---------------------------------------------------------------------------
+// remove
+// ---------------------------------------------------------------------------
+
+describe('apiStorageFrom.remove', () => {
+  test('successo → ritorna { data: [{name}], error: null }', async () => {
+    const storage = apiStorageFrom('photos');
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ deleted: [{ name: 'a.jpg' }] }),
+    } as any);
+
+    const result = await storage.remove(['a.jpg']);
+
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual([{ name: 'a.jpg' }]);
+  });
+
+  test('server 500 → { data: null, error instanceof Error }', async () => {
+    const storage = apiStorageFrom('photos');
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'internal' }),
+    } as any);
+
+    const result = await storage.remove(['a.jpg']);
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeInstanceOf(Error);
+  });
+
+  test('deleted mancante nel json → { data: null, error: null }', async () => {
+    const storage = apiStorageFrom('photos');
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    } as any);
+
+    const result = await storage.remove(['a.jpg']);
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeNull();
+  });
+});
