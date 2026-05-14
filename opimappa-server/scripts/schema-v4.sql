@@ -59,14 +59,17 @@ CREATE TABLE IF NOT EXISTS "user" (
 );
 
 CREATE TABLE IF NOT EXISTS "session" (
-  id          TEXT PRIMARY KEY,
-  "userId"    TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-  "expiresAt" TIMESTAMPTZ NOT NULL,
-  token       TEXT NOT NULL UNIQUE,
-  "ipAddress" TEXT,
-  "userAgent" TEXT,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                    TEXT PRIMARY KEY,
+  "userId"              TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  "expiresAt"           TIMESTAMPTZ NOT NULL,
+  token                 TEXT NOT NULL UNIQUE,
+  "ipAddress"           TEXT,
+  "userAgent"           TEXT,
+  "createdAt"           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt"           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- better-auth admin plugin
+  "activeOrganizationId" TEXT,
+  "impersonatedBy"      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_user_id    ON "session"("userId");
@@ -74,13 +77,19 @@ CREATE INDEX IF NOT EXISTS idx_session_expires_at ON "session"("expiresAt");
 CREATE INDEX IF NOT EXISTS idx_session_token      ON "session"(token);
 
 CREATE TABLE IF NOT EXISTS "account" (
-  id           TEXT PRIMARY KEY,
-  "userId"     TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-  "accountId"  TEXT NOT NULL,
-  "providerId" TEXT NOT NULL,
-  password     TEXT,                                       -- argon2id hash
-  "createdAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  "updatedAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                       TEXT PRIMARY KEY,
+  "userId"                 TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  "accountId"              TEXT NOT NULL,
+  "providerId"             TEXT NOT NULL,
+  password                 TEXT,                           -- scrypt hash (better-auth default)
+  "accessToken"            TEXT,
+  "refreshToken"           TEXT,
+  "idToken"                TEXT,
+  "accessTokenExpiresAt"   TIMESTAMPTZ,
+  "refreshTokenExpiresAt"  TIMESTAMPTZ,
+  scope                    TEXT,
+  "createdAt"              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt"              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_account_user_id ON "account"("userId");
