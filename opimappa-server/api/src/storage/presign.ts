@@ -128,6 +128,79 @@ presignRoute.post('/upload-presigned', async (c) => {
 });
 
 /**
+ * POST /proxy-upload — upload proxy per client esterni (non Tailscale)
+ *
+ * Riceve il blob binario nel body HTTP + parametri bucket e key come query string.
+ * Esegue un PutObjectCommand diretto verso MinIO lato server (nessun presigned URL esposto).
+ * Risposta: { data: { path: string }, error: null } oppure { error: string }.
+ *
+ * Esempio: POST /api/storage/proxy-upload?bucket=photos&key=mappingId/photoId.jpg
+ * Header: Content-Type: image/jpeg
+ * Body: blob binario del file
+ */
+presignRoute.post('/proxy-upload', async (c) => {
+  // Leggi bucket e key dai query params
+  const bucket = c.req.query('bucket') ?? '';
+  const key = c.req.query('key') ?? '';
+
+  // Validazione bucket
+  if (!bucket || !VALID_BUCKETS.has(bucket)) {
+    return c.json({ error: `bucket non valido: ${bucket}` }, 400);
+  }
+
+  // Validazione chiave — C1: path traversal guard (stesso schema di /upload-presigned)
+  if (!key || typeof key !== 'string' || key.trim() === '') {
+    return c.json({ error: 'key mancante o non valida' }, 400);
+  }
+  const cleanKey = key.trim().replace(/^\/+/, '');
+  if (!cleanKey || cleanKey.includes('..') || cleanKey.includes('\0')) {
+    return c.json({ error: 'key non valida' }, 400);
+  }
+
+  // Limite dimensione body: 50 MiB (foto max ~1 MiB, planimetrie ~10 MiB)
+  const MAX_BODY_BYTES = 50 * 1024 * 1024;
+  const contentLength = parseInt(c.req.header('content-length') ?? '0', 10);
+  if (contentLength > MAX_BODY_BYTES) {
+    return c.json({ error: `body troppo grande: max ${MAX_BODY_BYTES} byte` }, 413);
+  }
+
+  // Leggi il body come ArrayBuffer e determina content type
+  let buffer: Buffer;
+  try {
+    const arrayBuf = await c.req.arrayBuffer();
+    buffer = Buffer.from(arrayBuf);
+    if (buffer.length > MAX_BODY_BYTES) {
+      return c.json({ error: `body troppo grande: max ${MAX_BODY_BYTES} byte` }, 413);
+    }
+  } catch {
+    return c.json({ error: 'impossibile leggere il body della richiesta' }, 400);
+  }
+
+  if (buffer.length === 0) {
+    return c.json({ error: 'body vuoto' }, 400);
+  }
+
+  const contentType = c.req.header('content-type') ?? 'application/octet-stream';
+
+  // PutObject diretto verso MinIO (nessun presigned URL, upload server-side)
+  try {
+    const s3 = getMinioClient();
+    await s3.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: cleanKey,
+      Body: buffer,
+      ContentType: contentType,
+      ContentLength: buffer.length,
+    }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: `upload MinIO fallito: ${msg}` }, 500);
+  }
+
+  return c.json({ data: { path: cleanKey }, error: null });
+});
+
+/**
  * POST /sign-read — genera URL firmato per lettura oggetto
  * Usato dallo shim apiClient.storage.from(bucket).createSignedUrl(path, ttl)
  */

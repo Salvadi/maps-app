@@ -110,17 +110,19 @@ export function apiStorageFrom(bucket: string) {
       options?: { contentType?: string },
     ): Promise<{ data: { path: string } | null; error: Error | null }> {
       try {
-        // Step 1: richedi URL presigned al server
+        // Step 1: richiedi URL presigned al server
+        // Nota: il server si aspetta "key" (non "path") e "ttl" (non "ttlSec")
         const presignRes = await fetch('/api/storage/upload-presigned', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bucket, path, ttlSec: 3600 }),
+          body: JSON.stringify({ bucket, key: path, ttl: 3600 }),
         });
         if (!presignRes.ok) {
           return { data: null, error: new Error(`upload-presigned ${presignRes.status}`) };
         }
-        const { url } = await presignRes.json();
+        const presignData = await presignRes.json();
+        const { url, direct } = presignData;
         if (!url) {
           return { data: null, error: new Error('upload-presigned: missing url in response') };
         }
@@ -129,14 +131,30 @@ export function apiStorageFrom(bucket: string) {
         const rawType = body instanceof Blob ? body.type : '';
         const contentType = options?.contentType ?? (rawType || 'application/octet-stream');
 
-        // Step 3: PUT il body all'URL presigned
-        const putRes = await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': contentType },
-          body,
-        });
-        if (!putRes.ok) {
-          return { data: null, error: new Error(`storage upload PUT ${putRes.status}`) };
+        if (direct === true) {
+          // Step 3a: client Tailscale — PUT diretto all'URL presigned MinIO
+          const putRes = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body,
+          });
+          if (!putRes.ok) {
+            return { data: null, error: new Error(`storage upload PUT ${putRes.status}`) };
+          }
+        } else {
+          // Step 3b: client esterno — POST al proxy API con bucket/key come query params
+          const proxyUrl = new URL(url, window.location.origin);
+          proxyUrl.searchParams.set('bucket', bucket);
+          proxyUrl.searchParams.set('key', path);
+          const postRes = await fetch(proxyUrl.toString(), {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': contentType },
+            body,
+          });
+          if (!postRes.ok) {
+            return { data: null, error: new Error(`storage proxy-upload POST ${postRes.status}`) };
+          }
         }
 
         return { data: { path }, error: null };

@@ -221,8 +221,8 @@ describe('apiStorageFrom.upload', () => {
     const storage = apiStorageFrom('planimetrie');
     const blob = new Blob(['img-data'], { type: 'image/png' });
 
-    // Prima chiamata: presign
-    mockFetchOk({ url: 'https://storage.example.com/presigned-put-url?tok=abc', method: 'PUT' });
+    // Prima chiamata: presign — direct: true → client Tailscale, PUT diretto
+    mockFetchOk({ url: 'https://storage.example.com/presigned-put-url?tok=abc', method: 'PUT', direct: true });
     // Seconda chiamata: PUT al presigned URL
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -236,14 +236,14 @@ describe('apiStorageFrom.upload', () => {
     expect(result.data).not.toBeNull();
     expect(result.data!.path).toBe('project/floor/fullres.png');
 
-    // Verifica prima chiamata (presign)
+    // Verifica prima chiamata (presign): body usa "key" e "ttl" (non più "path"/"ttlSec")
     const [presignUrl, presignOpts] = (global.fetch as jest.Mock).mock.calls[0];
     expect(presignUrl).toBe('/api/storage/upload-presigned');
     expect(presignOpts.method).toBe('POST');
     const presignBody = JSON.parse(presignOpts.body);
     expect(presignBody.bucket).toBe('planimetrie');
-    expect(presignBody.path).toBe('project/floor/fullres.png');
-    expect(presignBody.ttlSec).toBe(3600);
+    expect(presignBody.key).toBe('project/floor/fullres.png');
+    expect(presignBody.ttl).toBe(3600);
 
     // Verifica seconda chiamata (PUT)
     const [putUrl, putOpts] = (global.fetch as jest.Mock).mock.calls[1];
@@ -272,8 +272,8 @@ describe('apiStorageFrom.upload', () => {
     const storage = apiStorageFrom('planimetrie');
     const blob = new Blob(['data'], { type: 'image/pdf' });
 
-    // Presign successo
-    mockFetchOk({ url: 'https://storage.example.com/put-url', method: 'PUT' });
+    // Presign successo — direct: true → client Tailscale, PUT diretto
+    mockFetchOk({ url: 'https://storage.example.com/put-url', method: 'PUT', direct: true });
     // PUT fallisce
     mockFetchFail(403);
 
@@ -289,7 +289,8 @@ describe('apiStorageFrom.upload', () => {
     const storage = apiStorageFrom('planimetrie');
     const blob = new Blob(['data'], { type: 'image/jpeg' });
 
-    mockFetchOk({ url: 'https://storage.example.com/put-url', method: 'PUT' });
+    // direct: true → client Tailscale, PUT diretto
+    mockFetchOk({ url: 'https://storage.example.com/put-url', method: 'PUT', direct: true });
     (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as any);
 
     await storage.upload('img.jpg', blob);

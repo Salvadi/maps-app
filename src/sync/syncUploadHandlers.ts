@@ -281,17 +281,15 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       throw new Error(`Photo blob not found: ${photoMeta.id}`);
     }
 
-    // Upload to Supabase Storage
+    // Upload verso lo storage tramite apiStorageFrom (homeserver proxy)
     const fileName = `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from('photos')
+    const { error: uploadError } = await apiStorageFrom('photos')
       .upload(fileName, photo.blob, {
-        contentType: photo.blob.type,
-        upsert: true
+        contentType: photo.blob.type
       });
 
     if (uploadError) {
-      throw new Error(`Supabase photo upload failed: ${uploadError.message}`);
+      throw new Error(`Photo upload failed (homeserver): ${uploadError.message}`);
     }
 
     const { data: { publicUrl } } = apiStorageFrom('photos').getPublicUrl(fileName);
@@ -301,11 +299,10 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
 
     if (photo.thumbnailBlob) {
       const thumbnailFileName = `${photoMeta.mappingEntryId}/${photoMeta.id}_thumb.jpg`;
-      const { error: thumbnailUploadError } = await supabase.storage
-        .from('photos')
+      // Upload thumbnail tramite apiStorageFrom (homeserver proxy)
+      const { error: thumbnailUploadError } = await apiStorageFrom('photos')
         .upload(thumbnailFileName, photo.thumbnailBlob, {
-          contentType: photo.thumbnailBlob.type || 'image/jpeg',
-          upsert: true
+          contentType: photo.thumbnailBlob.type || 'image/jpeg'
         });
 
       if (!thumbnailUploadError) {
@@ -359,10 +356,9 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       photoMeta.mappingEntryId ? `${photoMeta.mappingEntryId}/${photoMeta.id}.jpg` : undefined,
     ].filter((path, index, array): path is string => Boolean(path) && array.indexOf(path) === index);
 
-    // Delete from storage
+    // Elimina dallo storage tramite apiStorageFrom (homeserver proxy)
     if (storagePaths.length > 0) {
-      const { error: storageError } = await supabase.storage
-        .from('photos')
+      const { error: storageError } = await apiStorageFrom('photos')
         .remove(storagePaths);
 
       if (storageError) {
