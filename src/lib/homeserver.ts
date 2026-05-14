@@ -39,24 +39,47 @@ export class ApiNonJsonResponseError extends Error {
   }
 }
 
+// Retry transient su 502/503/504 — gestisce hiccup cloudflared/Caddy edge.
+const RETRY_STATUS = new Set([502, 503, 504]);
+const RETRY_DELAYS_MS = [200, 500, 1000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Fetch JSON con guardia content-type: evita SyntaxError quando Cloudflare cache
- * restituisce HTML per /api/me invece di JSON.
+ * Fetch JSON con guardia content-type + retry su 5xx transient.
+ * Evita SyntaxError quando Cloudflare cache restituisce HTML per /api/me.
+ * Retry esponenziale (200/500/1000ms) per 502/503/504 (cloudflared/edge instabile).
  */
 export async function apiFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await apiFetch(path, init);
-  const url = res.url || path;
+  let lastRes: Response | null = null;
 
-  if (!res.ok) {
-    throw new ApiResponseError(res.status, url, `API request failed with status ${res.status}`);
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+    const res = await apiFetch(path, init);
+    lastRes = res;
+
+    if (res.ok) {
+      const url = res.url || path;
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const bodySnippet = (await res.text()).slice(0, 200);
+        console.warn('⚠️ apiFetchJson: expected JSON got ', contentType, res.status, url, bodySnippet);
+        throw new ApiNonJsonResponseError(res.status, contentType, url, bodySnippet);
+      }
+      return await res.json() as T;
+    }
+
+    if (!RETRY_STATUS.has(res.status) || attempt === RETRY_DELAYS_MS.length) {
+      break;
+    }
+
+    const delay = RETRY_DELAYS_MS[attempt];
+    console.warn(`⚠️ apiFetchJson ${res.status} su ${path}, retry ${attempt + 1}/${RETRY_DELAYS_MS.length} fra ${delay}ms`);
+    await sleep(delay);
   }
 
-  const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const bodySnippet = (await res.text()).slice(0, 200);
-    console.warn('⚠️ apiFetchJson: expected JSON got ', contentType, res.status, url, bodySnippet);
-    throw new ApiNonJsonResponseError(res.status, contentType, url, bodySnippet);
-  }
-
-  return await res.json() as T;
+  const finalRes = lastRes!;
+  const url = finalRes.url || path;
+  throw new ApiResponseError(finalRes.status, url, `API request failed with status ${finalRes.status}`);
 }
