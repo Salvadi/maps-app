@@ -27,6 +27,7 @@
     "vitest": "^2.1.0",
     "@fast-check/vitest": "^0.1.0",
     "fast-check": "^3.22.0",
-    "drizzle-kit": "^0.28.0"
+    "drizzle-kit": "^0.28.0",
+    "@types/node": "^20.0.0"
   }
 }

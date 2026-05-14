@@ -99,7 +99,7 @@ export async function executeQuery(tableName: string, plan: QueryPlan, userId: s
 
   let totalCount: number | null = null;
   if (plan.countMode) {
-    const countRows = await sql.unsafe(`SELECT COUNT(*)::int AS count FROM ${table}${whereSql}`, where.values);
+    const countRows = await sql.unsafe(`SELECT COUNT(*)::int AS count FROM ${table}${whereSql}`, where.values as unknown[] as any[]);
     totalCount = Number(countRows[0]?.count ?? 0);
   }
 
@@ -109,7 +109,7 @@ export async function executeQuery(tableName: string, plan: QueryPlan, userId: s
 
   const values = [...where.values, plan.limit, plan.offset];
   const query = `SELECT ${buildSelect(plan)} FROM ${table}${whereSql}${buildOrder(plan.order)} LIMIT $${values.length - 1} OFFSET $${values.length}`;
-  const rows = await sql.unsafe(query, values);
+  const rows = await sql.unsafe(query, values as unknown[] as any[]);
 
   return { rows: rows as unknown[], totalCount };
 }

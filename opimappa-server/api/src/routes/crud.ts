@@ -4,7 +4,8 @@ import type { Variables } from '../auth/middleware.js';
 import { TABLE_SCHEMA, getWritableColumns } from '../query/schema.js';
 import { executeQuery, addFilter, addParam, quoteIdent, type WhereBuild } from '../query/builder.js';
 import { httpError, parseQuery, parseFilters } from '../query/parser.js';
-export { addScope } from '../query/scope.js';
+import { addScope } from '../query/scope.js';
+export { addScope };
 import { sql } from '../db/client.js';
 
 type AppContext = Context<{ Variables: Variables }>;
@@ -83,7 +84,7 @@ export function createCrudHandler(tableName: string) {
         const cols = Object.keys(body);
         const values = Object.values(body);
         const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
-        const result = await sql.unsafe(`INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
+        const result = await sql.unsafe(`INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) RETURNING *`, values as unknown[] as any[]);
         return c.json({ data: [result[0]], error: null }, 201);
       } catch (error) {
         return handleError(c, error);
@@ -100,7 +101,7 @@ export function createCrudHandler(tableName: string) {
         const scoped = scopedWhere(tableName, new URL(c.req.url).searchParams, user.id, user.role ?? 'user');
         const result = await sql.unsafe(
           `UPDATE ${quoteIdent(tableName)} SET ${sets.join(', ')}${scoped.sqlText.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + values.length}`)} RETURNING *`,
-          [...values, ...scoped.values],
+          [...values, ...scoped.values] as unknown[] as any[],
         );
         return c.json({ data: result as unknown[], error: null });
       } catch (error) {
@@ -118,7 +119,7 @@ export function createCrudHandler(tableName: string) {
           return c.json({ data: null, error: 'DELETE requires at least one filter (e.g. id=eq.xxx)' }, 400);
         }
         const scoped = scopedWhere(tableName, urlParams, user.id, user.role ?? 'user');
-        await sql.unsafe(`DELETE FROM ${quoteIdent(tableName)}${scoped.sqlText} RETURNING *`, scoped.values);
+        await sql.unsafe(`DELETE FROM ${quoteIdent(tableName)}${scoped.sqlText} RETURNING *`, scoped.values as unknown[] as any[]);
         return c.json({ data: null, error: null }, 200);
       } catch (error) {
         return handleError(c, error);
