@@ -51,6 +51,9 @@ app.route('/api', changesRoute);
 app.route('/api/storage', storageRoute);
 app.route('/api/storage', presignRoute);
 
+// Healthcheck pubblico per Docker e load balancer
+app.get('/health', (c) => c.json({ ok: true }));
+
 app.onError((err, c) => {
   logger.error({ err }, 'unhandled error');
   return c.json({ error: 'internal server error' }, 500);

@@ -9,7 +9,11 @@ import { pruneProjectLocal } from '../db/projects';
 const SUPABASE_IN_BATCH_SIZE = 150;
 async function downloadStorageBlobFromPublicUrl(publicUrl: string): Promise<Blob | null> {
   const parsedUrl = new URL(publicUrl);
-  const match = parsedUrl.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
+  // Supporto per URL Supabase native (/storage/v1/object/public|sign/<bucket>/<path>)
+  // e per URL shim proxy (/api/storage/<bucket>/<path>)
+  const match =
+    parsedUrl.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/) ??
+    parsedUrl.pathname.match(/\/api\/storage\/(?!proxy\/|sign-one|remove|upload-presigned)([^/]+)\/(.+)/);
 
   if (!match) {
     return null;
