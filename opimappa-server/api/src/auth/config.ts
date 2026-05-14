@@ -11,7 +11,6 @@ export const auth = betterAuth({
     enabled: true,
     disableSignUp: true,
     autoSignIn: false,
-    password: { hash: { algorithm: 'argon2id', timeCost: 3, memoryCost: 65536 } }
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30,

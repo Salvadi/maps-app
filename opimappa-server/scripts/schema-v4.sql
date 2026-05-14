@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS "user" (
   -- Estensione applicativa
   role            TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
   active          BOOLEAN NOT NULL DEFAULT true,
+  -- better-auth admin plugin
+  banned          BOOLEAN NOT NULL DEFAULT false,
+  "banReason"     TEXT,
+  "banExpires"    TIMESTAMPTZ,
   -- C5 review v4: force UUID format per compat con profiles VIEW (id::uuid)
   CONSTRAINT user_id_uuid_format CHECK (
     id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
