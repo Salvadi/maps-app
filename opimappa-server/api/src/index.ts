@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 import pino from 'pino';
 import { auth } from './auth/config.js';
 import { auditLog, loginRateLimit, requireUser, type Variables } from './auth/middleware.js';
@@ -25,7 +26,26 @@ app.use('*', async (c, next) => {
 });
 
 app.use('/api/auth/*', auditLog);
-app.post('/api/auth/sign-in/email', loginRateLimit);
+
+// Validazione dominio email: solo @opifiresafe.com è ammesso
+const validateEmailDomain: MiddlewareHandler = async (c, next) => {
+  try {
+    const cloned = c.req.raw.clone();
+    const body = await cloned.json() as { email?: string };
+    if (body.email && !body.email.toLowerCase().endsWith('@opifiresafe.com')) {
+      return c.json({ error: 'Accesso riservato a email @opifiresafe.com' }, 403);
+    }
+  } catch {
+    // Se il body non è parseable, lascia passare — better-auth gestirà l'errore
+  }
+  return next();
+}
+
+// sign-in: rate limit + validazione dominio in un'unica registrazione
+app.post('/api/auth/sign-in/email', loginRateLimit, validateEmailDomain);
+app.post('/api/auth/sign-up/email', validateEmailDomain);
+app.post('/api/auth/admin/create-user', validateEmailDomain);
+
 app.all('/api/auth/*', (c) => auth.handler(c.req.raw));
 
 app.use('/api/*', async (c, next) => {

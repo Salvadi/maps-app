@@ -1,5 +1,5 @@
-import { db, User, AuthCache } from './database';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { db, User } from './database';
+import { apiFetch } from '../lib/homeserver';
 import { syncFromSupabase } from '../sync/syncEngine';
 
 // ============================================
@@ -85,11 +85,11 @@ async function clearOfflineFails(email: string): Promise<void> {
 }
 
 /**
- * Supabase Authentication with offline-first fallback
+ * Homeserver Authentication con fallback offline PBKDF2.
  *
- * This module provides authentication using Supabase Auth.
- * Offline login only works for re-authentication of users who have
- * previously logged in online (cached session in IndexedDB).
+ * Autenticazione tramite better-auth (homeserver same-origin).
+ * Il login offline funziona solo per ri-autenticare utenti che si sono
+ * già loggati online (token cifrato con PBKDF2 in IndexedDB).
  */
 
 /**
@@ -101,94 +101,64 @@ export async function initializeMockUsers(): Promise<void> {
 }
 
 /**
- * Login with email and password
- * Uses Supabase Auth if configured, falls back to mock auth otherwise
+ * Login con email e password tramite homeserver better-auth.
+ * Fallback a loginOffline in caso di errore di rete.
  */
 export async function login(email: string, password: string): Promise<User | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      // Supabase authentication
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+  try {
+    const response = await apiFetch('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
 
-      if (error) {
-        console.error('❌ Login error:', error.message);
-        return null;
-      }
-
-      if (!data.user) {
-        return null;
-      }
-
-      // Fetch user profile from profiles table
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('❌ Profile fetch error:', profileError);
-        console.error('❌ Profile fetch error details:', {
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint,
-          code: profileError.code
-        });
-
-        // Check if profile doesn't exist
-        if (profileError.code === 'PGRST116') {
-          console.error('❌ Profile does not exist for user:', data.user.email);
-          console.error('💡 The trigger might not have run. Check Supabase Dashboard → Authentication → Users');
-          console.error('💡 Manually create the profile or check if the handle_new_user trigger is set up correctly');
-        }
-
-        return null;
-      }
-
-      if (!profile) {
-        console.error('❌ Profile is null for user:', data.user.email);
-        return null;
-      }
-
-      // Convert Supabase profile to User type
-      const user: User = {
-        id: profile.id,
-        email: profile.email,
-        username: profile.username || profile.email.split('@')[0],
-        role: profile.role,
-        createdAt: new Date(profile.created_at).getTime()
-      };
-
-      // Store user in IndexedDB for offline access
-      await db.users.put(user);
-      await db.metadata.put({ key: 'currentUser', value: user });
-
-      // Salva token cifrato con PBKDF2 per il login offline
-      await saveOfflineAuth(email, password, user);
-
-      console.log('✅ User logged in (Supabase):', user.email);
-
-      // Sync data from Supabase to local database
-      try {
-        console.log('⬇️  Starting initial sync from Supabase...');
-        const syncResult = await syncFromSupabase();
-        console.log(`✅ Initial sync complete: ${syncResult.projectsCount} projects, ${syncResult.entriesCount} entries, ${syncResult.photosCount} photo metadata`);
-      } catch (syncErr) {
-        console.error('⚠️  Initial sync failed, but login successful:', syncErr);
-        // Don't fail the login if sync fails - user can still work offline
-      }
-
-      return user;
-    } catch (err) {
-      console.error('❌ Login exception:', err);
-      // Fall back to offline mode if Supabase is unreachable
-      return loginOffline(email, password);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => response.status.toString());
+      console.error('❌ Login error:', errText);
+      return null;
     }
-  } else {
-    // Offline-only mode: only re-authenticate previously cached users
+
+    const data = await response.json();
+    const u = data.user;
+
+    if (!u) {
+      console.error('❌ Login: nessun oggetto user nella risposta');
+      return null;
+    }
+
+    const user: User = {
+      id: u.id,
+      email: u.email,
+      username: u.name || u.email.split('@')[0],
+      role: u.role || 'standard',
+      createdAt: new Date(u.createdAt).getTime(),
+    };
+
+    // Salva in IndexedDB per accesso offline
+    await db.users.put(user);
+    await db.metadata.put({ key: 'currentUser', value: user });
+
+    // Salva token cifrato con PBKDF2 per il login offline
+    await saveOfflineAuth(email, password, user);
+
+    console.log('✅ User logged in (homeserver):', user.email);
+
+    // Sync dati locali
+    // TODO sprint7: sostituire con syncFromHomeserver() quando sync engine migrato
+    try {
+      console.log('⬇️  Avvio sync iniziale...');
+      const syncResult = await syncFromSupabase();
+      console.log(`✅ Sync iniziale completato: ${syncResult.projectsCount} progetti, ${syncResult.entriesCount} voci, ${syncResult.photosCount} foto`);
+    } catch (syncErr) {
+      console.error('⚠️  Sync iniziale fallito, login comunque OK:', syncErr);
+      // Non bloccare il login se la sync fallisce — l'utente può lavorare offline
+    }
+
+    return user;
+  } catch (err) {
+    console.error('❌ Login exception:', err);
+    // HTTP 401/403 = credenziali errate → null (stesso comportamento Supabase)
+    // fetch throws = server irraggiungibile → prova login offline
     return loginOffline(email, password);
   }
 }
@@ -237,23 +207,24 @@ async function loginOffline(email: string, password: string): Promise<User | nul
     }
   }
 
-  // Fallback legacy: verifica sessione Supabase attiva (nessuna cache PBKDF2 disponibile)
+  // Fallback: verifica sessione homeserver attiva (nessuna cache PBKDF2 disponibile)
   console.log('📦 Offline login fallback (no cache PBKDF2) per', email);
-  if (supabase) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.email?.toLowerCase() === emailKey) {
+  try {
+    const response = await apiFetch('/api/auth/get-session');
+    if (response.ok) {
+      const data = await response.json();
+      if (data?.user?.email?.toLowerCase() === emailKey) {
         // Sessione valida: recupera i metadati utente dalla cache locale
         const cachedMeta = await db.metadata.get('currentUser');
         const cachedUser = cachedMeta?.value as User | null;
         if (cachedUser && cachedUser.email.toLowerCase() === emailKey) {
-          console.log('✅ User re-authenticated (offline, sessione legacy):', cachedUser.email);
+          console.log('✅ User re-authenticated (offline, sessione homeserver):', cachedUser.email);
           return cachedUser;
         }
       }
-    } catch (err) {
-      console.warn('⚠️ Offline login fallback fallito:', err);
     }
+  } catch (err) {
+    console.warn('⚠️ Offline login fallback fallito:', err);
   }
 
   console.warn('⚠️ Offline login fallito: nessuna cache valida per', email);
@@ -261,99 +232,51 @@ async function loginOffline(email: string, password: string): Promise<User | nul
 }
 
 /**
- * Sign up a new user (Supabase only)
+ * Registrazione non disponibile: solo admin crea utenti tramite homeserver.
+ * // disableSignUp: true sul homeserver — solo admin crea utenti
  */
 export async function signUp(email: string, password: string, username: string): Promise<User | null> {
-  if (!isSupabaseConfigured()) {
-    console.error('❌ Sign up requires Supabase configuration');
-    throw new Error('Sign up requires Supabase configuration');
-  }
-
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}`,
-        data: {
-          username,
-          role: 'user' // Default role
-        }
-      }
-    });
-
-    if (error) {
-      console.error('❌ Sign up error:', error.message);
-      throw new Error(error.message);
-    }
-
-    if (!data.user) {
-      throw new Error('Failed to create user account');
-    }
-
-    console.log('✅ User signed up:', data.user.email);
-    console.log('📧 Confirmation email sent. Please check your inbox.');
-
-    // Return a temporary user object (profile will be created after email confirmation)
-    const tempUser: User = {
-      id: data.user.id,
-      email: data.user.email!,
-      username: username,
-      role: 'user',
-      createdAt: Date.now()
-    };
-
-    return tempUser;
-  } catch (err) {
-    console.error('❌ Sign up exception:', err);
-    throw err;
-  }
+  // disableSignUp: true sul homeserver — solo admin crea utenti
+  throw new Error('Registrazione non disponibile: contattare l\'amministratore Opifiresafe');
 }
 
 /**
- * Get current logged-in user
- * Checks Supabase session first, then falls back to IndexedDB
+ * Recupera l'utente corrente.
+ * Prima tenta la sessione homeserver, poi cade su IndexedDB.
  */
 export async function getCurrentUser(): Promise<User | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      // Check Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
+  try {
+    const response = await apiFetch('/api/auth/get-session');
 
-      if (session?.user) {
-        // Fetch profile
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+    if (response.ok) {
+      const data = await response.json();
+      const u = data?.user;
 
-        if (!error && profile) {
-          const user: User = {
-            id: profile.id,
-            email: profile.email,
-            username: profile.username || profile.email.split('@')[0],
-            role: profile.role,
-            createdAt: new Date(profile.created_at).getTime()
-          };
+      if (u) {
+        const user: User = {
+          id: u.id,
+          email: u.email,
+          username: u.name || u.email.split('@')[0],
+          role: u.role || 'standard',
+          createdAt: new Date(u.createdAt).getTime(),
+        };
 
-          // Update IndexedDB cache
-          await db.metadata.put({ key: 'currentUser', value: user });
-          return user;
-        }
+        // Aggiorna cache IndexedDB
+        await db.metadata.put({ key: 'currentUser', value: user });
+        return user;
       }
-    } catch (err) {
-      console.warn('⚠️  Supabase session check failed, using offline cache:', err);
     }
+  } catch (err) {
+    console.warn('⚠️  Controllo sessione homeserver fallito, uso cache offline:', err);
   }
 
-  // Fall back to IndexedDB (offline mode)
+  // Fallback IndexedDB (modalità offline)
   const metadata = await db.metadata.get('currentUser');
   return metadata?.value || null;
 }
 
 /**
- * Check if user is admin
+ * Verifica se l'utente corrente è admin
  */
 export async function isAdmin(): Promise<boolean> {
   const user = await getCurrentUser();
@@ -361,110 +284,86 @@ export async function isAdmin(): Promise<boolean> {
 }
 
 /**
- * Logout current user
- * Signs out from Supabase and clears local session
+ * Logout: chiama homeserver sign-out e pulisce la sessione locale.
+ * Pulisce lo stato locale anche in caso di errore di rete.
  */
 export async function logout(): Promise<void> {
-  if (isSupabaseConfigured()) {
-    try {
-      await supabase.auth.signOut();
-      console.log('✅ User logged out (Supabase)');
-    } catch (err) {
-      console.error('❌ Logout error:', err);
-    }
+  try {
+    await apiFetch('/api/auth/sign-out', { method: 'POST' });
+    console.log('✅ User logged out (homeserver)');
+  } catch (err) {
+    console.error('❌ Logout error (rete), pulizia locale comunque:', err);
   }
 
-  // Clear IndexedDB session
+  // Pulisci sessione IndexedDB
   await db.metadata.put({ key: 'currentUser', value: null });
   console.log('✅ User logged out (local)');
 }
 
 /**
- * Get all users (admin only)
+ * Recupera tutti gli utenti (solo admin) tramite better-auth admin plugin.
  */
 export async function getAllUsers(): Promise<User[]> {
-  console.log('📥 Fetching all users from Supabase...');
-
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Supabase not configured, falling back to local users');
-    return await db.users.toArray();
-  }
+  console.log('📥 Recupero utenti da homeserver...');
 
   try {
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const response = await apiFetch('/api/auth/admin/list-users?limit=100&offset=0');
 
-    if (error) {
-      console.error('❌ Fetch users error:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
-
-      // Return empty array on error (don't fallback to IndexedDB)
-      // IndexedDB only has the current user, not all users
+    if (!response.ok) {
+      console.error('❌ Fetch users error:', response.status);
       return [];
     }
 
-    if (!profiles || profiles.length === 0) {
-      console.warn('⚠️  No profiles found in database');
+    const data = await response.json();
+    const users: any[] = data?.users ?? [];
+
+    if (users.length === 0) {
+      console.warn('⚠️  Nessun utente trovato');
       return [];
     }
 
-    console.log(`✅ Fetched ${profiles.length} users from Supabase`);
+    console.log(`✅ Recuperati ${users.length} utenti da homeserver`);
 
-    return profiles.map((p: any) => ({
-      id: p.id,
-      email: p.email,
-      username: p.username || p.email.split('@')[0],
-      role: p.role,
-      createdAt: new Date(p.created_at).getTime()
+    return users.map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      username: u.name || u.email.split('@')[0],
+      role: u.role || 'standard',
+      createdAt: new Date(u.createdAt).getTime(),
     }));
   } catch (err) {
     console.error('❌ Get users exception:', err);
-
-    // Return empty array on exception (don't fallback to IndexedDB)
     return [];
   }
 }
 
 /**
- * Create a new user (admin only - Supabase only)
+ * Crea un nuovo utente (admin only — non implementato in questo client)
  */
 export async function createUser(email: string, role: 'admin' | 'user'): Promise<User> {
-  if (!isSupabaseConfigured()) {
-    throw new Error('User creation requires Supabase configuration');
-  }
-
   // Note: This requires admin API access or using Supabase Admin SDK
   // For now, users can only be created via sign up
   throw new Error('User creation must be done via sign up or Supabase dashboard');
 }
 
 /**
- * Update user role (admin only)
+ * Aggiorna il ruolo di un utente (solo admin) tramite better-auth admin plugin.
  */
 export async function updateUserRole(userId: string, role: 'admin' | 'user'): Promise<void> {
-  if (!isSupabaseConfigured()) {
-    throw new Error('User role update requires Supabase configuration');
-  }
-
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role })
-      .eq('id', userId);
+    const response = await apiFetch('/api/auth/admin/set-role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, role }),
+    });
 
-    if (error) {
-      console.error('❌ Update role error:', error.message);
-      throw error;
+    if (!response.ok) {
+      const errText = await response.text().catch(() => response.status.toString());
+      console.error('❌ Update role error:', errText);
+      throw new Error(`Operazione fallita (${response.status})`);
     }
 
-    console.log('✅ User role updated:', userId, role);
+    console.log('✅ Ruolo utente aggiornato:', userId, role);
   } catch (err) {
     console.error('❌ Update role exception:', err);
     throw err;
@@ -472,27 +371,23 @@ export async function updateUserRole(userId: string, role: 'admin' | 'user'): Pr
 }
 
 /**
- * Delete user (admin only)
+ * Elimina un utente (solo admin) tramite better-auth admin plugin.
  */
 export async function deleteUser(userId: string): Promise<void> {
-  if (!isSupabaseConfigured()) {
-    throw new Error('User deletion requires Supabase configuration');
-  }
-
-  // Note: Deleting auth users requires Supabase Admin SDK
-  // This would only delete the profile, not the auth user
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
+    const response = await apiFetch('/api/auth/admin/remove-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
 
-    if (error) {
-      console.error('❌ Delete user error:', error.message);
-      throw error;
+    if (!response.ok) {
+      const errText = await response.text().catch(() => response.status.toString());
+      console.error('❌ Delete user error:', errText);
+      throw new Error(`Operazione fallita (${response.status})`);
     }
 
-    console.log('✅ User deleted:', userId);
+    console.log('✅ Utente eliminato:', userId);
   } catch (err) {
     console.error('❌ Delete user exception:', err);
     throw err;
@@ -500,96 +395,26 @@ export async function deleteUser(userId: string): Promise<void> {
 }
 
 /**
- * Listen to auth state changes
- * Useful for keeping the app in sync with Supabase auth state
+ * Ascolta i cambiamenti di stato auth.
+ * Nessun subscriber attivo — stub per compatibilità futura.
  */
 export function onAuthStateChange(callback: (user: User | null) => void) {
-  if (!isSupabaseConfigured()) {
-    return { unsubscribe: () => {} };
-  }
-
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-    console.log('🔄 Auth state changed:', event);
-
-    if (session?.user) {
-      // Fetch profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profile) {
-        const user: User = {
-          id: profile.id,
-          email: profile.email,
-          username: profile.username || profile.email.split('@')[0],
-          role: profile.role,
-          createdAt: new Date(profile.created_at).getTime()
-        };
-
-        await db.metadata.put({ key: 'currentUser', value: user });
-        callback(user);
-        return;
-      }
-    }
-
-    // No session or profile not found
-    await db.metadata.put({ key: 'currentUser', value: null });
-    callback(null);
-  });
-
-  return subscription;
+  // Nessun subscriber attivo — stub per compatibilità futura
+  return { unsubscribe: () => {} };
 }
 
 /**
- * Send password reset email
+ * Invia email di reset password.
+ * Non supportato sul homeserver — stub per compatibilità.
  */
 export async function sendPasswordResetEmail(email: string): Promise<{ success: boolean; error?: string }> {
-  if (!isSupabaseConfigured()) {
-    return { success: false, error: 'Password reset requires Supabase configuration' };
-  }
-
-  try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
-    });
-
-    if (error) {
-      console.error('❌ Password reset error:', error.message);
-      return { success: false, error: error.message };
-    }
-
-    console.log('✅ Password reset email sent to:', email);
-    return { success: true };
-  } catch (err) {
-    console.error('❌ Password reset exception:', err);
-    return { success: false, error: 'Failed to send password reset email' };
-  }
+  return { success: false, error: 'Reset password non disponibile: contattare l\'amministratore Opifiresafe' };
 }
 
 /**
- * Update password (when user clicks reset link)
+ * Aggiorna la password (quando l'utente clicca il link di reset).
+ * Non supportato sul homeserver — stub per compatibilità.
  */
 export async function updatePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
-  if (!isSupabaseConfigured()) {
-    return { success: false, error: 'Password update requires Supabase configuration' };
-  }
-
-  try {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-
-    if (error) {
-      console.error('❌ Password update error:', error.message);
-      return { success: false, error: error.message };
-    }
-
-    console.log('✅ Password updated successfully');
-    return { success: true };
-  } catch (err) {
-    console.error('❌ Password update exception:', err);
-    return { success: false, error: 'Failed to update password' };
-  }
+  return { success: false, error: 'Aggiornamento password non disponibile: contattare l\'amministratore Opifiresafe' };
 }
