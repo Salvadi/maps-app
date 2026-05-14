@@ -11,6 +11,7 @@ for (const tableName of TABLE_NAMES) {
   tables.get('/' + tableName, handler.get);
   if (tableName !== 'profiles') {
     tables.post('/' + tableName, handler.post);
+    tables.put('/' + tableName, handler.put);
     tables.patch('/' + tableName, handler.patch);
     tables.delete('/' + tableName, handler.delete);
   }

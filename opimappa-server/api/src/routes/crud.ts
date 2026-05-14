@@ -125,5 +125,54 @@ export function createCrudHandler(tableName: string) {
         return handleError(c, error);
       }
     },
+    put: async (c: AppContext) => {
+      try {
+        const user = c.get('user');
+        const rawBody = (await c.req.json()) as Record<string, unknown>;
+        if (!rawBody.id) return c.json({ error: 'id required for upsert' }, 400);
+        // Fix sicurezza: forza sempre owner_id/user_id all'utente autenticato
+        if (tableName === 'projects' || 'owner_id' in rawBody) rawBody.owner_id = user.id;
+        if (tableName === 'standalone_maps' || 'user_id' in rawBody) rawBody.user_id = user.id;
+        const body = sanitizeBody(tableName, rawBody);
+        const cols = Object.keys(body);
+        const values = Object.values(body);
+        const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+        const updateSet = cols
+          .filter(col => col !== 'id' && col !== 'created_at' && col !== 'owner_id' && col !== 'user_id')
+          .map(col => `${quoteIdent(col)} = EXCLUDED.${quoteIdent(col)}`)
+          .join(', ');
+        // Pre-check: se la row esiste già e non appartiene all'utente → 403 prima di scrivere
+        if (user.role !== 'admin') {
+          const existsCheck = await sql.unsafe(
+            `SELECT 1 FROM ${quoteIdent(tableName)} WHERE id = $1`,
+            [rawBody.id] as any[]
+          );
+          if (existsCheck.length > 0) {
+            // Row esiste: verifica che sia accessibile all'utente corrente
+            const ownerCheck = scopedWhere(
+              tableName,
+              new URLSearchParams({ id: `eq.${rawBody.id}` }),
+              user.id,
+              user.role ?? 'user'
+            );
+            const owned = await sql.unsafe(
+              `SELECT 1 FROM ${quoteIdent(tableName)}${ownerCheck.sqlText}`,
+              ownerCheck.values as unknown[] as any[]
+            );
+            if (owned.length === 0) return c.json({ error: 'forbidden' }, 403);
+          }
+        }
+        const result = await sql.unsafe(
+          `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')})
+           VALUES (${placeholders})
+           ON CONFLICT (id) DO UPDATE SET ${updateSet}
+           RETURNING *`,
+          values as unknown[] as any[]
+        );
+        return c.json({ data: [result[0]], error: null }, 200);
+      } catch (error) {
+        return handleError(c, error);
+      }
+    },
   };
 }

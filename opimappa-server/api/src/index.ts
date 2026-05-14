@@ -74,6 +74,12 @@ app.route('/api/storage', presignRoute);
 // Healthcheck pubblico per Docker e load balancer
 app.get('/health', (c) => c.json({ ok: true }));
 
+// Restituisce id, email e ruolo dell'utente corrente (senza accedere a profiles)
+app.get('/auth/me', requireUser, (c) => {
+  const user = c.get('user');
+  return c.json({ id: user.id, email: user.email, role: user.role ?? 'user' });
+});
+
 app.onError((err, c) => {
   logger.error({ err }, 'unhandled error');
   return c.json({ error: 'internal server error' }, 500);
