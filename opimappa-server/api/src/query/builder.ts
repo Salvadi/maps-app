@@ -34,11 +34,29 @@ export function addParam(values: unknown[], value: unknown): string {
 export function addFilter(filter: FilterClause, build: WhereBuild): void {
   if (filter.type === 'join_filter') return;
 
+  const sqlArrayTypeFor = (colType: FilterClause['colType']): string => {
+    switch (colType) {
+      case 'uuid':
+        return '::uuid[]';
+      case 'integer':
+        return '::int[]';
+      case 'bigint':
+        return '::bigint[]';
+      case 'float':
+        return '::float8[]';
+      case 'boolean':
+        return '::boolean[]';
+      default:
+        return '';
+    }
+  };
+
   const col = quoteIdent(filter.col);
   if (filter.op === 'in') {
     const parts = filter.value.split(',').map((part) => part.trim());
     const placeholders = parts.map((part) => addParam(build.values, part)).join(', ');
-    build.clauses.push(`${col} = ANY(ARRAY[${placeholders}])`);
+    // Postgres non inferisce il tipo degli elementi per parametri text comparati a UUID/numerici.
+    build.clauses.push(`${col} = ANY(ARRAY[${placeholders}]${sqlArrayTypeFor(filter.colType)})`);
     return;
   }
 
