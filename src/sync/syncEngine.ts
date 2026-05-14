@@ -7,7 +7,7 @@
  */
 
 import { db, SyncQueueItem } from '../db/database';
-import { apiFetch, isHomeserverConfigured } from '../lib/homeserver';
+import { ApiNonJsonResponseError, ApiResponseError, apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import { eventStream } from '../realtime/eventStream';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
 import { processSyncItem } from './syncUploadHandlers';
@@ -259,17 +259,30 @@ export async function processSyncQueue(): Promise<SyncResult> {
   }
 
   // Check if user is authenticated
-  const meRes = await apiFetch('/api/me');
-  if (!meRes.ok) {
-    console.warn('⚠️  Sync skipped: User not authenticated');
-    return {
-      success: false,
-      processedCount: 0,
-      failedCount: 0,
-      errors: [{ item: {} as SyncQueueItem, error: 'User not authenticated. Please log in to sync data.' }]
-    };
+  let me: { id: string; email: string; role: string };
+  try {
+    me = await apiFetchJson<{ id: string; email: string; role: string }>('/api/me');
+  } catch (error) {
+    if (error instanceof ApiResponseError) {
+      console.warn('⚠️  Sync skipped: User not authenticated');
+      return {
+        success: false,
+        processedCount: 0,
+        failedCount: 0,
+        errors: [{ item: {} as SyncQueueItem, error: 'User not authenticated. Please log in to sync data.' }]
+      };
+    }
+    if (error instanceof ApiNonJsonResponseError) {
+      console.warn('⚠️  Sync skipped: /api/me returned non-JSON response; treating as user not authenticated');
+      return {
+        success: false,
+        processedCount: 0,
+        failedCount: 0,
+        errors: [{ item: {} as SyncQueueItem, error: 'User not authenticated. Please log in to sync data.' }]
+      };
+    }
+    throw error;
   }
-  const me = await meRes.json() as { id: string; email: string; role: string };
   const userId = me.id;
 
   // Deduplicate queue before processing
@@ -459,12 +472,20 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
   }
 
   // Check if user is authenticated
-  const meRes = await apiFetch('/api/me');
-  if (!meRes.ok) {
-    console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+  let me: { id: string; email: string; role: string };
+  try {
+    me = await apiFetchJson<{ id: string; email: string; role: string }>('/api/me');
+  } catch (error) {
+    if (error instanceof ApiResponseError) {
+      console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
+      return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+    }
+    if (error instanceof ApiNonJsonResponseError) {
+      console.warn('⚠️  Sync from Supabase skipped: /api/me returned non-JSON response; treating as user not authenticated');
+      return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+    }
+    throw error;
   }
-  const me = await meRes.json() as { id: string; email: string; role: string };
   const userId = me.id;
   const isAdmin = me.role === 'admin';
 
@@ -658,11 +679,19 @@ export async function phasedSyncFromSupabase(options?: {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
-  const meRes = await apiFetch('/api/me');
-  if (!meRes.ok) {
-    return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+  let me: { id: string; email: string; role: string };
+  try {
+    me = await apiFetchJson<{ id: string; email: string; role: string }>('/api/me');
+  } catch (error) {
+    if (error instanceof ApiResponseError) {
+      return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+    }
+    if (error instanceof ApiNonJsonResponseError) {
+      console.warn('⚠️  Phased sync skipped: /api/me returned non-JSON response; treating as user not authenticated');
+      return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
+    }
+    throw error;
   }
-  const me = await meRes.json() as { id: string; email: string; role: string };
   const userId = me.id;
   const isAdmin = me.role === 'admin';
   const progress = options?.onProgress;
@@ -742,11 +771,19 @@ export async function clearAndSync(): Promise<{
   }
 
   // Check if user is authenticated
-  const meRes = await apiFetch('/api/me');
-  if (!meRes.ok) {
-    throw new Error('User not authenticated. Please log in to sync data.');
+  let me: { id: string; email: string; role: string };
+  try {
+    me = await apiFetchJson<{ id: string; email: string; role: string }>('/api/me');
+  } catch (error) {
+    if (error instanceof ApiResponseError) {
+      throw new Error('User not authenticated. Please log in to sync data.');
+    }
+    if (error instanceof ApiNonJsonResponseError) {
+      console.warn('⚠️  Cache reset sync skipped: /api/me returned non-JSON response; treating as user not authenticated');
+      throw new Error('User not authenticated. Please log in to sync data.');
+    }
+    throw error;
   }
-  const me = await meRes.json() as { id: string; email: string; role: string };
   const userId = me.id;
   const isAdmin = me.role === 'admin';
 
