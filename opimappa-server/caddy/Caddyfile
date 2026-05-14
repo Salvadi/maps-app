@@ -1,0 +1,84 @@
+{
+	# Disabilita HTTPS automatico: TLS termina su Cloudflare edge
+	auto_https off
+	# Disabilita admin endpoint per sicurezza
+	admin off
+}
+
+# Redirect www -> non-www (301 permanent)
+www.opimappa.com {
+	bind :8080
+	redir https://opimappa.com{uri} permanent
+}
+
+# Configurazione principale: path-based same-origin (no subdomain split)
+opimappa.com {
+	# Listener container-local su 8080 (Cloudflared edge->caddy:8080)
+	bind :8080
+
+	# Compressione
+	encode gzip zstd
+	
+	# Logging con rotazione
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100mb
+			roll_keep 5
+			roll_keep_for 30d
+		}
+	}
+	
+	# Headers sicurezza globali (H7 review v3)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(self), camera=(self), microphone=()"
+		-Server
+	}
+	
+	# Route 1: SSE long-lived (/api/events/stream)
+	handle /api/events/stream {
+		reverse_proxy api:3000 {
+			flush_interval -1
+			transport http {
+				read_timeout 0
+				write_timeout 0
+			}
+		}
+	}
+	
+	# Route 2: API generica (/api/*)
+	handle /api/* {
+		reverse_proxy api:3000 {
+			header_up X-Real-IP {remote}
+			header_up X-Forwarded-For {remote}
+		}
+	}
+	
+	# Route 3: File server PWA con SPA fallback
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+		
+		# Cache asset statici: immutable (Sprint 1: build output)
+		@assets {
+			path /static/*
+		}
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		
+		# Cache HTML: no-cache (deve essere validato)
+		@html {
+			path /index.html
+		}
+		header @html Cache-Control "no-cache, must-revalidate"
+		
+		# Service Worker: no-cache (criterio update SW)
+		@sw {
+			path /service-worker.js
+		}
+		header @sw Cache-Control "no-cache, must-revalidate"
+	}
+}

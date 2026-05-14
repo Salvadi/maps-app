@@ -1,0 +1,103 @@
+services:
+  # Database PostgreSQL 17 con persistenza su SSD
+  postgres:
+    image: postgres:17.4-alpine
+    container_name: opimappa-postgres
+    restart: unless-stopped
+    env_file: .env
+    user: "999:999"  # UID/GID fisso per ownership volume host
+    volumes:
+      - /opt/opimappa/data/postgres:/var/lib/postgresql/data
+    networks:
+      - opimappa_net
+    healthcheck:
+      # Verifica che Postgres accetti connessioni sul database configurato
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Object Storage MinIO (S3-compatible), console esposta solo su localhost
+  minio:
+    image: minio/minio:RELEASE.2025-04-08T15-41-24Z
+    container_name: opimappa-minio
+    restart: unless-stopped
+    env_file: .env
+    command: server /data --console-address :9001
+    ports:
+      # Console web MinIO accessibile solo da localhost (Tailscale/SSH tunnel)
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - /opt/opimappa/data/minio:/data
+    networks:
+      - opimappa_net
+    tmpfs:
+      # Temporaneo per operazioni interne senza scrittura su layer immagine
+      - /tmp
+    healthcheck:
+      # MinIO image non include wget/curl; check TCP via bash /dev/tcp
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9000' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Reverse proxy Caddy con config path-based (TLS termina su Cloudflare edge)
+  # Nota: cap_drop:[ALL] + alpine image causa 'operation not permitted' su exec
+  # (musl + entrypoint privileges). Manteniamo solo read_only.
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: opimappa-caddy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      # Directory scrivibili necessarie per Caddy in modalità read-only
+      - /tmp
+      - /var/run
+      - /var/cache/caddy
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      # Listener interno 8080 (no privileged port → no NET_BIND_SERVICE necessario)
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # Configurazione montata read-only; dati e certificati in volumi dedicati
+      - /opt/opimappa/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/opimappa/caddy/data:/data
+      - /opt/opimappa/caddy/config:/config
+    networks:
+      - opimappa_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Tunnel Cloudflare per ingress HTTPS senza aperture porte pubbliche
+  cloudflared:
+    image: cloudflare/cloudflared:2025.4.0
+    container_name: opimappa-cloudflared
+    restart: unless-stopped
+    env_file: .env
+    # --metrics e' un global flag, deve precedere 'tunnel'. Healthcheck rimosso
+    # (image cloudflared scratch-based, no shell). Stato visibile via docker ps.
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${TUNNEL_TOKEN}"]
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - opimappa_net
+
+networks:
+  # Rete bridge isolata per comunicazione interna tra servizi
+  opimappa_net:
+    driver: bridge
