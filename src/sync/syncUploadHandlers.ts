@@ -93,7 +93,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       synced: 1
     };
 
-    const res = await apiFetch('/api/crud/projects', {
+    const res = await apiFetch('/api/projects', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(supabaseProject)
@@ -138,7 +138,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       synced: 1
     };
 
-    const updateRes = await apiFetch('/api/crud/projects', {
+    const updateRes = await apiFetch('/api/projects', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: project.id, ...supabaseProject })
@@ -150,7 +150,7 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
   // DELETE
   // =========================
   if (item.operation === 'DELETE') {
-    const res = await apiFetch(`/api/crud/projects?id=eq.${project.id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/projects?id=eq.${project.id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(`Delete projects failed: ${res.statusText}`);
     return;
   }
@@ -202,7 +202,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       updated_at: new Date(entry.lastModified).toISOString()
     };
 
-    const res = await apiFetch('/api/crud/mapping_entries', {
+    const res = await apiFetch('/api/mapping_entries', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(supabaseEntry)
@@ -245,7 +245,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       }
     }
   } else if (item.operation === 'DELETE') {
-    const res = await apiFetch(`/api/crud/mapping_entries?id=eq.${entry.id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/mapping_entries?id=eq.${entry.id}`, { method: 'DELETE' });
     if (!res.ok) {
       throw new Error(`Delete mapping_entries failed: ${res.statusText}`);
     }
@@ -305,7 +305,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
 
     // Create photo metadata record tramite homeserver API
     const isStructurePhoto = photoMeta.entryType === 'structure';
-    const photoMetaRes = await apiFetch('/api/crud/photos', {
+    const photoMetaRes = await apiFetch('/api/photos', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -359,7 +359,7 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
     }
 
     // Delete metadata tramite homeserver API
-    const deleteRes = await apiFetch(`/api/crud/photos?id=eq.${photoMeta.id}`, { method: 'DELETE' });
+    const deleteRes = await apiFetch(`/api/photos?id=eq.${photoMeta.id}`, { method: 'DELETE' });
     if (!deleteRes.ok) {
       throw new Error(`Delete photos failed (homeserver): ${deleteRes.statusText}`);
     }
@@ -387,7 +387,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     // --- Conflict detection ANTICIPATO: check PRIMA di qualsiasi upload asset ---
     if (localFloorPlan.remoteUpdatedAt != null) {
       try {
-        const remoteCheckRes = await apiFetch(`/api/crud/floor_plans?id=eq.${localFloorPlan.id}`);
+        const remoteCheckRes = await apiFetch(`/api/floor_plans?id=eq.${localFloorPlan.id}`);
         if (!remoteCheckRes.ok) {
           if (remoteCheckRes.status !== 404) {
             throw new Error(`Conflict pre-check failed (${remoteCheckRes.status}): ${remoteCheckRes.statusText}`);
@@ -491,7 +491,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     }
 
     // Create/update floor plan record tramite homeserver API
-    const fpRes = await apiFetch('/api/crud/floor_plans', {
+    const fpRes = await apiFetch('/api/floor_plans', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -524,7 +524,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     });
   } else if (item.operation === 'DELETE') {
     // Delete tramite homeserver API
-    const delRes = await apiFetch(`/api/crud/floor_plans?id=eq.${floorPlan.id}`, { method: 'DELETE' });
+    const delRes = await apiFetch(`/api/floor_plans?id=eq.${floorPlan.id}`, { method: 'DELETE' });
     if (!delRes.ok) {
       throw new Error(`Delete floor_plans failed: ${delRes.statusText}`);
     }
@@ -557,7 +557,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
     // --- Conflict detection: check if remote has been modified since our last sync ---
     if (effectivePoint.remoteUpdatedAt != null) {
       try {
-        const pointCheckRes = await apiFetch(`/api/crud/floor_plan_points?id=eq.${effectivePoint.id}`);
+        const pointCheckRes = await apiFetch(`/api/floor_plan_points?id=eq.${effectivePoint.id}`);
         if (!pointCheckRes.ok) {
           if (pointCheckRes.status !== 404) {
             throw new Error(`Conflict pre-check failed (${pointCheckRes.status}): ${pointCheckRes.statusText}`);
@@ -620,7 +620,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    const fppRes = await apiFetch('/api/crud/floor_plan_points', {
+    const fppRes = await apiFetch('/api/floor_plan_points', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -653,7 +653,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
-    const delRes = await apiFetch(`/api/crud/floor_plan_points?id=eq.${point.id}`, { method: 'DELETE' });
+    const delRes = await apiFetch(`/api/floor_plan_points?id=eq.${point.id}`, { method: 'DELETE' });
     if (!delRes.ok) {
       throw new Error(`Delete floor_plan_points failed: ${delRes.statusText}`);
     }
@@ -717,7 +717,7 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
     }
 
     // Create/update standalone map record tramite homeserver API
-    const smRes = await apiFetch('/api/crud/standalone_maps', {
+    const smRes = await apiFetch('/api/standalone_maps', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -765,7 +765,7 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
-    const delRes = await apiFetch(`/api/crud/standalone_maps?id=eq.${map.id}`, { method: 'DELETE' });
+    const delRes = await apiFetch(`/api/standalone_maps?id=eq.${map.id}`, { method: 'DELETE' });
     if (!delRes.ok) {
       throw new Error(`Delete standalone_maps failed: ${delRes.statusText}`);
     }
@@ -802,7 +802,7 @@ async function syncSal(item: SyncQueueItem): Promise<void> {
       synced: true,
     };
 
-    const salRes = await apiFetch('/api/crud/sals', {
+    const salRes = await apiFetch('/api/sals', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(supabaseSal)
@@ -813,7 +813,7 @@ async function syncSal(item: SyncQueueItem): Promise<void> {
 
     await db.sals.update(sal.id, { synced: 1 });
   } else if (item.operation === 'DELETE') {
-    const delRes = await apiFetch(`/api/crud/sals?id=eq.${sal.id}`, { method: 'DELETE' });
+    const delRes = await apiFetch(`/api/sals?id=eq.${sal.id}`, { method: 'DELETE' });
     if (!delRes.ok) {
       throw new Error(`Delete sals failed: ${delRes.statusText}`);
     }
@@ -824,7 +824,7 @@ async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
   const price = item.payload as TypologyPrice;
 
   if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    const tpRes = await apiFetch('/api/crud/typology_prices', {
+    const tpRes = await apiFetch('/api/typology_prices', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -847,7 +847,7 @@ async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
       updatedAt: price.updatedAt || Date.now(),
     });
   } else if (item.operation === 'DELETE') {
-    const delRes = await apiFetch(`/api/crud/typology_prices?id=eq.${price.id}`, { method: 'DELETE' });
+    const delRes = await apiFetch(`/api/typology_prices?id=eq.${price.id}`, { method: 'DELETE' });
     if (!delRes.ok) {
       throw new Error(`Delete typology_prices failed: ${delRes.statusText}`);
     }
@@ -883,7 +883,7 @@ async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
       updated_at: new Date(entry.lastModified).toISOString()
     };
 
-    const seRes = await apiFetch('/api/crud/structure_entries', {
+    const seRes = await apiFetch('/api/structure_entries', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(supabaseEntry)
@@ -923,7 +923,7 @@ async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
       }
     }
   } else if (item.operation === 'DELETE') {
-    const delRes = await apiFetch(`/api/crud/structure_entries?id=eq.${entry.id}`, { method: 'DELETE' });
+    const delRes = await apiFetch(`/api/structure_entries?id=eq.${entry.id}`, { method: 'DELETE' });
     if (!delRes.ok) {
       throw new Error(`Delete structure_entries failed: ${delRes.statusText}`);
     }

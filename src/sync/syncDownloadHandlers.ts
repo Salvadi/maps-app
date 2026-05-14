@@ -112,7 +112,7 @@ async function fetchRowsByIds(
   for (const batch of batches) {
     // homeserver parser: ?col=in.val1,val2 (comma-separated, no parentheses)
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/crud/${table}?${column}=in.${idsParam}`);
+    const res = await apiFetch(`/api/${table}?${column}=in.${idsParam}`);
     if (!res.ok) {
       throw new Error(`Failed to download ${table}: ${res.statusText}`);
     }
@@ -125,7 +125,7 @@ async function fetchRowsByIds(
 
 async function getAccessibleProjectsFromRemote(_userId: string, _isAdmin: boolean): Promise<any[]> {
   // Scope enforced server-side — no client-side filter needed
-  const res = await apiFetch('/api/crud/projects?limit=1000');
+  const res = await apiFetch('/api/projects?limit=1000');
   if (!res.ok) {
     throw new Error(`Failed to download projects: ${res.statusText}`);
   }
@@ -332,7 +332,7 @@ export async function downloadPhotosFromSupabase(
   const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
   for (const batch of mappingEntryIdBatches) {
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/crud/photos?mapping_entry_id=in.${idsParam}`);
+    const res = await apiFetch(`/api/photos?mapping_entry_id=in.${idsParam}`);
     if (!res.ok) {
       throw new Error(`Failed to download photos: ${res.statusText}`);
     }
@@ -346,7 +346,7 @@ export async function downloadPhotosFromSupabase(
   const structureEntryIdBatches = chunkArray(structureEntryIds, SUPABASE_IN_BATCH_SIZE);
   for (const batch of structureEntryIdBatches) {
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/crud/photos?structure_entry_id=in.${idsParam}`);
+    const res = await apiFetch(`/api/photos?structure_entry_id=in.${idsParam}`);
     if (!res.ok) {
       throw new Error(`Failed to download photos: ${res.statusText}`);
     }
@@ -394,7 +394,7 @@ export async function downloadPhotosFromSupabase(
       }
 
       const idsParam = unresolvedIds.join(',');
-      const res = await apiFetch(`/api/crud/photos?id=in.${idsParam}`);
+      const res = await apiFetch(`/api/photos?id=in.${idsParam}`);
       if (!res.ok) throw new Error(`Failed to download photos: ${res.statusText}`);
       const { data } = await res.json() as { data: any[] };
       for (const row of data || []) {
@@ -650,7 +650,7 @@ export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin
 
   try {
     // Scope enforced server-side — non-admin users only see their own maps via RLS
-    const smRes = await apiFetch('/api/crud/standalone_maps?limit=1000');
+    const smRes = await apiFetch('/api/standalone_maps?limit=1000');
     if (!smRes.ok) {
       throw new Error(`Failed to download standalone maps: ${smRes.statusText}`);
     }

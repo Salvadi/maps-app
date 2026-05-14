@@ -349,7 +349,7 @@ export async function checkForConflicts(
 ): Promise<{ hasConflict: boolean; remote: any | null }> {
   try {
     if (entityType === 'project') {
-      const res = await apiFetch(`/api/crud/projects?id=eq.${entityId}`);
+      const res = await apiFetch(`/api/projects?id=eq.${entityId}`);
       if (!res.ok) {
         if (res.status === 404) return { hasConflict: false, remote: null };
         throw new Error(`Conflict check failed (${res.status}): ${res.statusText}`);
@@ -370,7 +370,7 @@ export async function checkForConflicts(
 
       return { hasConflict, remote };
     } else {
-      const res = await apiFetch(`/api/crud/mapping_entries?id=eq.${entityId}`);
+      const res = await apiFetch(`/api/mapping_entries?id=eq.${entityId}`);
       if (!res.ok) {
         if (res.status === 404) return { hasConflict: false, remote: null };
         throw new Error(`Conflict check failed (${res.status}): ${res.statusText}`);
