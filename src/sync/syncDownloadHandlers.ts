@@ -1,5 +1,5 @@
 import { db, Project, Photo, Sal, FloorPlan, FloorPlanPoint, TypologyPrice, StandaloneMap } from '../db/database';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { apiFetch, isHomeserverConfigured } from '../lib/homeserver';
 import { apiStorageFrom } from '../lib/storageShim';
 import { convertRemoteToLocalMapping, convertRemoteToLocalProject } from './conflictResolution';
 import { convertRemoteToLocalStructure } from '../db/structures';
@@ -85,8 +85,8 @@ function normalizeStandaloneMapPoints(points: any): StandaloneMap['points'] {
 // ============================================
 
 function ensureOnline(): void {
-  if (!isSupabaseConfigured()) {
-    throw new Error('Supabase not configured');
+  if (!isHomeserverConfigured()) {
+    throw new Error('Homeserver not configured');
   }
   if (!navigator.onLine) {
     throw new Error('No internet connection');
@@ -110,39 +110,27 @@ async function fetchRowsByIds(
   const batches = chunkArray(ids, SUPABASE_IN_BATCH_SIZE);
 
   for (const batch of batches) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .in(column, batch);
-
-    if (error) {
-      throw new Error(`Failed to download ${table}: ${error.message}`);
+    // homeserver parser: ?col=in.val1,val2 (comma-separated, no parentheses)
+    const idsParam = batch.join(',');
+    const res = await apiFetch(`/api/crud/${table}?${column}=in.${idsParam}`);
+    if (!res.ok) {
+      throw new Error(`Failed to download ${table}: ${res.statusText}`);
     }
-
+    const { data } = await res.json() as { data: any[] };
     rows.push(...(data || []));
   }
 
   return rows;
 }
 
-async function getAccessibleProjectsFromRemote(userId: string, isAdmin: boolean): Promise<any[]> {
-  const { data: allProjects, error } = await supabase
-    .from('projects')
-    .select('*');
-
-  if (error) {
-    throw new Error(`Failed to download projects: ${error.message}`);
+async function getAccessibleProjectsFromRemote(_userId: string, _isAdmin: boolean): Promise<any[]> {
+  // Scope enforced server-side — no client-side filter needed
+  const res = await apiFetch('/api/crud/projects?limit=1000');
+  if (!res.ok) {
+    throw new Error(`Failed to download projects: ${res.statusText}`);
   }
-
-  const projects = allProjects || [];
-  if (isAdmin) {
-    return projects;
-  }
-
-  return projects.filter((project: any) =>
-    project.owner_id === userId ||
-    (Array.isArray(project.accessible_users) && project.accessible_users.includes(userId))
-  );
+  const { data } = await res.json() as { data: any[] };
+  return data ?? [];
 }
 
 async function getAccessibleLocalProjects(userId: string, isAdmin: boolean): Promise<Project[]> {
@@ -343,37 +331,29 @@ export async function downloadPhotosFromSupabase(
 
   const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
   for (const batch of mappingEntryIdBatches) {
-    const { data, error } = await supabase
-      .from('photos')
-      .select('*')
-      .in('mapping_entry_id', batch);
-
-    if (error) {
-      throw new Error(`Failed to download photos: ${error.message}`);
+    const idsParam = batch.join(',');
+    const res = await apiFetch(`/api/crud/photos?mapping_entry_id=in.${idsParam}`);
+    if (!res.ok) {
+      throw new Error(`Failed to download photos: ${res.statusText}`);
     }
-
+    const { data } = await res.json() as { data: any[] };
     for (const row of data || []) {
       expectedPhotoIds.add(row.id);
     }
-
     photoRows.push(...(data || []));
   }
 
   const structureEntryIdBatches = chunkArray(structureEntryIds, SUPABASE_IN_BATCH_SIZE);
   for (const batch of structureEntryIdBatches) {
-    const { data, error } = await supabase
-      .from('photos')
-      .select('*')
-      .in('structure_entry_id', batch);
-
-    if (error) {
-      throw new Error(`Failed to download photos: ${error.message}`);
+    const idsParam = batch.join(',');
+    const res = await apiFetch(`/api/crud/photos?structure_entry_id=in.${idsParam}`);
+    if (!res.ok) {
+      throw new Error(`Failed to download photos: ${res.statusText}`);
     }
-
+    const { data } = await res.json() as { data: any[] };
     for (const row of data || []) {
       expectedPhotoIds.add(row.id);
     }
-
     photoRows.push(...(data || []));
   }
 
@@ -413,8 +393,10 @@ export async function downloadPhotosFromSupabase(
         continue;
       }
 
-      const { data, error } = await supabase.from('photos').select('*').in('id', unresolvedIds);
-      if (error) throw new Error(`Failed to download photos: ${error.message}`);
+      const idsParam = unresolvedIds.join(',');
+      const res = await apiFetch(`/api/crud/photos?id=in.${idsParam}`);
+      if (!res.ok) throw new Error(`Failed to download photos: ${res.statusText}`);
+      const { data } = await res.json() as { data: any[] };
       for (const row of data || []) {
         fetchedById.set(row.id, row);
       }
@@ -654,8 +636,8 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
 // ============================================
 
 export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin: boolean = false): Promise<number> {
-  if (!isSupabaseConfigured()) {
-    console.warn('⚠️  Download skipped: Supabase not configured');
+  if (!isHomeserverConfigured()) {
+    console.warn('⚠️  Download skipped: Homeserver not configured');
     return 0;
   }
 
@@ -667,19 +649,12 @@ export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin
   console.log(`⬇️  Downloading standalone maps from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
 
   try {
-    let query = supabase
-      .from('standalone_maps')
-      .select('*');
-
-    if (!isAdmin) {
-      query = query.eq('user_id', userId);
+    // Scope enforced server-side — non-admin users only see their own maps via RLS
+    const smRes = await apiFetch('/api/crud/standalone_maps?limit=1000');
+    if (!smRes.ok) {
+      throw new Error(`Failed to download standalone maps: ${smRes.statusText}`);
     }
-
-    const { data: standaloneMaps, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to download standalone maps: ${error.message}`);
-    }
+    const { data: standaloneMaps } = await smRes.json() as { data: any[] };
 
     if (!standaloneMaps || standaloneMaps.length === 0) {
       console.log('✅ No standalone maps to download');

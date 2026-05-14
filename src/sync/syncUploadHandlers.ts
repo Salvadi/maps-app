@@ -6,7 +6,7 @@
  */
 
 import { db, Project, MappingEntry, StructureEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
-import { supabase } from '../lib/supabase';
+import { apiFetch } from '../lib/homeserver';
 import { apiStorageFrom } from '../lib/storageShim';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
 
@@ -67,9 +67,6 @@ export async function processSyncItem(item: SyncQueueItem): Promise<void> {
 async function syncProject(item: SyncQueueItem): Promise<void> {
   let project = item.payload as Project;
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-
   // =========================
   // CREATE
   // =========================
@@ -96,11 +93,12 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       synced: 1
     };
 
-    const { error } = await supabase
-      .from('projects')
-      .upsert(supabaseProject, { onConflict: 'id' });
-
-    if (error) throw new Error(error.message);
+    const res = await apiFetch('/api/crud/projects', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(supabaseProject)
+    });
+    if (!res.ok) throw new Error(`Sync projects failed: ${res.statusText}`);
   }
 
   // =========================
@@ -140,24 +138,20 @@ async function syncProject(item: SyncQueueItem): Promise<void> {
       synced: 1
     };
 
-    const { error } = await supabase
-      .from('projects')
-      .update(supabaseProject)
-      .eq('id', project.id);
-
-    if (error) throw new Error(error.message);
+    const updateRes = await apiFetch('/api/crud/projects', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: project.id, ...supabaseProject })
+    });
+    if (!updateRes.ok) throw new Error(`Sync projects failed: ${updateRes.statusText}`);
   }
 
   // =========================
   // DELETE
   // =========================
   if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', project.id);
-
-    if (error) throw new Error(error.message);
+    const res = await apiFetch(`/api/crud/projects?id=eq.${project.id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Delete projects failed: ${res.statusText}`);
     return;
   }
 
@@ -208,14 +202,13 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       updated_at: new Date(entry.lastModified).toISOString()
     };
 
-    const { error } = await supabase
-      .from('mapping_entries')
-      .upsert(supabaseEntry, {
-        onConflict: 'id'
-      });
-
-    if (error) {
-      throw new Error(`Supabase mapping entry upsert failed: ${error.message}`);
+    const res = await apiFetch('/api/crud/mapping_entries', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(supabaseEntry)
+    });
+    if (!res.ok) {
+      throw new Error(`Sync mapping_entries failed: ${res.statusText}`);
     }
 
     // Mark local entry as synced
@@ -252,13 +245,9 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       }
     }
   } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('mapping_entries')
-      .delete()
-      .eq('id', entry.id);
-
-    if (error) {
-      throw new Error(`Supabase mapping entry delete failed: ${error.message}`);
+    const res = await apiFetch(`/api/crud/mapping_entries?id=eq.${entry.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      throw new Error(`Delete mapping_entries failed: ${res.statusText}`);
     }
   }
 }
@@ -314,11 +303,12 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    // Create photo metadata record in Supabase
+    // Create photo metadata record tramite homeserver API
     const isStructurePhoto = photoMeta.entryType === 'structure';
-    const { error: metaError } = await supabase
-      .from('photos')
-      .upsert({
+    const photoMetaRes = await apiFetch('/api/crud/photos', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: photoMeta.id,
         ...(isStructurePhoto
           ? { structure_entry_id: photoMeta.mappingEntryId }
@@ -331,12 +321,11 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
         uploaded: true,
         created_at: new Date(photoMeta.metadata.captureTimestamp).toISOString(),
         updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      });
+      })
+    });
 
-    if (metaError) {
-      throw new Error(`Supabase photo metadata upsert failed: ${metaError.message}`);
+    if (!photoMetaRes.ok) {
+      throw new Error(`Photo metadata upsert failed (homeserver): ${photoMetaRes.statusText}`);
     }
 
     // Mark local photo as uploaded
@@ -369,14 +358,10 @@ async function syncPhoto(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    // Delete metadata from database
-    const { error } = await supabase
-      .from('photos')
-      .delete()
-      .eq('id', photoMeta.id);
-
-    if (error) {
-      throw new Error(`Supabase photo delete failed: ${error.message}`);
+    // Delete metadata tramite homeserver API
+    const deleteRes = await apiFetch(`/api/crud/photos?id=eq.${photoMeta.id}`, { method: 'DELETE' });
+    if (!deleteRes.ok) {
+      throw new Error(`Delete photos failed (homeserver): ${deleteRes.statusText}`);
     }
   }
 }
@@ -402,39 +387,44 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     // --- Conflict detection ANTICIPATO: check PRIMA di qualsiasi upload asset ---
     if (localFloorPlan.remoteUpdatedAt != null) {
       try {
-        const { data: remoteRecord } = await supabase
-          .from('floor_plans')
-          .select('updated_at')
-          .eq('id', localFloorPlan.id)
-          .single() as { data: { updated_at: string } | null; error: any };
+        const remoteCheckRes = await apiFetch(`/api/crud/floor_plans?id=eq.${localFloorPlan.id}`);
+        if (!remoteCheckRes.ok) {
+          if (remoteCheckRes.status !== 404) {
+            throw new Error(`Conflict pre-check failed (${remoteCheckRes.status}): ${remoteCheckRes.statusText}`);
+          }
+          // 404 = riga non esiste remoto, procedi con CREATE
+        } else {
+          const remoteCheckJson = await remoteCheckRes.json() as { data: any[] };
+          const remoteRecord: { updated_at: string } | null = remoteCheckJson.data?.[0] ?? null;
 
-        if (remoteRecord) {
-          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
-          // Se il remote è stato modificato dopo il nostro ultimo sync → conflitto
-          if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
-            console.warn(
-              `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
-              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
-              `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
-              `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
-            );
-            // Log conflict to conflictHistory
-            await db.conflictHistory.add({
-              id: generateId(),
-              timestamp: Date.now(),
-              entityType: 'floor_plan',
-              entityId: localFloorPlan.id,
-              conflictType: 'timestamp',
-              localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
-              remoteVersion: { updatedAt: remoteUpdatedAt },
-              resolvedVersion: null,
-              strategy: 'skip_upload_floor_plan',
-              autoResolved: true,
-              userNotified: false,
-            });
-            // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
-            await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
-            return; // Do NOT upload assets né upsert — utente deve sincronizzare prima
+          if (remoteRecord) {
+            const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
+            // Se il remote è stato modificato dopo il nostro ultimo sync → conflitto
+            if (remoteUpdatedAt > localFloorPlan.remoteUpdatedAt + 5000) {
+              console.warn(
+                `⚠️  CONFLICT: Floor plan ${localFloorPlan.id} was modified remotely ` +
+                `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
+                `our base: ${new Date(localFloorPlan.remoteUpdatedAt).toISOString()}). ` +
+                `Skipping upload to avoid overwriting remote changes. Sync to get latest version.`
+              );
+              // Log conflict to conflictHistory
+              await db.conflictHistory.add({
+                id: generateId(),
+                timestamp: Date.now(),
+                entityType: 'floor_plan',
+                entityId: localFloorPlan.id,
+                conflictType: 'timestamp',
+                localVersion: { updatedAt: localFloorPlan.updatedAt, remoteUpdatedAt: localFloorPlan.remoteUpdatedAt },
+                remoteVersion: { updatedAt: remoteUpdatedAt },
+                resolvedVersion: null,
+                strategy: 'skip_upload_floor_plan',
+                autoResolved: true,
+                userNotified: false,
+              });
+              // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
+              await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
+              return; // Do NOT upload assets né upsert — utente deve sincronizzare prima
+            }
           }
         }
       } catch {
@@ -500,10 +490,11 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    // Create/update floor plan record in Supabase
-    const { error } = await supabase
-      .from('floor_plans')
-      .upsert({
+    // Create/update floor plan record tramite homeserver API
+    const fpRes = await apiFetch('/api/crud/floor_plans', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: localFloorPlan.id,
         project_id: localFloorPlan.projectId,
         floor: localFloorPlan.floor,
@@ -518,12 +509,11 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
         created_by: localFloorPlan.createdBy,
         created_at: new Date(localFloorPlan.createdAt).toISOString(),
         updated_at: new Date(localFloorPlan.updatedAt).toISOString()
-      }, {
-        onConflict: 'id'
-      });
+      })
+    });
 
-    if (error) {
-      throw new Error(`Supabase floor plan upsert failed: ${error.message}`);
+    if (!fpRes.ok) {
+      throw new Error(`Sync floor_plans failed: ${fpRes.statusText}`);
     }
 
     // After successful upload, update remoteUpdatedAt to match what we just wrote
@@ -533,14 +523,10 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
-    // Delete from Supabase
-    const { error } = await supabase
-      .from('floor_plans')
-      .delete()
-      .eq('id', floorPlan.id);
-
-    if (error) {
-      throw new Error(`Supabase floor plan delete failed: ${error.message}`);
+    // Delete tramite homeserver API
+    const delRes = await apiFetch(`/api/crud/floor_plans?id=eq.${floorPlan.id}`, { method: 'DELETE' });
+    if (!delRes.ok) {
+      throw new Error(`Delete floor_plans failed: ${delRes.statusText}`);
     }
 
     // Delete from Storage if URLs exist
@@ -571,37 +557,42 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
     // --- Conflict detection: check if remote has been modified since our last sync ---
     if (effectivePoint.remoteUpdatedAt != null) {
       try {
-        const { data: remoteRecord } = await supabase
-          .from('floor_plan_points')
-          .select('updated_at')
-          .eq('id', effectivePoint.id)
-          .single() as { data: { updated_at: string } | null; error: any };
+        const pointCheckRes = await apiFetch(`/api/crud/floor_plan_points?id=eq.${effectivePoint.id}`);
+        if (!pointCheckRes.ok) {
+          if (pointCheckRes.status !== 404) {
+            throw new Error(`Conflict pre-check failed (${pointCheckRes.status}): ${pointCheckRes.statusText}`);
+          }
+          // 404 = riga non esiste remoto, procedi con CREATE
+        } else {
+          const pointCheckJson = await pointCheckRes.json() as { data: any[] };
+          const remoteRecord: { updated_at: string } | null = pointCheckJson.data?.[0] ?? null;
 
-        if (remoteRecord) {
-          const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
-          if (remoteUpdatedAt > effectivePoint.remoteUpdatedAt + 5000) {
-            console.warn(
-              `⚠️  CONFLICT: Floor plan point ${effectivePoint.id} was modified remotely ` +
-              `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
-              `our base: ${new Date(effectivePoint.remoteUpdatedAt).toISOString()}). ` +
-              `Skipping upload to avoid overwriting remote changes.`
-            );
-            await db.conflictHistory.add({
-              id: generateId(),
-              timestamp: Date.now(),
-              entityType: 'floor_plan_point',
-              entityId: effectivePoint.id,
-              conflictType: 'timestamp',
-              localVersion: { updatedAt: effectivePoint.updatedAt, remoteUpdatedAt: effectivePoint.remoteUpdatedAt },
-              remoteVersion: { updatedAt: remoteUpdatedAt },
-              resolvedVersion: null,
-              strategy: 'skip_upload_floor_plan_point',
-              autoResolved: true,
-              userNotified: false,
-            });
-            // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
-            await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
-            return;
+          if (remoteRecord) {
+            const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
+            if (remoteUpdatedAt > effectivePoint.remoteUpdatedAt + 5000) {
+              console.warn(
+                `⚠️  CONFLICT: Floor plan point ${effectivePoint.id} was modified remotely ` +
+                `(remote: ${new Date(remoteUpdatedAt).toISOString()}, ` +
+                `our base: ${new Date(effectivePoint.remoteUpdatedAt).toISOString()}). ` +
+                `Skipping upload to avoid overwriting remote changes.`
+              );
+              await db.conflictHistory.add({
+                id: generateId(),
+                timestamp: Date.now(),
+                entityType: 'floor_plan_point',
+                entityId: effectivePoint.id,
+                conflictType: 'timestamp',
+                localVersion: { updatedAt: effectivePoint.updatedAt, remoteUpdatedAt: effectivePoint.remoteUpdatedAt },
+                remoteVersion: { updatedAt: remoteUpdatedAt },
+                resolvedVersion: null,
+                strategy: 'skip_upload_floor_plan_point',
+                autoResolved: true,
+                userNotified: false,
+              });
+              // Incrementa retryCount così l'item non viene skippato silenziosamente all'infinito
+              await db.syncQueue.update(item.id, { retryCount: (item.retryCount ?? 0) + 1 });
+              return;
+            }
           }
         }
       } catch {
@@ -629,9 +620,10 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    const { error } = await supabase
-      .from('floor_plan_points')
-      .upsert({
+    const fppRes = await apiFetch('/api/crud/floor_plan_points', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: point.id,
         floor_plan_id: point.floorPlanId,
         mapping_entry_id: resolvedMappingEntryId,
@@ -648,12 +640,11 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
         created_by: point.createdBy,
         created_at: new Date(point.createdAt).toISOString(),
         updated_at: new Date(point.updatedAt).toISOString()
-      }, {
-        onConflict: 'id'
-      });
+      })
+    });
 
-    if (error) {
-      throw new Error(`Supabase floor plan point upsert failed: ${error.message}`);
+    if (!fppRes.ok) {
+      throw new Error(`Sync floor_plan_points failed: ${fppRes.statusText}`);
     }
 
     // After successful upload, update remoteUpdatedAt
@@ -662,13 +653,9 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('floor_plan_points')
-      .delete()
-      .eq('id', point.id);
-
-    if (error) {
-      throw new Error(`Supabase floor plan point delete failed: ${error.message}`);
+    const delRes = await apiFetch(`/api/crud/floor_plan_points?id=eq.${point.id}`, { method: 'DELETE' });
+    if (!delRes.ok) {
+      throw new Error(`Delete floor_plan_points failed: ${delRes.statusText}`);
     }
   }
 }
@@ -729,10 +716,11 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
       }
     }
 
-    // Create/update standalone map record in Supabase
-    const { error } = await supabase
-      .from('standalone_maps')
-      .upsert({
+    // Create/update standalone map record tramite homeserver API
+    const smRes = await apiFetch('/api/crud/standalone_maps', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: localMap.id,
         user_id: localMap.userId,
         name: localMap.name,
@@ -763,12 +751,11 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
         metadata: localMap.metadata || {},
         created_at: new Date(localMap.createdAt).toISOString(),
         updated_at: new Date(localMap.updatedAt).toISOString()
-      }, {
-        onConflict: 'id'
-      });
+      })
+    });
 
-    if (error) {
-      throw new Error(`Supabase standalone map upsert failed: ${error.message}`);
+    if (!smRes.ok) {
+      throw new Error(`Sync standalone_maps failed: ${smRes.statusText}`);
     }
 
     await db.standaloneMaps.update(map.id, {
@@ -778,13 +765,9 @@ async function syncStandaloneMap(item: SyncQueueItem): Promise<void> {
       synced: 1,
     });
   } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('standalone_maps')
-      .delete()
-      .eq('id', map.id);
-
-    if (error) {
-      throw new Error(`Supabase standalone map delete failed: ${error.message}`);
+    const delRes = await apiFetch(`/api/crud/standalone_maps?id=eq.${map.id}`, { method: 'DELETE' });
+    if (!delRes.ok) {
+      throw new Error(`Delete standalone_maps failed: ${delRes.statusText}`);
     }
 
     // Delete from Storage if URLs exist
@@ -819,23 +802,20 @@ async function syncSal(item: SyncQueueItem): Promise<void> {
       synced: true,
     };
 
-    const { error } = await supabase
-      .from('sals')
-      .upsert(supabaseSal, { onConflict: 'id' });
-
-    if (error) {
-      throw new Error(`Supabase SAL upsert failed: ${error.message}`);
+    const salRes = await apiFetch('/api/crud/sals', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(supabaseSal)
+    });
+    if (!salRes.ok) {
+      throw new Error(`Sync sals failed: ${salRes.statusText}`);
     }
 
     await db.sals.update(sal.id, { synced: 1 });
   } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('sals')
-      .delete()
-      .eq('id', sal.id);
-
-    if (error) {
-      throw new Error(`Supabase SAL delete failed: ${error.message}`);
+    const delRes = await apiFetch(`/api/crud/sals?id=eq.${sal.id}`, { method: 'DELETE' });
+    if (!delRes.ok) {
+      throw new Error(`Delete sals failed: ${delRes.statusText}`);
     }
   }
 }
@@ -844,9 +824,10 @@ async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
   const price = item.payload as TypologyPrice;
 
   if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
-    const { error } = await supabase
-      .from('typology_prices')
-      .upsert({
+    const tpRes = await apiFetch('/api/crud/typology_prices', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: price.id,
         project_id: price.projectId,
         attraversamento: price.attraversamento,
@@ -855,12 +836,10 @@ async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
         unit: price.unit,
         created_at: price.createdAt ? new Date(price.createdAt).toISOString() : new Date().toISOString(),
         updated_at: new Date(price.updatedAt || Date.now()).toISOString(),
-      }, {
-        onConflict: 'id'
-      });
-
-    if (error) {
-      throw new Error(`Supabase typology price upsert failed: ${error.message}`);
+      })
+    });
+    if (!tpRes.ok) {
+      throw new Error(`Sync typology_prices failed: ${tpRes.statusText}`);
     }
 
     await db.typologyPrices.update(price.id, {
@@ -868,13 +847,9 @@ async function syncTypologyPrice(item: SyncQueueItem): Promise<void> {
       updatedAt: price.updatedAt || Date.now(),
     });
   } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('typology_prices')
-      .delete()
-      .eq('id', price.id);
-
-    if (error) {
-      throw new Error(`Supabase typology price delete failed: ${error.message}`);
+    const delRes = await apiFetch(`/api/crud/typology_prices?id=eq.${price.id}`, { method: 'DELETE' });
+    if (!delRes.ok) {
+      throw new Error(`Delete typology_prices failed: ${delRes.statusText}`);
     }
   }
 }
@@ -908,12 +883,13 @@ async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
       updated_at: new Date(entry.lastModified).toISOString()
     };
 
-    const { error } = await supabase
-      .from('structure_entries')
-      .upsert(supabaseEntry, { onConflict: 'id' });
-
-    if (error) {
-      throw new Error(`Supabase structure entry upsert failed: ${error.message}`);
+    const seRes = await apiFetch('/api/crud/structure_entries', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(supabaseEntry)
+    });
+    if (!seRes.ok) {
+      throw new Error(`Sync structure_entries failed: ${seRes.statusText}`);
     }
 
     await db.structureEntries.update(entry.id, { synced: 1 });
@@ -947,13 +923,9 @@ async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
       }
     }
   } else if (item.operation === 'DELETE') {
-    const { error } = await supabase
-      .from('structure_entries')
-      .delete()
-      .eq('id', entry.id);
-
-    if (error) {
-      throw new Error(`Supabase structure entry delete failed: ${error.message}`);
+    const delRes = await apiFetch(`/api/crud/structure_entries?id=eq.${entry.id}`, { method: 'DELETE' });
+    if (!delRes.ok) {
+      throw new Error(`Delete structure_entries failed: ${delRes.statusText}`);
     }
   }
 }

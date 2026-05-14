@@ -1,5 +1,5 @@
 import { db, MappingEntry, Project, ConflictHistory, generateId } from '../db/database';
-import { supabase } from '../lib/supabase';
+import { apiFetch } from '../lib/homeserver';
 
 /**
  * Conflict Resolution for Phase 3
@@ -349,19 +349,14 @@ export async function checkForConflicts(
 ): Promise<{ hasConflict: boolean; remote: any | null }> {
   try {
     if (entityType === 'project') {
-      const { data: remote, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', entityId)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // Not found - no conflict
-          return { hasConflict: false, remote: null };
-        }
-        throw error;
+      const res = await apiFetch(`/api/crud/projects?id=eq.${entityId}`);
+      if (!res.ok) {
+        if (res.status === 404) return { hasConflict: false, remote: null };
+        throw new Error(`Conflict check failed (${res.status}): ${res.statusText}`);
       }
+      const { data } = await res.json() as { data: any[] };
+      const remote = data?.[0] ?? null;
+      if (!remote) return { hasConflict: false, remote: null }; // array vuoto = riga non trovata
 
       const local = await db.projects.get(entityId);
       if (!local) {
@@ -375,18 +370,14 @@ export async function checkForConflicts(
 
       return { hasConflict, remote };
     } else {
-      const { data: remote, error } = await supabase
-        .from('mapping_entries')
-        .select('*')
-        .eq('id', entityId)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return { hasConflict: false, remote: null };
-        }
-        throw error;
+      const res = await apiFetch(`/api/crud/mapping_entries?id=eq.${entityId}`);
+      if (!res.ok) {
+        if (res.status === 404) return { hasConflict: false, remote: null };
+        throw new Error(`Conflict check failed (${res.status}): ${res.statusText}`);
       }
+      const { data } = await res.json() as { data: any[] };
+      const remote = data?.[0] ?? null;
+      if (!remote) return { hasConflict: false, remote: null }; // array vuoto = riga non trovata
 
       const local = await db.mappingEntries.get(entityId);
       if (!local) {

@@ -7,7 +7,7 @@
  */
 
 import { db, SyncQueueItem } from '../db/database';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { apiFetch, isHomeserverConfigured } from '../lib/homeserver';
 import { eventStream } from '../realtime/eventStream';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
 import { processSyncItem } from './syncUploadHandlers';
@@ -160,7 +160,7 @@ export function triggerImmediateUpload(): void {
   if (uploadDebounceTimer) clearTimeout(uploadDebounceTimer);
   uploadDebounceTimer = setTimeout(async () => {
     try {
-      if (!navigator.onLine || !isSupabaseConfigured()) return;
+      if (!navigator.onLine || !isHomeserverConfigured()) return;
       await lockedSync();
     } catch (err) {
       console.error('Debounced upload failed:', err);
@@ -238,7 +238,7 @@ async function clearBrowserCaches(): Promise<void> {
  * Returns the number of items successfully synced
  */
 export async function processSyncQueue(): Promise<SyncResult> {
-  if (!isSupabaseConfigured()) {
+  if (!isHomeserverConfigured()) {
     console.warn('⚠️  Sync skipped: Supabase not configured');
     return {
       success: false,
@@ -259,8 +259,8 @@ export async function processSyncQueue(): Promise<SyncResult> {
   }
 
   // Check if user is authenticated
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const meRes = await apiFetch('/auth/me');
+  if (!meRes.ok) {
     console.warn('⚠️  Sync skipped: User not authenticated');
     return {
       success: false,
@@ -269,6 +269,8 @@ export async function processSyncQueue(): Promise<SyncResult> {
       errors: [{ item: {} as SyncQueueItem, error: 'User not authenticated. Please log in to sync data.' }]
     };
   }
+  const me = await meRes.json() as { id: string; email: string; role: string };
+  const userId = me.id;
 
   // Deduplicate queue before processing
   await deduplicateSyncQueue();
@@ -290,7 +292,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
     };
   }
 
-  console.log(`🔄 Processing ${pendingItems.length} sync queue items as user ${session.user.id}...`);
+  console.log(`🔄 Processing ${pendingItems.length} sync queue items as user ${userId}...`);
 
   let processedCount = 0;
   let failedCount = 0;
@@ -451,54 +453,43 @@ export {
  * This is the "pull" operation that complements the "push" in processSyncQueue
  */
 export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
-  if (!isSupabaseConfigured()) {
+  if (!isHomeserverConfigured()) {
     console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
   // Check if user is authenticated
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const meRes = await apiFetch('/auth/me');
+  if (!meRes.ok) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
+  const me = await meRes.json() as { id: string; email: string; role: string };
+  const userId = me.id;
+  const isAdmin = me.role === 'admin';
 
   console.log('⬇️  Starting sync FROM Supabase...');
 
   try {
-    // Get user profile once to check if admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (profileError) {
-      console.error('⚠️  Failed to get user profile for sync:', profileError.message);
-      console.error('⚠️  Continuing with regular user permissions');
-    }
-
-    const isAdmin = profile?.role === 'admin';
-
     if (isAdmin) {
       console.log('👑 Admin user detected: will sync all projects');
     } else {
       console.log('👤 Regular user: will sync accessible projects only');
     }
 
-    const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
-    const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-    await downloadStructureEntriesFromSupabase(session.user.id, isAdmin);
-    await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: false });
-    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+    const projectsCount = await downloadProjectsFromSupabase(userId, isAdmin);
+    const entriesCount = await downloadMappingEntriesFromSupabase(userId, isAdmin);
+    await downloadStructureEntriesFromSupabase(userId, isAdmin);
+    await downloadTypologyPricesFromSupabase(userId, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: false });
+    const floorPlansCount = await downloadFloorPlansFromSupabase(userId, isAdmin, {
       includeImageBlobs: false,
       includeThumbnailBlobs: false,
       includePdf: false,
     });
-    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
-    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
-    const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
+    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(userId, isAdmin);
+    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(userId, isAdmin);
+    const salsCount = await downloadSalsFromSupabase(userId, isAdmin);
 
     const photosCount = photosResult.downloaded;
     const photosFailedCount = photosResult.failed;
@@ -663,49 +654,44 @@ export async function phasedSyncFromSupabase(options?: {
   onPhotoDecisionNeeded?: () => Promise<boolean>;
   onProgress?: (progress: SyncProgress) => void;
 }): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
-  if (!isSupabaseConfigured()) {
+  if (!isHomeserverConfigured()) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const meRes = await apiFetch('/auth/me');
+  if (!meRes.ok) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .single();
-
-  const isAdmin = profile?.role === 'admin';
+  const me = await meRes.json() as { id: string; email: string; role: string };
+  const userId = me.id;
+  const isAdmin = me.role === 'admin';
   const progress = options?.onProgress;
   const totalSteps = 6;
 
   // Phase 1: Projects
   progress?.({ step: 2, totalSteps, phase: 'Download progetti...' });
   console.log('📦 Fase 1: Sincronizzazione dati...');
-  const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
+  const projectsCount = await downloadProjectsFromSupabase(userId, isAdmin);
   progress?.({ step: 2, totalSteps, phase: 'Download progetti', detail: `${projectsCount} progetti` });
 
   // Phase 2: Mapping entries + SALs + prices + mappe standalone
   progress?.({ step: 3, totalSteps, phase: 'Download mappature...' });
-  const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-  await downloadStructureEntriesFromSupabase(session.user.id, isAdmin);
-  const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
-  await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
+  const entriesCount = await downloadMappingEntriesFromSupabase(userId, isAdmin);
+  await downloadStructureEntriesFromSupabase(userId, isAdmin);
+  const salsCount = await downloadSalsFromSupabase(userId, isAdmin);
+  await downloadTypologyPricesFromSupabase(userId, isAdmin);
   progress?.({ step: 3, totalSteps, phase: 'Download mappature', detail: `${entriesCount} mappature` });
 
   // Phase 3: Floor plans metadata + points
   progress?.({ step: 4, totalSteps, phase: 'Download planimetrie...' });
   console.log('🗺️ Fase 2: Sincronizzazione planimetrie...');
-  const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+  const floorPlansCount = await downloadFloorPlansFromSupabase(userId, isAdmin, {
     includeImageBlobs: false,
     includeThumbnailBlobs: false,
     includePdf: false,
   });
-  const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
-  const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
+  const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(userId, isAdmin);
+  const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(userId, isAdmin);
   progress?.({ step: 4, totalSteps, phase: 'Download planimetrie', detail: `${floorPlansCount} planimetrie, ${floorPlanPointsCount} punti, ${standaloneMapsCount} standalone` });
 
   // Phase 4: Photos (optional)
@@ -721,14 +707,14 @@ export async function phasedSyncFromSupabase(options?: {
   if (shouldDownloadPhotos) {
     progress?.({ step: 5, totalSteps, phase: 'Download foto...' });
     console.log('📸 Fase 3: Sincronizzazione foto...');
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: true });
+    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: true });
     photosCount = photosResult.downloaded;
     photosFailedCount = photosResult.failed;
     progress?.({ step: 5, totalSteps, phase: 'Download foto', detail: `${photosCount} foto${photosFailedCount > 0 ? ` (${photosFailedCount} fallite)` : ''}` });
   } else {
     progress?.({ step: 5, totalSteps, phase: 'Foto saltate' });
     console.log('📸 Fase 3: Foto saltate (scelta utente)');
-    await updateRemotePhotosFlags(session.user.id, isAdmin);
+    await updateRemotePhotosFlags(userId, isAdmin);
   }
 
   await updateLastSyncTimestamp();
@@ -751,15 +737,18 @@ export async function clearAndSync(): Promise<{
 }> {
   console.log('🗑️ Cache reset triggered - clearing local data...');
 
-  if (!isSupabaseConfigured()) {
+  if (!isHomeserverConfigured()) {
     throw new Error('Supabase not configured. Cannot sync.');
   }
 
   // Check if user is authenticated
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const meRes = await apiFetch('/auth/me');
+  if (!meRes.ok) {
     throw new Error('User not authenticated. Please log in to sync data.');
   }
+  const me = await meRes.json() as { id: string; email: string; role: string };
+  const userId = me.id;
+  const isAdmin = me.role === 'admin';
 
   if (!await acquireSyncLock()) {
     throw new Error('Sync already in progress. Please retry in a moment.');
@@ -806,26 +795,20 @@ export async function clearAndSync(): Promise<{
 
     // Download a fresh full local cache from Supabase
     console.log('⬇️ Downloading fresh full cache from Supabase...');
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-    const isAdmin = profile?.role === 'admin';
 
-    const projectsCount = await downloadProjectsFromSupabase(session.user.id, isAdmin);
-    const entriesCount = await downloadMappingEntriesFromSupabase(session.user.id, isAdmin);
-    await downloadStructureEntriesFromSupabase(session.user.id, isAdmin);
-    await downloadTypologyPricesFromSupabase(session.user.id, isAdmin);
-    const floorPlansCount = await downloadFloorPlansFromSupabase(session.user.id, isAdmin, {
+    const projectsCount = await downloadProjectsFromSupabase(userId, isAdmin);
+    const entriesCount = await downloadMappingEntriesFromSupabase(userId, isAdmin);
+    await downloadStructureEntriesFromSupabase(userId, isAdmin);
+    await downloadTypologyPricesFromSupabase(userId, isAdmin);
+    const floorPlansCount = await downloadFloorPlansFromSupabase(userId, isAdmin, {
       includeImageBlobs: true,
       includeThumbnailBlobs: true,
       includePdf: true,
     });
-    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(session.user.id, isAdmin);
-    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(session.user.id, isAdmin);
-    const salsCount = await downloadSalsFromSupabase(session.user.id, isAdmin);
-    const photosResult = await downloadPhotosFromSupabase(session.user.id, isAdmin, { includeBlobs: true });
+    const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(userId, isAdmin);
+    const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(userId, isAdmin);
+    const salsCount = await downloadSalsFromSupabase(userId, isAdmin);
+    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: true });
     const downloadResult = {
       projectsCount,
       entriesCount,
