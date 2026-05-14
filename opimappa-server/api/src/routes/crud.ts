@@ -2,8 +2,8 @@ import type { Context } from 'hono';
 import { randomUUID } from 'crypto';
 import type { Variables } from '../auth/middleware.js';
 import { TABLE_SCHEMA, getWritableColumns } from '../query/schema.js';
-import { executeQuery } from '../query/builder.js';
-import { httpError, parseQuery, parseFilters, type FilterClause } from '../query/parser.js';
+import { executeQuery, addFilter, addParam, quoteIdent, type WhereBuild } from '../query/builder.js';
+import { httpError, parseQuery, parseFilters } from '../query/parser.js';
 export { addScope } from '../query/scope.js';
 import { sql } from '../db/client.js';
 
@@ -13,59 +13,13 @@ function isHttpError(error: unknown): error is { status: number; message: string
   return typeof error === 'object' && error !== null && 'status' in error && typeof (error as { status?: unknown }).status === 'number';
 }
 
-function quoteIdent(identifier: string): string {
-  if (!/^[a-z_][a-z0-9_]*$/i.test(identifier)) httpError(400, 'invalid identifier: ' + identifier);
-  return `"${identifier}"`;
-}
-
-function addParam(values: unknown[], value: unknown): string {
-  values.push(value);
-  return `$${values.length}`;
-}
-
-function addFilter(filter: FilterClause, clauses: string[], values: unknown[]): void {
-  if (filter.type === 'join_filter') return;
-  const col = quoteIdent(filter.col);
-
-  if (filter.op === 'in') {
-    const placeholders = filter.value.split(',').map((part) => addParam(values, part.trim())).join(', ');
-    clauses.push(`${col} = ANY(ARRAY[${placeholders}])`);
-    return;
-  }
-
-  if (filter.op === 'is') {
-    const valLower = filter.value.toLowerCase();
-    if (valLower === 'null') {
-      clauses.push(`${col} IS NULL`);
-      return;
-    }
-    if (valLower === 'not.null') {
-      clauses.push(`${col} IS NOT NULL`);
-      return;
-    }
-    if (valLower === 'true') {
-      clauses.push(`${col} IS TRUE`);
-      return;
-    }
-    if (valLower === 'false') {
-      clauses.push(`${col} IS FALSE`);
-      return;
-    }
-    httpError(400, `is operator accepts only: null, not.null, true, false`);
-  }
-
-  const ops: Record<string, string> = { eq: '=', neq: '!=', gte: '>=', lte: '<=', gt: '>', lt: '<', like: 'LIKE', ilike: 'ILIKE' };
-  const op = ops[filter.op];
-  if (!op) httpError(400, 'unknown op: ' + filter.op);
-  clauses.push(`${col} ${op} ${addParam(values, filter.value)}`);
-}
-
 function scopedWhere(tableName: string, params: URLSearchParams, userId: string, role: string): { sqlText: string; values: unknown[] } {
   const plan = parseQuery(tableName, params);
   const clauses: string[] = [];
   const values: unknown[] = [];
   addScope(tableName, userId, role, clauses, values);
-  for (const filter of plan.filters) addFilter(filter, clauses, values);
+  const build: WhereBuild = { clauses, values };
+  for (const filter of plan.filters) addFilter(filter, build);
   return { sqlText: clauses.length > 0 ? ` WHERE ${clauses.join(' AND ')}` : '', values };
 }
 

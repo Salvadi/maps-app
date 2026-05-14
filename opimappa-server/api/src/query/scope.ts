@@ -1,15 +1,6 @@
 import { ADMIN_ONLY_TABLES, GLOBAL_TABLES, USER_ID_TABLES } from './schema.js';
 import { httpError } from './parser.js';
-
-function quoteIdent(identifier: string): string {
-  if (!/^[a-z_][a-z0-9_]*$/i.test(identifier)) httpError(400, 'invalid identifier: ' + identifier);
-  return `"${identifier}"`;
-}
-
-function addParam(values: unknown[], value: unknown): string {
-  values.push(value);
-  return `$${values.length}`;
-}
+import { addParam, quoteIdent } from './builder.js';
 
 const PROJECT_SCOPED_TABLES = new Set(['mapping_entries', 'structure_entries', 'floor_plans', 'sals', 'typology_prices']);
 

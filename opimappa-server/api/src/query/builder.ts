@@ -3,7 +3,7 @@ import { TABLE_SCHEMA } from './schema.js';
 import { httpError, type FilterClause, type OrderClause, type QueryPlan } from './parser.js';
 import { addScope } from './scope.js';
 
-type WhereBuild = {
+export type WhereBuild = {
   clauses: string[];
   values: unknown[];
 };
@@ -19,19 +19,19 @@ const OP_SQL: Record<string, string> = {
   ilike: 'ILIKE',
 };
 
-function quoteIdent(identifier: string): string {
+export function quoteIdent(identifier: string): string {
   if (!/^[a-z_][a-z0-9_]*$/i.test(identifier)) {
     httpError(400, 'invalid identifier: ' + identifier);
   }
   return `"${identifier}"`;
 }
 
-function addParam(values: unknown[], value: unknown): string {
+export function addParam(values: unknown[], value: unknown): string {
   values.push(value);
   return `$${values.length}`;
 }
 
-function addFilter(filter: FilterClause, build: WhereBuild): void {
+export function addFilter(filter: FilterClause, build: WhereBuild): void {
   if (filter.type === 'join_filter') return;
 
   const col = quoteIdent(filter.col);
