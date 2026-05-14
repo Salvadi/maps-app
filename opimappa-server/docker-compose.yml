@@ -61,11 +61,18 @@ services:
     ports:
       # Listener interno 8080 (no privileged port → no NET_BIND_SERVICE necessario)
       - "127.0.0.1:8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
     volumes:
       # Configurazione montata read-only; dati e certificati in volumi dedicati
       - /opt/opimappa/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/opimappa/caddy/data:/data
       - /opt/opimappa/caddy/config:/config
+      # Log accesso Caddy su host (necessario: container read_only:true)
+      - /opt/opimappa/logs/caddy:/var/log/caddy
+      # Risorse statiche PWA servite da Caddy su /srv/web
+      - /opt/opimappa/web:/srv/web:ro
     networks:
       - opimappa_net
     healthcheck:
@@ -74,6 +81,41 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Hono API server (better-auth, Drizzle ORM, MinIO, realtime SSE)
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: opimappa-api
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - opimappa_net
+    healthcheck:
+      # curl aggiunto al runtime stage del Dockerfile (apk add curl)
+      test: ["CMD", "curl", "-fs", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # NOTA: verificare read_only su server con: docker run --read-only --tmpfs /tmp <image>
+    # Se una dipendenza scrive fuori da /tmp aggiungere tmpfs aggiuntivi qui.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
     logging:
       driver: "json-file"
       options:
