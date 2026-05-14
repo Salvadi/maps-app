@@ -103,5 +103,46 @@ export function apiStorageFrom(bucket: string) {
         return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
       }
     },
+
+    async upload(
+      path: string,
+      body: Blob | File,
+      options?: { contentType?: string },
+    ): Promise<{ data: { path: string } | null; error: Error | null }> {
+      try {
+        // Step 1: richedi URL presigned al server
+        const presignRes = await fetch('/api/storage/upload-presigned', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bucket, path, ttlSec: 3600 }),
+        });
+        if (!presignRes.ok) {
+          return { data: null, error: new Error(`upload-presigned ${presignRes.status}`) };
+        }
+        const { url } = await presignRes.json();
+        if (!url) {
+          return { data: null, error: new Error('upload-presigned: missing url in response') };
+        }
+
+        // Step 2: determina content type
+        const rawType = body instanceof Blob ? body.type : '';
+        const contentType = options?.contentType ?? (rawType || 'application/octet-stream');
+
+        // Step 3: PUT il body all'URL presigned
+        const putRes = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body,
+        });
+        if (!putRes.ok) {
+          return { data: null, error: new Error(`storage upload PUT ${putRes.status}`) };
+        }
+
+        return { data: { path }, error: null };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+      }
+    },
   };
 }

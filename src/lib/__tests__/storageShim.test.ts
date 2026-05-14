@@ -213,6 +213,93 @@ describe('apiStorageFrom.download', () => {
 });
 
 // ---------------------------------------------------------------------------
+// upload
+// ---------------------------------------------------------------------------
+
+describe('apiStorageFrom.upload', () => {
+  test('successo → fetch chiamato x2 (presign + PUT), ritorna { data: { path }, error: null }', async () => {
+    const storage = apiStorageFrom('planimetrie');
+    const blob = new Blob(['img-data'], { type: 'image/png' });
+
+    // Prima chiamata: presign
+    mockFetchOk({ url: 'https://storage.example.com/presigned-put-url?tok=abc', method: 'PUT' });
+    // Seconda chiamata: PUT al presigned URL
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    } as any);
+
+    const result = await storage.upload('project/floor/fullres.png', blob, { contentType: 'image/png' });
+
+    expect(result.error).toBeNull();
+    expect(result.data).not.toBeNull();
+    expect(result.data!.path).toBe('project/floor/fullres.png');
+
+    // Verifica prima chiamata (presign)
+    const [presignUrl, presignOpts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(presignUrl).toBe('/api/storage/upload-presigned');
+    expect(presignOpts.method).toBe('POST');
+    const presignBody = JSON.parse(presignOpts.body);
+    expect(presignBody.bucket).toBe('planimetrie');
+    expect(presignBody.path).toBe('project/floor/fullres.png');
+    expect(presignBody.ttlSec).toBe(3600);
+
+    // Verifica seconda chiamata (PUT)
+    const [putUrl, putOpts] = (global.fetch as jest.Mock).mock.calls[1];
+    expect(putUrl).toBe('https://storage.example.com/presigned-put-url?tok=abc');
+    expect(putOpts.method).toBe('PUT');
+    expect(putOpts.headers['Content-Type']).toBe('image/png');
+    expect(putOpts.body).toBe(blob);
+  });
+
+  test('presign POST fallisce → { data: null, error instanceof Error } senza chiamata PUT', async () => {
+    const storage = apiStorageFrom('planimetrie');
+    const blob = new Blob(['data'], { type: 'image/png' });
+
+    mockFetchFail(500);
+
+    const result = await storage.upload('some/path.png', blob);
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeInstanceOf(Error);
+    expect(result.error!.message).toContain('500');
+    // Solo una chiamata fetch (presign), nessuna PUT
+    expect((global.fetch as jest.Mock).mock.calls.length).toBe(1);
+  });
+
+  test('PUT al presigned URL fallisce → { data: null, error instanceof Error }', async () => {
+    const storage = apiStorageFrom('planimetrie');
+    const blob = new Blob(['data'], { type: 'image/pdf' });
+
+    // Presign successo
+    mockFetchOk({ url: 'https://storage.example.com/put-url', method: 'PUT' });
+    // PUT fallisce
+    mockFetchFail(403);
+
+    const result = await storage.upload('some/doc.pdf', blob, { contentType: 'application/pdf' });
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeInstanceOf(Error);
+    expect(result.error!.message).toContain('403');
+    expect((global.fetch as jest.Mock).mock.calls.length).toBe(2);
+  });
+
+  test('content-type default da Blob.type quando options non fornito', async () => {
+    const storage = apiStorageFrom('planimetrie');
+    const blob = new Blob(['data'], { type: 'image/jpeg' });
+
+    mockFetchOk({ url: 'https://storage.example.com/put-url', method: 'PUT' });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as any);
+
+    await storage.upload('img.jpg', blob);
+
+    const [, putOpts] = (global.fetch as jest.Mock).mock.calls[1];
+    expect(putOpts.headers['Content-Type']).toBe('image/jpeg');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // remove
 // ---------------------------------------------------------------------------
 

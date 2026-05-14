@@ -4,7 +4,7 @@
  */
 
 import imageCompression from 'browser-image-compression';
-import { supabase } from '../lib/supabase';
+import { apiStorageFrom } from '../lib/storageShim';
 
 // PDF.js library will be loaded dynamically
 declare const pdfjsLib: any;
@@ -232,7 +232,7 @@ export async function processFloorPlan(file: File): Promise<{
 }
 
 /**
- * Upload floor plan to Supabase Storage
+ * Upload floor plan to Supabase Storage (via shim)
  */
 export async function uploadFloorPlan(
   projectId: string,
@@ -241,50 +241,35 @@ export async function uploadFloorPlan(
   thumbnail: Blob,
   userId: string
 ): Promise<{ fullResUrl: string; thumbnailUrl: string }> {
-  if (!supabase) {
-    throw new Error('Supabase not configured');
-  }
+  const storage = apiStorageFrom('planimetrie');
 
   const timestamp = Date.now();
   const fullResPath = `${projectId}/${floor}/fullres_${timestamp}.png`;
   const thumbnailPath = `${projectId}/${floor}/thumb_${timestamp}.png`;
 
   // Upload full resolution
-  const { error: fullResError } = await supabase.storage
-    .from('planimetrie')
-    .upload(fullResPath, fullRes, {
-      contentType: 'image/png',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error: fullResError } = await storage.upload(fullResPath, fullRes, {
+    contentType: 'image/png',
+  });
 
   if (fullResError) {
     throw new Error(`Failed to upload full resolution image: ${fullResError.message}`);
   }
 
   // Upload thumbnail
-  const { error: thumbnailError } = await supabase.storage
-    .from('planimetrie')
-    .upload(thumbnailPath, thumbnail, {
-      contentType: 'image/png',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error: thumbnailError } = await storage.upload(thumbnailPath, thumbnail, {
+    contentType: 'image/png',
+  });
 
   if (thumbnailError) {
-    // Clean up full res if thumbnail fails
-    await supabase.storage.from('planimetrie').remove([fullResPath]);
+    // Pulizia full res se thumbnail fallisce
+    await storage.remove([fullResPath]);
     throw new Error(`Failed to upload thumbnail: ${thumbnailError.message}`);
   }
 
-  // Get public URLs
-  const { data: fullResUrlData } = supabase.storage
-    .from('planimetrie')
-    .getPublicUrl(fullResPath);
-
-  const { data: thumbnailUrlData } = supabase.storage
-    .from('planimetrie')
-    .getPublicUrl(thumbnailPath);
+  // Ottieni URL pubblici
+  const { data: fullResUrlData } = storage.getPublicUrl(fullResPath);
+  const { data: thumbnailUrlData } = storage.getPublicUrl(thumbnailPath);
 
   return {
     fullResUrl: fullResUrlData.publicUrl,
@@ -293,7 +278,7 @@ export async function uploadFloorPlan(
 }
 
 /**
- * Upload PDF originale della planimetria su Supabase Storage
+ * Upload PDF originale della planimetria via shim.
  * Restituisce l'URL pubblico del PDF caricato.
  */
 export async function uploadFloorPlanPDF(
@@ -302,49 +287,39 @@ export async function uploadFloorPlanPDF(
   pdfBlob: Blob,
   userId: string
 ): Promise<string> {
-  if (!supabase) {
-    throw new Error('Supabase not configured');
-  }
+  const storage = apiStorageFrom('planimetrie');
 
   const timestamp = Date.now();
   const pdfPath = `${projectId}/${floor}/original_${timestamp}.pdf`;
 
-  const { error } = await supabase.storage
-    .from('planimetrie')
-    .upload(pdfPath, pdfBlob, {
-      contentType: 'application/pdf',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error } = await storage.upload(pdfPath, pdfBlob, {
+    contentType: 'application/pdf',
+  });
 
   if (error) {
     throw new Error(`Failed to upload PDF: ${error.message}`);
   }
 
-  const { data: urlData } = supabase.storage
-    .from('planimetrie')
-    .getPublicUrl(pdfPath);
+  const { data: urlData } = storage.getPublicUrl(pdfPath);
 
   return urlData.publicUrl;
 }
 
 /**
- * Delete floor plan from Supabase Storage
+ * Delete floor plan from storage (via shim)
  */
 export async function deleteFloorPlan(
   imageUrl?: string,
   thumbnailUrl?: string,
   pdfUrl?: string
 ): Promise<void> {
-  if (!supabase) {
-    throw new Error('Supabase not configured');
-  }
-
   const paths: string[] = [];
 
-  // Extract path from full URL
+  // Estrae il path dal URL — funziona per URL Supabase e per URL shim /api/storage/planimetrie/...
+  // Rimuove la query string prima del match per evitare che token firmati finiscano nel path.
   const extractPath = (url: string): string | null => {
-    const match = url.match(/planimetrie\/(.+)$/);
+    const cleanUrl = url.split('?')[0];
+    const match = cleanUrl.match(/planimetrie\/(.+)$/);
     return match ? match[1] : null;
   };
 
@@ -370,19 +345,17 @@ export async function deleteFloorPlan(
   }
 
   if (paths.length > 0) {
-    const { error } = await supabase.storage
-      .from('planimetrie')
-      .remove(paths);
+    const { error } = await apiStorageFrom('planimetrie').remove(paths);
 
     if (error) {
-      console.error('Error deleting floor plan from storage:', error);
+      console.error('Errore eliminazione planimetria dallo storage:', error);
       throw error;
     }
   }
 }
 
 /**
- * Upload standalone map to Supabase Storage
+ * Upload standalone map via shim
  */
 export async function uploadStandaloneMap(
   mapId: string,
@@ -391,57 +364,42 @@ export async function uploadStandaloneMap(
   userId: string,
   pdfBlob?: Blob
 ): Promise<{ fullResUrl: string; thumbnailUrl: string; pdfUrl?: string }> {
-  if (!supabase) {
-    throw new Error('Supabase not configured');
-  }
+  const storage = apiStorageFrom('planimetrie');
 
   const timestamp = Date.now();
   const fullResPath = `standalone/${userId}/${mapId}/fullres_${timestamp}.png`;
   const thumbnailPath = `standalone/${userId}/${mapId}/thumb_${timestamp}.png`;
 
   // Upload full resolution
-  const { error: fullResError } = await supabase.storage
-    .from('planimetrie')
-    .upload(fullResPath, fullRes, {
-      contentType: 'image/png',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error: fullResError } = await storage.upload(fullResPath, fullRes, {
+    contentType: 'image/png',
+  });
 
   if (fullResError) {
     throw new Error(`Failed to upload full resolution image: ${fullResError.message}`);
   }
 
   // Upload thumbnail
-  const { error: thumbnailError } = await supabase.storage
-    .from('planimetrie')
-    .upload(thumbnailPath, thumbnail, {
-      contentType: 'image/png',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error: thumbnailError } = await storage.upload(thumbnailPath, thumbnail, {
+    contentType: 'image/png',
+  });
 
   if (thumbnailError) {
-    // Clean up full res if thumbnail fails
-    await supabase.storage.from('planimetrie').remove([fullResPath]);
+    // Pulizia full res se thumbnail fallisce
+    await storage.remove([fullResPath]);
     throw new Error(`Failed to upload thumbnail: ${thumbnailError.message}`);
   }
 
-  // Get public URLs
-  const { data: fullResUrlData } = supabase.storage
-    .from('planimetrie')
-    .getPublicUrl(fullResPath);
-
-  const { data: thumbnailUrlData } = supabase.storage
-    .from('planimetrie')
-    .getPublicUrl(thumbnailPath);
+  // Ottieni URL pubblici
+  const { data: fullResUrlData } = storage.getPublicUrl(fullResPath);
+  const { data: thumbnailUrlData } = storage.getPublicUrl(thumbnailPath);
 
   let pdfUrl: string | undefined;
   if (pdfBlob) {
     try {
       pdfUrl = await uploadStandaloneMapPDF(mapId, pdfBlob, userId);
     } catch (error) {
-      console.warn(`Failed to upload standalone PDF for ${mapId}:`, error);
+      console.warn(`Caricamento PDF standalone fallito per ${mapId}:`, error);
     }
   }
 
@@ -453,35 +411,29 @@ export async function uploadStandaloneMap(
 }
 
 /**
- * Upload PDF originale della mappa standalone su Supabase Storage.
+ * Upload PDF originale della mappa standalone via shim.
+ * Usa URL firmato (non pubblico) — asimmetria intenzionale rispetto a uploadFloorPlanPDF.
  */
 export async function uploadStandaloneMapPDF(
   mapId: string,
   pdfBlob: Blob,
   userId: string
 ): Promise<string> {
-  if (!supabase) {
-    throw new Error('Supabase not configured');
-  }
+  const storage = apiStorageFrom('planimetrie');
 
   const timestamp = Date.now();
   const pdfPath = `standalone/${userId}/${mapId}/original_${timestamp}.pdf`;
 
-  const { error } = await supabase.storage
-    .from('planimetrie')
-    .upload(pdfPath, pdfBlob, {
-      contentType: 'application/pdf',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error } = await storage.upload(pdfPath, pdfBlob, {
+    contentType: 'application/pdf',
+  });
 
   if (error) {
     throw new Error(`Failed to upload standalone PDF: ${error.message}`);
   }
 
-  const { data: urlData, error: urlError } = await supabase.storage
-    .from('planimetrie')
-    .createSignedUrl(pdfPath, 315360000);
+  // URL firmato con TTL 10 anni (asimmetria intenzionale: non URL pubblico)
+  const { data: urlData, error: urlError } = await storage.createSignedUrl(pdfPath, 315360000);
 
   if (urlError || !urlData?.signedUrl) {
     throw new Error(`Failed to create standalone PDF signed URL: ${urlError?.message || 'missing signed URL'}`);
