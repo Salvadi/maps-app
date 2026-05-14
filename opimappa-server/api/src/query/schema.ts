@@ -122,11 +122,11 @@ export const TABLE_SCHEMA: Record<string, TableSchemaDef> = {
     relationships: {},
   },
   dropdown_options: {
-    columns: { id: 'uuid', category: 'text', value: 'text', label: 'text', sort_order: 'integer', active: 'boolean', created_at: 'timestamptz', updated_at: 'timestamptz' },
+    columns: { id: 'uuid', category: 'text', value: 'text', label: 'text', sort_order: 'integer', is_active: 'boolean', created_at: 'timestamptz', updated_at: 'timestamptz' },
     relationships: {},
   },
   products: {
-    columns: { id: 'uuid', name: 'text', description: 'text', category: 'text', data: 'jsonb', active: 'boolean', created_at: 'timestamptz', updated_at: 'timestamptz' },
+    columns: { id: 'uuid', brand: 'text', name: 'text', sort_order: 'integer', is_active: 'boolean', created_at: 'timestamptz', updated_at: 'timestamptz' },
     relationships: {},
   },
   sals: {
