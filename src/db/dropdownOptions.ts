@@ -1,5 +1,5 @@
 import { db, DropdownOptionCache, ProductCache } from './database';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 
 // Static fallbacks (from original config files)
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -51,20 +51,17 @@ async function isProductsCacheFresh(): Promise<boolean> {
 }
 
 /**
- * Fetch dropdown options from Supabase and cache locally
+ * Fetch dropdown options dall'API homeserver e cache locale.
  */
 async function fetchAndCacheOptions(category: string): Promise<MenuOption[]> {
-  if (!isSupabaseConfigured()) return [];
+  if (!isHomeserverConfigured()) return [];
 
   try {
-    const { data, error } = await supabase
-      .from('dropdown_options')
-      .select('*')
-      .eq('category', category)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-
-    if (error) throw error;
+    const encoded = encodeURIComponent(category);
+    const res = await apiFetchJson<{ data: any[] }>(
+      `/api/dropdown_options?category=eq.${encoded}&is_active=eq.true&order=sort_order.asc&limit=1000`
+    );
+    const data = res.data;
     if (!data || data.length === 0) return [];
 
     // Clear old cache for this category
@@ -89,25 +86,22 @@ async function fetchAndCacheOptions(category: string): Promise<MenuOption[]> {
       label: item.label,
     }))];
   } catch (err) {
-    console.warn(`Failed to fetch ${category} options from Supabase:`, err);
+    console.warn(`Failed to fetch ${category} options dall'homeserver:`, err);
     return [];
   }
 }
 
 /**
- * Fetch products from Supabase and cache locally
+ * Fetch products dall'API homeserver e cache locale.
  */
 async function fetchAndCacheProducts(): Promise<Record<string, string[]>> {
-  if (!isSupabaseConfigured()) return {};
+  if (!isHomeserverConfigured()) return {};
 
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-
-    if (error) throw error;
+    const res = await apiFetchJson<{ data: any[] }>(
+      `/api/products?is_active=eq.true&order=sort_order.asc&limit=1000`
+    );
+    const data = res.data;
     if (!data || data.length === 0) return {};
 
     // Clear old cache
@@ -134,7 +128,7 @@ async function fetchAndCacheProducts(): Promise<Record<string, string[]>> {
     }
     return grouped;
   } catch (err) {
-    console.warn('Failed to fetch products from Supabase:', err);
+    console.warn(`Failed to fetch products dall'homeserver:`, err);
     return {};
   }
 }
@@ -144,8 +138,8 @@ async function fetchAndCacheProducts(): Promise<Record<string, string[]>> {
  * Priority: Supabase → IndexedDB cache → hardcoded fallback
  */
 export async function getDropdownOptions(category: string): Promise<MenuOption[]> {
-  // 1. Try Supabase (if cache is stale)
-  if (isSupabaseConfigured() && !(await isCacheFresh(category))) {
+  // 1. Try homeserver (if cache is stale)
+  if (isHomeserverConfigured() && !(await isCacheFresh(category))) {
     const remote = await fetchAndCacheOptions(category);
     if (remote.length > 0) return remote;
   }
@@ -172,8 +166,8 @@ export async function getDropdownOptions(category: string): Promise<MenuOption[]
  * Priority: Supabase → IndexedDB cache → hardcoded fallback
  */
 export async function getProductsByBrand(): Promise<Record<string, string[]>> {
-  // 1. Try Supabase (if cache is stale)
-  if (isSupabaseConfigured() && !(await isProductsCacheFresh())) {
+  // 1. Try homeserver (if cache is stale)
+  if (isHomeserverConfigured() && !(await isProductsCacheFresh())) {
     const remote = await fetchAndCacheProducts();
     if (Object.keys(remote).length > 0) return remote;
   }
@@ -215,7 +209,7 @@ export async function getBrandOptions(): Promise<MenuOption[]> {
  * Force refresh all dropdown caches (call during full sync)
  */
 export async function refreshDropdownCaches(): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+  if (!isHomeserverConfigured()) return;
 
   await Promise.all([
     fetchAndCacheOptions('supporto'),
