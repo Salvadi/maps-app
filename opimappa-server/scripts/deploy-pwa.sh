@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# deploy-pwa.sh — Copia il build CRA nel volume Caddy /opt/opimappa/web
+# deploy-pwa.sh — Trasferisce il build CRA su demeter227 via tar+ssh+Docker
 # Eseguire dal root del repo PWA dopo `npm run build`.
-# Uso: bash opimappa-server/scripts/deploy-pwa.sh [BUILD_DIR]
+# Uso: bash opimappa-server/scripts/deploy-pwa.sh [SSH_HOST] [BUILD_DIR]
+# Prerequisiti: ~/.ssh/id_ed25519, Docker su host remoto
 set -euo pipefail
 
-BUILD_DIR="${1:-build}"
-WEB_DIR="/opt/opimappa/web"
+SSH_HOST="${1:-levi@100.111.232.12}"
+BUILD_DIR="${2:-build}"
 
 if [ ! -d "$BUILD_DIR" ]; then
   echo "ERRORE: directory build non trovata: $BUILD_DIR" >&2
@@ -13,8 +14,9 @@ if [ ! -d "$BUILD_DIR" ]; then
   exit 1
 fi
 
-echo "→ Copia $BUILD_DIR → $WEB_DIR ..."
-mkdir -p "$WEB_DIR"
-rsync -av --delete "$BUILD_DIR/" "$WEB_DIR/"
-echo "✓ PWA deployata in $WEB_DIR"
-echo "  Ricaricare Caddy se in esecuzione: docker exec opimappa-caddy caddy reload --config /etc/caddy/Caddyfile"
+echo "→ Trasferimento $BUILD_DIR → $SSH_HOST:/opt/opimappa/web/ ..."
+tar -czf - "$BUILD_DIR/" | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_HOST" \
+  "docker run --rm -i -v /opt/opimappa/web:/web alpine:latest sh -c 'cd /web && tar -xzf -'"
+
+echo "✓ PWA deployata in /opt/opimappa/web/build"
+echo "  Caddy serve già da /srv/web — nessun reload necessario."
