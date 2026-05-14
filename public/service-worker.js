@@ -5,7 +5,7 @@
 // Uses cache-first strategy for images and static files
 
 // IMPORTANT: Increment version number on each deployment to force cache update
-const CACHE_VERSION = 33; // Increment this on every deploy! (v33: forced migration to online-first with relogin and cache reset)
+const CACHE_VERSION = 34; // Increment this on every deploy! (v34: exclude /api/* from SW cache to fix stale HTML bug)
 const CACHE_NAME = `mapping-app-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `mapping-app-runtime-v${CACHE_VERSION}`;
 
@@ -74,6 +74,11 @@ self.addEventListener('fetch', (event) => {
 
   // Skip cross-origin requests
   if (url.origin !== location.origin) {
+    return;
+  }
+
+  // Never intercept API calls — pass through to network, no caching
+  if (url.pathname.startsWith('/api/')) {
     return;
   }
 
