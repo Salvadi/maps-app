@@ -259,7 +259,7 @@ export async function processSyncQueue(): Promise<SyncResult> {
   }
 
   // Check if user is authenticated
-  const meRes = await apiFetch('/auth/me');
+  const meRes = await apiFetch('/api/me');
   if (!meRes.ok) {
     console.warn('⚠️  Sync skipped: User not authenticated');
     return {
@@ -459,7 +459,7 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
   }
 
   // Check if user is authenticated
-  const meRes = await apiFetch('/auth/me');
+  const meRes = await apiFetch('/api/me');
   if (!meRes.ok) {
     console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
@@ -658,7 +658,7 @@ export async function phasedSyncFromSupabase(options?: {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
-  const meRes = await apiFetch('/auth/me');
+  const meRes = await apiFetch('/api/me');
   if (!meRes.ok) {
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
@@ -742,7 +742,7 @@ export async function clearAndSync(): Promise<{
   }
 
   // Check if user is authenticated
-  const meRes = await apiFetch('/auth/me');
+  const meRes = await apiFetch('/api/me');
   if (!meRes.ok) {
     throw new Error('User not authenticated. Please log in to sync data.');
   }
