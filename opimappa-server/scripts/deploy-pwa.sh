@@ -14,9 +14,9 @@ if [ ! -d "$BUILD_DIR" ]; then
   exit 1
 fi
 
-echo "→ Trasferimento $BUILD_DIR → $SSH_HOST:/opt/opimappa/web/ ..."
+echo "→ Trasferimento $BUILD_DIR → $SSH_HOST:/opt/opimappa/web/build/ ..."
 tar -czf - "$BUILD_DIR/" | ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_HOST" \
-  "docker run --rm -i -v /opt/opimappa/web:/web alpine:latest sh -c 'cd /web && tar -xzf -'"
+  "docker run --rm -i -v /opt/opimappa/web/build:/web alpine:latest sh -c 'cd /web && tar -xzf - --strip-components=1'"
 
 echo "✓ PWA deployata in /opt/opimappa/web/build"
 echo "  Caddy serve già da /srv/web — nessun reload necessario."
