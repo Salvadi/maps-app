@@ -234,17 +234,38 @@ export async function getStructureEntriesForProject(
 ): Promise<StructureEntry[]> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      let offset = 0;
 
-      const { data } = await apiFetchJson<{
-        data: Record<string, unknown>[];
-      }>(`/api/structure_entries?${params.toString()}`);
+      // Paginazione client-side per superare l'hardcap backend di 1000 righe per chiamata.
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
 
-      const remoteEntries: StructureEntry[] = (data || []).map(convertRemoteToLocalStructure);
+        const { data } = await apiFetchJson<{
+          data: Record<string, unknown>[];
+        }>(`/api/structure_entries?${params.toString()}`);
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      const remoteEntries: StructureEntry[] = rows.map(convertRemoteToLocalStructure);
       const pendingIds = await getPendingEntityIds(
         'structure_entry',
         (item) => (item.payload as StructureEntry)?.projectId === projectId

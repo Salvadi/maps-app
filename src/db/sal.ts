@@ -85,17 +85,38 @@ async function enqueueMappingEntryUpdate(entry: MappingEntry): Promise<void> {
 export async function getSalsForProject(projectId: string): Promise<Sal[]> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      let offset = 0;
 
-      const { data } = await apiFetchJson<{
-        data: Record<string, unknown>[];
-      }>(`/api/sals?${params.toString()}`);
+      // Paginazione client-side per superare l'hardcap backend di 1000 righe per chiamata.
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
 
-      const remoteSals: Sal[] = (data || []).map(convertRemoteToLocalSal);
+        const { data } = await apiFetchJson<{
+          data: Record<string, unknown>[];
+        }>(`/api/sals?${params.toString()}`);
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      const remoteSals: Sal[] = rows.map(convertRemoteToLocalSal);
       const pendingIds = await getPendingEntityIds(
         'sal',
         (item) => (item.payload as Sal)?.projectId === projectId

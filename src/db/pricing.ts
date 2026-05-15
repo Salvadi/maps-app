@@ -31,17 +31,38 @@ function convertRemoteToLocalTypologyPrice(remote: any): TypologyPrice {
 export async function getTypologyPrices(projectId: string): Promise<TypologyPrice[]> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      let offset = 0;
 
-      const { data } = await apiFetchJson<{
-        data: Record<string, unknown>[];
-      }>(`/api/typology_prices?${params.toString()}`);
+      // Paginazione client-side per superare l'hardcap backend di 1000 righe per chiamata.
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
 
-      const remotePrices: TypologyPrice[] = (data || []).map(convertRemoteToLocalTypologyPrice);
+        const { data } = await apiFetchJson<{
+          data: Record<string, unknown>[];
+        }>(`/api/typology_prices?${params.toString()}`);
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      const remotePrices: TypologyPrice[] = rows.map(convertRemoteToLocalTypologyPrice);
       const pendingIds = await getPendingEntityIds(
         'typology_price',
         (item) => (item.payload as TypologyPrice)?.projectId === projectId

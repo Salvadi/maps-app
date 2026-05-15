@@ -259,15 +259,37 @@ export async function getFloorPlanByProjectAndFloor(
 ): Promise<FloorPlan | undefined> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
-      const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
-        `/api/floor_plans?${params.toString()}`
-      );
-      const remoteRow = (data || []).find((row) => row.floor === floor);
+      const PAGE = 1000;
+      const rows: RemoteFloorPlanRow[] = [];
+      let offset = 0;
+
+      // Paginazione client-side per superare l'hardcap backend di 1000 righe per chiamata.
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
+        const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
+          `/api/floor_plans?${params.toString()}`
+        );
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      const remoteRow = rows.find((row) => row.floor === floor);
 
       if (!remoteRow) {
         return db.floorPlans
@@ -312,16 +334,37 @@ export async function getFloorPlanByProjectAndFloor(
 export async function getFloorPlansByProject(projectId: string): Promise<FloorPlan[]> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
-      const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
-        `/api/floor_plans?${params.toString()}`
-      );
+      const PAGE = 1000;
+      const rows: RemoteFloorPlanRow[] = [];
+      let offset = 0;
 
-      const rawPlans = (data || []).map(convertRemoteToLocalFloorPlan);
+      // Paginazione client-side per superare l'hardcap backend di 1000 righe per chiamata.
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
+        const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
+          `/api/floor_plans?${params.toString()}`
+        );
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      const rawPlans = rows.map(convertRemoteToLocalFloorPlan);
       const pendingIds = await getPendingEntityIds(
         'floor_plan',
         (item) => (item.payload as FloorPlan)?.projectId === projectId
@@ -920,15 +963,37 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
 export async function hasFloorPlan(projectId: string, floor: string): Promise<boolean> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
-      const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
-        `/api/floor_plans?${params.toString()}`
-      );
-      const count = (data || []).filter((row) => row.floor === floor).length;
+      const PAGE = 1000;
+      const rows: RemoteFloorPlanRow[] = [];
+      let offset = 0;
+
+      // Paginazione client-side per superare l'hardcap backend di 1000 righe per chiamata.
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
+        const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
+          `/api/floor_plans?${params.toString()}`
+        );
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      const count = rows.filter((row) => row.floor === floor).length;
 
       if (count > 0) {
         return true;
