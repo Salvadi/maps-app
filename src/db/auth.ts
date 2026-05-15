@@ -114,7 +114,12 @@ export async function login(email: string, password: string): Promise<User | nul
 
     if (!response.ok) {
       const errText = await response.text().catch(() => response.status.toString());
-      console.error('❌ Login error:', errText);
+      console.error('❌ Login error:', response.status, errText);
+      // 5xx → server degradato, fallback offline (consente login con cache PBKDF2).
+      // 401/403 → credenziali errate, nessun fallback.
+      if (response.status >= 500) {
+        return loginOffline(email, password);
+      }
       return null;
     }
 

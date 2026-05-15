@@ -304,17 +304,27 @@ export async function getMappingEntriesForProject(
 ): Promise<MappingEntry[]> {
   if (isHomeserverOnline()) {
     try {
-      const params = new URLSearchParams({
-        project_id: `eq.${projectId}`,
-        select: '*',
-        limit: '1000',
-      });
+      // Paginazione: backend hardcap limit=1000 per chiamata, loop offset per progetti >1000 entries.
+      const PAGE = 1000;
+      const remoteRows: Database['public']['Tables']['mapping_entries']['Row'][] = [];
+      let offset = 0;
+      while (true) {
+        const params = new URLSearchParams({
+          project_id: `eq.${projectId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
+        const { data } = await apiFetchJson<{
+          data: Database['public']['Tables']['mapping_entries']['Row'][];
+        }>(`/api/mapping_entries?${params.toString()}`);
+        if (!data || data.length === 0) break;
+        remoteRows.push(...data);
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
 
-      const { data } = await apiFetchJson<{
-        data: Database['public']['Tables']['mapping_entries']['Row'][];
-      }>(`/api/mapping_entries?${params.toString()}`);
-
-      const remoteEntries: MappingEntry[] = (data || []).map(convertRemoteToLocalMapping);
+      const remoteEntries: MappingEntry[] = remoteRows.map(convertRemoteToLocalMapping);
       const pendingIds = await getPendingEntityIds(
         'mapping_entry',
         (item) => (item.payload as MappingEntry)?.projectId === projectId

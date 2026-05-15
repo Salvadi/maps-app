@@ -132,8 +132,13 @@ export async function getSalsForProject(projectId: string): Promise<Sal[]> {
         (item) => (item.payload as Sal)?.projectId === projectId
       );
 
-      // Ordinamento per 'number' applicato client-side perché whitelist API non lo include.
-      return withPending.sort((a, b) => a.number - b.number);
+      // Ordinamento per 'number' client-side. Normalizza NaN/null in coda, tiebreak per id.
+      return withPending.sort((a, b) => {
+        const aN = Number.isFinite(a.number as number) ? (a.number as number) : Number.POSITIVE_INFINITY;
+        const bN = Number.isFinite(b.number as number) ? (b.number as number) : Number.POSITIVE_INFINITY;
+        if (aN !== bN) return aN - bN;
+        return (a.id || '').localeCompare(b.id || '');
+      });
     } catch (err) {
       if (isAuthError(err)) {
         throw err;

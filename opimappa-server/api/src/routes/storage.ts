@@ -3,8 +3,61 @@ import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import type { Variables } from '../auth/middleware.js';
 import { getMinioClient, VALID_BUCKETS } from '../storage/minioClient.js';
 import { getSignedReadUrl } from '../storage/signedUrl.js';
+import { sql } from '../db/client.js';
 
 const storageRoute = new Hono<{ Variables: Variables }>();
+
+/**
+ * Verifica che user abbia accesso allo storage path indicato.
+ * Lookup nel DB per identificare entity → project → controllo owner_id/accessible_users.
+ * Admin bypass. Ritorna true se autorizzato, false altrimenti.
+ */
+async function userCanAccessStoragePath(
+  bucket: string,
+  path: string,
+  userId: string,
+  role: string | undefined | null,
+): Promise<boolean> {
+  if (role === 'admin') return true;
+
+  if (bucket === 'photos') {
+    const rows = await sql.unsafe(
+      `SELECT 1 FROM photos p
+       LEFT JOIN mapping_entries m ON m.id = p.mapping_entry_id
+       LEFT JOIN structure_entries s ON s.id = p.structure_entry_id
+       LEFT JOIN projects proj ON proj.id = COALESCE(m.project_id, s.project_id)
+       WHERE (p.storage_path = $1 OR p.thumbnail_storage_path = $1)
+         AND (proj.owner_id = $2 OR (proj.accessible_users)::jsonb ? $3)
+       LIMIT 1`,
+      [path, userId, userId] as any[],
+    );
+    return rows.length > 0;
+  }
+
+  if (bucket === 'planimetrie') {
+    // Floor plans: scope via project; standalone_maps: scope via user_id.
+    const rows = await sql.unsafe(
+      `SELECT 1 FROM floor_plans fp
+       JOIN projects proj ON proj.id = fp.project_id
+       WHERE (fp.image_storage_path = $1 OR fp.thumbnail_storage_path = $1 OR fp.pdf_storage_path = $1)
+         AND (proj.owner_id = $2 OR (proj.accessible_users)::jsonb ? $3)
+       LIMIT 1`,
+      [path, userId, userId] as any[],
+    );
+    if (rows.length > 0) return true;
+
+    const smRows = await sql.unsafe(
+      `SELECT 1 FROM standalone_maps
+       WHERE (image_storage_path = $1 OR thumbnail_storage_path = $1 OR pdf_storage_path = $1)
+         AND user_id = $2
+       LIMIT 1`,
+      [path, userId] as any[],
+    );
+    return smRows.length > 0;
+  }
+
+  return false;
+}
 
 // POST /api/storage/sign-one
 // Genera un URL firmato per un singolo oggetto di storage.
@@ -38,6 +91,12 @@ storageRoute.post('/sign-one', async (c) => {
   const MAX_TTL_SEC = 86400;
   const ttl_final = Math.min(ttlSec ?? 3600, MAX_TTL_SEC);
 
+  // Scope check: verifica che user abbia accesso al path richiesto
+  const user = c.var.user;
+  if (!(await userCanAccessStoragePath(bucket, cleanPath, user.id, user.role))) {
+    return c.json({ signedUrl: null, error: 'forbidden' }, 403);
+  }
+
   try {
     const signedUrl = await getSignedReadUrl(bucket, cleanPath, ttl_final);
     return c.json({ signedUrl, error: null });
@@ -67,6 +126,12 @@ storageRoute.get('/proxy/:bucket/*', async (c) => {
   // Protezione path traversal: blocca tentativi di uscire dalla chiave
   if (objectKey.includes('..') || objectKey.startsWith('/')) {
     return c.json({ error: 'invalid path' }, 400);
+  }
+
+  // Scope check: verifica che user abbia accesso al path richiesto
+  const user = c.var.user;
+  if (!(await userCanAccessStoragePath(bucket, objectKey, user.id, user.role))) {
+    return c.json({ error: 'forbidden' }, 403);
   }
 
   try {
@@ -130,6 +195,14 @@ storageRoute.delete('/remove', async (c) => {
       return c.json({ error: 'invalid path' }, 400);
     }
     cleanPaths.push(cleanPath);
+  }
+
+  // Scope check su ogni path: blocca eliminazioni di asset di altri utenti
+  const user = c.var.user;
+  for (const p of cleanPaths) {
+    if (!(await userCanAccessStoragePath(bucket, p, user.id, user.role))) {
+      return c.json({ error: 'forbidden' }, 403);
+    }
   }
 
   try {

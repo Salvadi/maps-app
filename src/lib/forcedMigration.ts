@@ -73,9 +73,13 @@ export async function enforceForcedMigrationIfNeeded(): Promise<boolean> {
 
   try {
     try {
-      await apiFetch('/api/auth/sign-out', { method: 'POST' });
-    } catch {
-      // sign-out errore non blocca reset forzato
+      const res = await apiFetch('/api/auth/sign-out', { method: 'POST' });
+      if (!res.ok) {
+        console.warn(`[forcedMigration] sign-out non-OK: ${res.status} ${res.statusText}`);
+      }
+    } catch (err) {
+      // sign-out errore non blocca reset forzato; cookie httpOnly potrebbe persistere
+      console.warn('[forcedMigration] sign-out exception:', err);
     }
 
     await clearServiceWorkerRegistrations();

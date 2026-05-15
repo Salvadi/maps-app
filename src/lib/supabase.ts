@@ -1,8 +1,20 @@
 /**
  * Legacy: client runtime rimosso dopo cutover homeserver.
- * Solo Database types restano per consumer type-only.
+ * Proxy throwing: qualsiasi accesso solleva eccezione esplicita per
+ * evitare regressioni future ('supabase=null' silenzioso era un footgun).
+ * Solo Database types sotto restano per consumer type-only.
  */
-export const supabase = null as any;
+export const supabase: any = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      throw new Error(
+        `Supabase client runtime rimosso (cutover homeserver). ` +
+          `Accesso a 'supabase.${String(prop)}' non supportato. Usare apiFetch/apiFetchJson da '../lib/homeserver'.`,
+      );
+    },
+  },
+);
 
 /**
  * Compat legacy: il client runtime Supabase è disabilitato.

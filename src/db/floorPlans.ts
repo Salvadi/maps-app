@@ -31,16 +31,21 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
 }
 
 function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
+  // Fallback: se URL legacy mancante ma *_storage_path presente, costruisci URL parse-able
+  // da extractStorageLocation (regex /planimetrie/PATH). Necessario per planimetrie migrate
+  // post-cutover dove tornano solo *_storage_path canonici MinIO.
+  const synthUrl = (storagePath?: string) =>
+    storagePath ? `/planimetrie/${storagePath}` : undefined;
   return {
     id: remote.id,
     projectId: remote.project_id,
     floor: remote.floor,
     imageBlob: undefined,
     thumbnailBlob: undefined,
-    imageUrl: remote.image_url || undefined,
-    thumbnailUrl: remote.thumbnail_url || undefined,
+    imageUrl: remote.image_url || synthUrl(remote.image_storage_path),
+    thumbnailUrl: remote.thumbnail_url || synthUrl(remote.thumbnail_storage_path),
     pdfBlobBase64: undefined,
-    pdfUrl: remote.pdf_url || undefined,
+    pdfUrl: remote.pdf_url || synthUrl(remote.pdf_storage_path),
     originalFilename: remote.original_filename || '',
     originalFormat: remote.original_format || 'image',
     width: remote.width || 0,
