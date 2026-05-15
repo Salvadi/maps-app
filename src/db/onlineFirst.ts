@@ -86,3 +86,17 @@ export function isAuthError(err: any): boolean {
     err?.message?.includes('JWT')
   );
 }
+
+export function shouldFallbackToIndexedDb(err: any): boolean {
+  if (isAuthError(err)) {
+    return true;
+  }
+
+  const status = typeof err?.status === 'number' ? err.status : undefined;
+  if (status && status >= 400 && status < 500) {
+    return false;
+  }
+
+  // Errori di rete/offline e 5xx già ritentati dal client API possono usare la cache locale.
+  return true;
+}

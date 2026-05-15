@@ -1,3 +1,9 @@
+import { ApiResponseError } from './homeserver';
+
+function storageHttpError(path: string, status: number, label: string): ApiResponseError {
+  return new ApiResponseError(status, path, `${label} ${status}`);
+}
+
 export function apiStorageFrom(bucket: string) {
   return {
     getPublicUrl(path: string): { data: { publicUrl: string } } {
@@ -18,9 +24,7 @@ export function apiStorageFrom(bucket: string) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ bucket, path, ttl: ttlSec }),
         });
-        if (!res.ok) {
-          return { data: null, error: new Error(`sign-one ${res.status}`) };
-        }
+        if (!res.ok) return { data: null, error: storageHttpError('/api/storage/sign-one', res.status, 'sign-one') };
         const { signedUrl } = await res.json();
         if (!signedUrl) return { data: null, error: new Error('sign-one: missing signedUrl in response') };
         return { data: { signedUrl }, error: null };
@@ -43,24 +47,29 @@ export function apiStorageFrom(bucket: string) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bucket, path, ttl: ttlSec }),
               });
-              if (!res.ok) {
-                return { path, signedUrl: '', error: `sign-one ${res.status}` };
-              }
+              if (!res.ok) return { path, signedUrl: '', error: `sign-one ${res.status}`, status: res.status };
               const { signedUrl } = await res.json();
               if (!signedUrl) {
                 return { path, signedUrl: '', error: 'sign-one: missing signedUrl in response' };
               }
               return { path, signedUrl, error: null };
             } catch (e) {
-              return { path, signedUrl: '', error: e instanceof Error ? e.message : String(e) };
+              const error = e instanceof Error ? e : new Error(String(e));
+              return { path, signedUrl: '', error: error.message, status: 'status' in error && typeof error.status === 'number' ? error.status : undefined };
             }
           }),
         );
         const allFailed = results.every(r => r.error !== null);
         if (allFailed && paths.length > 0) {
-          return { data: null, error: new Error(results[0].error ?? 'createSignedUrls: all paths failed') };
+          const first = results[0];
+          return {
+            data: null,
+            error: typeof first.status === 'number'
+              ? storageHttpError('/api/storage/sign-one', first.status, first.error ?? 'createSignedUrls')
+              : new Error(first.error ?? 'createSignedUrls: all paths failed'),
+          };
         }
-        return { data: results, error: null };
+        return { data: results.map(({ status: _status, ...item }) => item), error: null };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
       }

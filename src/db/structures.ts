@@ -6,7 +6,7 @@ import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
-  isAuthError,
+  shouldFallbackToIndexedDb,
   writeThroughCache,
 } from './onlineFirst';
 
@@ -281,7 +281,7 @@ export async function getStructureEntriesForProject(
         (item) => (item.payload as StructureEntry)?.projectId === projectId
       );
 
-      // Filtro 'floor' applicato client-side perché whitelist API non lo include.
+      // Filtro 'floor' applicato client-side dopo overlay dei pending locali.
       if (options?.floor) {
         results = results.filter((entry) => entry.floor === options.floor);
       }
@@ -300,7 +300,7 @@ export async function getStructureEntriesForProject(
 
       return results;
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getStructureEntriesForProject fallback to IndexedDB', err);
@@ -554,7 +554,7 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
 
       return remotePhotos;
     } catch (err) {
-      if (isAuthError(err)) throw err;
+      if (!shouldFallbackToIndexedDb(err)) throw err;
       console.warn('[getPhotosForStructure] fallback to IndexedDB', err);
     }
   }

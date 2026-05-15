@@ -6,7 +6,7 @@ import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import {
   applyPendingWrites,
   getPendingEntityIds,
-  isAuthError,
+  shouldFallbackToIndexedDb,
   writeThroughCache,
 } from './onlineFirst';
 
@@ -140,7 +140,7 @@ export async function getSalsForProject(projectId: string): Promise<Sal[]> {
         return (a.id || '').localeCompare(b.id || '');
       });
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getSalsForProject fallback to IndexedDB', err);

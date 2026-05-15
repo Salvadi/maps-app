@@ -45,6 +45,65 @@ function sanitizePatchBody(tableName: string, input: Record<string, unknown>): R
   return Object.fromEntries(Object.entries(body).filter(([key]) => key in writableCols && key !== 'id'));
 }
 
+function hasSelectiveIdFilter(filters: ReturnType<typeof parseFilters>): boolean {
+  return filters.some((filter) => {
+    if (filter.type !== 'direct' || filter.col !== 'id') return false;
+    if (filter.op === 'eq') return filter.value.trim() !== '';
+    if (filter.op !== 'in') return false;
+
+    const rawList = filter.value.trim();
+    const list = rawList.startsWith('(') && rawList.endsWith(')')
+      ? rawList.slice(1, -1)
+      : rawList;
+    // Solo una lista id non vuota rende sicura una mutazione bulk.
+    return list.split(',').some((value) => value.trim() !== '');
+  });
+}
+
+async function ensureScopedMutationAllowed(tableName: string, body: Record<string, unknown>, userId: string, role: string): Promise<void> {
+  if (role === 'admin') return;
+
+  const hasScopedRow = async (targetTable: string, id: unknown): Promise<boolean> => {
+    if (typeof id !== 'string' || id.trim() === '') return false;
+    const params = new URLSearchParams({ id: `eq.${id}` });
+    const scoped = scopedWhere(targetTable, params, userId, role);
+    const rows = await sql.unsafe(
+      `SELECT 1 FROM ${quoteIdent(targetTable)}${scoped.sqlText} LIMIT 1`,
+      scoped.values as unknown[] as any[],
+    );
+    return rows.length > 0;
+  };
+
+  const hasAccessibleProject = async (projectId: unknown): Promise<boolean> => {
+    if (typeof projectId !== 'string' || projectId.trim() === '') return false;
+    return hasScopedRow('projects', projectId);
+  };
+
+  // Tabelle con project_id diretto: il progetto target deve essere nello scope utente.
+  if (
+    ['mapping_entries', 'structure_entries', 'floor_plans', 'sals', 'typology_prices'].includes(tableName) &&
+    !(await hasAccessibleProject(body.project_id))
+  ) {
+    httpError(403, 'forbidden');
+  }
+
+  // Photos: valida il parent mapping/structure indicato prima di creare metadata storage.
+  if (tableName === 'photos') {
+    if (body.mapping_entry_id == null && body.structure_entry_id == null) httpError(403, 'forbidden');
+    const mappingAllowed = body.mapping_entry_id == null || await hasScopedRow('mapping_entries', body.mapping_entry_id);
+    const structureAllowed = body.structure_entry_id == null || await hasScopedRow('structure_entries', body.structure_entry_id);
+    if (!mappingAllowed || !structureAllowed) httpError(403, 'forbidden');
+  }
+
+  // Punti planimetria: ogni FK presente deve puntare a una riga nello scope.
+  if (tableName === 'floor_plan_points') {
+    const floorPlanAllowed = await hasScopedRow('floor_plans', body.floor_plan_id);
+    const mappingAllowed = body.mapping_entry_id == null || await hasScopedRow('mapping_entries', body.mapping_entry_id);
+    const structureAllowed = body.structure_entry_id == null || await hasScopedRow('structure_entries', body.structure_entry_id);
+    if (!floorPlanAllowed || !mappingAllowed || !structureAllowed) httpError(403, 'forbidden');
+  }
+}
+
 function handleError(c: AppContext, tableName: string, error: unknown) {
   if (isHttpError(error) && error.status < 500) {
     return c.json({ error: error.message }, error.status as 400);
@@ -82,6 +141,7 @@ export function createCrudHandler(tableName: string) {
           rawBody.user_id = user.id;
         }
         const body = sanitizeBody(tableName, rawBody);
+        await ensureScopedMutationAllowed(tableName, body, user.id, user.role ?? 'user');
         const cols = Object.keys(body);
         const values = Object.values(body);
         const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
@@ -99,7 +159,15 @@ export function createCrudHandler(tableName: string) {
         const sets = Object.keys(body).map((col, index) => `${quoteIdent(col)} = $${index + 1}`);
         if (sets.length === 0) httpError(400, 'empty body');
 
-        const scoped = scopedWhere(tableName, new URL(c.req.url).searchParams, user.id, user.role ?? 'user');
+        const urlParams = new URL(c.req.url).searchParams;
+        // Fix sicurezza: PATCH richiede id=eq.* oppure id=in.*; filtri larghi non bastano.
+        const schema = TABLE_SCHEMA[tableName];
+        const clientFilters = parseFilters(urlParams, schema!);
+        if (!hasSelectiveIdFilter(clientFilters)) {
+          return c.json({ data: null, error: 'PATCH requires a selective id filter (id=eq.xxx or id=in.xxx,yyy)' }, 400);
+        }
+
+        const scoped = scopedWhere(tableName, urlParams, user.id, user.role ?? 'user');
         const result = await sql.unsafe(
           `UPDATE ${quoteIdent(tableName)} SET ${sets.join(', ')}${scoped.sqlText.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + values.length}`)} RETURNING *`,
           [...values, ...scoped.values] as unknown[] as any[],
@@ -113,11 +181,11 @@ export function createCrudHandler(tableName: string) {
       try {
         const user = c.get('user');
         const urlParams = new URL(c.req.url).searchParams;
-        // Fix sicurezza: DELETE senza filtri espliciti non è permessa
+        // Fix sicurezza: DELETE richiede id=eq.* oppure id=in.*; filtri larghi non bastano.
         const schema = TABLE_SCHEMA[tableName];
         const clientFilters = parseFilters(urlParams, schema!);
-        if (clientFilters.length === 0) {
-          return c.json({ data: null, error: 'DELETE requires at least one filter (e.g. id=eq.xxx)' }, 400);
+        if (!hasSelectiveIdFilter(clientFilters)) {
+          return c.json({ data: null, error: 'DELETE requires a selective id filter (id=eq.xxx or id=in.xxx,yyy)' }, 400);
         }
         const scoped = scopedWhere(tableName, urlParams, user.id, user.role ?? 'user');
         await sql.unsafe(`DELETE FROM ${quoteIdent(tableName)}${scoped.sqlText} RETURNING *`, scoped.values as unknown[] as any[]);
@@ -167,6 +235,7 @@ export function createCrudHandler(tableName: string) {
         }
 
         const body = sanitizeBody(tableName, rawBody);
+        await ensureScopedMutationAllowed(tableName, body, user.id, user.role ?? 'user');
         const cols = Object.keys(body);
         const values = Object.values(body);
         const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');

@@ -3,6 +3,7 @@ import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getMinioClient, VALID_BUCKETS } from './minioClient.js';
 import type { Variables } from '../auth/middleware.js';
+import { userCanAccessStoragePath } from '../routes/storage.js';
 
 // H5 — Costanti multipart S3
 // 5 MiB minimum per S3 multipart (min per part eccetto ultima); max part 5 GiB; max 10000 parts; soglia attivazione consigliata >50 MB
@@ -82,10 +83,16 @@ presignRoute.post('/upload-presigned', async (c) => {
   if (key.includes('..') || key.includes('\0')) {
     return c.json({ error: 'key non valida' }, 400);
   }
-  key = key.replace(/^\/+/, '');
+  key = key.trim().replace(/^\/+/, '');
 
   // C2 — Cappa TTL a MAX_TTL_SEC
   ttl = Math.min(ttl, MAX_TTL_SEC);
+
+  // Scope applicativo: senza RLS ogni presign deve validare la key target.
+  const user = c.var.user;
+  if (!(await userCanAccessStoragePath(bucket, key, user.id, user.role))) {
+    return c.json({ error: 'forbidden' }, 403);
+  }
 
   // H1 — Leggi IP reale dal socket TCP (non da CF-Connecting-IP, forgiabile su Tailscale)
   // NESSUN fallback a header: se socketIp non disponibile → tratta come esterno (sicuro)
@@ -155,6 +162,12 @@ presignRoute.post('/proxy-upload', async (c) => {
   const cleanKey = key.trim().replace(/^\/+/, '');
   if (!cleanKey || cleanKey.includes('..') || cleanKey.includes('\0')) {
     return c.json({ error: 'key non valida' }, 400);
+  }
+
+  // Scope applicativo: valida anche upload proxy esterni sulla key normalizzata.
+  const user = c.var.user;
+  if (!(await userCanAccessStoragePath(bucket, cleanKey, user.id, user.role))) {
+    return c.json({ error: 'forbidden' }, 403);
   }
 
   // Limite dimensione body: 50 MiB (foto max ~1 MiB, planimetrie ~10 MiB)
@@ -229,6 +242,12 @@ presignRoute.post('/sign-read', async (c) => {
   const cleanPath = path.trim().replace(/^\/+/, '');
   if (!cleanPath || cleanPath.includes('..') || cleanPath.includes('\0')) {
     return c.json({ error: 'path non valido' }, 400);
+  }
+
+  // Scope applicativo: la lettura firmata non deve esporre asset fuori tenant.
+  const user = c.var.user;
+  if (!(await userCanAccessStoragePath(bucket, cleanPath, user.id, user.role))) {
+    return c.json({ error: 'forbidden' }, 403);
   }
 
   // H2 — Cappa TTL a MAX_TTL_SEC

@@ -6,7 +6,7 @@ import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
-  isAuthError,
+  shouldFallbackToIndexedDb,
   writeThroughCache,
 } from './onlineFirst';
 import { convertRemoteToLocalMapping } from '../sync/conflictResolution';
@@ -340,7 +340,7 @@ export async function getMappingEntriesForProject(
         (item) => (item.payload as MappingEntry)?.projectId === projectId
       );
 
-      // Filtro 'floor' applicato client-side perché whitelist API non lo include.
+      // Filtro 'floor' applicato client-side dopo overlay dei pending locali.
       if (options?.floor) {
         results = results.filter((entry) => entry.floor === options.floor);
       }
@@ -359,7 +359,7 @@ export async function getMappingEntriesForProject(
 
       return results;
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getMappingEntriesForProject fallback to IndexedDB', err);
@@ -593,7 +593,7 @@ export async function getPhotosForMappings(
 
       return grouped;
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getPhotosForMappings fallback to IndexedDB', err);
@@ -792,7 +792,7 @@ export async function getPhotoCountForProject(projectId: string): Promise<number
       }
       return totalCount;
     } catch (err) {
-      if (isAuthError(err)) throw err;
+      if (!shouldFallbackToIndexedDb(err)) throw err;
       console.warn('[getPhotoCountForProject] fallback local:', err);
     }
   }

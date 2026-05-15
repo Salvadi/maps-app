@@ -99,8 +99,12 @@ function buildSelect(plan: QueryPlan): string {
   return plan.select.cols.map(quoteIdent).join(', ');
 }
 
-function buildOrder(order: OrderClause[]): string {
-  if (order.length === 0) return '';
+function buildOrder(tableName: string, order: OrderClause[], limit: number, offset: number): string {
+  if (order.length === 0) {
+    // Paginazione stabile: senza ORDER BY Postgres può duplicare/skippare righe tra pagine.
+    if ((limit > 0 || offset > 0) && TABLE_SCHEMA[tableName]?.columns.id) return ` ORDER BY ${quoteIdent('id')} ASC`;
+    return '';
+  }
   const parts = order.map((clause) => {
     const nulls = clause.nulls ? ` ${clause.nulls === 'nullsfirst' ? 'NULLS FIRST' : 'NULLS LAST'}` : '';
     return `${quoteIdent(clause.col)} ${clause.dir.toUpperCase()}${nulls}`;
@@ -126,7 +130,7 @@ export async function executeQuery(tableName: string, plan: QueryPlan, userId: s
   }
 
   const values = [...where.values, plan.limit, plan.offset];
-  const query = `SELECT ${buildSelect(plan)} FROM ${table}${whereSql}${buildOrder(plan.order)} LIMIT $${values.length - 1} OFFSET $${values.length}`;
+  const query = `SELECT ${buildSelect(plan)} FROM ${table}${whereSql}${buildOrder(tableName, plan.order, plan.limit, plan.offset)} LIMIT $${values.length - 1} OFFSET $${values.length}`;
   const rows = await sql.unsafe(query, values as unknown[] as any[]);
 
   return { rows: rows as unknown[], totalCount };

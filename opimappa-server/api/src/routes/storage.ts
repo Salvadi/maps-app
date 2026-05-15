@@ -12,7 +12,7 @@ const storageRoute = new Hono<{ Variables: Variables }>();
  * Lookup nel DB per identificare entity → project → controllo owner_id/accessible_users.
  * Admin bypass. Ritorna true se autorizzato, false altrimenti.
  */
-async function userCanAccessStoragePath(
+export async function userCanAccessStoragePath(
   bucket: string,
   path: string,
   userId: string,
@@ -21,6 +21,23 @@ async function userCanAccessStoragePath(
   if (role === 'admin') return true;
 
   if (bucket === 'photos') {
+    const parentId = path.split('/')[0];
+    // Upload nuovi: la riga photos potrebbe non esistere ancora, quindi valida il parent dalla key.
+    if (parentId) {
+      const parentRows = await sql.unsafe(
+        `SELECT 1 FROM (
+           SELECT project_id FROM mapping_entries WHERE id = $1
+           UNION ALL
+           SELECT project_id FROM structure_entries WHERE id = $1
+         ) parent
+         JOIN projects proj ON proj.id = parent.project_id
+         WHERE proj.owner_id = $2 OR (proj.accessible_users)::jsonb ? $3
+         LIMIT 1`,
+        [parentId, userId, userId] as any[],
+      );
+      if (parentRows.length > 0) return true;
+    }
+
     const rows = await sql.unsafe(
       `SELECT 1 FROM photos p
        LEFT JOIN mapping_entries m ON m.id = p.mapping_entry_id
@@ -35,6 +52,25 @@ async function userCanAccessStoragePath(
   }
 
   if (bucket === 'planimetrie') {
+    const parts = path.split('/');
+    const projectId = parts[0];
+    // Upload nuovi planimetrie: key canonica projectId/floor/file.
+    if (projectId && projectId !== 'standalone') {
+      const projectRows = await sql.unsafe(
+        `SELECT 1 FROM projects
+         WHERE id = $1
+           AND (owner_id = $2 OR (accessible_users)::jsonb ? $3)
+         LIMIT 1`,
+        [projectId, userId, userId] as any[],
+      );
+      if (projectRows.length > 0) return true;
+    }
+
+    // Upload nuovi standalone: key canonica standalone/userId/mapId/file.
+    if (parts[0] === 'standalone' && parts[1] === userId) {
+      return true;
+    }
+
     // Floor plans: scope via project; standalone_maps: scope via user_id.
     const rows = await sql.unsafe(
       `SELECT 1 FROM floor_plans fp

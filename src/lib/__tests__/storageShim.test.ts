@@ -102,6 +102,7 @@ describe('apiStorageFrom.createSignedUrl', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBeInstanceOf(Error);
     expect(result.error!.message).toContain('403');
+    expect((result.error as any).status).toBe(403);
   });
 });
 
@@ -135,6 +136,7 @@ describe('apiStorageFrom.createSignedUrls', () => {
 
     expect(result.data).toBeNull();
     expect(result.error).toBeInstanceOf(Error);
+    expect((result.error as any).status).toBe(500);
   });
 
   test('fallimento parziale → data ritornato (non error top-level), items falliti hanno error', async () => {

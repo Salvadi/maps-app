@@ -7,8 +7,8 @@ import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
-  isAuthError,
   isOnlineAndConfigured,
+  shouldFallbackToIndexedDb,
   writeThroughCache,
 } from './onlineFirst';
 
@@ -323,7 +323,7 @@ export async function getFloorPlanByProjectAndFloor(
       // Restituisce la versione firmata per la visualizzazione immediata (non persistita)
       return mergeFloorPlanLocalFields(signedRemote, existing);
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getFloorPlanByProjectAndFloor fallback to IndexedDB', err);
@@ -389,7 +389,7 @@ export async function getFloorPlansByProject(projectId: string): Promise<FloorPl
         (item) => (item.payload as FloorPlan)?.projectId === projectId
       );
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getFloorPlansByProject fallback to IndexedDB', err);
@@ -671,7 +671,7 @@ export async function getFloorPlanPoints(floorPlanId: string): Promise<FloorPlan
         (item) => (item.payload as FloorPlanPoint)?.floorPlanId === floorPlanId
       );
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getFloorPlanPoints fallback to IndexedDB', err);
@@ -739,7 +739,7 @@ export async function getFloorPlanPointsForPlans(
       }
       return grouped;
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] getFloorPlanPointsForPlans fallback to IndexedDB', err);
@@ -1004,7 +1004,7 @@ export async function hasFloorPlan(projectId: string, floor: string): Promise<bo
         return true;
       }
     } catch (err) {
-      if (isAuthError(err)) {
+      if (!shouldFallbackToIndexedDb(err)) {
         throw err;
       }
       console.warn('[online-first] hasFloorPlan fallback to IndexedDB', err);
