@@ -1,18 +1,23 @@
 import { db, generateId, now, MappingEntry, Photo, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { supabase, type Database } from '../lib/supabase';
+import type { Database } from '../lib/supabase';
+import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
   isAuthError,
-  isOnlineAndConfigured,
   writeThroughCache,
 } from './onlineFirst';
 import { convertRemoteToLocalMapping } from '../sync/conflictResolution';
 
 type RemotePhotoRow = Database['public']['Tables']['photos']['Row'];
 const PHOTO_SIGN_BATCH_SIZE = 500;
+
+// Gate locale per le letture online-first via homeserver.
+function isHomeserverOnline(): boolean {
+  return navigator.onLine && isHomeserverConfigured();
+}
 
 function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   const chunks: T[][] = [];
@@ -297,21 +302,17 @@ export async function getMappingEntriesForProject(
     limit?: number;
   }
 ): Promise<MappingEntry[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      let query = supabase
-        .from('mapping_entries')
-        .select('*')
-        .eq('project_id', projectId);
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
 
-      if (options?.floor) {
-        query = query.eq('floor', options.floor);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        throw error;
-      }
+      const { data } = await apiFetchJson<{
+        data: Database['public']['Tables']['mapping_entries']['Row'][];
+      }>(`/api/mapping_entries?${params.toString()}`);
 
       const remoteEntries: MappingEntry[] = (data || []).map(convertRemoteToLocalMapping);
       const pendingIds = await getPendingEntityIds(
@@ -328,6 +329,11 @@ export async function getMappingEntriesForProject(
         'mapping_entry',
         (item) => (item.payload as MappingEntry)?.projectId === projectId
       );
+
+      // Filtro 'floor' applicato client-side perché whitelist API non lo include.
+      if (options?.floor) {
+        results = results.filter((entry) => entry.floor === options.floor);
+      }
 
       if (options?.sortBy === 'timestamp') {
         results.sort((a, b) => b.timestamp - a.timestamp);
@@ -496,20 +502,33 @@ export async function getPhotosForMappings(
     return {};
   }
 
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
       const rows: RemotePhotoRow[] = [];
+      const PAGE = 1000;
       for (const batch of chunkArray(mappingEntryIds, 100)) {
-        const { data, error } = await supabase
-          .from('photos')
-          .select('*')
-          .in('mapping_entry_id', batch);
+        const idsParam = batch.join(',');
+        let offset = 0;
 
-        if (error) {
-          throw error;
+        // Paginazione interna in caso batch produca più di 1000 foto.
+        while (true) {
+          const { data } = await apiFetchJson<{ data: RemotePhotoRow[] | null }>(
+            `/api/photos?mapping_entry_id=in.${idsParam}&select=*&limit=${PAGE}&offset=${offset}`
+          );
+          const pageRows = data || [];
+
+          if (pageRows.length === 0) {
+            break;
+          }
+
+          rows.push(...pageRows);
+
+          if (pageRows.length < PAGE) {
+            break;
+          }
+
+          offset += PAGE;
         }
-
-        rows.push(...((data as RemotePhotoRow[] | null) || []));
       }
       const localPhotos = await db.photos.where('mappingEntryId').anyOf(mappingEntryIds).toArray();
       const localById = new Map(localPhotos.map((photo) => [photo.id, photo]));
@@ -596,7 +615,7 @@ export async function ensurePhotoBlob(photoId: string): Promise<Photo | undefine
     return undefined;
   }
 
-  if (photo.blob || !isOnlineAndConfigured()) {
+  if (photo.blob || !isHomeserverOnline()) {
     return photo;
   }
 
@@ -725,14 +744,43 @@ export async function getMappingCountForProject(projectId: string): Promise<numb
 }
 
 export async function getPhotoCountForProject(projectId: string): Promise<number> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { count, error } = await supabase
-        .from('photos')
-        .select('id, mapping_entries!inner(id)', { count: 'exact', head: true })
-        .eq('mapping_entries.project_id', projectId);
-      if (error) throw error;
-      return count ?? 0;
+      const entries: { id: string }[] = [];
+      const PAGE = 1000;
+      let offset = 0;
+
+      // Paginazione su mapping_entries perché backend hardcap 1000 per chiamata.
+      while (true) {
+        const { data } = await apiFetchJson<{ data: { id: string }[] | null }>(
+          `/api/mapping_entries?project_id=eq.${projectId}&select=id&limit=${PAGE}&offset=${offset}`
+        );
+        const pageEntries = data || [];
+
+        if (pageEntries.length === 0) {
+          break;
+        }
+
+        entries.push(...pageEntries);
+
+        if (pageEntries.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
+
+      if (entries.length === 0) return 0;
+
+      let totalCount = 0;
+      for (const batch of chunkArray(entries.map((entry) => entry.id), 100)) {
+        const idsParam = batch.join(',');
+        const { count } = await apiFetchJson<{ count: number }>(
+          `/api/photos?mapping_entry_id=in.${idsParam}&select=id&count=exact&head=true&limit=1`
+        );
+        totalCount += count || 0;
+      }
+      return totalCount;
     } catch (err) {
       if (isAuthError(err)) throw err;
       console.warn('[getPhotoCountForProject] fallback local:', err);
