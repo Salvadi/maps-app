@@ -2,14 +2,18 @@ import { db, MappingEntry, StructureEntry, Sal, generateId, now, SyncQueueItem }
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { getMappingEntriesForProject } from './mappings';
 import { getStructureEntriesForProject } from './structures';
-import { supabase } from '../lib/supabase';
+import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import {
   applyPendingWrites,
   getPendingEntityIds,
   isAuthError,
-  isOnlineAndConfigured,
   writeThroughCache,
 } from './onlineFirst';
+
+// Gate locale per le letture online-first via homeserver.
+function isHomeserverOnline(): boolean {
+  return navigator.onLine && isHomeserverConfigured();
+}
 
 function convertRemoteToLocalSal(remote: any): Sal {
   return {
@@ -79,17 +83,17 @@ async function enqueueMappingEntryUpdate(entry: MappingEntry): Promise<void> {
 }
 
 export async function getSalsForProject(projectId: string): Promise<Sal[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('sals')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('number', { ascending: true });
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
 
-      if (error) {
-        throw error;
-      }
+      const { data } = await apiFetchJson<{
+        data: Record<string, unknown>[];
+      }>(`/api/sals?${params.toString()}`);
 
       const remoteSals: Sal[] = (data || []).map(convertRemoteToLocalSal);
       const pendingIds = await getPendingEntityIds(
@@ -107,6 +111,7 @@ export async function getSalsForProject(projectId: string): Promise<Sal[]> {
         (item) => (item.payload as Sal)?.projectId === projectId
       );
 
+      // Ordinamento per 'number' applicato client-side perché whitelist API non lo include.
       return withPending.sort((a, b) => a.number - b.number);
     } catch (err) {
       if (isAuthError(err)) {

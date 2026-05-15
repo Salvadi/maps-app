@@ -1,13 +1,17 @@
 import { db, TypologyPrice, generateId, now, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { supabase } from '../lib/supabase';
+import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import {
   applyPendingWrites,
   getPendingEntityIds,
   isAuthError,
-  isOnlineAndConfigured,
   writeThroughCache,
 } from './onlineFirst';
+
+// Gate locale per le letture online-first via homeserver.
+function isHomeserverOnline(): boolean {
+  return navigator.onLine && isHomeserverConfigured();
+}
 
 function convertRemoteToLocalTypologyPrice(remote: any): TypologyPrice {
   return {
@@ -25,16 +29,17 @@ function convertRemoteToLocalTypologyPrice(remote: any): TypologyPrice {
 }
 
 export async function getTypologyPrices(projectId: string): Promise<TypologyPrice[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('typology_prices')
-        .select('*')
-        .eq('project_id', projectId);
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
 
-      if (error) {
-        throw error;
-      }
+      const { data } = await apiFetchJson<{
+        data: Record<string, unknown>[];
+      }>(`/api/typology_prices?${params.toString()}`);
 
       const remotePrices: TypologyPrice[] = (data || []).map(convertRemoteToLocalTypologyPrice);
       const pendingIds = await getPendingEntityIds(
