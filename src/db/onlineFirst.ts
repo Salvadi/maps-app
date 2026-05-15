@@ -1,8 +1,9 @@
 import { db, SyncQueueItem } from './database';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { isHomeserverConfigured } from '../lib/homeserver';
 
+// Online-first attivo solo con browser online e homeserver same-origin disponibile.
 export function isOnlineAndConfigured(): boolean {
-  return navigator.onLine && isSupabaseConfigured();
+  return navigator.onLine && isHomeserverConfigured();
 }
 
 export async function getPendingEntityIds(

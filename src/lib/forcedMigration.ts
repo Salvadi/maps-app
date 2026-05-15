@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { apiFetch } from './homeserver';
 
 const FORCED_RESET_VERSION = 1;
 const FORCED_RESET_STORAGE_KEY = 'forcedResetVersion';
@@ -72,10 +72,10 @@ export async function enforceForcedMigrationIfNeeded(): Promise<boolean> {
   console.warn(`Forcing app reset for migration version ${FORCED_RESET_VERSION}`);
 
   try {
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut().catch((error) => {
-        console.warn('Failed to sign out during forced reset', error);
-      });
+    try {
+      await apiFetch('/api/auth/sign-out', { method: 'POST' });
+    } catch {
+      // sign-out errore non blocca reset forzato
     }
 
     await clearServiceWorkerRegistrations();

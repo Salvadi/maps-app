@@ -12,7 +12,7 @@ import {
   getFloorPlanBlobUrl, ensureFloorPlanAsset, updateFloorPlan, createFloorPlanPoint, updateFloorPlanPoint, getFloorPlanPoints, deleteFloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMappings, getMappingEntry, getStructureEntry,
 } from './db';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { apiFetchJson } from './lib/homeserver';
 import { enforceForcedMigrationIfNeeded } from './lib/forcedMigration';
 import type { UnmappedEntry } from './components/FloorPlanEditor';
 import {
@@ -151,7 +151,7 @@ const App: React.FC = () => {
           }
         }
 
-        if (isSupabaseConfigured()) {
+        if (navigator.onLine) {
           startAutoSync(60000);
         }
 
@@ -176,7 +176,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      if (isSupabaseConfigured()) {
+      if (navigator.onLine) {
         try {
           await lockedSync();
           await updateSyncStats();
@@ -268,7 +268,7 @@ const App: React.FC = () => {
 
   // Background sync registration
   useEffect(() => {
-    if (isOnline && isSupabaseConfigured() && syncStats.pendingCount > 0) {
+    if (isOnline && syncStats.pendingCount > 0) {
       (async () => {
         if ('serviceWorker' in navigator && 'SyncManager' in window) {
           try {
@@ -307,7 +307,7 @@ const App: React.FC = () => {
   };
 
   const handleManualSync = async () => {
-    if (!isSupabaseConfigured()) { alert('Supabase not configured.'); return; }
+    if (!navigator.onLine) { alert('Impossibile sincronizzare: nessuna connessione.'); return; }
     try {
       setSyncStats(prev => ({ ...prev, isSyncing: true }));
       setSyncProgress({ step: 0, totalSteps: 6, phase: 'Avvio sincronizzazione...' });
@@ -335,7 +335,7 @@ const App: React.FC = () => {
   };
 
   const handleClearAndSync = async () => {
-    if (!isSupabaseConfigured()) { alert('Supabase not configured.'); return; }
+    if (!navigator.onLine) { alert('Impossibile sincronizzare: nessuna connessione.'); return; }
     if (!window.confirm('Reimpostare la cache locale e reidratare i metadati dal server?')) return;
     try {
       setSyncStats(prev => ({ ...prev, isSyncing: true }));
@@ -452,16 +452,15 @@ const App: React.FC = () => {
 
   const handleOpenFloorPlanEditor = async (project: Project, floorPlan: FloorPlan) => {
     // Check remote version before opening to warn about concurrent edits
-    if (isOnline && isSupabaseConfigured() && supabase) {
+    if (isOnline) {
       try {
-        const { data } = await supabase
-          .from('floor_plans')
-          .select('updated_at')
-          .eq('id', floorPlan.id)
-          .single() as { data: { updated_at: string } | null; error: any };
+        const { data } = await apiFetchJson<{ data: { updated_at: string }[] }>(
+          `/api/floor_plans?id=eq.${floorPlan.id}&select=updated_at&limit=1`
+        );
+        const remoteUpdatedAtValue = data?.[0]?.updated_at;
 
-        if (data) {
-          const remoteUpdatedAt = new Date(data.updated_at).getTime();
+        if (remoteUpdatedAtValue) {
+          const remoteUpdatedAt = new Date(remoteUpdatedAtValue).getTime();
           // Leggi da Dexie per avere remoteUpdatedAt aggiornato dopo upload (evita falsi conflitti)
           const freshLocal = await db.floorPlans.get(floorPlan.id);
           const localBase = (freshLocal ?? floorPlan).remoteUpdatedAt ?? (freshLocal ?? floorPlan).updatedAt;

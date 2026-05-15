@@ -54,9 +54,7 @@ const UpdateNotification: React.FC<UpdateNotificationProps> = ({ registration })
 
   const clearLocalStorage = (): void => {
     try {
-      const authToken = localStorage.getItem('supabase.auth.token');
       localStorage.clear();
-      if (authToken) localStorage.setItem('supabase.auth.token', authToken);
     } catch {
       // continue with update even if this fails
     }

@@ -1,49 +1,14 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
 /**
- * Supabase client configuration
- * Environment variables should be set in .env.local for local development
- * and in Vercel Environment Variables for production
+ * Legacy: client runtime rimosso dopo cutover homeserver.
+ * Solo Database types restano per consumer type-only.
  */
-
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '⚠️  Supabase credentials not found. The app will run in offline-only mode.\n' +
-    'To enable sync, add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to .env.local'
-  );
-}
+export const supabase = null as any;
 
 /**
- * Supabase client instance
- * Used for authentication, database queries, and storage
- * Only created if credentials are available
- */
-// Istanza reale del client Supabase; null in modalità offline.
-// Il cast unknown→SupabaseClient (senza Database generic) rimuove `null as any`
-// mantenendo il medesimo comportamento a runtime. Il Database generic non viene
-// propagato nella variabile esportata perché il tipo `Database` di questo progetto
-// omette il campo `Relationships` richiesto dall'SDK v2 per l'inferenza degli Insert,
-// il che causerebbe errori `never` sulle tabelle con Insert parziali.
-export const supabase = ((supabaseUrl && supabaseAnonKey)
-  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        // Store session in localStorage for persistence
-        storage: window.localStorage,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true
-      }
-    })
-  : null) as unknown as SupabaseClient;
-
-/**
- * Check if Supabase is configured
+ * Compat legacy: il client runtime Supabase è disabilitato.
  */
 export function isSupabaseConfigured(): boolean {
-  return !!(supabaseUrl && supabaseAnonKey);
+  return false;
 }
 
 /**

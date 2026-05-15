@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { login, signUp, User, sendPasswordResetEmail } from '../db';
-import { isSupabaseConfigured } from '../lib/supabase';
 import {
   validateEmail,
   validateUsername,
@@ -22,7 +21,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
-  const [supabaseEnabled, setSupabaseEnabled] = useState(false);
+  const [homeserverEnabled, setHomeserverEnabled] = useState(false);
+  const unsupportedAuthFlowsEnabled = false;
   const [showPassword, setShowPassword] = useState(false);
 
   // Validation states
@@ -35,7 +35,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   });
 
   useEffect(() => {
-    setSupabaseEnabled(isSupabaseConfigured());
+    setHomeserverEnabled(true);
   }, []);
 
   // Validate email on change
@@ -75,8 +75,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     if (mode === 'forgot') {
       // Handle forgot password
-      if (!supabaseEnabled) {
-        setError('Password reset requires Supabase configuration');
+      if (!unsupportedAuthFlowsEnabled) {
+        setError('Servizio non disponibile');
         return;
       }
 
@@ -167,13 +167,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div style={{
           marginBottom: '16px',
           padding: '8px 12px',
-          backgroundColor: supabaseEnabled ? '#E8F5E9' : '#FFF3E0',
+          backgroundColor: homeserverEnabled ? '#E8F5E9' : '#FFF3E0',
           borderRadius: '8px',
           textAlign: 'center',
           fontSize: '0.75rem',
-          color: supabaseEnabled ? '#2E7D32' : '#E65100'
+          color: homeserverEnabled ? '#2E7D32' : '#E65100'
         }}>
-          {supabaseEnabled ? '🟢 Supabase Connected' : '🔴 Offline Mode'}
+          {homeserverEnabled ? '🟢 Homeserver Connected' : '🔴 Offline Mode'}
         </div>
 
         <h1 className="login-title">
@@ -410,7 +410,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </button>
 
           {/* Forgot password link - only in login mode */}
-          {mode === 'login' && supabaseEnabled && (
+          {mode === 'login' && unsupportedAuthFlowsEnabled && (
             <button
               type="button"
               className="reset-link"
@@ -436,7 +436,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           )}
 
           {/* Mode toggle */}
-          {supabaseEnabled && (
+          {unsupportedAuthFlowsEnabled && (
             <div style={{
               marginTop: '16px',
               textAlign: 'center',
@@ -477,7 +477,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </form>
 
         {/* Demo accounts hint - only in offline mode */}
-        {!supabaseEnabled && mode === 'login' && (
+        {!unsupportedAuthFlowsEnabled && mode === 'login' && (
           <div className="login-hint" style={{
             marginTop: '24px',
             padding: '16px',

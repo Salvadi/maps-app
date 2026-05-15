@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { User, db, getDatabaseStats } from '../db';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { apiFetch, apiFetchJson } from '../lib/homeserver';
 import {
   SyncStats,
   getSyncIncludeArchivedProjects,
@@ -60,6 +60,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const [adminError, setAdminError] = useState('');
 
+  const ensureAdminWriteOk = async (response: Response, fallbackMessage: string): Promise<void> => {
+    if (response.ok) return;
+    let message = fallbackMessage;
+    try {
+      const body = await response.json() as { error?: string };
+      message = body.error || message;
+    } catch {
+      // Mantieni il messaggio locale se la risposta non è JSON.
+    }
+    throw new Error(message);
+  };
+
   useEffect(() => {
     const loadStats = async () => {
       const [projects, mappings, photos, floorPlans, failedItems, stats] = await Promise.all([
@@ -93,17 +105,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   }, []);
 
   const loadDropdownItems = useCallback(async (category: DropdownCategory) => {
-    if (!isSupabaseConfigured()) return;
+    if (!navigator.onLine) return;
     setDdLoading(true);
     setAdminError('');
     try {
-      const { data, error } = await supabase
-        .from('dropdown_options')
-        .select('*')
-        .eq('category', category)
-        .order('sort_order', { ascending: true });
-      if (error) throw error;
-      setDdItems(data || []);
+      const { data } = await apiFetchJson<{ data: DropdownItem[] }>(
+        '/api/dropdown_options?select=*&order=sort_order.asc&limit=1000'
+      );
+      setDdItems((data || []).filter(item => item.category === category));
     } catch (e: any) {
       setAdminError(e.message || 'Errore caricamento dropdown');
     } finally {
@@ -112,17 +121,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   }, []);
 
   const loadProducts = useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
+    if (!navigator.onLine) return;
     setProdLoading(true);
     setAdminError('');
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('brand', { ascending: true })
-        .order('sort_order', { ascending: true });
-      if (error) throw error;
-      setProdItems(data || []);
+      const { data } = await apiFetchJson<{ data: ProductItem[] }>(
+        '/api/products?select=*&order=sort_order.asc&limit=1000'
+      );
+      setProdItems((data || []).sort((a, b) => a.brand.localeCompare(b.brand) || a.sort_order - b.sort_order));
     } catch (e: any) {
       setAdminError(e.message || 'Errore caricamento prodotti');
     } finally {
@@ -143,14 +149,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     try {
       const val = ddValue.trim() || ddLabel.trim().toLowerCase().replace(/\s+/g, '_');
       const maxOrder = ddItems.length > 0 ? Math.max(...ddItems.map(i => i.sort_order)) : 0;
-      const { error } = await supabase.from('dropdown_options').insert({
-        category: ddCategory,
-        value: val,
-        label: ddLabel.trim(),
-        sort_order: maxOrder + 1,
-        is_active: true,
+      const response = await apiFetch('/api/dropdown_options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: ddCategory,
+          value: val,
+          label: ddLabel.trim(),
+          sort_order: maxOrder + 1,
+          is_active: true,
+        }),
       });
-      if (error) throw error;
+      await ensureAdminWriteOk(response, 'Errore aggiunta opzione');
       setDdLabel('');
       setDdValue('');
       await loadDropdownItems(ddCategory);
@@ -165,8 +175,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleDeleteDropdown = async (id: string) => {
     setAdminError('');
     try {
-      const { error } = await supabase.from('dropdown_options').delete().eq('id', id);
-      if (error) throw error;
+      const response = await apiFetch(`/api/dropdown_options?id=eq.${id}`, { method: 'DELETE' });
+      await ensureAdminWriteOk(response, 'Errore eliminazione');
       setDdItems(prev => prev.filter(i => i.id !== id));
       await refreshDropdownCaches();
     } catch (e: any) {
@@ -181,13 +191,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     try {
       const sameBrand = prodItems.filter(i => i.brand === prodBrand.trim());
       const maxOrder = sameBrand.length > 0 ? Math.max(...sameBrand.map(i => i.sort_order)) : 0;
-      const { error } = await supabase.from('products').insert({
-        brand: prodBrand.trim(),
-        name: prodName.trim(),
-        sort_order: maxOrder + 1,
-        is_active: true,
+      const response = await apiFetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: prodBrand.trim(),
+          name: prodName.trim(),
+          sort_order: maxOrder + 1,
+          is_active: true,
+        }),
       });
-      if (error) throw error;
+      await ensureAdminWriteOk(response, 'Errore aggiunta prodotto');
       setProdName('');
       await loadProducts();
       await refreshDropdownCaches();
@@ -201,8 +215,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleDeleteProduct = async (id: string) => {
     setAdminError('');
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      const response = await apiFetch(`/api/products?id=eq.${id}`, { method: 'DELETE' });
+      await ensureAdminWriteOk(response, 'Errore eliminazione');
       setProdItems(prev => prev.filter(i => i.id !== id));
       await refreshDropdownCaches();
     } catch (e: any) {
@@ -388,13 +402,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <span className="text-[11px] font-semibold bg-warning/10 text-warning px-2 py-0.5 rounded-full">ADMIN</span>
           </h2>
 
-          {!isSupabaseConfigured() && (
+          {!isOnline && (
             <div className="bg-orange-50 border border-orange-200 text-orange-700 text-sm px-4 py-3 rounded-2xl mb-3">
-              Supabase non configurato — funzione non disponibile.
+              Nessuna connessione — funzione non disponibile.
             </div>
           )}
 
-          {isSupabaseConfigured() && (
+          {isOnline && (
             <div className="bg-white rounded-2xl shadow-card overflow-hidden">
               {/* Tab selector */}
               <div className="flex border-b border-brand-100">
