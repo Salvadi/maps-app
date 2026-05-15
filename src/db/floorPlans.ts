@@ -1,7 +1,8 @@
 import { db, generateId, now, FloorPlan, FloorPlanPoint, StandaloneMap } from './database';
 import { processFloorPlan, uploadFloorPlan, uploadStandaloneMap, blobToBase64 } from '../utils/floorPlanUtils';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { supabase } from '../lib/supabase';
+import type { Database } from '../lib/supabase';
+import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
@@ -12,7 +13,14 @@ import {
 } from './onlineFirst';
 
 type FloorPlanAssetMode = 'thumbnail' | 'full' | 'pdf';
+type RemoteFloorPlanRow = Database['public']['Tables']['floor_plans']['Row'];
+type RemoteFloorPlanPointRow = Database['public']['Tables']['floor_plan_points']['Row'];
 const FLOOR_PLAN_SIGN_BATCH_SIZE = 300;
+
+// Gate locale per le letture online-first via homeserver.
+function isHomeserverOnline(): boolean {
+  return navigator.onLine && isHomeserverConfigured();
+}
 
 function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   const chunks: T[][] = [];
@@ -249,26 +257,26 @@ export async function getFloorPlanByProjectAndFloor(
   projectId: string,
   floor: string
 ): Promise<FloorPlan | undefined> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('floor_plans')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('floor', floor)
-        .single();
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
+      const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
+        `/api/floor_plans?${params.toString()}`
+      );
+      const remoteRow = (data || []).find((row) => row.floor === floor);
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return db.floorPlans
-            .where('[projectId+floor]')
-            .equals([projectId, floor])
-            .first();
-        }
-        throw error;
+      if (!remoteRow) {
+        return db.floorPlans
+          .where('[projectId+floor]')
+          .equals([projectId, floor])
+          .first();
       }
 
-      const rawRemote = convertRemoteToLocalFloorPlan(data);
+      const rawRemote = convertRemoteToLocalFloorPlan(remoteRow);
       const [signedRemote] = await signFloorPlanUrls([rawRemote]);
       const pendingIds = await getPendingEntityIds('floor_plan');
       const existing = await db.floorPlans.get(rawRemote.id);
@@ -302,16 +310,16 @@ export async function getFloorPlanByProjectAndFloor(
 }
 
 export async function getFloorPlansByProject(projectId: string): Promise<FloorPlan[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('floor_plans')
-        .select('*')
-        .eq('project_id', projectId);
-
-      if (error) {
-        throw error;
-      }
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
+      const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
+        `/api/floor_plans?${params.toString()}`
+      );
 
       const rawPlans = (data || []).map(convertRemoteToLocalFloorPlan);
       const pendingIds = await getPendingEntityIds(
@@ -570,18 +578,39 @@ export async function getFloorPlanPointByMappingEntry(
 }
 
 export async function getFloorPlanPoints(floorPlanId: string): Promise<FloorPlanPoint[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('floor_plan_points')
-        .select('*')
-        .eq('floor_plan_id', floorPlanId);
+      const rows: RemoteFloorPlanPointRow[] = [];
+      const PAGE = 1000;
+      let offset = 0;
 
-      if (error) {
-        throw error;
+      // Paginazione interna in caso la planimetria abbia più di 1000 punti.
+      while (true) {
+        const params = new URLSearchParams({
+          floor_plan_id: `eq.${floorPlanId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
+        const { data } = await apiFetchJson<{ data: RemoteFloorPlanPointRow[] | null }>(
+          `/api/floor_plan_points?${params.toString()}`
+        );
+        const pageRows = data || [];
+
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
       }
 
-      const remotePoints = (data || []).map(convertRemoteToLocalFloorPlanPoint);
+      const remotePoints = rows.map(convertRemoteToLocalFloorPlanPoint);
       const pendingIds = await getPendingEntityIds(
         'floor_plan_point',
         (item) => (item.payload as FloorPlanPoint)?.floorPlanId === floorPlanId
@@ -611,18 +640,37 @@ export async function getFloorPlanPointsForPlans(
     return {};
   }
 
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('floor_plan_points')
-        .select('*')
-        .in('floor_plan_id', floorPlanIds);
+      const rows: RemoteFloorPlanPointRow[] = [];
+      const PAGE = 1000;
 
-      if (error) {
-        throw error;
+      for (const batch of chunkArray(floorPlanIds, 100)) {
+        const idsParam = batch.join(',');
+        let offset = 0;
+
+        // Paginazione interna in caso il batch produca più di 1000 punti.
+        while (true) {
+          const { data } = await apiFetchJson<{ data: RemoteFloorPlanPointRow[] | null }>(
+            `/api/floor_plan_points?floor_plan_id=in.${idsParam}&select=*&limit=${PAGE}&offset=${offset}`
+          );
+          const pageRows = data || [];
+
+          if (pageRows.length === 0) {
+            break;
+          }
+
+          rows.push(...pageRows);
+
+          if (pageRows.length < PAGE) {
+            break;
+          }
+
+          offset += PAGE;
+        }
       }
 
-      const remotePoints = (data || []).map(convertRemoteToLocalFloorPlanPoint);
+      const remotePoints = rows.map(convertRemoteToLocalFloorPlanPoint);
       const pendingIds = await getPendingEntityIds('floor_plan_point');
       const cached = await writeThroughCache(remotePoints, pendingIds, db.floorPlanPoints, mergeFloorPlanPointLocalFields);
       const withPending = await applyPendingWrites<FloorPlanPoint>(
@@ -870,19 +918,19 @@ export async function deleteStandaloneMap(id: string): Promise<void> {
 }
 
 export async function hasFloorPlan(projectId: string, floor: string): Promise<boolean> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { count, error } = await supabase
-        .from('floor_plans')
-        .select('id', { count: 'exact', head: true })
-        .eq('project_id', projectId)
-        .eq('floor', floor);
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
+      const { data } = await apiFetchJson<{ data: RemoteFloorPlanRow[] | null }>(
+        `/api/floor_plans?${params.toString()}`
+      );
+      const count = (data || []).filter((row) => row.floor === floor).length;
 
-      if (error) {
-        throw error;
-      }
-
-      if ((count || 0) > 0) {
+      if (count > 0) {
         return true;
       }
     } catch (err) {
