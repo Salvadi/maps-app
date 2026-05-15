@@ -1,14 +1,21 @@
 import { db, generateId, now, StructureEntry, Photo, PhotoMetadata, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { supabase } from '../lib/supabase';
+import type { Database } from '../lib/supabase';
+import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import { apiStorageFrom } from '../lib/storageShim';
 import {
   applyPendingWrites,
   getPendingEntityIds,
   isAuthError,
-  isOnlineAndConfigured,
   writeThroughCache,
 } from './onlineFirst';
+
+type RemotePhotoRow = Database['public']['Tables']['photos']['Row'];
+
+// Gate locale per le letture online-first via homeserver.
+function isHomeserverOnline(): boolean {
+  return navigator.onLine && isHomeserverConfigured();
+}
 
 function compareInterventionValues(a?: string, b?: string): number {
   const valueA = (a || '').trim();
@@ -225,21 +232,17 @@ export async function getStructureEntriesForProject(
     limit?: number;
   }
 ): Promise<StructureEntry[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      let query = supabase
-        .from('structure_entries')
-        .select('*')
-        .eq('project_id', projectId);
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        select: '*',
+        limit: '1000',
+      });
 
-      if (options?.floor) {
-        query = query.eq('floor', options.floor);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        throw error;
-      }
+      const { data } = await apiFetchJson<{
+        data: Record<string, unknown>[];
+      }>(`/api/structure_entries?${params.toString()}`);
 
       const remoteEntries: StructureEntry[] = (data || []).map(convertRemoteToLocalStructure);
       const pendingIds = await getPendingEntityIds(
@@ -256,6 +259,11 @@ export async function getStructureEntriesForProject(
         'structure_entry',
         (item) => (item.payload as StructureEntry)?.projectId === projectId
       );
+
+      // Filtro 'floor' applicato client-side perché whitelist API non lo include.
+      if (options?.floor) {
+        results = results.filter((entry) => entry.floor === options.floor);
+      }
 
       if (options?.sortBy === 'timestamp') {
         results.sort((a, b) => b.timestamp - a.timestamp);
@@ -425,16 +433,37 @@ export async function deleteStructureEntry(id: string): Promise<void> {
 }
 
 export async function getPhotosForStructure(structureEntryId: string): Promise<Photo[]> {
-  if (isOnlineAndConfigured()) {
+  if (isHomeserverOnline()) {
     try {
-      const { data, error } = await supabase
-        .from('photos')
-        .select('*')
-        .eq('structure_entry_id', structureEntryId);
+      const rows: RemotePhotoRow[] = [];
+      const PAGE = 1000;
+      let offset = 0;
 
-      if (error) throw error;
+      // Paginazione interna in caso la struttura abbia più di 1000 foto.
+      while (true) {
+        const params = new URLSearchParams({
+          structure_entry_id: `eq.${structureEntryId}`,
+          select: '*',
+          limit: String(PAGE),
+          offset: String(offset),
+        });
+        const { data } = await apiFetchJson<{ data: RemotePhotoRow[] | null }>(
+          `/api/photos?${params.toString()}`
+        );
+        const pageRows = data || [];
 
-      const rows = data || [];
+        if (pageRows.length === 0) {
+          break;
+        }
+
+        rows.push(...pageRows);
+
+        if (pageRows.length < PAGE) {
+          break;
+        }
+
+        offset += PAGE;
+      }
       const localPhotos = (await db.photos.where('mappingEntryId').equals(structureEntryId).toArray())
         .filter((p) => p.entryType === 'structure');
       const localById = new Map(localPhotos.map((p) => [p.id, p]));
@@ -446,15 +475,15 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
         .toArray();
       const pendingDeleteIds = new Set(pendingDeletes.map((item) => item.entityId));
 
-      const filteredRows = rows.filter((row: any) => !pendingDeleteIds.has(row.id));
+      const filteredRows = rows.filter((row) => !pendingDeleteIds.has(row.id));
 
-      // Generate signed URLs (bucket is private, public URLs don't work)
+      // Genera URL firmati perché il bucket è privato.
       const fullPaths = filteredRows
-        .map((row: any) => row.storage_path)
-        .filter((p: any): p is string => Boolean(p));
+        .map((row) => row.storage_path)
+        .filter((p): p is string => Boolean(p));
       const thumbPaths = filteredRows
-        .map((row: any) => row.thumbnail_storage_path)
-        .filter((p: any): p is string => Boolean(p));
+        .map((row) => row.thumbnail_storage_path)
+        .filter((p): p is string => Boolean(p));
 
       const signedByPath = new Map<string, string>();
       const signedThumbByPath = new Map<string, string>();
@@ -474,7 +503,7 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
         })() : Promise.resolve(),
       ]);
 
-      const remotePhotos: Photo[] = filteredRows.map((row: any) => ({
+      const remotePhotos: Photo[] = filteredRows.map((row) => ({
         id: row.id,
         mappingEntryId: structureEntryId,
         entryType: 'structure' as const,
@@ -494,7 +523,7 @@ export async function getPhotosForStructure(structureEntryId: string): Promise<P
         thumbnailStoragePath: row.thumbnail_storage_path ?? undefined,
       }));
 
-      // Merge local-only photos not yet synced to remote
+      // Unisce le foto locali non ancora sincronizzate sul remoto.
       const remoteIds = new Set(remotePhotos.map((p) => p.id));
       for (const localPhoto of localPhotos) {
         if (!pendingDeleteIds.has(localPhoto.id) && !remoteIds.has(localPhoto.id)) {
