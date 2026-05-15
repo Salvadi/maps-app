@@ -25,6 +25,7 @@ import PhotoPreviewModal from './PhotoPreviewModal';
 import CostsTab from './CostsTab';
 import SalTab from './SalTab';
 import TypologyViewerModal from './TypologyViewerModal';
+import { apiStorageFrom } from '../lib/storageShim';
 
 interface ProjectDetailProps {
   project: Project;
@@ -764,7 +765,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                           <PhotoGridItem
                                             key={photo.id || pi}
                                             blob={photo.blob}
+                                            thumbnailBlob={photo.thumbnailBlob}
                                             remoteUrl={photo.remoteUrl}
+                                            thumbnailRemoteUrl={photo.thumbnailRemoteUrl}
+                                            storagePath={photo.storagePath}
+                                            thumbnailStoragePath={photo.thumbnailStoragePath}
                                             alt={`Foto ${pi + 1}`}
                                             onSelect={(url) => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
                                           />
@@ -955,7 +960,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                           <PhotoGridItem
                                             key={photo.id || pi}
                                             blob={photo.blob}
+                                            thumbnailBlob={photo.thumbnailBlob}
                                             remoteUrl={photo.remoteUrl}
+                                            thumbnailRemoteUrl={photo.thumbnailRemoteUrl}
+                                            storagePath={photo.storagePath}
+                                            thumbnailStoragePath={photo.thumbnailStoragePath}
                                             alt={`Foto ${pi + 1}`}
                                             onSelect={(url) => setSelectedPhoto({ url, alt: `Foto ${pi + 1}` })}
                                           />
@@ -1241,16 +1250,70 @@ const EntryThumbnail: React.FC<{ blob: Blob | undefined; remoteUrl?: string }> =
 /** Sub-component: single photo in the grid */
 const PhotoGridItem: React.FC<{
   blob?: Blob;
+  thumbnailBlob?: Blob;
   remoteUrl?: string;
+  thumbnailRemoteUrl?: string;
+  storagePath?: string;
+  thumbnailStoragePath?: string;
   alt: string;
   onSelect: (url: string) => void;
-}> = ({ blob, remoteUrl, alt, onSelect }) => {
+}> = ({ blob, thumbnailBlob, remoteUrl, thumbnailRemoteUrl, storagePath, thumbnailStoragePath, alt, onSelect }) => {
+  const thumbnailUrl = useBlobUrl(thumbnailBlob);
   const url = useBlobUrl(blob);
-  const imageUrl = url || remoteUrl;
+  const [signedUrls, setSignedUrls] = useState<{ imageUrl?: string; previewUrl?: string }>({});
+  const hasFullLocalBlob = Boolean(blob);
+  const hasFullRemoteUrl = Boolean(remoteUrl);
+  const hasThumbnailLocalBlob = Boolean(thumbnailBlob);
+  const hasThumbnailRemoteUrl = Boolean(thumbnailRemoteUrl);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSignedUrls({});
+
+    // firma full e thumbnail separatamente se entrambi mancanti
+    const needsFullSignedUrl = !hasFullLocalBlob && !hasFullRemoteUrl && Boolean(storagePath);
+    const needsThumbnailSignedUrl = !hasThumbnailLocalBlob && !hasThumbnailRemoteUrl && Boolean(thumbnailStoragePath);
+    if (!needsFullSignedUrl && !needsThumbnailSignedUrl) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const paths = Array.from(new Set([
+      needsThumbnailSignedUrl ? thumbnailStoragePath : undefined,
+      needsFullSignedUrl ? storagePath : undefined,
+    ].filter(Boolean) as string[]));
+    apiStorageFrom('photos').createSignedUrls(paths, 60 * 60)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const signedByPath = new globalThis.Map((data || [])
+          .filter(item => item.path && item.signedUrl)
+          .map(item => [item.path, item.signedUrl]));
+        const signedImageUrl = (thumbnailStoragePath && signedByPath.get(thumbnailStoragePath))
+          || (storagePath && signedByPath.get(storagePath))
+          || undefined;
+        const signedPreviewUrl = (storagePath && signedByPath.get(storagePath)) || signedImageUrl;
+        setSignedUrls({ imageUrl: signedImageUrl, previewUrl: signedPreviewUrl });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasFullLocalBlob,
+    hasFullRemoteUrl,
+    hasThumbnailLocalBlob,
+    hasThumbnailRemoteUrl,
+    storagePath,
+    thumbnailStoragePath,
+  ]);
+
+  const imageUrl = thumbnailUrl || url || thumbnailRemoteUrl || remoteUrl || signedUrls.imageUrl;
   if (!imageUrl) return null;
+  const previewUrl = url || remoteUrl || signedUrls.previewUrl || imageUrl;
   return (
     <button
-      onClick={() => onSelect(imageUrl)}
+      onClick={() => onSelect(previewUrl)}
       className="aspect-square rounded-lg overflow-hidden bg-brand-50"
     >
       <img src={imageUrl} alt={alt} className="w-full h-full object-cover" />

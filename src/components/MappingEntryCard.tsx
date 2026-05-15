@@ -6,10 +6,11 @@
  * Usata in MappingView nelle modalità flat e gerarchica.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { MappingEntry, Photo, calcAsolaMq } from '../db';
 import { EditIcon, DeleteIcon, ImageIcon } from './icons/MappingViewIcons';
 import { useBlobUrl } from '../hooks/useBlobUrl';
+import { apiStorageFrom } from '../lib/storageShim';
 
 export interface MappingEntryCardProps {
   mapping: MappingEntry;
@@ -151,16 +152,66 @@ const PhotoItem: React.FC<{
   alt: string;
   onPhotoPreview: (url: string, alt: string) => void;
 }> = ({ photo, alt, onPhotoPreview }) => {
+  const thumbnailUrl = useBlobUrl(photo.thumbnailBlob);
   const photoUrl = useBlobUrl(photo.blob);
-  const imageUrl = photoUrl || photo.thumbnailRemoteUrl || photo.remoteUrl;
+  const [signedUrls, setSignedUrls] = useState<{ imageUrl?: string; previewUrl?: string }>({});
+  const hasFullLocalBlob = Boolean(photo.blob);
+  const hasFullRemoteUrl = Boolean(photo.remoteUrl);
+  const hasThumbnailLocalBlob = Boolean(photo.thumbnailBlob);
+  const hasThumbnailRemoteUrl = Boolean(photo.thumbnailRemoteUrl);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSignedUrls({});
+
+    // firma full e thumbnail separatamente se entrambi mancanti
+    const needsFullSignedUrl = !hasFullLocalBlob && !hasFullRemoteUrl && Boolean(photo.storagePath);
+    const needsThumbnailSignedUrl = !hasThumbnailLocalBlob && !hasThumbnailRemoteUrl && Boolean(photo.thumbnailStoragePath);
+    if (!needsFullSignedUrl && !needsThumbnailSignedUrl) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const paths = Array.from(new Set([
+      needsThumbnailSignedUrl ? photo.thumbnailStoragePath : undefined,
+      needsFullSignedUrl ? photo.storagePath : undefined,
+    ].filter(Boolean) as string[]));
+    apiStorageFrom('photos').createSignedUrls(paths, 60 * 60)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const signedByPath = new globalThis.Map((data || [])
+          .filter(item => item.path && item.signedUrl)
+          .map(item => [item.path, item.signedUrl]));
+        const signedImageUrl = (photo.thumbnailStoragePath && signedByPath.get(photo.thumbnailStoragePath))
+          || (photo.storagePath && signedByPath.get(photo.storagePath))
+          || undefined;
+        const signedPreviewUrl = (photo.storagePath && signedByPath.get(photo.storagePath)) || signedImageUrl;
+        setSignedUrls({ imageUrl: signedImageUrl, previewUrl: signedPreviewUrl });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasFullLocalBlob,
+    hasFullRemoteUrl,
+    hasThumbnailLocalBlob,
+    hasThumbnailRemoteUrl,
+    photo.storagePath,
+    photo.thumbnailStoragePath,
+  ]);
+
+  const imageUrl = thumbnailUrl || photoUrl || photo.thumbnailRemoteUrl || photo.remoteUrl || signedUrls.imageUrl;
   if (!imageUrl) return null;
+  const previewUrl = photoUrl || photo.remoteUrl || signedUrls.previewUrl || imageUrl;
   return (
     <div className="photo-item">
       <img
         src={imageUrl}
         alt={alt}
         loading="lazy"
-        onClick={() => onPhotoPreview(photo.remoteUrl || imageUrl, alt)}
+        onClick={() => onPhotoPreview(previewUrl, alt)}
         style={{ cursor: 'pointer' }}
       />
     </div>
