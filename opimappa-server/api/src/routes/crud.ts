@@ -45,10 +45,11 @@ function sanitizePatchBody(tableName: string, input: Record<string, unknown>): R
   return Object.fromEntries(Object.entries(body).filter(([key]) => key in writableCols && key !== 'id'));
 }
 
-function handleError(c: AppContext, error: unknown) {
+function handleError(c: AppContext, tableName: string, error: unknown) {
   if (isHttpError(error) && error.status < 500) {
     return c.json({ error: error.message }, error.status as 400);
   }
+  console.error(`[crud:${tableName}]`, error);
   return c.json({ error: 'internal server error' }, 500);
 }
 
@@ -66,7 +67,7 @@ export function createCrudHandler(tableName: string) {
         c.header('X-Server-Seen-Seq', '0');
         return c.json({ data: rows, error: null, count: totalCount });
       } catch (error) {
-        return handleError(c, error);
+        return handleError(c, tableName, error);
       }
     },
     post: async (c: AppContext) => {
@@ -87,7 +88,7 @@ export function createCrudHandler(tableName: string) {
         const result = await sql.unsafe(`INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) RETURNING *`, values as unknown[] as any[]);
         return c.json({ data: [result[0]], error: null }, 201);
       } catch (error) {
-        return handleError(c, error);
+        return handleError(c, tableName, error);
       }
     },
     patch: async (c: AppContext) => {
@@ -105,7 +106,7 @@ export function createCrudHandler(tableName: string) {
         );
         return c.json({ data: result as unknown[], error: null });
       } catch (error) {
-        return handleError(c, error);
+        return handleError(c, tableName, error);
       }
     },
     delete: async (c: AppContext) => {
@@ -122,7 +123,7 @@ export function createCrudHandler(tableName: string) {
         await sql.unsafe(`DELETE FROM ${quoteIdent(tableName)}${scoped.sqlText} RETURNING *`, scoped.values as unknown[] as any[]);
         return c.json({ data: null, error: null }, 200);
       } catch (error) {
-        return handleError(c, error);
+        return handleError(c, tableName, error);
       }
     },
     put: async (c: AppContext) => {
@@ -182,7 +183,7 @@ export function createCrudHandler(tableName: string) {
         );
         return c.json({ data: [result[0]], error: null }, 200);
       } catch (error) {
-        return handleError(c, error);
+        return handleError(c, tableName, error);
       }
     },
   };
