@@ -23,7 +23,7 @@ const app = new Hono<{ Variables: Variables }>();
 /**
  * Verifica visibilità di una riga per l'utente dato.
  * - project_id NULL → visibile a tutti
- * - project_id non-null → query projects WHERE id = project_id AND owner_id = userId
+ * - project_id non-null → owner OR collaboratore in accessible_users
  */
 async function canSee(userId: string, row: ChangeLogRow): Promise<boolean> {
   if (row.project_id === null) return true;
@@ -31,7 +31,10 @@ async function canSee(userId: string, row: ChangeLogRow): Promise<boolean> {
   const rows = await sql`
     SELECT id FROM projects
     WHERE id = ${row.project_id}
-      AND owner_id = ${userId}
+      AND (
+        owner_id = ${userId}
+        OR (accessible_users)::jsonb ? ${userId}
+      )
     LIMIT 1
   `;
   return rows.length > 0;

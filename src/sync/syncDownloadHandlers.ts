@@ -7,6 +7,10 @@ import { getPendingEntityIds } from '../db/onlineFirst';
 import { pruneProjectLocal } from '../db/projects';
 
 const SUPABASE_IN_BATCH_SIZE = 150;
+// Numero massimo di righe restituite per singola chiamata API homeserver.
+// Il server impone limit=100 di default; sovrascriviamo esplicitamente per evitare
+// troncamenti silenziosi quando un batch contiene molti ID.
+const SYNC_FETCH_LIMIT = 1000;
 async function downloadStorageBlobFromPublicUrl(publicUrl: string): Promise<Blob | null> {
   const parsedUrl = new URL(publicUrl);
   // Supporto per URL Supabase native (/storage/v1/object/public|sign/<bucket>/<path>)
@@ -111,8 +115,9 @@ async function fetchRowsByIds(
 
   for (const batch of batches) {
     // homeserver parser: ?col=in.val1,val2 (comma-separated, no parentheses)
+    // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/${table}?${column}=in.${idsParam}`);
+    const res = await apiFetch(`/api/${table}?${column}=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
     if (!res.ok) {
       throw new Error(`Failed to download ${table}: ${res.statusText}`);
     }
@@ -332,7 +337,8 @@ export async function downloadPhotosFromSupabase(
   const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
   for (const batch of mappingEntryIdBatches) {
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/photos?mapping_entry_id=in.${idsParam}`);
+    // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
+    const res = await apiFetch(`/api/photos?mapping_entry_id=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
     if (!res.ok) {
       throw new Error(`Failed to download photos: ${res.statusText}`);
     }
@@ -346,7 +352,8 @@ export async function downloadPhotosFromSupabase(
   const structureEntryIdBatches = chunkArray(structureEntryIds, SUPABASE_IN_BATCH_SIZE);
   for (const batch of structureEntryIdBatches) {
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/photos?structure_entry_id=in.${idsParam}`);
+    // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
+    const res = await apiFetch(`/api/photos?structure_entry_id=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
     if (!res.ok) {
       throw new Error(`Failed to download photos: ${res.statusText}`);
     }
@@ -394,7 +401,8 @@ export async function downloadPhotosFromSupabase(
       }
 
       const idsParam = unresolvedIds.join(',');
-      const res = await apiFetch(`/api/photos?id=in.${idsParam}`);
+      // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
+      const res = await apiFetch(`/api/photos?id=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
       if (!res.ok) throw new Error(`Failed to download photos: ${res.statusText}`);
       const { data } = await res.json() as { data: any[] };
       for (const row of data || []) {

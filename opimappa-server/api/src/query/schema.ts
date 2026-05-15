@@ -61,8 +61,8 @@ export const TABLE_SCHEMA: Record<string, TableSchemaDef> = {
       last_modified: 'bigint',
       created_at: 'timestamptz',
     },
-    // storage_path e thumbnail_storage_path impostati solo da migration/server
-    readOnly: ['storage_path', 'thumbnail_storage_path'],
+    // storage_path e thumbnail_storage_path scrivibili dal client durante sync upload
+    // (rimossi da readOnly — necessario per registrare il path MinIO dopo upload)
     relationships: {
       mapping_entries: { type: 'belongsTo', fk: 'mapping_entry_id', target: 'mapping_entries' },
     },
