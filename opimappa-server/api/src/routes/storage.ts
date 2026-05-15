@@ -52,7 +52,10 @@ storageRoute.post('/sign-one', async (c) => {
 // Il client riceve il contenuto binario con il Content-Type corretto.
 storageRoute.get('/proxy/:bucket/*', async (c) => {
   const bucket = c.req.param('bucket');
-  const objectKey = c.req.param('*') ?? '';
+  // c.req.param('*') returns empty in Hono nested sub-routers; fallback to URL parse
+  const _wp = c.req.param('*') ?? '';
+  const _um = new URL(c.req.url).pathname.match(/\/proxy\/[^/]+\/(.+)$/);
+  const objectKey = _wp || (_um ? decodeURIComponent(_um[1]) : '');
 
   if (!VALID_BUCKETS.has(bucket)) {
     return c.json({ error: 'bucket non valido' }, 404);

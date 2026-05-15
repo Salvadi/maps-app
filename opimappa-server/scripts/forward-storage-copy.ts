@@ -64,9 +64,15 @@ async function copyOne(
   storagePath: string,
   stats: Stats
 ): Promise<void> {
+  // storage_path può includere il prefisso bucket (es. "planimetrie/uuid/file.png")
+  // Rimuovilo per evitare doppio-prefisso nelle chiamate MinIO e Supabase.
+  const bucketPrefix = spec.bucket + '/';
+  const objectKey = storagePath.startsWith(bucketPrefix)
+    ? storagePath.slice(bucketPrefix.length)
+    : storagePath;
   try {
     try {
-      await s3.send(new HeadObjectCommand({ Bucket: spec.bucket, Key: storagePath }));
+      await s3.send(new HeadObjectCommand({ Bucket: spec.bucket, Key: objectKey }));
       stats.skipped++;
       return;
     } catch (e: any) {
@@ -74,7 +80,7 @@ async function copyOne(
       if (code !== 404 && code !== 403) throw e;
     }
 
-    const { data, error } = await sb.storage.from(spec.bucket).download(storagePath);
+    const { data, error } = await sb.storage.from(spec.bucket).download(objectKey);
     if (error || !data) {
       stats.missingSrc++;
       console.warn(`  [${spec.table}/${col}] sorgente mancante: ${storagePath}`);
@@ -84,7 +90,7 @@ async function copyOne(
 
     await s3.send(new PutObjectCommand({
       Bucket: spec.bucket,
-      Key: storagePath,
+      Key: objectKey,
       Body: buffer,
       ContentType: data.type || 'application/octet-stream',
     }));

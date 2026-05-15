@@ -115,14 +115,20 @@ async function fetchRowsByIds(
 
   for (const batch of batches) {
     // homeserver parser: ?col=in.val1,val2 (comma-separated, no parentheses)
-    // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
     const idsParam = batch.join(',');
-    const res = await apiFetch(`/api/${table}?${column}=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
-    if (!res.ok) {
-      throw new Error(`Failed to download ${table}: ${res.statusText}`);
+    let offset = 0;
+    while (true) {
+      const res = await apiFetch(`/api/${table}?${column}=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}&offset=${offset}`);
+      if (!res.ok) {
+        throw new Error(`Failed to download ${table}: ${res.statusText}`);
+      }
+      const { data } = await res.json() as { data: any[] };
+      const page: any[] = data || [];
+      rows.push(...page);
+      // Se la pagina è piena, potrebbero esserci altre righe — continua con offset.
+      if (page.length < SYNC_FETCH_LIMIT) break;
+      offset += SYNC_FETCH_LIMIT;
     }
-    const { data } = await res.json() as { data: any[] };
-    rows.push(...(data || []));
   }
 
   return rows;
