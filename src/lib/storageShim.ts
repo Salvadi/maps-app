@@ -4,13 +4,23 @@ function storageHttpError(path: string, status: number, label: string): ApiRespo
   return new ApiResponseError(status, path, `${label} ${status}`);
 }
 
+function resolveBucketAndKey(defaultBucket: string, path: string): { bucket: string; key: string } {
+  const cleanPath = path.replace(/^\/+/, '');
+  const slashIdx = cleanPath.indexOf('/');
+  if (slashIdx !== -1) {
+    const prefix = cleanPath.slice(0, slashIdx);
+    if (prefix === 'photos' || prefix === 'planimetrie') {
+      return { bucket: prefix, key: cleanPath.slice(slashIdx + 1) };
+    }
+  }
+  return { bucket: defaultBucket, key: cleanPath };
+}
+
 export function apiStorageFrom(bucket: string) {
   return {
     getPublicUrl(path: string): { data: { publicUrl: string } } {
-      const canonical = /^(photos|planimetrie)\//.test(path)
-        ? path
-        : `${bucket}/${path}`;
-      return { data: { publicUrl: `/api/storage/${canonical}` } };
+      const location = resolveBucketAndKey(bucket, path);
+      return { data: { publicUrl: `/api/storage/proxy/${location.bucket}/${location.key}` } };
     },
 
     async createSignedUrl(

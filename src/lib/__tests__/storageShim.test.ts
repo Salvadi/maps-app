@@ -49,7 +49,7 @@ describe('apiStorageFrom.getPublicUrl', () => {
     const storage = apiStorageFrom('photos');
     // path già include il bucket
     const result = storage.getPublicUrl('photos/img.jpg');
-    expect(result.data.publicUrl).toBe('/api/storage/photos/img.jpg');
+    expect(result.data.publicUrl).toBe('/api/storage/proxy/photos/img.jpg');
     // non deve comparire "photos/photos/"
     expect(result.data.publicUrl).not.toContain('photos/photos/');
   });
@@ -57,14 +57,14 @@ describe('apiStorageFrom.getPublicUrl', () => {
   test('path senza prefisso bucket → URL contiene bucket/path', () => {
     const storage = apiStorageFrom('photos');
     const result = storage.getPublicUrl('img.jpg');
-    expect(result.data.publicUrl).toBe('/api/storage/photos/img.jpg');
+    expect(result.data.publicUrl).toBe('/api/storage/proxy/photos/img.jpg');
     expect(result.data.publicUrl).toContain('photos/img.jpg');
   });
 
   test('bucket planimetrie con path già prefissato → nessun doppio prefisso', () => {
     const storage = apiStorageFrom('planimetrie');
     const result = storage.getPublicUrl('planimetrie/plan.png');
-    expect(result.data.publicUrl).toBe('/api/storage/planimetrie/plan.png');
+    expect(result.data.publicUrl).toBe('/api/storage/proxy/planimetrie/plan.png');
     expect(result.data.publicUrl).not.toContain('planimetrie/planimetrie/');
   });
 });

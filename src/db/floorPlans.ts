@@ -32,10 +32,16 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
 
 function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
   // Fallback: se URL legacy mancante ma *_storage_path presente, costruisci URL parse-able
-  // da extractStorageLocation (regex /planimetrie/PATH). Necessario per planimetrie migrate
+  // da extractStorageLocation (regex /planimetrie/PATH) usando il proxy same-origin.
+  // Necessario per planimetrie migrate
   // post-cutover dove tornano solo *_storage_path canonici MinIO.
-  const synthUrl = (storagePath?: string) =>
-    storagePath ? `/planimetrie/${storagePath}` : undefined;
+  const synthUrl = (storagePath?: string) => {
+    if (!storagePath) {
+      return undefined;
+    }
+    const key = storagePath.replace(/^\/+/, '').replace(/^planimetrie\//, '');
+    return `/api/storage/proxy/planimetrie/${key}`;
+  };
   return {
     id: remote.id,
     projectId: remote.project_id,

@@ -118,8 +118,10 @@ storageRoute.post('/sign-one', async (c) => {
     return c.json({ signedUrl: null, error: 'path mancante o non valido' }, 400);
   }
 
-  // Normalizza: rimuove slash iniziali e rifiuta path vuoti
-  const cleanPath = path.replace(/^\/+/, '');
+  // Normalizza: rimuove slash iniziali e l'eventuale prefisso bucket duplicato
+  // (alcuni caller passano "photos/<key>" con bucket="photos"). Coerente con la
+  // route /proxy che riceve la key SENZA prefisso bucket.
+  const cleanPath = path.replace(/^\/+/, '').replace(new RegExp(`^${bucket}/`), '');
   if (!cleanPath) return c.json({ signedUrl: null, error: 'path non valido' }, 400);
 
   const ttlSec = typeof ttl === 'number' && ttl > 0 ? Math.floor(ttl) : undefined;
@@ -134,7 +136,10 @@ storageRoute.post('/sign-one', async (c) => {
   }
 
   try {
-    const signedUrl = await getSignedReadUrl(bucket, cleanPath, ttl_final);
+    // Mantiene il contratto "signedUrl", ma espone al browser solo il proxy same-origin.
+    // Il TTL resta accettato per compatibilita' con il client, anche se il proxy ricontrolla auth.
+    const signedUrl = `/api/storage/proxy/${bucket}/${cleanPath}`;
+    void ttl_final;
     return c.json({ signedUrl, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
