@@ -1,9 +1,9 @@
 /**
  * @file Sync Engine - Orchestratore della sincronizzazione
  * @description Gestisce la coda di sync locale, l'event system, il lock,
- * e le operazioni di sincronizzazione bidirezionale con Supabase.
+ * e le operazioni di sincronizzazione bidirezionale con il homeserver.
  * Le operazioni di upload specifiche per entità sono in syncUploadHandlers.ts.
- * Le operazioni di download da Supabase sono in syncDownloadHandlers.ts.
+ * Le operazioni di download dal server sono in syncDownloadHandlers.ts.
  */
 
 import { db, SyncQueueItem } from '../db/database';
@@ -239,12 +239,12 @@ async function clearBrowserCaches(): Promise<void> {
  */
 export async function processSyncQueue(): Promise<SyncResult> {
   if (!isHomeserverConfigured()) {
-    console.warn('⚠️  Sync skipped: Supabase not configured');
+    console.warn('⚠️  Sync skipped: homeserver not configured');
     return {
       success: false,
       processedCount: 0,
       failedCount: 0,
-      errors: [{ item: {} as SyncQueueItem, error: 'Supabase not configured' }]
+      errors: [{ item: {} as SyncQueueItem, error: 'Homeserver not configured' }]
     };
   }
 
@@ -455,19 +455,20 @@ export {
 };
 
 // ============================================
-// SEZIONE: Sync FROM Supabase (download metadata-first)
+// SEZIONE: Sync FROM server (download metadata-first)
 // Scarica progetti, entries, prezzi, planimetrie e punti.
 // I blob pesanti restano lazy salvo richiesta esplicita.
 // Usato dall'auto-sync periodico e come base di phasedSyncFromSupabase.
 // ============================================
 
 /**
- * Sync data FROM Supabase TO local IndexedDB
+ * Sync data FROM homeserver TO local IndexedDB
  * This is the "pull" operation that complements the "push" in processSyncQueue
+ * Nome funzione legacy mantenuto per compatibilità con gli import esistenti.
  */
 export async function syncFromSupabase(): Promise<{ projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }> {
   if (!isHomeserverConfigured()) {
-    console.warn('⚠️  Sync from Supabase skipped: Supabase not configured');
+    console.warn('⚠️  Sync dal server saltata: homeserver non configurato');
     return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
   }
 
@@ -477,11 +478,11 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
     me = await apiFetchJson<{ id: string; email: string; role: string }>('/api/me');
   } catch (error) {
     if (error instanceof ApiResponseError) {
-      console.warn('⚠️  Sync from Supabase skipped: User not authenticated');
+      console.warn('⚠️  Sync dal server saltata: utente non autenticato');
       return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
     }
     if (error instanceof ApiNonJsonResponseError) {
-      console.warn('⚠️  Sync from Supabase skipped: /api/me returned non-JSON response; treating as user not authenticated');
+      console.warn('⚠️  Sync dal server saltata: /api/me ha restituito una risposta non JSON; utente trattato come non autenticato');
       return { projectsCount: 0, entriesCount: 0, photosCount: 0, photosFailedCount: 0, floorPlansCount: 0, floorPlanPointsCount: 0, salsCount: 0, standaloneMapsCount: 0 };
     }
     throw error;
@@ -489,7 +490,7 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
   const userId = me.id;
   const isAdmin = me.role === 'admin';
 
-  console.log('⬇️  Starting sync FROM Supabase...');
+  console.log('⬇️  Avvio sync dal server...');
 
   try {
     if (isAdmin) {
@@ -517,13 +518,13 @@ export async function syncFromSupabase(): Promise<{ projectsCount: number; entri
 
     await updateLastSyncTimestamp();
 
-    console.log(`✅ Sync from Supabase complete: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photo metadata${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs, ${standaloneMapsCount} mappe standalone`);
+    console.log(`✅ Sync dal server completata: ${projectsCount} projects, ${entriesCount} entries, ${photosCount} photo metadata${photosFailedCount > 0 ? ` (${photosFailedCount} failed)` : ''}, ${floorPlansCount} floor plans, ${floorPlanPointsCount} floor plan points, ${salsCount} SALs, ${standaloneMapsCount} mappe standalone`);
 
     await emitSyncComplete();
     return { projectsCount, entriesCount, photosCount, photosFailedCount, floorPlansCount, floorPlanPointsCount, salsCount, standaloneMapsCount };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('❌ Sync from Supabase failed:', errorMessage);
+    console.error('❌ Sync dal server fallita:', errorMessage);
     throw err;
   }
 }
@@ -572,7 +573,7 @@ export function stopAutoSync(): void {
 
 // ============================================
 // SEZIONE: Sync con lock (per uso da handler esterni)
-// Wrappa processSyncQueue + syncFromSupabase con il lock di sync.
+// Wrappa processSyncQueue + syncFromSupabase (nome legacy) con il lock di sync.
 // Usare al posto di chiamare direttamente processSyncQueue/syncFromSupabase
 // da event handler (online, service worker message, etc.)
 // ============================================
@@ -667,8 +668,9 @@ export async function manualSync(options?: {
 // ============================================
 
 /**
- * Phased sync from Supabase: data → floor plans → photos (optional)
+ * Phased sync from homeserver: data → floor plans → photos (optional)
  * Used by manualSync to allow user choice on photo download
+ * Nome funzione legacy mantenuto per compatibilità con gli import esistenti.
  */
 export async function phasedSyncFromSupabase(options?: {
   skipPhotos?: boolean;
@@ -753,13 +755,13 @@ export async function phasedSyncFromSupabase(options?: {
 
 // ============================================
 // SEZIONE: Clear and sync
-// Cancella la cache locale e reidrata i metadati da Supabase.
+// Cancella la cache locale e reidrata i metadati dal server.
 // Utile per risolvere discrepanze persistenti tra locale e remoto.
 // Preserva solo i dati di autenticazione (users, currentUser metadata).
 // ============================================
 
 /**
- * Reset local cache and rehydrate metadata from Supabase
+ * Reset local cache and rehydrate metadata from homeserver
  */
 export async function clearAndSync(): Promise<{
   downloadResult: { projectsCount: number; entriesCount: number; photosCount: number; photosFailedCount: number; floorPlansCount: number; floorPlanPointsCount: number; salsCount: number; standaloneMapsCount: number }
@@ -767,7 +769,7 @@ export async function clearAndSync(): Promise<{
   console.log('🗑️ Cache reset triggered - clearing local data...');
 
   if (!isHomeserverConfigured()) {
-    throw new Error('Supabase not configured. Cannot sync.');
+    throw new Error('Homeserver not configured. Cannot sync.');
   }
 
   // Check if user is authenticated
@@ -830,8 +832,8 @@ export async function clearAndSync(): Promise<{
 
     console.log('✅ Local data cleared successfully');
 
-    // Download a fresh full local cache from Supabase
-    console.log('⬇️ Downloading fresh full cache from Supabase...');
+    // Download a fresh full local cache dal server
+    console.log('⬇️ Download cache locale completa dal server...');
 
     const projectsCount = await downloadProjectsFromSupabase(userId, isAdmin);
     const entriesCount = await downloadMappingEntriesFromSupabase(userId, isAdmin);

@@ -53,18 +53,6 @@ app.use('/api/*', async (c, next) => {
   return requireUser(c, next);
 });
 
-app.use('/api/*', async (c, next) => {
-  if (!['POST', 'PATCH', 'DELETE'].includes(c.req.method)) return next();
-  if (c.req.path.startsWith('/api/auth/')) return next();
-
-  const sessionId = c.get('sessionId');
-  if (sessionId) {
-    logger.debug({ sessionId }, 'originator session placeholder');
-  }
-
-  return next();
-});
-
 app.route('/api', tables);
 app.route('/api', sseRoute);
 app.route('/api', changesRoute);

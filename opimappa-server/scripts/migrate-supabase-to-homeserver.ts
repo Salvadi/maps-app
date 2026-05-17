@@ -1,3 +1,4 @@
+// LEGACY: solo rollback/migrazione, non runtime
 /**
  * migrate-supabase-to-homeserver.ts
  *

@@ -1,4 +1,6 @@
 /**
+ * LEGACY shim di compatibilità tipi — non è un client runtime.
+ *
  * Legacy: client runtime rimosso dopo cutover homeserver.
  * Proxy throwing: qualsiasi accesso solleva eccezione esplicita per
  * evitare regressioni future ('supabase=null' silenzioso era un footgun).
@@ -25,7 +27,7 @@ export function isSupabaseConfigured(): boolean {
 
 /**
  * Database types for TypeScript support
- * These should match the Supabase schema
+ * Shape legacy compatibile con lo schema Supabase-era usato dai type-only import.
  */
 export interface Database {
   public: {

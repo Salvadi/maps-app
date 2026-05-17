@@ -279,7 +279,7 @@ const Home: React.FC<HomeProps> = ({
                   className={`sync-button ${isSyncing ? 'syncing' : ''}`}
                   onClick={handleSyncButtonClick}
                   aria-label="Sync"
-                  title={isSyncing ? "Sincronizzazione in corso..." : "Sync with Supabase"}
+                  title={isSyncing ? "Sincronizzazione in corso..." : "Sincronizza con il server"}
                 >
                   <SyncIcon className="sync-icon" />
                 </button>
@@ -349,7 +349,7 @@ const Home: React.FC<HomeProps> = ({
                 className={`sync-button ${isSyncing ? 'syncing' : ''}`}
                 onClick={handleSyncButtonClick}
                 aria-label="Sync"
-                title={isSyncing ? "Sincronizzazione in corso..." : "Sync with Supabase"}
+                title={isSyncing ? "Sincronizzazione in corso..." : "Sincronizza con il server"}
               >
                 <SyncIcon className="sync-icon" />
               </button>

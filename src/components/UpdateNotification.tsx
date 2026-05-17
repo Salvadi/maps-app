@@ -136,7 +136,7 @@ const UpdateNotification: React.FC<UpdateNotificationProps> = ({ registration })
           <p>
             {isUpdating
               ? 'Pulizia dati e ricaricamento app...'
-              : `Aggiornamento automatico tra ${countdown}s. I dati locali verranno riscaricati da Supabase.`}
+              : `Aggiornamento automatico tra ${countdown}s. I dati locali verranno riscaricati dal server.`}
           </p>
         </div>
         {!isUpdating && (

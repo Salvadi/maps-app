@@ -6,9 +6,10 @@
 // Fix M3: eviction chiama cleanup del tab rimosso per de-registrare subscriber
 
 import { Hono } from 'hono';
-import { sql } from '../db/client.js';
 import { subscribe, subscribeSystem, lastNotifiedSeq, type ChangeLogRow } from './listener.js';
 import type { Variables } from '../auth/middleware.js';
+import { sql } from '../db/client.js';
+import { canSee } from './visibility.js';
 
 const MAX_SSE_PER_SESSION = 5;
 
@@ -20,29 +21,10 @@ const subscriberCleanups = new Map<string, () => void>();
 
 const app = new Hono<{ Variables: Variables }>();
 
-/**
- * Verifica visibilità di una riga per l'utente dato.
- * - project_id NULL → visibile a tutti
- * - project_id non-null → owner OR collaboratore in accessible_users
- */
-async function canSee(userId: string, row: ChangeLogRow): Promise<boolean> {
-  if (row.project_id === null) return true;
-
-  const rows = await sql`
-    SELECT id FROM projects
-    WHERE id = ${row.project_id}
-      AND (
-        owner_id = ${userId}
-        OR (accessible_users)::jsonb ? ${userId}
-      )
-    LIMIT 1
-  `;
-  return rows.length > 0;
-}
-
 app.get('/events/stream', async (c) => {
   const sessionId = c.get('sessionId') as string;
-  const userId = (c.get('user') as { id: string }).id;
+  const user = c.get('user') as { id: string; role?: string | null };
+  const userId = user.id;
   const tabId = c.req.query('tabId') ?? crypto.randomUUID();
   const sinceSeqRaw = c.req.query('sinceSeq') ?? '0';
   const sinceSeq = BigInt(sinceSeqRaw);
@@ -110,7 +92,7 @@ app.get('/events/stream', async (c) => {
     for (const row of rows) {
       // Sopprimi eco: non inviare righe originate da questa sessione
       if (row.originator !== null && row.originator === sessionId) continue;
-      if (await canSee(userId, row)) {
+      if (await canSee(userId, user.role, row)) {
         send(`data: ${JSON.stringify({ ...row, seq: row.seq.toString() })}\n\n`);
       }
     }
@@ -136,7 +118,8 @@ app.get('/events/stream', async (c) => {
           user_id: ((raw as Record<string, unknown>)['user_id'] as string | null) ?? null,
           originator: ((raw as Record<string, unknown>)['originator'] as string | null) ?? null,
         };
-        if (await canSee(userId, row)) {
+        if (row.originator !== null && row.originator === sessionId) continue;
+        if (await canSee(userId, user.role, row)) {
           send(`data: ${JSON.stringify({ ...row, seq: row.seq.toString() })}\n\n`);
         }
       }

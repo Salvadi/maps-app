@@ -61,7 +61,7 @@ const originalError = console.error;
 beforeAll(() => {
   // Suppress expected warnings
   console.warn = (...args: any[]) => {
-    if (args[0]?.includes('Supabase credentials not found')) {
+    if (args[0]?.includes('Controllo sessione homeserver fallito')) {
       return;
     }
     originalWarn(...args);

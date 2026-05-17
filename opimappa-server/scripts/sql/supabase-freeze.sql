@@ -1,3 +1,4 @@
+-- LEGACY: solo rollback/migrazione, non runtime
 -- C9: Write-freeze completo Supabase durante cutover
 -- Eseguire via Supabase SQL Editor PRIMA di avviare reverse-delta-supabase.ts
 -- Verificare con scripts/test-freeze.ts dopo applicazione

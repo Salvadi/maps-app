@@ -96,8 +96,8 @@ async function clearOfflineFails(email: string): Promise<void> {
  * Initialize users table (no-op, kept for backward compatibility)
  */
 export async function initializeMockUsers(): Promise<void> {
-  // No-op: users are now only created via Supabase Auth and cached locally on first login.
-  // This function is kept to avoid breaking callers.
+  // No-op: gli utenti sono creati dal homeserver e cacheati localmente al primo login.
+  // Funzione mantenuta per compatibilità con i chiamanti legacy.
 }
 
 /**
@@ -148,8 +148,7 @@ export async function login(email: string, password: string): Promise<User | nul
 
     console.log('✅ User logged in (homeserver):', user.email);
 
-    // Sync dati locali
-    // TODO sprint7: sostituire con syncFromHomeserver() quando sync engine migrato
+    // Sync dati locali. Il nome syncFromSupabase resta legacy per compatibilità import.
     try {
       console.log('⬇️  Avvio sync iniziale...');
       const syncResult = await syncFromSupabase();
@@ -162,7 +161,7 @@ export async function login(email: string, password: string): Promise<User | nul
     return user;
   } catch (err) {
     console.error('❌ Login exception:', err);
-    // HTTP 401/403 = credenziali errate → null (stesso comportamento Supabase)
+    // HTTP 401/403 = credenziali errate -> null; errori di rete provano il fallback offline.
     // fetch throws = server irraggiungibile → prova login offline
     return loginOffline(email, password);
   }
@@ -346,9 +345,8 @@ export async function getAllUsers(): Promise<User[]> {
  * Crea un nuovo utente (admin only — non implementato in questo client)
  */
 export async function createUser(email: string, role: 'admin' | 'user'): Promise<User> {
-  // Note: This requires admin API access or using Supabase Admin SDK
-  // For now, users can only be created via sign up
-  throw new Error('User creation must be done via sign up or Supabase dashboard');
+  // Stub legacy: la creazione utenti passa dall'interfaccia admin del homeserver.
+  throw new Error('User creation must be done via homeserver admin tools');
 }
 
 /**

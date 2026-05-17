@@ -97,7 +97,7 @@ export function apiStorageFrom(bucket: string) {
         if (res.ok) {
           return { data: await res.blob(), error: null };
         }
-        return { data: null, error: new Error(`storage download failed: ${res.status}`) };
+        return { data: null, error: storageHttpError(`/api/storage/proxy/${bucket}/${cleanPath}`, res.status, 'storage download failed') };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
       }

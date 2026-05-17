@@ -53,7 +53,14 @@ export function addFilter(filter: FilterClause, build: WhereBuild): void {
 
   const col = quoteIdent(filter.col);
   if (filter.op === 'in') {
-    const parts = filter.value.split(',').map((part) => part.trim());
+    const rawList = filter.value.trim();
+    const normalizedList = rawList.startsWith('(') && rawList.endsWith(')')
+      ? rawList.slice(1, -1)
+      : rawList;
+    const parts = normalizedList.split(',').map((part) => part.trim());
+    if (parts.length === 0 || parts.some((part) => part === '')) {
+      httpError(400, 'in operator requires non-empty values');
+    }
     const placeholders = parts.map((part) => addParam(build.values, part)).join(', ');
     // Postgres non inferisce il tipo degli elementi per parametri text comparati a UUID/numerici.
     build.clauses.push(`${col} = ANY(ARRAY[${placeholders}]${sqlArrayTypeFor(filter.colType)})`);

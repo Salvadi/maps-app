@@ -17,12 +17,12 @@ describe('OPImaPPA App', () => {
     }, { timeout: 3000 });
   });
 
-  test('shows offline mode indicator when Supabase not configured', async () => {
+  test('shows offline mode indicator when homeserver is unavailable', async () => {
     render(<App />);
 
     // Wait for the app to initialize and show offline mode
     await waitFor(() => {
-      const offlineText = screen.getByText(/offline mode/i);
+      const offlineText = screen.getByText(/modalità offline/i);
       expect(offlineText).toBeInTheDocument();
     }, { timeout: 3000 });
   });

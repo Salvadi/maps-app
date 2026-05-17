@@ -1,5 +1,7 @@
 # Sistema di Aggiornamento Automatico
 
+Stato: documento storico aggiornato al runtime homeserver; i riferimenti Supabase rimasti sono solo contesto legacy.
+
 ## Panoramica
 
 L'applicazione è dotata di un sistema di aggiornamento automatico che rileva quando è disponibile una nuova versione e guida l'utente attraverso il processo di aggiornamento.
@@ -20,7 +22,7 @@ Quando viene rilevato un aggiornamento, appare un **banner di notifica** nella p
 ```
 🔄 Nuova versione disponibile!
 Clicca "Aggiorna" per caricare l'ultima versione.
-I dati locali verranno puliti e riscaricati da Supabase.
+I dati locali verranno puliti e riscaricati dal server.
 
 [Aggiorna Ora]  [Dopo]
 ```
@@ -46,7 +48,7 @@ Quando l'utente clicca su **"Aggiorna Ora"**, il sistema esegue automaticamente:
    - L'app viene ricaricata con la nuova versione
 
 5. **Riscaricamento Dati**
-   - Al login, i dati vengono riscaricati da Supabase
+   - Al login, i dati vengono riscaricati dal homeserver
    - Tutto è sincronizzato con la versione più recente
 
 ## Vantaggi
@@ -54,7 +56,7 @@ Quando l'utente clicca su **"Aggiorna Ora"**, il sistema esegue automaticamente:
 ✅ **Aggiornamenti Automatici**: Nessuna necessità di reinstallare l'app
 ✅ **Pulizia Dati**: Elimina dati corrotti o obsoleti
 ✅ **Seamless**: L'utente rimane autenticato durante l'aggiornamento
-✅ **Sicuro**: I dati vengono riscaricati da Supabase
+✅ **Sicuro**: I dati vengono riscaricati dal server tramite `clearAndSync`
 ✅ **Offline-First**: Funziona anche con connessione intermittente
 
 ## Per Sviluppatori
@@ -157,7 +159,7 @@ Se in futuro si vogliono preservare alcuni dati durante l'aggiornamento, modific
 
 ```typescript
 const keysToPreserve = [
-  'supabase.auth.token',      // Già preservato
+  'opimappa-preference',      // Esempio: preferenze locali da preservare
   'user-preferences',         // Aggiungi qui
   'app-settings'              // Altri dati da preservare
 ];
@@ -166,7 +168,7 @@ const keysToPreserve = [
 ## FAQ
 
 **Q: L'aggiornamento elimina i miei dati?**
-A: Sì, i dati locali vengono eliminati, ma vengono immediatamente riscaricati da Supabase al prossimo login.
+A: Sì, i dati locali vengono eliminati, ma vengono riscaricati dal homeserver tramite `clearAndSync`/sync iniziale al prossimo login.
 
 **Q: Devo fare logout durante l'aggiornamento?**
 A: No, il token di autenticazione viene preservato.
@@ -205,7 +207,7 @@ A: DevTools → Application → Service Workers → "Update" → Ricarica la pag
 
 ### I dati non vengono riscaricati
 
-1. Verifica la connessione a Supabase
+1. Verifica la connessione al homeserver
 2. Controlla che l'utente sia autenticato
 3. Verifica i log di sync nella console
 

@@ -6,28 +6,9 @@ import { Hono } from 'hono';
 import { sql } from '../db/client.js';
 import { lastNotifiedSeq, type ChangeLogRow } from './listener.js';
 import type { Variables } from '../auth/middleware.js';
+import { canSee } from './visibility.js';
 
 const app = new Hono<{ Variables: Variables }>();
-
-/**
- * Verifica visibilità riga per l'utente dato.
- * - project_id NULL → visibile a tutti
- * - project_id non-null → owner OR collaboratore in accessible_users
- */
-async function canSee(userId: string, row: ChangeLogRow): Promise<boolean> {
-  if (row.project_id === null) return true;
-
-  const rows = await sql`
-    SELECT id FROM projects
-    WHERE id = ${row.project_id}
-      AND (
-        owner_id = ${userId}
-        OR (accessible_users)::jsonb ? ${userId}
-      )
-    LIMIT 1
-  `;
-  return rows.length > 0;
-}
 
 // GET /api/changes?sinceSeq=<n>
 app.get('/changes', async (c) => {
@@ -40,7 +21,8 @@ app.get('/changes', async (c) => {
   }
 
   const sessionId = c.get('sessionId') as string;
-  const userId = (c.get('user') as { id: string }).id;
+  const user = c.get('user') as { id: string; role?: string | null };
+  const userId = user.id;
 
   // H2: cursor expired — controlla se sinceSeq è scaduto
   if (sinceSeq > 0n) {
@@ -87,7 +69,7 @@ app.get('/changes', async (c) => {
     // Soppressione echo: filtra righe con originator == sessionId corrente
     if (row.originator === sessionId) continue;
 
-    if (await canSee(userId, row)) {
+    if (await canSee(userId, user.role, row)) {
       filtered.push({ ...row, seq: row.seq.toString() });
     }
   }

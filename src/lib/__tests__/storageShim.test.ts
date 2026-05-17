@@ -211,6 +211,7 @@ describe('apiStorageFrom.download', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBeInstanceOf(Error);
     expect(result.error!.message).toContain('404');
+    expect((result.error as any).status).toBe(404);
   });
 });
 

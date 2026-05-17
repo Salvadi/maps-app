@@ -1,5 +1,7 @@
 # Supabase Setup
 
+Stato: LEGACY/Supabase-era. Documento mantenuto solo per rollback o ricostruzioni storiche, non per il runtime homeserver.
+
 Procedura per ricostruire il backend Supabase di OPImaPPA da zero, oppure riallineare un'istanza esistente allo schema corrente.
 
 ## 1. Progetto Supabase

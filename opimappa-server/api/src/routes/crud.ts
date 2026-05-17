@@ -9,6 +9,7 @@ export { addScope };
 import { sql } from '../db/client.js';
 
 type AppContext = Context<{ Variables: Variables }>;
+type SqlExecutor = Pick<typeof sql, 'unsafe'>;
 
 function isHttpError(error: unknown): error is { status: number; message: string } {
   return typeof error === 'object' && error !== null && 'status' in error && typeof (error as { status?: unknown }).status === 'number';
@@ -112,6 +113,15 @@ function handleError(c: AppContext, tableName: string, error: unknown) {
   return c.json({ error: 'internal server error' }, 500);
 }
 
+async function withOriginatorTransaction(c: AppContext, work: (tx: SqlExecutor) => Promise<unknown>): Promise<unknown> {
+  const sessionId = c.get('sessionId');
+  return sql.begin(async (tx) => {
+    // Equivalente transazionale di SET LOCAL, con valore parametrizzato.
+    await tx`SELECT set_config('opimappa.originator_session', ${sessionId}, true)`;
+    return work(tx);
+  });
+}
+
 export function createCrudHandler(tableName: string) {
   const table = TABLE_SCHEMA[tableName];
   if (!table) httpError(400, 'unknown table: ' + tableName);
@@ -145,7 +155,9 @@ export function createCrudHandler(tableName: string) {
         const cols = Object.keys(body);
         const values = Object.values(body);
         const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
-        const result = await sql.unsafe(`INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) RETURNING *`, values as unknown[] as any[]);
+        const result = await withOriginatorTransaction(c, (tx) =>
+          tx.unsafe(`INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) RETURNING *`, values as unknown[] as any[])
+        ) as unknown[];
         return c.json({ data: [result[0]], error: null }, 201);
       } catch (error) {
         return handleError(c, tableName, error);
@@ -168,10 +180,12 @@ export function createCrudHandler(tableName: string) {
         }
 
         const scoped = scopedWhere(tableName, urlParams, user.id, user.role ?? 'user');
-        const result = await sql.unsafe(
-          `UPDATE ${quoteIdent(tableName)} SET ${sets.join(', ')}${scoped.sqlText.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + values.length}`)} RETURNING *`,
-          [...values, ...scoped.values] as unknown[] as any[],
-        );
+        const result = await withOriginatorTransaction(c, (tx) =>
+          tx.unsafe(
+            `UPDATE ${quoteIdent(tableName)} SET ${sets.join(', ')}${scoped.sqlText.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + values.length}`)} RETURNING *`,
+            [...values, ...scoped.values] as unknown[] as any[],
+          )
+        ) as unknown[];
         return c.json({ data: result as unknown[], error: null });
       } catch (error) {
         return handleError(c, tableName, error);
@@ -188,7 +202,9 @@ export function createCrudHandler(tableName: string) {
           return c.json({ data: null, error: 'DELETE requires a selective id filter (id=eq.xxx or id=in.xxx,yyy)' }, 400);
         }
         const scoped = scopedWhere(tableName, urlParams, user.id, user.role ?? 'user');
-        await sql.unsafe(`DELETE FROM ${quoteIdent(tableName)}${scoped.sqlText} RETURNING *`, scoped.values as unknown[] as any[]);
+        await withOriginatorTransaction(c, (tx) =>
+          tx.unsafe(`DELETE FROM ${quoteIdent(tableName)}${scoped.sqlText} RETURNING *`, scoped.values as unknown[] as any[])
+        );
         return c.json({ data: null, error: null }, 200);
       } catch (error) {
         return handleError(c, tableName, error);
@@ -243,13 +259,15 @@ export function createCrudHandler(tableName: string) {
           .filter(col => col !== 'id' && col !== 'created_at' && col !== 'owner_id' && col !== 'user_id')
           .map(col => `${quoteIdent(col)} = EXCLUDED.${quoteIdent(col)}`)
           .join(', ');
-        const result = await sql.unsafe(
-          `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')})
-           VALUES (${placeholders})
-           ON CONFLICT (id) DO UPDATE SET ${updateSet}
-           RETURNING *`,
-          values as unknown[] as any[]
-        );
+        const result = await withOriginatorTransaction(c, (tx) =>
+          tx.unsafe(
+            `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')})
+             VALUES (${placeholders})
+             ON CONFLICT (id) DO UPDATE SET ${updateSet}
+             RETURNING *`,
+            values as unknown[] as any[]
+          )
+        ) as unknown[];
         return c.json({ data: [result[0]], error: null }, 200);
       } catch (error) {
         return handleError(c, tableName, error);

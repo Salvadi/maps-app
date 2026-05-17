@@ -173,7 +173,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           fontSize: '0.75rem',
           color: homeserverEnabled ? '#2E7D32' : '#E65100'
         }}>
-          {homeserverEnabled ? '🟢 Homeserver Connected' : '🔴 Offline Mode'}
+          {homeserverEnabled ? '🟢 Server connesso' : '🔴 Modalità offline'}
         </div>
 
         <h1 className="login-title">

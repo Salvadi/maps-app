@@ -1,5 +1,7 @@
 # Repo Map
 
+Stato: LEGACY/Supabase-era. Mappa storica da aggiornare prima di usarla come riferimento runtime homeserver.
+
 Initial map generated from the current workspace.
 
 ## Root

@@ -6,14 +6,14 @@ import { convertRemoteToLocalStructure } from '../db/structures';
 import { getPendingEntityIds } from '../db/onlineFirst';
 import { pruneProjectLocal } from '../db/projects';
 
-const SUPABASE_IN_BATCH_SIZE = 150;
+const REMOTE_IN_BATCH_SIZE = 150;
 // Numero massimo di righe restituite per singola chiamata API homeserver.
 // Il server impone limit=100 di default; sovrascriviamo esplicitamente per evitare
 // troncamenti silenziosi quando un batch contiene molti ID.
 const SYNC_FETCH_LIMIT = 1000;
 async function downloadStorageBlobFromPublicUrl(publicUrl: string): Promise<Blob | null> {
   const parsedUrl = new URL(publicUrl);
-  // Supporto per URL Supabase native (/storage/v1/object/public|sign/<bucket>/<path>)
+  // Supporto per URL storage legacy Supabase-era (/storage/v1/object/public|sign/<bucket>/<path>)
   // e per URL shim proxy (/api/storage/<bucket>/<path>)
   const match =
     parsedUrl.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/) ??
@@ -111,7 +111,7 @@ async function fetchRowsByIds(
   ids: string[]
 ): Promise<any[]> {
   const rows: any[] = [];
-  const batches = chunkArray(ids, SUPABASE_IN_BATCH_SIZE);
+  const batches = chunkArray(ids, REMOTE_IN_BATCH_SIZE);
 
   for (const batch of batches) {
     // homeserver parser: ?col=in.val1,val2 (comma-separated, no parentheses)
@@ -134,14 +134,29 @@ async function fetchRowsByIds(
   return rows;
 }
 
+async function fetchRowsPaged(path: string): Promise<any[]> {
+  const rows: any[] = [];
+  const separator = path.includes('?') ? '&' : '?';
+  let offset = 0;
+
+  while (true) {
+    const res = await apiFetch(`${path}${separator}limit=${SYNC_FETCH_LIMIT}&offset=${offset}`);
+    if (!res.ok) {
+      throw new Error(`Failed to download ${path}: ${res.statusText}`);
+    }
+    const { data } = await res.json() as { data: any[] };
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < SYNC_FETCH_LIMIT) break;
+    offset += SYNC_FETCH_LIMIT;
+  }
+
+  return rows;
+}
+
 async function getAccessibleProjectsFromRemote(_userId: string, _isAdmin: boolean): Promise<any[]> {
   // Scope enforced server-side — no client-side filter needed
-  const res = await apiFetch('/api/projects?limit=1000');
-  if (!res.ok) {
-    throw new Error(`Failed to download projects: ${res.statusText}`);
-  }
-  const { data } = await res.json() as { data: any[] };
-  return data ?? [];
+  return fetchRowsPaged('/api/projects');
 }
 
 async function getAccessibleLocalProjects(userId: string, isAdmin: boolean): Promise<Project[]> {
@@ -340,34 +355,24 @@ export async function downloadPhotosFromSupabase(
   const expectedPhotoIds = new Set<string>();
   const photoRows: any[] = [];
 
-  const mappingEntryIdBatches = chunkArray(mappingEntryIds, SUPABASE_IN_BATCH_SIZE);
+  const mappingEntryIdBatches = chunkArray(mappingEntryIds, REMOTE_IN_BATCH_SIZE);
   for (const batch of mappingEntryIdBatches) {
     const idsParam = batch.join(',');
-    // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
-    const res = await apiFetch(`/api/photos?mapping_entry_id=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
-    if (!res.ok) {
-      throw new Error(`Failed to download photos: ${res.statusText}`);
-    }
-    const { data } = await res.json() as { data: any[] };
-    for (const row of data || []) {
+    const data = await fetchRowsPaged(`/api/photos?mapping_entry_id=in.${idsParam}`);
+    for (const row of data) {
       expectedPhotoIds.add(row.id);
     }
-    photoRows.push(...(data || []));
+    photoRows.push(...data);
   }
 
-  const structureEntryIdBatches = chunkArray(structureEntryIds, SUPABASE_IN_BATCH_SIZE);
+  const structureEntryIdBatches = chunkArray(structureEntryIds, REMOTE_IN_BATCH_SIZE);
   for (const batch of structureEntryIdBatches) {
     const idsParam = batch.join(',');
-    // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
-    const res = await apiFetch(`/api/photos?structure_entry_id=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
-    if (!res.ok) {
-      throw new Error(`Failed to download photos: ${res.statusText}`);
-    }
-    const { data } = await res.json() as { data: any[] };
-    for (const row of data || []) {
+    const data = await fetchRowsPaged(`/api/photos?structure_entry_id=in.${idsParam}`);
+    for (const row of data) {
       expectedPhotoIds.add(row.id);
     }
-    photoRows.push(...(data || []));
+    photoRows.push(...data);
   }
 
   const localPhotoScopeEntryIds = [...mappingEntryIds, ...structureEntryIds];
@@ -377,7 +382,6 @@ export async function downloadPhotosFromSupabase(
   const locallyUnsyncedPhotoIds = new Set(
     localPhotos.filter((photo) => !photo.uploaded).map((photo) => photo.id)
   );
-  const localPhotoIdSet = new Set(localPhotos.map((photo) => photo.id));
   const staleLocalPhotoIds = localPhotos
     .map((photo) => photo.id)
     .filter((photoId) =>
@@ -390,16 +394,11 @@ export async function downloadPhotosFromSupabase(
     await db.photos.bulkDelete(staleLocalPhotoIds);
   }
 
-  const missingPhotoIds = Array.from(expectedPhotoIds).filter((photoId) => !localPhotoIdSet.has(photoId));
   const shouldFetchAllRows = options?.includeBlobs === true;
-
-  if (!shouldFetchAllRows && missingPhotoIds.length === 0) {
-    return { downloaded: 0, failed: 0 };
-  }
 
   if (!shouldFetchAllRows) {
     const fetchedById = new Map(photoRows.map((row) => [row.id, row]));
-    const photoIdBatches = chunkArray(missingPhotoIds, SUPABASE_IN_BATCH_SIZE);
+    const photoIdBatches = chunkArray(Array.from(expectedPhotoIds), REMOTE_IN_BATCH_SIZE);
     for (const batch of photoIdBatches) {
       const unresolvedIds = batch.filter((id) => !fetchedById.has(id));
       if (unresolvedIds.length === 0) {
@@ -407,17 +406,14 @@ export async function downloadPhotosFromSupabase(
       }
 
       const idsParam = unresolvedIds.join(',');
-      // Aggiungiamo limit esplicito per evitare il default server-side di 100 righe.
-      const res = await apiFetch(`/api/photos?id=in.${idsParam}&limit=${SYNC_FETCH_LIMIT}`);
-      if (!res.ok) throw new Error(`Failed to download photos: ${res.statusText}`);
-      const { data } = await res.json() as { data: any[] };
-      for (const row of data || []) {
+      const data = await fetchRowsPaged(`/api/photos?id=in.${idsParam}`);
+      for (const row of data) {
         fetchedById.set(row.id, row);
       }
     }
 
     photoRows.length = 0;
-    for (const photoId of missingPhotoIds) {
+    for (const photoId of Array.from(expectedPhotoIds)) {
       const row = fetchedById.get(photoId);
       if (row) {
         photoRows.push(row);
@@ -660,15 +656,11 @@ export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin
     return 0;
   }
 
-  console.log(`⬇️  Downloading standalone maps from Supabase for user ${userId}${isAdmin ? ' (admin)' : ''}...`);
+  console.log(`⬇️  Download mappe standalone dal server per utente ${userId}${isAdmin ? ' (admin)' : ''}...`);
 
   try {
-    // Scope enforced server-side — non-admin users only see their own maps via RLS
-    const smRes = await apiFetch('/api/standalone_maps?limit=1000');
-    if (!smRes.ok) {
-      throw new Error(`Failed to download standalone maps: ${smRes.statusText}`);
-    }
-    const { data: standaloneMaps } = await smRes.json() as { data: any[] };
+    // Scope enforced server-side: gli utenti non admin vedono solo le proprie mappe.
+    const standaloneMaps = await fetchRowsPaged('/api/standalone_maps');
 
     if (!standaloneMaps || standaloneMaps.length === 0) {
       console.log('✅ No standalone maps to download');
@@ -677,14 +669,14 @@ export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin
 
     let downloadedCount = 0;
 
-    for (const supabaseMap of standaloneMaps) {
+    for (const remoteMap of standaloneMaps) {
       try {
-        const existingMap = await db.standaloneMaps.get(supabaseMap.id);
-        const remoteUpdated = new Date(supabaseMap.updated_at).getTime();
+        const existingMap = await db.standaloneMaps.get(remoteMap.id);
+        const remoteUpdated = new Date(remoteMap.updated_at).getTime();
         const shouldKeepLocalData = !!existingMap && remoteUpdated <= existingMap.updatedAt;
-        const shouldHydrateMissingPdf = !!supabaseMap.pdf_url && !existingMap?.pdfBlobBase64;
-        const shouldHydrateMissingImage = !!supabaseMap.image_url && !existingMap?.imageBlob;
-        const shouldHydrateMissingThumbnail = !!supabaseMap.thumbnail_url && !existingMap?.thumbnailBlob;
+        const shouldHydrateMissingPdf = !!remoteMap.pdf_url && !existingMap?.pdfBlobBase64;
+        const shouldHydrateMissingImage = !!remoteMap.image_url && !existingMap?.imageBlob;
+        const shouldHydrateMissingThumbnail = !!remoteMap.thumbnail_url && !existingMap?.thumbnailBlob;
 
         if (
           existingMap &&
@@ -694,84 +686,84 @@ export async function downloadStandaloneMapsFromSupabase(userId: string, isAdmin
           !shouldHydrateMissingImage &&
           !shouldHydrateMissingThumbnail
         ) {
-          console.log(`⏭️  Standalone map ${supabaseMap.id} is up to date, skipping`);
+          console.log(`⏭️  Standalone map ${remoteMap.id} is up to date, skipping`);
           continue;
         }
 
         let imageBlob = existingMap?.imageBlob;
-        if (supabaseMap.image_url && (!imageBlob || remoteUpdated > (existingMap?.updatedAt || 0))) {
+        if (remoteMap.image_url && (!imageBlob || remoteUpdated > (existingMap?.updatedAt || 0))) {
           try {
-            imageBlob = (await downloadStorageBlobFromPublicUrl(supabaseMap.image_url)) || imageBlob;
+            imageBlob = (await downloadStorageBlobFromPublicUrl(remoteMap.image_url)) || imageBlob;
           } catch (imageErr) {
-            console.warn(`⚠️  Failed to download standalone image for ${supabaseMap.id}:`, imageErr);
+            console.warn(`⚠️  Failed to download standalone image for ${remoteMap.id}:`, imageErr);
           }
         }
 
         let thumbnailBlob = existingMap?.thumbnailBlob;
-        if (supabaseMap.thumbnail_url && (!thumbnailBlob || remoteUpdated > (existingMap?.updatedAt || 0))) {
+        if (remoteMap.thumbnail_url && (!thumbnailBlob || remoteUpdated > (existingMap?.updatedAt || 0))) {
           try {
-            thumbnailBlob = (await downloadStorageBlobFromPublicUrl(supabaseMap.thumbnail_url)) || thumbnailBlob;
+            thumbnailBlob = (await downloadStorageBlobFromPublicUrl(remoteMap.thumbnail_url)) || thumbnailBlob;
           } catch (thumbnailErr) {
-            console.warn(`⚠️  Failed to download standalone thumbnail for ${supabaseMap.id}:`, thumbnailErr);
+            console.warn(`⚠️  Failed to download standalone thumbnail for ${remoteMap.id}:`, thumbnailErr);
           }
         }
 
         let pdfBlobBase64 = existingMap?.pdfBlobBase64;
-        if (supabaseMap.pdf_url && (!pdfBlobBase64 || remoteUpdated > (existingMap?.updatedAt || 0))) {
+        if (remoteMap.pdf_url && (!pdfBlobBase64 || remoteUpdated > (existingMap?.updatedAt || 0))) {
           try {
-            pdfBlobBase64 = (await downloadStoragePdfBase64(supabaseMap.pdf_url)) || pdfBlobBase64;
+            pdfBlobBase64 = (await downloadStoragePdfBase64(remoteMap.pdf_url)) || pdfBlobBase64;
             if (pdfBlobBase64) {
-              console.log(`📄 Downloaded PDF originale for standalone map ${supabaseMap.id}`);
+              console.log(`📄 Downloaded PDF originale for standalone map ${remoteMap.id}`);
             }
           } catch (pdfErr) {
-            console.warn(`⚠️  Failed to download standalone PDF for ${supabaseMap.id}:`, pdfErr);
+            console.warn(`⚠️  Failed to download standalone PDF for ${remoteMap.id}:`, pdfErr);
           }
         }
 
         const resolvedImageBlob = imageBlob || existingMap?.imageBlob;
         if (!resolvedImageBlob) {
-          console.warn(`⚠️  Skipping standalone map ${supabaseMap.id}: image blob unavailable`);
+          console.warn(`⚠️  Skipping standalone map ${remoteMap.id}: image blob unavailable`);
           continue;
         }
 
         const baseMap = shouldKeepLocalData ? existingMap : undefined;
-        const remotePoints = normalizeStandaloneMapPoints(supabaseMap.points);
-        const remoteGridConfig = normalizeStandaloneMapGridConfig(supabaseMap.grid_config);
+        const remotePoints = normalizeStandaloneMapPoints(remoteMap.points);
+        const remoteGridConfig = normalizeStandaloneMapGridConfig(remoteMap.grid_config);
 
         const standaloneMap: StandaloneMap = {
-          id: supabaseMap.id,
-          userId: baseMap?.userId ?? supabaseMap.user_id,
-          name: baseMap?.name ?? supabaseMap.name,
-          description: baseMap?.description ?? supabaseMap.description ?? undefined,
+          id: remoteMap.id,
+          userId: baseMap?.userId ?? remoteMap.user_id,
+          name: baseMap?.name ?? remoteMap.name,
+          description: baseMap?.description ?? remoteMap.description ?? undefined,
           imageBlob: resolvedImageBlob,
           thumbnailBlob: thumbnailBlob || baseMap?.thumbnailBlob,
           pdfBlobBase64,
-          imageUrl: baseMap?.imageUrl ?? supabaseMap.image_url ?? undefined,
-          thumbnailUrl: baseMap?.thumbnailUrl ?? supabaseMap.thumbnail_url ?? undefined,
-          pdfUrl: baseMap?.pdfUrl ?? supabaseMap.pdf_url ?? undefined,
-          originalFilename: baseMap?.originalFilename ?? supabaseMap.original_filename,
-          originalFormat: baseMap?.originalFormat ?? supabaseMap.original_format ?? undefined,
-          width: baseMap?.width ?? supabaseMap.width,
-          height: baseMap?.height ?? supabaseMap.height,
+          imageUrl: baseMap?.imageUrl ?? remoteMap.image_url ?? undefined,
+          thumbnailUrl: baseMap?.thumbnailUrl ?? remoteMap.thumbnail_url ?? undefined,
+          pdfUrl: baseMap?.pdfUrl ?? remoteMap.pdf_url ?? undefined,
+          originalFilename: baseMap?.originalFilename ?? remoteMap.original_filename,
+          originalFormat: baseMap?.originalFormat ?? remoteMap.original_format ?? undefined,
+          width: baseMap?.width ?? remoteMap.width,
+          height: baseMap?.height ?? remoteMap.height,
           points: baseMap?.points ?? remotePoints,
-          gridEnabled: baseMap?.gridEnabled ?? !!supabaseMap.grid_enabled,
+          gridEnabled: baseMap?.gridEnabled ?? !!remoteMap.grid_enabled,
           gridConfig: baseMap?.gridConfig ?? remoteGridConfig,
-          metadata: baseMap?.metadata ?? supabaseMap.metadata ?? {},
-          createdAt: baseMap?.createdAt ?? new Date(supabaseMap.created_at).getTime(),
+          metadata: baseMap?.metadata ?? remoteMap.metadata ?? {},
+          createdAt: baseMap?.createdAt ?? new Date(remoteMap.created_at).getTime(),
           updatedAt: baseMap?.updatedAt ?? remoteUpdated,
           synced: baseMap?.synced ?? (1 as 0 | 1),
         };
 
         await db.standaloneMaps.put(standaloneMap);
         downloadedCount++;
-        console.log(`✅ Downloaded standalone map: ${supabaseMap.id}`);
+        console.log(`✅ Downloaded standalone map: ${remoteMap.id}`);
       } catch (mapErr) {
         const errorMessage = mapErr instanceof Error ? mapErr.message : String(mapErr);
-        console.error(`❌ Error downloading standalone map ${supabaseMap.id}:`, errorMessage);
+        console.error(`❌ Error downloading standalone map ${remoteMap.id}:`, errorMessage);
       }
     }
 
-    console.log(`✅ Downloaded ${downloadedCount} standalone maps from Supabase`);
+    console.log(`✅ Scaricate ${downloadedCount} mappe standalone dal server`);
     return downloadedCount;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

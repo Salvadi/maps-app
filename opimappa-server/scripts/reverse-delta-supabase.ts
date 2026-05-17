@@ -1,3 +1,4 @@
+// LEGACY: solo rollback/migrazione, non runtime
 // C8: Reverse-delta migration — copia dati locali → Supabase durante cutover
 // Usage: npx ts-node scripts/reverse-delta-supabase.ts <CUTOVER_ISO_TIMESTAMP>
 // Esempio: npx ts-node scripts/reverse-delta-supabase.ts 2026-06-01T10:00:00Z

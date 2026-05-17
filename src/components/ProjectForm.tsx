@@ -100,11 +100,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           console.log(`✅ Loaded ${users.length} users for sharing`);
 
           if (users.length === 0) {
-            console.warn('⚠️  No users loaded! Check:');
-            console.warn('   1. Supabase RLS policies allow admin to view profiles');
-            console.warn('   2. Admin user has role="admin" in profiles table');
-            console.warn('   3. There are other users in the profiles table');
-            console.warn('   See browser console for detailed error messages');
+            console.warn('⚠️  Nessun utente caricato. Controlla:');
+            console.warn('   1. La sessione admin sia valida sul homeserver');
+            console.warn('   2. L’utente corrente abbia ruolo "admin"');
+            console.warn('   3. Esistano altri utenti registrati sul server');
+            console.warn('   Vedi la console del browser per dettagli sugli errori');
           }
         } catch (err) {
           console.error('❌ Failed to load users:', err);
