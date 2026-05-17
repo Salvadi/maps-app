@@ -26,6 +26,8 @@ CLAUDE.md
 # local tooling state
 .serena/
 .claude/worktrees/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 supabase/.temp/
 nul
 __pycache__/
