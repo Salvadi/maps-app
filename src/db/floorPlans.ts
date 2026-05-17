@@ -48,10 +48,13 @@ function convertRemoteToLocalFloorPlan(remote: any): FloorPlan {
     floor: remote.floor,
     imageBlob: undefined,
     thumbnailBlob: undefined,
-    imageUrl: remote.image_url || synthUrl(remote.image_storage_path),
-    thumbnailUrl: remote.thumbnail_url || synthUrl(remote.thumbnail_storage_path),
+    // Preferisci sempre il proxy same-origin dal *_storage_path canonico:
+    // i *_url legacy contengono path Supabase-era bare non instradabili post-cutover.
+    // Fallback al *_url legacy solo se manca lo storage_path.
+    imageUrl: synthUrl(remote.image_storage_path) || remote.image_url,
+    thumbnailUrl: synthUrl(remote.thumbnail_storage_path) || remote.thumbnail_url,
     pdfBlobBase64: undefined,
-    pdfUrl: remote.pdf_url || synthUrl(remote.pdf_storage_path),
+    pdfUrl: synthUrl(remote.pdf_storage_path) || remote.pdf_url,
     originalFilename: remote.original_filename || '',
     originalFormat: remote.original_format || 'image',
     width: remote.width || 0,
