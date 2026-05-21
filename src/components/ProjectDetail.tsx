@@ -404,6 +404,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     project,
     mappings,
     mappingPhotos,
+    structures,
+    structurePhotos,
     users,
     floorPlans,
     floorPlanPoints,
@@ -461,7 +463,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
           </div>
           <button
             onClick={handleExportZip}
-            disabled={isExporting || mappings.length === 0}
+            disabled={isExporting || (mappings.length === 0 && structures.length === 0)}
             title="Esporta ZIP (foto + Excel + planimetrie)"
             className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-500 hover:bg-brand-50 disabled:opacity-40"
           >
