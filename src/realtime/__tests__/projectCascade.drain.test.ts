@@ -38,7 +38,7 @@ function makeMappingEntry(id: string, projectId: string) {
     id,
     projectId,
     floor: '0',
-    photos: [],
+    photoIds: [],
     crossings: [],
     timestamp: 1000,
     createdBy: 'user-1',

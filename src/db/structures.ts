@@ -1,4 +1,4 @@
-import { db, generateId, now, StructureEntry, Photo, PhotoMetadata, SyncQueueItem } from './database';
+import { db, generateId, now, StructureEntry, Photo, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import type { Database } from '../lib/supabase';
 import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
@@ -140,7 +140,7 @@ export function convertRemoteToLocalStructure(remote: any): StructureEntry {
     floor: remote.floor,
     room: remote.room || undefined,
     intervention: remote.intervention || undefined,
-    photos: remote.photos || [],
+    photoIds: Array.isArray(remote.photos) ? remote.photos.map((p: any) => p.id) : [],
     structures: remote.structures || [],
     toComplete: remote.to_complete || false,
     timestamp: typeof remote.timestamp === 'number' ? remote.timestamp : new Date(remote.timestamp).getTime(),
@@ -153,7 +153,7 @@ export function convertRemoteToLocalStructure(remote: any): StructureEntry {
 }
 
 export async function createStructureEntry(
-  entryData: Omit<StructureEntry, 'id' | 'timestamp' | 'lastModified' | 'version' | 'synced' | 'photos' | 'modifiedBy'>,
+  entryData: Omit<StructureEntry, 'id' | 'timestamp' | 'lastModified' | 'version' | 'synced' | 'photoIds' | 'modifiedBy'>,
   photoBlobs: Blob[]
 ): Promise<StructureEntry> {
   const entry: StructureEntry = {
@@ -164,11 +164,11 @@ export async function createStructureEntry(
     modifiedBy: entryData.createdBy,
     version: 1,
     synced: 0,
-    photos: [],
+    photoIds: [],
   };
 
   try {
-    const photoMetadata: PhotoMetadata[] = [];
+    const photoIds: string[] = [];
     for (const blob of photoBlobs) {
       const photoId = generateId();
       const photo: Photo = {
@@ -188,16 +188,10 @@ export async function createStructureEntry(
 
       await db.photos.add(photo);
 
-      photoMetadata.push({
-        id: photoId,
-        localBlobId: photoId,
-        timestamp: now(),
-        size: blob.size,
-        compressed: false,
-      });
+      photoIds.push(photoId);
     }
 
-    entry.photos = photoMetadata;
+    entry.photoIds = photoIds;
     await db.structureEntries.add(entry);
 
     const syncItem: SyncQueueItem = {
@@ -573,7 +567,7 @@ export async function addPhotosToStructure(
     throw new Error(`Structure entry not found: ${structureEntryId}`);
   }
 
-  const newPhotoMetadata: PhotoMetadata[] = [];
+  const newPhotoIds: string[] = [];
   for (const blob of photoBlobs) {
     const photoId = generateId();
     const photo: Photo = {
@@ -593,17 +587,11 @@ export async function addPhotosToStructure(
 
     await db.photos.add(photo);
 
-    newPhotoMetadata.push({
-      id: photoId,
-      localBlobId: photoId,
-      timestamp: now(),
-      size: blob.size,
-      compressed: false,
-    });
+    newPhotoIds.push(photoId);
   }
 
-  const updatedPhotos = [...entry.photos, ...newPhotoMetadata];
-  return updateStructureEntry(structureEntryId, { photos: updatedPhotos }, userId);
+  const updatedPhotoIds = [...(entry.photoIds || []), ...newPhotoIds];
+  return updateStructureEntry(structureEntryId, { photoIds: updatedPhotoIds }, userId);
 }
 
 export async function removePhotoFromStructure(
@@ -639,8 +627,8 @@ export async function removePhotoFromStructure(
     triggerImmediateUpload();
   }
 
-  const updatedPhotos = entry.photos.filter((pm) => pm.id !== photoId);
-  return updateStructureEntry(structureEntryId, { photos: updatedPhotos }, userId);
+  const updatedPhotoIds = (entry.photoIds || []).filter((id) => id !== photoId);
+  return updateStructureEntry(structureEntryId, { photoIds: updatedPhotoIds }, userId);
 }
 
 export async function getStructureCountForProject(projectId: string): Promise<number> {

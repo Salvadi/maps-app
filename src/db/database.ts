@@ -92,7 +92,7 @@ export interface StructureEntry {
   floor: string;
   room?: string;
   intervention?: string;
-  photos: PhotoMetadata[];
+  photoIds: string[]; // v14: solo riferimenti alla tabella `photos` (fonte di verità)
   structures: Structure[];
   toComplete?: boolean;
   timestamp: number;
@@ -110,7 +110,7 @@ export interface MappingEntry {
   floor: string;
   room?: string;
   intervention?: string;
-  photos: PhotoMetadata[];
+  photoIds: string[]; // v14: solo riferimenti alla tabella `photos` (fonte di verità)
   crossings: Crossing[];
   toComplete?: boolean; // Flag to mark if intervention is still to be completed
   timestamp: number;
@@ -644,6 +644,40 @@ export class MappingDatabase extends Dexie {
       authCache: 'id, email',
       // REALTIME STATE: sopravvive ai sync reset come authCache e metadata
       realtimeState: 'key'
+    });
+
+    // Define schema v14 - B10: photos[] embedded → photoIds[] (solo riferimenti).
+    // Gli indici sono identici a v13 (photos/photoIds non sono indicizzati);
+    // l'upgrade converte il campo e rimuove il duplicato. Le righe della tabella
+    // `photos` (fonte di verità) restano intatte.
+    this.version(14).stores({
+      projects: 'id, ownerId, *accessibleUsers, synced, updatedAt, archived, syncEnabled',
+      mappingEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      photos: 'id, mappingEntryId, uploaded',
+      syncQueue: 'id, synced, timestamp, entityType, entityId',
+      users: 'id, email, role',
+      metadata: 'key',
+      projectCachePrefs: 'projectId, offlinePinned, updatedAt',
+      conflictHistory: 'id, timestamp, entityType, entityId, userNotified',
+      floorPlans: 'id, projectId, floor, createdBy, synced, [projectId+floor]',
+      floorPlanPoints: 'id, floorPlanId, mappingEntryId, pointType, synced',
+      standaloneMaps: 'id, userId, name, synced',
+      dropdownOptionsCache: 'id, category, sortOrder',
+      productsCache: 'id, brand, sortOrder',
+      typologyPrices: 'id, projectId, attraversamento, tipologicoId, [projectId+attraversamento], [projectId+attraversamento+tipologicoId]',
+      sals: 'id, projectId, number, createdAt',
+      structureEntries: 'id, projectId, floor, createdBy, synced, timestamp',
+      authCache: 'id, email',
+      realtimeState: 'key'
+    }).upgrade(async (tx) => {
+      await tx.table('mappingEntries').toCollection().modify((e: any) => {
+        e.photoIds = Array.isArray(e.photos) ? e.photos.map((p: any) => p.id) : (e.photoIds ?? []);
+        delete e.photos;
+      });
+      await tx.table('structureEntries').toCollection().modify((e: any) => {
+        e.photoIds = Array.isArray(e.photos) ? e.photos.map((p: any) => p.id) : (e.photoIds ?? []);
+        delete e.photos;
+      });
     });
   }
 }

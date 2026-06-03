@@ -1932,9 +1932,11 @@ const newCrossing: Crossing = {
 
 ---
 
-### 17.10 MEDIA — Photo metadata duplicato (B10) — ✅ FATTO via alternativa pragmatica (sprint6, 2026-06-03)
+### 17.10 MEDIA — Photo metadata duplicato (B10) — ✅ FATTO (alternativa pragmatica sprint6 + migration v14, 2026-06-03)
 
-> Scelta l'**alternativa pragmatica** (no migration v14): nuovo `buildPhotoMetadataFromTable(entryId)` in `mappings.ts` ricostruisce l'array `photos` embedded dalla tabella `photos` (fonte di verità). Entrambi i payload di upload (mapping + structure) lo usano invece di `entry.photos` → drift eliminato all'upload. Lo schema `photos: PhotoMetadata[]` resta intatto; la migration `photoIds` v14 resta opzionale per uno Sprint dedicato.
+> **Migration v14 completata (2026-06-03)**: `MappingEntry.photos`/`StructureEntry.photos` (array di `PhotoMetadata` embedded) sostituiti con `photoIds: string[]` (soli riferimenti). Nuovo blocco Dexie `version(14)` con `.upgrade()` che mappa `photos.map(p=>p.id)` e `delete e.photos` (righe tabella `photos` intatte). Aggiornati create/add/remove in `mappings.ts`/`structures.ts`, `convertRemoteToLocalMapping/Structure` (estraggono id da `remote.photos`), `mergeMappingEntries` (dedup su `photoIds`). **Contratto server invariato**: upload continua a mandare `photos` JSONB via `buildPhotoMetadataFromTable`; download fa upsert nelle righe `photos`. UI non toccata (legge via `getPhotosForMapping`). Test: `db/__tests__/photoIds.v14.test.ts`.
+>
+> _Prima_ era stata applicata l'**alternativa pragmatica** (sprint6): `buildPhotoMetadataFromTable(entryId)` ricostruisce l'array all'upload dalla tabella `photos` (fonte di verità) → drift eliminato all'upload. v14 chiude definitivamente eliminando la duplicazione locale.
 
 **Dove**: `MappingEntry.photos[]` (array embedded) vs tabella `photos` separata.
 

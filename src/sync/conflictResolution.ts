@@ -205,7 +205,7 @@ export function convertRemoteToLocalMapping(remote: any): MappingEntry {
     version: remote.version,
     createdBy: remote.created_by,
     modifiedBy: remote.modified_by,
-    photos: remote.photos || [],
+    photoIds: Array.isArray(remote.photos) ? remote.photos.map((p: any) => p.id) : [],
     synced: 1
   };
 }
@@ -245,10 +245,9 @@ function mergeMappingEntries(local: MappingEntry, remote: any): MappingEntry {
   // Start with the newer version as base
   const base = local.lastModified > remote.last_modified ? local : convertRemoteToLocalMapping(remote);
 
-  // Merge photos arrays (combine unique photos)
-  const localPhotoIds = new Set(local.photos.map(p => p.id));
-  const remotePhotos = (remote.photos || []).filter((p: any) => !localPhotoIds.has(p.id));
-  const mergedPhotos = [...local.photos, ...remotePhotos];
+  // Merge photoIds (combine unique references; le righe foto reali vivono in db.photos)
+  const remotePhotoIds = Array.isArray(remote.photos) ? remote.photos.map((p: any) => p.id) : [];
+  const mergedPhotoIds = Array.from(new Set([...(local.photoIds || []), ...remotePhotoIds]));
 
   // Merge crossings with improved comparison (all significant fields)
   const mergedCrossings = [...local.crossings];
@@ -286,7 +285,7 @@ function mergeMappingEntries(local: MappingEntry, remote: any): MappingEntry {
 
   return {
     ...base,
-    photos: mergedPhotos,
+    photoIds: mergedPhotoIds,
     crossings: mergedCrossings,
     version: Math.max(local.version, remote.version) + 1, // Increment version
     lastModified: Date.now(), // Update to current time

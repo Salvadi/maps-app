@@ -224,7 +224,7 @@ async function signPhotoPaths(rows: RemotePhotoRow[]): Promise<{
 }
 
 export async function createMappingEntry(
-  mappingData: Omit<MappingEntry, 'id' | 'timestamp' | 'lastModified' | 'version' | 'synced' | 'photos' | 'modifiedBy'>,
+  mappingData: Omit<MappingEntry, 'id' | 'timestamp' | 'lastModified' | 'version' | 'synced' | 'photoIds' | 'modifiedBy'>,
   photoBlobs: Blob[]
 ): Promise<MappingEntry> {
   const entry: MappingEntry = {
@@ -235,11 +235,11 @@ export async function createMappingEntry(
     modifiedBy: mappingData.createdBy,
     version: 1,
     synced: 0,
-    photos: [],
+    photoIds: [],
   };
 
   try {
-    const photoMetadata = [];
+    const photoIds: string[] = [];
     for (const blob of photoBlobs) {
       const photoId = generateId();
       const photo: Photo = {
@@ -258,16 +258,10 @@ export async function createMappingEntry(
 
       await db.photos.add(photo);
 
-      photoMetadata.push({
-        id: photoId,
-        localBlobId: photoId,
-        timestamp: now(),
-        size: blob.size,
-        compressed: false,
-      });
+      photoIds.push(photoId);
     }
 
-    entry.photos = photoMetadata;
+    entry.photoIds = photoIds;
     await db.mappingEntries.add(entry);
 
     const syncItem: SyncQueueItem = {
@@ -692,7 +686,7 @@ export async function addPhotosToMapping(
     throw new Error(`Mapping entry not found: ${mappingEntryId}`);
   }
 
-  const newPhotoMetadata = [];
+  const newPhotoIds: string[] = [];
   for (const blob of photoBlobs) {
     const photoId = generateId();
     const photo: Photo = {
@@ -711,17 +705,11 @@ export async function addPhotosToMapping(
 
     await db.photos.add(photo);
 
-    newPhotoMetadata.push({
-      id: photoId,
-      localBlobId: photoId,
-      timestamp: now(),
-      size: blob.size,
-      compressed: false,
-    });
+    newPhotoIds.push(photoId);
   }
 
-  const updatedPhotos = [...entry.photos, ...newPhotoMetadata];
-  return updateMappingEntry(mappingEntryId, { photos: updatedPhotos }, userId);
+  const updatedPhotoIds = [...(entry.photoIds || []), ...newPhotoIds];
+  return updateMappingEntry(mappingEntryId, { photoIds: updatedPhotoIds }, userId);
 }
 
 export async function removePhotoFromMapping(
@@ -757,8 +745,8 @@ export async function removePhotoFromMapping(
     triggerImmediateUpload();
   }
 
-  const updatedPhotos = entry.photos.filter((photoMeta) => photoMeta.id !== photoId);
-  return updateMappingEntry(mappingEntryId, { photos: updatedPhotos }, userId);
+  const updatedPhotoIds = (entry.photoIds || []).filter((id) => id !== photoId);
+  return updateMappingEntry(mappingEntryId, { photoIds: updatedPhotoIds }, userId);
 }
 
 export async function getUnsyncedMappings(): Promise<MappingEntry[]> {
@@ -822,7 +810,7 @@ export async function getPhotoCountForProject(projectId: string): Promise<number
     .where('projectId')
     .equals(projectId)
     .each((entry) => {
-      total += entry.photos?.length ?? 0;
+      total += entry.photoIds?.length ?? 0;
     });
   return total;
 }
