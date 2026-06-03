@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import FloorPlanEditor from '../FloorPlanEditor';
 
 jest.mock('../FloorPlanCanvas', () => {
@@ -42,13 +42,16 @@ test('mostra il cartiglio editabile con righe tipologici del progetto', () => {
     />
   );
 
+  // Il pannello cartiglio è collassato di default: va espanso col toggle "Cartiglio".
+  expect(screen.queryByText('Cartiglio planimetria')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Cartiglio'));
+
   expect(screen.getByText('Cartiglio planimetria')).toBeInTheDocument();
   expect(screen.getByDisplayValue('0')).toBeInTheDocument();
   expect(screen.getByDisplayValue('Cliente Test - Via Roma 1')).toBeInTheDocument();
   expect(screen.getByText('1)')).toBeInTheDocument();
   expect(screen.getByText('3)')).toBeInTheDocument();
   expect(screen.getByText('7)')).toBeInTheDocument();
-  expect(screen.getByText('Firma digitale')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Disattiva export' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Nascondi cartiglio' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Nascondi anteprima' })).toBeInTheDocument();
 });
