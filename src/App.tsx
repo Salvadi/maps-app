@@ -253,6 +253,9 @@ const App: React.FC = () => {
       eventStream.unsubscribe(handleStaleView);
       eventStream.stop();
     };
+    // activeTab è letto solo in replaceState dentro handleStaleView: includerlo
+    // nei deps riconnetterebbe l'SSE a ogni cambio tab. Voluto fuori.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, currentUser]);
 
   // Service Worker message handler
