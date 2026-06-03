@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { validateFileSignature } from '../utils/validation';
 import {
-  Project, Crossing, User, MappingEntry, calcAsolaMq,
+  Project, Crossing, User, MappingEntry, calcAsolaMq, generateId,
   createMappingEntry, getMappingEntriesForProject, getStructureEntriesForProject,
   updateMappingEntry, deleteMappingEntry, getPhotosForMapping, ensurePhotoBlob,
   addPhotosToMapping, removePhotoFromMapping,
@@ -96,7 +96,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const [crossings, setCrossings] = useState<Crossing[]>(
     editingEntry && editingEntry.crossings.length > 0
       ? editingEntry.crossings
-      : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
+      : [{ id: generateId(), supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
   );
 
   // Photos
@@ -255,7 +255,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   const handleAddCrossing = () => {
     const last = crossings[crossings.length - 1];
     setCrossings([...crossings, {
-      id: `${Date.now()}-${crossings.length}`,
+      id: generateId(),
       supporto: last?.supporto || '', tipoSupporto: last?.tipoSupporto || '',
       attraversamento: '', tipologicoId: undefined, quantita: undefined,
       diametro: undefined, dimensioni: undefined, notes: ''
@@ -308,8 +308,8 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     setRoomNumber(last.room || '');
     setCrossings(
       last.crossings.length > 0
-        ? last.crossings.map((c, ci) => ({ ...c, id: `${Date.now()}-${ci}` }))
-        : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
+        ? last.crossings.map((c) => ({ ...c, id: generateId() }))
+        : [{ id: generateId(), supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
     );
     if (project.useInterventionNumbering) {
       const max = entries.reduce((m, e) => { const n = parseInt(e.intervention || '0'); return !isNaN(n) && n > m ? n : m; }, 0);
@@ -441,7 +441,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           room: project.useRoomNumbering ? roomNumber : undefined,
           intervention: project.useInterventionNumbering ? interventionNumber : undefined,
           toComplete: compressedBlobs.length === 0 || toComplete,
-          crossings: crossings.map((s, i) => ({ ...s, id: `${Date.now()}-${i}` })),
+          crossings: crossings.map((s) => ({ ...s, id: generateId() })),
           createdBy: currentUser.id,
         }, compressedBlobs);
 

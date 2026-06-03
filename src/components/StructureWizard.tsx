@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { validateFileSignature } from '../utils/validation';
 import {
-  Project, Structure, User, StructureEntry,
+  Project, Structure, User, StructureEntry, generateId,
   createStructureEntry, getMappingEntriesForProject,
   updateStructureEntry, deleteStructureEntry, getPhotosForStructure, ensurePhotoBlob,
   addPhotosToStructure, removePhotoFromStructure,
@@ -78,7 +78,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
   const [structures, setStructures] = useState<Structure[]>(
     editingEntry && editingEntry.structures.length > 0
       ? editingEntry.structures
-      : [{ id: `${Date.now()}-0`, struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }]
+      : [{ id: generateId(), struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }]
   );
 
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -189,7 +189,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
   const addStructure = () => {
     setStructures(prev => [
       ...prev,
-      { id: `${Date.now()}-${prev.length}`, struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }
+      { id: generateId(), struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }
     ]);
   };
 

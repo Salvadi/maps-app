@@ -4,6 +4,29 @@ function storageHttpError(path: string, status: number, label: string): ApiRespo
   return new ApiResponseError(status, path, `${label} ${status}`);
 }
 
+// B4: esegue `fn` su tutti gli item con concorrenza limitata, preservando l'ordine.
+// Evita N fetch concorrenti (es. una entry con 200 foto) che saturano il pool di
+// connessioni e rischiano throttle Cloudflare/Caddy.
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < items.length) {
+      const idx = cursor++;
+      results[idx] = await fn(items[idx]);
+    }
+  };
+  const pool = Array.from({ length: Math.min(concurrency, items.length) }, worker);
+  await Promise.all(pool);
+  return results;
+}
+
+const SIGN_CONCURRENCY = 10;
+
 function resolveBucketAndKey(defaultBucket: string, path: string): { bucket: string; key: string } {
   const cleanPath = path.replace(/^\/+/, '');
   const slashIdx = cleanPath.indexOf('/');
@@ -48,27 +71,25 @@ export function apiStorageFrom(bucket: string) {
       ttlSec: number,
     ): Promise<{ data: Array<{ path: string; signedUrl: string; error: string | null }> | null; error: Error | null }> {
       try {
-        const results = await Promise.all(
-          paths.map(async (path) => {
-            try {
-              const res = await fetch('/api/storage/sign-one', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bucket, path, ttl: ttlSec }),
-              });
-              if (!res.ok) return { path, signedUrl: '', error: `sign-one ${res.status}`, status: res.status };
-              const { signedUrl } = await res.json();
-              if (!signedUrl) {
-                return { path, signedUrl: '', error: 'sign-one: missing signedUrl in response' };
-              }
-              return { path, signedUrl, error: null };
-            } catch (e) {
-              const error = e instanceof Error ? e : new Error(String(e));
-              return { path, signedUrl: '', error: error.message, status: 'status' in error && typeof error.status === 'number' ? error.status : undefined };
+        const results = await mapWithConcurrency(paths, SIGN_CONCURRENCY, async (path) => {
+          try {
+            const res = await fetch('/api/storage/sign-one', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ bucket, path, ttl: ttlSec }),
+            });
+            if (!res.ok) return { path, signedUrl: '', error: `sign-one ${res.status}`, status: res.status };
+            const { signedUrl } = await res.json();
+            if (!signedUrl) {
+              return { path, signedUrl: '', error: 'sign-one: missing signedUrl in response' };
             }
-          }),
-        );
+            return { path, signedUrl, error: null };
+          } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
+            return { path, signedUrl: '', error: error.message, status: 'status' in error && typeof error.status === 'number' ? error.status : undefined };
+          }
+        });
         const allFailed = results.every(r => r.error !== null);
         if (allFailed && paths.length > 0) {
           const first = results[0];

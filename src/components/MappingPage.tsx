@@ -9,6 +9,7 @@ import {
   Crossing,
   User,
   MappingEntry,
+  generateId,
   createMappingEntry,
   getMappingEntriesForProject,
   updateMappingEntry,
@@ -103,7 +104,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
   const [sigillature, setSigillature] = useState<Crossing[]>(
     editingEntry && editingEntry.crossings.length > 0
       ? editingEntry.crossings
-      : [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
+      : [{ id: generateId(), supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -592,7 +593,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
     setSigillature([
       ...sigillature,
       {
-        id: `${Date.now()}-${sigillature.length}`,
+        id: generateId(),
         supporto: lastSig?.supporto || '',
         tipoSupporto: lastSig?.tipoSupporto || '',
         attraversamento: '',
@@ -645,7 +646,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
       // Copy all fields except intervention number (which should be progressive)
       setFloor(lastEntry.floor || floor);
       setRoomNumber(lastEntry.room || '');
-      setSigillature(lastEntry.crossings || [{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
+      setSigillature(lastEntry.crossings || [{ id: generateId(), supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
 
       // Calculate next intervention number
       if (project.useInterventionNumbering) {
@@ -777,9 +778,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
             room: project.useRoomNumbering ? roomNumber : undefined,
             intervention: project.useInterventionNumbering ? interventionNumber : undefined,
             toComplete: shouldMarkToComplete || toComplete,
-            crossings: sigillature.map((s, index) => ({
+            crossings: sigillature.map((s) => ({
               ...s,
-              id: `${Date.now()}-${index}`,
+              id: generateId(),
             })),
             createdBy: currentUser.id,
           },
@@ -791,9 +792,9 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           floor,
           room: project.useRoomNumbering ? roomNumber : undefined,
           intervention: project.useInterventionNumbering ? interventionNumber : undefined,
-          crossings: sigillature.map((s, index) => ({
+          crossings: sigillature.map((s) => ({
             ...s,
-            id: `${Date.now()}-${index}`,
+            id: generateId(),
           })),
         };
         localStorage.setItem('lastMappingEntry', JSON.stringify(lastEntryData));
@@ -811,7 +812,7 @@ const MappingPage: React.FC<MappingPageProps> = ({ project, currentUser, onBack,
           const nextNum = parseInt(interventionNumber) + 1;
           setInterventionNumber(nextNum.toString());
         }
-        setSigillature([{ id: `${Date.now()}-0`, supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
+        setSigillature([{ id: generateId(), supporto: '', tipoSupporto: '', attraversamento: '', tipologicoId: undefined, quantita: undefined, diametro: undefined, dimensioni: undefined, notes: '' }]);
 
         // Reset file inputs
         if (fileInputRef.current) fileInputRef.current.value = '';

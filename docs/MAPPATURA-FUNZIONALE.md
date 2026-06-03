@@ -1644,7 +1644,10 @@ app.route('/api', mutating);
 
 ---
 
-### 17.4 ALTA — `createSignedUrls` senza chunking (B4)
+### 17.4 ALTA — `createSignedUrls` senza chunking (B4) — ✅ FATTO (sprint6, 2026-06-03)
+
+> Scelto il **fix lato client** (più piccolo e autocontenuto, niente nuovo endpoint server): helper `mapWithConcurrency` in `src/lib/storageShim.ts` esegue le chiamate `sign-one` con pool a concorrenza 10 (`SIGN_CONCURRENCY`), preservando l'ordine dei risultati. L'endpoint batch `sign-many` resta come ottimizzazione futura opzionale.
+
 
 **Dove**: `src/lib/storageShim.ts`.
 
@@ -1841,7 +1844,10 @@ Dexie garantisce atomicità: o tutte le modifiche vengono persistite, o nessuna.
 
 ---
 
-### 17.8 MEDIA — Cascade DELETE fallibile su quota IndexedDB (B8)
+### 17.8 MEDIA — Cascade DELETE fallibile su quota IndexedDB (B8) — ✅ FATTO (sprint6, 2026-06-03)
+
+> Implementato in `src/realtime/projectCascade.ts`: transazione cascade estratta in `runProjectCascade()`; `handleProjectDeleteLocal` la avvolge in try/catch e, su errore (es. `QuotaExceededError`), persiste un marker `pendingCascade:<id>` in `db.metadata` (best-effort, non rilancia se anche il marker fallisce) poi rilancia per il log di eventStream. Nuova `drainPendingCascades()` ritenta i marker al boot (max 5 tentativi, poi lascia il marker per il prossimo `clearAndSync`); agganciata in `App.tsx` dopo `eventStream.init()`. Test: `projectCascade.drain.test.ts` (drain ok / persist+rethrow su fail / incremento attempts).
+
 
 **Dove**: `src/realtime/projectCascade.ts` → `handleProjectDeleteLocal`.
 
@@ -1902,7 +1908,10 @@ export async function drainPendingCascades(): Promise<void> {
 
 ---
 
-### 17.9 MEDIA — `Crossing.id` da `Date.now()` invece di UUID (B9)
+### 17.9 MEDIA — `Crossing.id` da `Date.now()` invece di UUID (B9) — ✅ FATTO (sprint6, 2026-06-03)
+
+> Sostituiti tutti i generatori di id basati su `Date.now()` per crossing/sigillature/strutture con `generateId()` (UUID) in `MappingWizard.tsx`, `MappingPage.tsx`, `StructureWizard.tsx`. Elimina l'intera classe di collisioni (anche i `${Date.now()}-${index}` batch-safe sono stati uniformati). `ProjectForm`/`TypologyViewerModal` (entità diverse) fuori scope.
+
 
 **Dove**: `src/components/MappingWizard.tsx` `handleAddCrossing` (e simili).
 
@@ -2127,8 +2136,8 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
 | B14 (bucket names) | BASSA | basso (config endpoint) | flessibilità deploy |
 
 **Roadmap suggerita** (in 3 sprint da ~1 settimana):
-- **Sprint 1 — Data safety**: B1 + B9 + B7 + B8 (tutto sul wizard/SAL/cascade, basso rischio rotture). ✅ Chiuso 2026-06-03 su `feature/migration-sprint6`: fatti B1, B2, B3, B7 (già ok), B10 (alternativa pragmatica). Restano B8 (cascade retry) e B9 (Crossing.id UUID).
-- **Sprint 2 — Realtime correctness**: B2 + B3 + B4 (sync engine + SSE + storage shim/server endpoint).
+- **Sprint 1 — Data safety**: B1 + B9 + B7 + B8 (tutto sul wizard/SAL/cascade, basso rischio rotture). ✅ Chiuso 2026-06-03 su `feature/migration-sprint6`: fatti B1, B2, B3, B7 (già ok), B10 (alternativa pragmatica), **B8 (cascade retry + drain)**, **B9 (Crossing.id UUID)**. Tutto Sprint 1 completato.
+- **Sprint 2 — Realtime correctness**: B2 + B3 + B4 (sync engine + SSE + storage shim/server endpoint). ✅ Chiuso 2026-06-03: B2/B3 (sprint6), **B4 (chunking client, concorrenza 10)**.
 - **Sprint 3 — Correctness export/conflict**: B5 + B6 + B11 + B13 + B14 (export PDF + conflict resolution + config). Lasciare B10 e B12 a un Sprint 4 dedicato a refactor schema.
 
 ---

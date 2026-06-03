@@ -20,7 +20,7 @@ import {
   getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
 } from './sync/syncEngine';
 import { eventStream } from './realtime/eventStream';
-import { handleProjectDeleteLocal } from './realtime/projectCascade';
+import { handleProjectDeleteLocal, drainPendingCascades } from './realtime/projectCascade';
 import './App.css';
 
 // Lazy-loaded components: these pull in heavy libraries (jsPDF, pdf-lib, pdfjs-dist, xlsx)
@@ -238,6 +238,9 @@ const App: React.FC = () => {
 
     const run = async () => {
       await eventStream.init();
+      if (!active) return;
+      // B8: riprova i cascade delete rimasti in sospeso (es. quota IndexedDB) prima di riprendere lo stream.
+      await drainPendingCascades();
       if (!active) return;
       eventStream.subscribe(handleProjectDeleteLocal);
       eventStream.subscribe(handleStaleView);
