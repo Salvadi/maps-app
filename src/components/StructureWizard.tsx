@@ -237,6 +237,10 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
 
   const handleSubmit = async () => {
     if (!project) { setError('Nessun progetto selezionato'); return; }
+    if (finalizedRef.current) return; // guardia re-entrancy
+    // CLAIM prima delle await: impedisce al cleanup di unmount di cancellare
+    // la draft mentre il salvataggio è ancora in corso (race condition).
+    finalizedRef.current = true;
     setIsSubmitting(true);
     setError('');
 
@@ -311,12 +315,12 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
         alert('Struttura salvata!');
       }
 
-      finalizedRef.current = true;
       savedDraftEntryRef.current = null;
       localStorage.setItem('lastUsedFloor', floor);
       if (editingEntry) { onBack(); } else { onSaved ? onSaved() : onBack(); }
     } catch (err) {
       console.error('Failed to save structure entry:', err);
+      finalizedRef.current = false; // RELEASE su errore: permette retry del cleanup
       setError('Errore nel salvataggio. Riprova.');
     } finally {
       setIsSubmitting(false);

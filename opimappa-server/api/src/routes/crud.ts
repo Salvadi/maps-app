@@ -113,8 +113,17 @@ function handleError(c: AppContext, tableName: string, error: unknown) {
   return c.json({ error: 'internal server error' }, 500);
 }
 
+// B3 — Ogni mutazione DB DEVE passare da qui: imposta opimappa.originator_session
+// nella transazione così il trigger su change_log valorizza `originator`. Senza,
+// la riga avrebbe originator NULL → l'echo non viene soppresso e il client che ha
+// fatto la modifica la vede "rimbalzare" via SSE. Il guard sotto fallisce in modo
+// rumoroso se una route monta un handler mutante senza requireUser (sessionId
+// assente), invece di scrivere silenziosamente un originator vuoto.
 async function withOriginatorTransaction(c: AppContext, work: (tx: SqlExecutor) => Promise<unknown>): Promise<unknown> {
   const sessionId = c.get('sessionId');
+  if (!sessionId) {
+    throw new Error('withOriginatorTransaction: sessionId mancante (requireUser non applicato?)');
+  }
   return sql.begin(async (tx) => {
     // Equivalente transazionale di SET LOCAL, con valore parametrizzato.
     await tx`SELECT set_config('opimappa.originator_session', ${sessionId}, true)`;

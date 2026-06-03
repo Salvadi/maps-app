@@ -391,6 +391,10 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const handleSubmit = async () => {
     if (!project) { setError('Nessun progetto selezionato'); return; }
+    if (finalizedRef.current) return; // guardia re-entrancy
+    // CLAIM prima delle await: impedisce al cleanup di unmount di cancellare
+    // la draft mentre il salvataggio è ancora in corso (race condition).
+    finalizedRef.current = true;
     setIsSubmitting(true);
     setError('');
 
@@ -443,11 +447,10 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
         alert('Mappatura salvata!');
       }
-      // Segna come completato prima di uscire: impedisce al cleanup di cancellare la draft
-      finalizedRef.current = true;
       if (editingEntry) { onBack(); } else { onSaved ? onSaved() : onBack(); }
     } catch (err) {
       console.error('Save error:', err);
+      finalizedRef.current = false; // RELEASE su errore: permette retry del cleanup
       setError('Errore nel salvataggio. Riprova.');
     } finally {
       setIsSubmitting(false);

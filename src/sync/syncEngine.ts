@@ -862,6 +862,19 @@ export async function clearAndSync(): Promise<{
     await updateLastSyncTimestamp();
     await refreshDropdownCaches().catch(err => console.warn('Dropdown cache refresh failed after reset:', err));
 
+    // B2 — Sconnetti dal passato: lo snapshot appena scaricato include già tutti
+    // gli eventi <= currentSeq. Saltiamo il cursore SSE al head così, al riavvio,
+    // eventStream.start() invia sinceSeq=currentSeq e riceve SOLO eventi nuovi,
+    // invece di ristreamare da 0 tutto ciò che è già consolidato nel redownload.
+    // Se la fetch fallisce, appliedSeq resta '0' (set sopra): replay completo ma
+    // idempotente, quindi nessuna perdita di eventi.
+    try {
+      const { currentSeq } = await apiFetchJson<{ currentSeq: string }>('/api/changes/head');
+      await db.realtimeState.put({ key: 'appliedSeq', value: currentSeq });
+    } catch (err) {
+      console.warn('[clearAndSync] head fetch fallita, SSE ripartirà da 0:', err);
+    }
+
     console.log(`✅ Cache reset complete: downloaded ${downloadResult.projectsCount} projects, ${downloadResult.entriesCount} entries, ${downloadResult.photosCount} photo metadata, ${downloadResult.floorPlansCount} floor plans, ${downloadResult.floorPlanPointsCount} floor plan points, ${downloadResult.salsCount} SAL, ${downloadResult.standaloneMapsCount} mappe standalone`);
 
     result = { downloadResult };

@@ -6,6 +6,7 @@
  */
 
 import { db, Project, MappingEntry, StructureEntry, Photo, Sal, SyncQueueItem, TypologyPrice, generateId } from '../db/database';
+import { buildPhotoMetadataFromTable } from '../db/mappings';
 import { apiFetch } from '../lib/homeserver';
 import { apiStorageFrom } from '../lib/storageShim';
 import { checkForConflicts, resolveProjectConflict, resolveMappingEntryConflict } from './conflictResolution';
@@ -183,6 +184,9 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       console.log(`✅ Conflict resolved for mapping entry ${entry.id}`);
     }
 
+    // B10 — la tabella `photos` è l'unica fonte di verità: ricostruisci il campo
+    // embedded dal DB invece di fidarti di entry.photos (che può divergere).
+    const photosMetadata = await buildPhotoMetadataFromTable(entry.id);
     const supabaseEntry = {
       id: entry.id,
       project_id: entry.projectId,
@@ -196,7 +200,7 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       version: entry.version,
       created_by: entry.createdBy,
       modified_by: entry.modifiedBy,
-      photos: entry.photos,
+      photos: photosMetadata,
       synced: 1,
       created_at: new Date(entry.timestamp).toISOString(),
       updated_at: new Date(entry.lastModified).toISOString()
@@ -864,6 +868,9 @@ async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
   const entry = item.payload as StructureEntry;
 
   if (item.operation === 'CREATE' || item.operation === 'UPDATE') {
+    // B10 — la tabella `photos` è l'unica fonte di verità: ricostruisci il campo
+    // embedded dal DB invece di fidarti di entry.photos (che può divergere).
+    const photosMetadata = await buildPhotoMetadataFromTable(entry.id);
     const supabaseEntry = {
       id: entry.id,
       project_id: entry.projectId,
@@ -877,7 +884,7 @@ async function syncStructureEntry(item: SyncQueueItem): Promise<void> {
       version: entry.version,
       created_by: entry.createdBy,
       modified_by: entry.modifiedBy,
-      photos: entry.photos,
+      photos: photosMetadata,
       synced: true,
       created_at: new Date(entry.timestamp).toISOString(),
       updated_at: new Date(entry.lastModified).toISOString()

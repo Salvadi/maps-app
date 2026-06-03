@@ -1,4 +1,4 @@
-import { db, generateId, now, MappingEntry, Photo, SyncQueueItem } from './database';
+import { db, generateId, now, MappingEntry, Photo, PhotoMetadata, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import type { Database } from '../lib/supabase';
 import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
@@ -617,6 +617,26 @@ export async function getPhotosForMappings(
 export async function getPhotosForMapping(mappingEntryId: string): Promise<Photo[]> {
   const grouped = await getPhotosForMappings([mappingEntryId]);
   return grouped[mappingEntryId] || [];
+}
+
+/**
+ * B10 — Ricostruisce l'array `photos` embedded a partire dalla tabella `photos`,
+ * che è l'unica fonte di verità. Va usato in fase di upload per il payload sia di
+ * mapping_entries che di structure_entries: evita che la copia embedded
+ * (MappingEntry.photos / StructureEntry.photos) diverga dalle righe reali quando
+ * la sync remota assegna/aggiorna metadata. Le foto sono indicizzate per
+ * `mappingEntryId` anche per le strutture (discriminate da entryType).
+ */
+export async function buildPhotoMetadataFromTable(entryId: string): Promise<PhotoMetadata[]> {
+  const photos = await db.photos.where('mappingEntryId').equals(entryId).toArray();
+  return photos.map((photo) => ({
+    id: photo.id,
+    localBlobId: photo.blob ? photo.id : undefined,
+    remoteUrl: photo.remoteUrl,
+    timestamp: photo.metadata?.captureTimestamp ?? now(),
+    size: photo.metadata?.size ?? 0,
+    compressed: false,
+  }));
 }
 
 export async function ensurePhotoBlob(photoId: string): Promise<Photo | undefined> {
