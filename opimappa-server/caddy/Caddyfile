@@ -5,36 +5,34 @@
 	admin off
 }
 
-# Listener su :80 (Cloudflared edge -> caddy:80)
-# TLS e redirect www→non-www gestiti da Cloudflare edge
-:80 {
-	# Compressione
-	encode gzip zstd
+# NOTA PORTA: Caddy ascolta su :80 (verificato sul server: il container risponde su :80,
+# NON su :8080 — l'healthcheck del compose su 8080 è un bug pre-esistente che rende caddy
+# "unhealthy"). Cloudflared inoltra sia opimappa.com sia staging.opimappa.com → caddy:80;
+# il routing per-host avviene qui sotto via Host header.
+# TLS e redirect www→non-www gestiti da Cloudflare edge.
 
-	# Logging
-	log {
-		output file /var/log/caddy/access.log {
-			roll_size 100mb
-			roll_keep 5
-			roll_keep_for 30d
-		}
-	}
+# ---------------------------------------------------------------------------
+# Snippet condivisi (prod + staging usano gli stessi header e le stesse route)
+# ---------------------------------------------------------------------------
 
-	# Headers sicurezza globali
+# Header sicurezza globali. CSP same-origin: API e SSE restano su /api/* (connect-src 'self').
+(security_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(self), camera=(self), microphone=()"
-		# CSP allineata a Vercel: API e SSE restano same-origin via /api/*.
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://unpkg.com https://cdnjs.cloudflare.com; worker-src 'self' blob: https://unpkg.com https://cdnjs.cloudflare.com; connect-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'"
 		-Server
 	}
+}
 
-	# Route 1: SSE long-lived (/api/events/stream)
+# Route API → upstream parametrico. {args[0]} = host:porta del container API (es. api:3000).
+(api_routes) {
+	# Route 1: SSE long-lived (/api/events/stream) — niente buffering, timeout infiniti
 	handle /api/events/stream {
-		reverse_proxy api:3000 {
+		reverse_proxy {args[0]} {
 			flush_interval -1
 			transport http {
 				read_timeout 0
@@ -45,34 +43,72 @@
 
 	# Route 2: API generica (/api/*)
 	handle /api/* {
-		reverse_proxy api:3000 {
+		reverse_proxy {args[0]} {
 			header_up X-Real-IP {remote}
 			header_up X-Forwarded-For {remote}
 		}
 	}
+}
 
-	# Route 3: File server PWA con SPA fallback
+# File server PWA con SPA fallback. {args[0]} = web root sul filesystem del container.
+(spa_files) {
 	handle {
-		root * /srv/web
+		root * {args[0]}
 		try_files {path} /index.html
 		file_server
 
 		# Cache asset statici: immutable
-		@assets {
-			path /static/*
-		}
+		@assets path /static/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
 
 		# Cache HTML: no-cache
-		@html {
-			path /index.html
-		}
+		@html path /index.html
 		header @html Cache-Control "no-cache, must-revalidate"
 
 		# Service Worker: no-cache
-		@sw {
-			path /service-worker.js
-		}
+		@sw path /service-worker.js
 		header @sw Cache-Control "no-cache, must-revalidate"
 	}
+}
+
+# ---------------------------------------------------------------------------
+# PRODUZIONE — opimappa.com → api:3000, web /srv/web
+# ---------------------------------------------------------------------------
+opimappa.com:80 {
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100mb
+			roll_keep 5
+			roll_keep_for 30d
+		}
+	}
+	import security_headers
+	import api_routes api:3000
+	import spa_files /srv/web
+}
+
+# ---------------------------------------------------------------------------
+# STAGING — staging.opimappa.com → api-staging:3000, web /srv/web-staging
+# ---------------------------------------------------------------------------
+staging.opimappa.com:80 {
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/access-staging.log {
+			roll_size 100mb
+			roll_keep 5
+			roll_keep_for 30d
+		}
+	}
+	import security_headers
+	import api_routes api-staging:3000
+	import spa_files /srv/web-staging
+}
+
+# ---------------------------------------------------------------------------
+# Fallback per Host non riconosciuti (es. healthcheck Docker con Host: localhost).
+# Risponde 200 così il healthcheck `wget http://localhost:80` resta verde.
+# ---------------------------------------------------------------------------
+:80 {
+	respond "ok" 200
 }

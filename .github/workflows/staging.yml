@@ -1,0 +1,32 @@
+name: Deploy Staging
+
+on:
+  push:
+    # Solo branch feature/** deployano staging (evita deploy da master e da branch claude/*, ecc.)
+    branches:
+      - 'feature/**'
+  workflow_dispatch:
+
+concurrency:
+  group: staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 20 come default sicuro per CRA, verifica engines
+          node-version: '20'
+          cache: 'npm'
+
+      # I log di build sono visibili nella tab Actions di GitHub (accessibile anche da smartphone),
+      # e il runner gira sul homeserver quindi raggiunge Docker localmente senza SSH.
+      - name: Build & deploy
+        run: bash scripts/deploy-staging.sh

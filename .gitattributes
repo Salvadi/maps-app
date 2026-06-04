@@ -1,0 +1,3 @@
+# Gli script di shell devono restare LF: girano su Linux (runner/homeserver),
+# un CRLF sullo shebang romperebbe l'esecuzione.
+*.sh text eol=lf

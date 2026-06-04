@@ -59,8 +59,8 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      # Listener interno 8080 (no privileged port → no NET_BIND_SERVICE necessario)
-      - "127.0.0.1:8080:8080"
+      # Caddy ascolta su :80 nel container; esposto su host 8080 solo per debug locale
+      - "127.0.0.1:8080:80"
     depends_on:
       api:
         condition: service_healthy
@@ -73,10 +73,12 @@ services:
       - /opt/opimappa/logs/caddy:/var/log/caddy
       # Risorse statiche PWA servite da Caddy su /srv/web
       - /opt/opimappa/web:/srv/web:ro
+      # Build staging servita su /srv/web-staging (host staging.opimappa.com)
+      - /opt/opimappa/web-staging:/srv/web-staging:ro
     networks:
       - opimappa_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

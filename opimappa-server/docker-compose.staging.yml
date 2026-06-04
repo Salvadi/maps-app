@@ -1,0 +1,65 @@
+services:
+  # Object Storage MinIO per ambiente staging (console su porta host 9002 per evitare conflitti con produzione)
+  minio-staging:
+    image: minio/minio:RELEASE.2025-04-08T15-41-24Z
+    container_name: opimappa-minio-staging
+    restart: unless-stopped
+    # Path assoluto: il checkout CI è effimero, .env.staging vive stabile sul server
+    env_file: /opt/opimappa/.env.staging
+    command: server /data --console-address :9001
+    ports:
+      - "127.0.0.1:9002:9001"
+    volumes:
+      - /opt/opimappa/data/minio-staging:/data
+    networks:
+      opimappa_net:
+        aliases:
+          - minio-staging
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9000' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # API server staging (Hono)
+  # NOTA: api-staging dipende da postgres del compose principale (gia su stessa rete esterna) 
+  # e usa DATABASE_URL verso db opimappa_staging via .env.staging
+  api-staging:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: opimappa-api-staging
+    restart: unless-stopped
+    env_file: /opt/opimappa/.env.staging
+    depends_on:
+      minio-staging:
+        condition: service_healthy
+    networks:
+      opimappa_net:
+        aliases:
+          - api-staging
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+networks:
+  # Rete bridge esistente definita nel docker-compose.yml principale (prefisso progetto + nome rete)
+  opimappa_net:
+    external: true
+    name: opimappa_opimappa_net

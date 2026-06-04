@@ -4,3 +4,5 @@ api/.env
 api/coverage/
 *.log
 .env
+.env.staging
+!.env.staging.example
