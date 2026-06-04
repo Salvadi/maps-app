@@ -22,16 +22,16 @@ push branch ──▶ Actions (runner sul homeserver)
 
 | File | Ruolo |
 |------|-------|
-| `opimappa-server/docker-compose.staging.yml` | servizi `api-staging` + `minio-staging` (rete esterna condivisa) |
-| `opimappa-server/caddy/Caddyfile` | riscritto host-based: prod + staging via snippet, fallback `:80` |
-| `opimappa-server/docker-compose.yml` | aggiunto mount `/srv/web-staging` al container caddy |
+| `opimappa-server/docker-compose.staging.yml` | override: `api-staging` (image `opimappa-api:latest`) + `minio-staging`; estende `caddy` col mount `/srv/web-staging`. Da usare SEMPRE con `-f docker-compose.yml -f docker-compose.staging.yml` |
+| `opimappa-server/caddy/Caddyfile` | riscritto host-based: prod + staging via snippet, fallback `:80`, log su stdout |
 | `opimappa-server/.env.staging.example` | template env staging (secret separati) |
-| `scripts/deploy-staging.sh` | build web + rebuild api-staging + restart caddy |
-| `.github/workflows/staging.yml` | trigger push (≠ master) + `workflow_dispatch` |
+| `scripts/deploy-root.sh` | setup ROOT one-time (env, Caddyfile, bucket, su servizi staging, ricrea caddy) |
+| `scripts/deploy-staging.sh` | (runner) build web + redeploy api-staging |
+| `.github/workflows/staging.yml` | trigger push `feature/**` + `workflow_dispatch` |
 
-> ⚠️ **Porta Caddy = :80** (verificato sul server: container risponde su :80, non :8080).
-> Il compose aveva healthcheck/mapping su 8080 → caddy "unhealthy"; corretto a :80 in questo commit.
-> Ricreare caddy applica sia il fix healthcheck sia il mount `/srv/web-staging`.
+> ⚠️ **Porta Caddy = :80** (verificato: container risponde su :80, non :8080). Il compose base
+> aveva healthcheck/mapping su 8080 → caddy "unhealthy"; l'override corregge l'healthcheck a :80.
+> Il compose di **produzione NON viene modificato**: lo staging è un override che si fonde col base.
 
 ---
 
@@ -44,19 +44,16 @@ Dashboard Cloudflare → Zero Trust → Networks → Tunnels → tunnel OPImaPPA
 
 Crea anche il record DNS (Cloudflare lo fa in automatico col tunnel).
 
-### 2. Directory + env sul server
+### 2,4,5. Setup server ✅ FATTO (via `deploy-root.sh`, 2026-06-04)
+`scripts/deploy-root.sh` (staged in `/home/levi/opimappa-staging-files/`) esegue in un colpo:
+env staging in `/opt/opimappa/.env.staging`, copia override compose + Caddyfile, crea
+`web-staging` (owner runner), avvia `minio-staging` + crea bucket `photos`/`planimetrie`,
+avvia `api-staging`, ricrea `caddy`. Idempotente. Eseguito con:
 ```bash
-sudo mkdir -p /opt/opimappa/web-staging /opt/opimappa/data/minio-staging
-# permetti al runner di scrivere la build senza sudo (sostituisci <runner-user>)
-sudo chown -R <runner-user> /opt/opimappa/web-staging
-
-# crea l'env staging dal template del repo e compila i CAMBIA_*
-sudo cp opimappa-server/.env.staging.example /opt/opimappa/.env.staging
-sudo nano /opt/opimappa/.env.staging
-#  - DATABASE_URL → .../opimappa_staging
-#  - BETTER_AUTH_SECRET → openssl rand -base64 48  (DIVERSO da prod)
-#  - MINIO_ROOT_USER/PASSWORD → nuove credenziali
+sudo bash /home/levi/opimappa-staging-files/deploy-root.sh
 ```
+Esito verificato: prod `opimappa.com`→200, `staging.opimappa.com`→routing ok (404 finché
+`web-staging` è vuoto), caddy+api-staging **healthy**.
 
 ### 3. Database staging ✅ FATTO (via SSH 2026-06-04)
 > ⚠️ Drizzle (`schema.ts`) gestisce SOLO le 4 tabelle auth BetterAuth. Le 18 tabelle reali
@@ -75,25 +72,13 @@ docker exec opimappa-postgres sh -c \
   "pg_dump -U opimappa --data-only -t '\"user\"' -t account opimappa | psql -U opimappa -d opimappa_staging"
 ```
 
-### 4. Prima accensione MinIO staging + bucket
+### 4. Primo deploy della build web (staging vuoto finché non c'è)
+`web-staging` è owned dall'utente runner → si scrive senza sudo. Manuale:
 ```bash
-cd opimappa-server
-docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d minio-staging
-# crea i due bucket hardcoded nell'API (photos, planimetrie) sul MinIO staging
-docker run --rm --network opimappa_opimappa_net minio/mc sh -c "\
-  mc alias set s http://minio-staging:9000 <MINIO_ROOT_USER> <MINIO_ROOT_PASSWORD> && \
-  mc mb -p s/photos s/planimetrie"
+npm run build                                  # in locale (repo root)
+scp -r build/* levi@100.111.232.12:/opt/opimappa/web-staging/
 ```
-
-### 5. Applica Caddyfile + mount aggiornati (tocca la prod: breve restart)
-```bash
-# copia il Caddyfile aggiornato dove Caddy lo monta
-sudo cp opimappa-server/caddy/Caddyfile /opt/opimappa/caddy/Caddyfile
-cd opimappa-server
-# ricrea caddy per montare /srv/web-staging e ricaricare la config
-docker compose up -d caddy
-docker logs --tail 30 opimappa-caddy   # verifica nessun errore di parse
-```
+Oppure automatico al primo push su `feature/**` (vedi runner sotto).
 
 ### 6. Self-hosted runner GitHub
 Repo GitHub → Settings → Actions → Runners → New self-hosted runner (Linux x64).

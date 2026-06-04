@@ -1,10 +1,13 @@
+# Override staging — usare SEMPRE insieme al compose principale:
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml ...
+# Aggiunge api-staging + minio-staging ed estende caddy con il mount web-staging.
+# La rete (opimappa_net) e gli altri servizi arrivano dal compose base (progetto "opimappa").
 services:
-  # Object Storage MinIO per ambiente staging (console su porta host 9002 per evitare conflitti con produzione)
+  # Object Storage MinIO staging (console host 9002 per non collidere con prod 9001)
   minio-staging:
     image: minio/minio:RELEASE.2025-04-08T15-41-24Z
     container_name: opimappa-minio-staging
     restart: unless-stopped
-    # Path assoluto: il checkout CI è effimero, .env.staging vive stabile sul server
     env_file: /opt/opimappa/.env.staging
     command: server /data --console-address :9001
     ports:
@@ -24,13 +27,10 @@ services:
       retries: 5
       start_period: 30s
 
-  # API server staging (Hono)
-  # NOTA: api-staging dipende da postgres del compose principale (gia su stessa rete esterna) 
-  # e usa DATABASE_URL verso db opimappa_staging via .env.staging
+  # API staging — riusa l'immagine prod opimappa-api:latest con env staging.
+  # (Per testare modifiche all'API del branch, il runner ricostruirà un'immagine dedicata.)
   api-staging:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
+    image: opimappa-api:latest
     container_name: opimappa-api-staging
     restart: unless-stopped
     env_file: /opt/opimappa/.env.staging
@@ -58,8 +58,14 @@ services:
         max-size: "50m"
         max-file: "5"
 
-networks:
-  # Rete bridge esistente definita nel docker-compose.yml principale (prefisso progetto + nome rete)
-  opimappa_net:
-    external: true
-    name: opimappa_opimappa_net
+  # Estensione del caddy del compose base: aggiunge SOLO il mount della build staging
+  # (i volumi in override sono additivi) e corregge l'healthcheck su :80 (caddy ascolta :80).
+  caddy:
+    volumes:
+      - /opt/opimappa/web-staging:/srv/web-staging:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

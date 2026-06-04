@@ -76,12 +76,10 @@
 # ---------------------------------------------------------------------------
 opimappa.com:80 {
 	encode gzip zstd
+	# Log su stdout: il container caddy è read_only senza volume /var/log/caddy
+	# (loggare su file lo farebbe crashare all'avvio). Docker json-file cattura stdout.
 	log {
-		output file /var/log/caddy/access.log {
-			roll_size 100mb
-			roll_keep 5
-			roll_keep_for 30d
-		}
+		output stdout
 	}
 	import security_headers
 	import api_routes api:3000
@@ -94,11 +92,7 @@ opimappa.com:80 {
 staging.opimappa.com:80 {
 	encode gzip zstd
 	log {
-		output file /var/log/caddy/access-staging.log {
-			roll_size 100mb
-			roll_keep 5
-			roll_keep_for 30d
-		}
+		output stdout
 	}
 	import security_headers
 	import api_routes api-staging:3000

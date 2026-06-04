@@ -73,8 +73,8 @@ services:
       - /opt/opimappa/logs/caddy:/var/log/caddy
       # Risorse statiche PWA servite da Caddy su /srv/web
       - /opt/opimappa/web:/srv/web:ro
-      # Build staging servita su /srv/web-staging (host staging.opimappa.com)
-      - /opt/opimappa/web-staging:/srv/web-staging:ro
+      # NB: il mount /srv/web-staging è aggiunto da docker-compose.staging.yml (override),
+      # non qui, per evitare un doppio mount quando i due file vengono fusi.
     networks:
       - opimappa_net
     healthcheck:
