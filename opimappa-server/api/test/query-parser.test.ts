@@ -15,8 +15,8 @@ describe('query-parser', () => {
   });
 
   it('parseSelect trimma whitespace', () => {
-    const result = parseSelect('id, title , description', TABLE_SCHEMA.projects);
-    expect(result.cols).toEqual(['id', 'title', 'description']);
+    const result = parseSelect('id, title , notes', TABLE_SCHEMA.projects);
+    expect(result.cols).toEqual(['id', 'title', 'notes']);
   });
 
   it('parseSelect ritorna * per null', () => {

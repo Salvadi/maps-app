@@ -15,6 +15,21 @@ function isHttpError(error: unknown): error is { status: number; message: string
   return typeof error === 'object' && error !== null && 'status' in error && typeof (error as { status?: unknown }).status === 'number';
 }
 
+// I parametri bind per colonne JSONB devono essere serializzati: postgres.js,
+// in una query .unsafe() dinamica, non conosce il tipo di colonna e proverebbe a
+// codificare un array/oggetto JS come array Postgres → TypeError
+// (ERR_INVALID_ARG_TYPE: Received an instance of Array) e quindi 500.
+// Passando una stringa JSON, Postgres la castta implicitamente a jsonb (tipo della colonna).
+function toBindValues(tableName: string, body: Record<string, unknown>): unknown[] {
+  const colTypes = getWritableColumns(tableName) ?? {};
+  return Object.entries(body).map(([col, value]) => {
+    if (colTypes[col] === 'jsonb' && value !== null && value !== undefined && typeof value !== 'string') {
+      return JSON.stringify(value);
+    }
+    return value;
+  });
+}
+
 function scopedWhere(tableName: string, params: URLSearchParams, userId: string, role: string): { sqlText: string; values: unknown[] } {
   const plan = parseQuery(tableName, params);
   const clauses: string[] = [];
@@ -162,7 +177,7 @@ export function createCrudHandler(tableName: string) {
         const body = sanitizeBody(tableName, rawBody);
         await ensureScopedMutationAllowed(tableName, body, user.id, user.role ?? 'user');
         const cols = Object.keys(body);
-        const values = Object.values(body);
+        const values = toBindValues(tableName, body);
         const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
         const result = await withOriginatorTransaction(c, (tx) =>
           tx.unsafe(`INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) RETURNING *`, values as unknown[] as any[])
@@ -176,7 +191,7 @@ export function createCrudHandler(tableName: string) {
       try {
         const user = c.get('user');
         const body = sanitizePatchBody(tableName, (await c.req.json()) as Record<string, unknown>);
-        const values = Object.values(body);
+        const values = toBindValues(tableName, body);
         const sets = Object.keys(body).map((col, index) => `${quoteIdent(col)} = $${index + 1}`);
         if (sets.length === 0) httpError(400, 'empty body');
 
@@ -262,7 +277,7 @@ export function createCrudHandler(tableName: string) {
         const body = sanitizeBody(tableName, rawBody);
         await ensureScopedMutationAllowed(tableName, body, user.id, user.role ?? 'user');
         const cols = Object.keys(body);
-        const values = Object.values(body);
+        const values = toBindValues(tableName, body);
         const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
         const updateSet = cols
           .filter(col => col !== 'id' && col !== 'created_at' && col !== 'owner_id' && col !== 'user_id')

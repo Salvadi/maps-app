@@ -22,7 +22,33 @@ export const TABLE_SCHEMA: Record<string, TableSchemaDef> = {
     relationships: {},
   },
   projects: {
-    columns: { id: 'uuid', owner_id: 'text', title: 'text', description: 'text', last_modified: 'bigint', archived: 'boolean', sync_enabled: 'boolean', accessible_users: 'jsonb', created_at: 'timestamptz', updated_at: 'timestamptz' },
+    // Allineato a supabase/schema.sql (tabella public.projects). Le colonne JSONB
+    // (floors/plans/floor_plans/typologies/accessible_users) vengono serializzate
+    // in crud.ts prima del bind. `synced` è readOnly: il DB è boolean ma il client
+    // invia 1/0 → senza esclusione causerebbe un cast error int→bool.
+    columns: {
+      id: 'uuid',
+      title: 'text',
+      client: 'text',
+      address: 'text',
+      notes: 'text',
+      floors: 'jsonb',
+      plans: 'jsonb',
+      floor_plans: 'jsonb',
+      typologies: 'jsonb',
+      owner_id: 'text',
+      accessible_users: 'jsonb',
+      use_room_numbering: 'boolean',
+      use_intervention_numbering: 'boolean',
+      archived: 'boolean',
+      synced: 'boolean',
+      sync_enabled: 'integer',
+      version: 'integer',
+      last_modified: 'bigint',
+      created_at: 'timestamptz',
+      updated_at: 'timestamptz',
+    },
+    readOnly: ['synced'],
     relationships: {
       mapping_entries: { type: 'hasMany', fk: 'project_id', target: 'mapping_entries' },
       floor_plans: { type: 'hasMany', fk: 'project_id', target: 'floor_plans' },
