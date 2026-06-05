@@ -187,6 +187,13 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
     // B10 — la tabella `photos` è l'unica fonte di verità: ricostruisci il campo
     // embedded dal DB invece di fidarti di entry.photos (che può divergere).
     const photosMetadata = await buildPhotoMetadataFromTable(entry.id);
+    // I bigint possono essere stringa (roundtrip postgres.js) o, su righe legacy,
+    // mancanti: coerciamo a numero con fallback per evitare "Invalid time value"
+    // su new Date(...).toISOString() che bloccherebbe l'intera sync.
+    const tsNum = Number(entry.timestamp);
+    const ts = Number.isFinite(tsNum) ? tsNum : Date.now();
+    const lmNum = Number(entry.lastModified);
+    const lm = Number.isFinite(lmNum) ? lmNum : ts;
     const supabaseEntry = {
       id: entry.id,
       project_id: entry.projectId,
@@ -195,15 +202,15 @@ async function syncMappingEntry(item: SyncQueueItem): Promise<void> {
       intervention: entry.intervention || null,
       crossings: entry.crossings,
       to_complete: entry.toComplete || false,
-      timestamp: entry.timestamp,
-      last_modified: entry.lastModified,
+      timestamp: ts,
+      last_modified: lm,
       version: entry.version,
       created_by: entry.createdBy,
       modified_by: entry.modifiedBy,
       photos: photosMetadata,
       synced: 1,
-      created_at: new Date(entry.timestamp).toISOString(),
-      updated_at: new Date(entry.lastModified).toISOString()
+      created_at: new Date(ts).toISOString(),
+      updated_at: new Date(lm).toISOString()
     };
 
     const res = await apiFetch('/api/mapping_entries', {

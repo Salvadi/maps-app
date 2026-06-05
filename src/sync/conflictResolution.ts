@@ -200,8 +200,10 @@ export function convertRemoteToLocalMapping(remote: any): MappingEntry {
     intervention: remote.intervention || undefined,
     crossings: remote.crossings || [],
     toComplete: remote.to_complete || false,
-    timestamp: remote.timestamp,
-    lastModified: remote.last_modified,
+    // I bigint (timestamp/last_modified) arrivano come stringa da postgres.js:
+    // senza Number() finirebbero in `new Date(string)` → "Invalid time value".
+    timestamp: remote.timestamp != null ? Number(remote.timestamp) : remote.timestamp,
+    lastModified: remote.last_modified != null ? Number(remote.last_modified) : remote.last_modified,
     version: remote.version,
     createdBy: remote.created_by,
     modifiedBy: remote.modified_by,
