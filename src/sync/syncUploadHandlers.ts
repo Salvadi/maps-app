@@ -395,6 +395,10 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       throw new Error(`Floor plan not found: ${floorPlan.id}`);
     }
 
+    // URL asset correnti sul remoto: usati per NON sovrascrivere una sostituzione
+    // in-place (Gestione Dati) quando l'edit locale non ha toccato l'immagine.
+    let remoteAssetUrls: { image_url?: string | null; thumbnail_url?: string | null; pdf_url?: string | null } | null = null;
+
     // --- Conflict detection ANTICIPATO: check PRIMA di qualsiasi upload asset ---
     if (localFloorPlan.remoteUpdatedAt != null) {
       try {
@@ -406,7 +410,8 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
           // 404 = riga non esiste remoto, procedi con CREATE
         } else {
           const remoteCheckJson = await remoteCheckRes.json() as { data: any[] };
-          const remoteRecord: { updated_at: string } | null = remoteCheckJson.data?.[0] ?? null;
+          const remoteRecord: { updated_at: string; image_url?: string | null; thumbnail_url?: string | null; pdf_url?: string | null } | null = remoteCheckJson.data?.[0] ?? null;
+          remoteAssetUrls = remoteRecord;
 
           if (remoteRecord) {
             const remoteUpdatedAt = new Date(remoteRecord.updated_at).getTime();
@@ -451,6 +456,19 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
     const previousThumbnailUrl = localFloorPlan.thumbnailUrl;
     let pdfUrl = localFloorPlan.pdfUrl;
     const previousPdfUrl = localFloorPlan.pdfUrl;
+    // True solo quando carichiamo NUOVI oggetti in storage: la pulizia dei
+    // vecchi asset deve avvenire solo in quel caso, mai per un edit metadati.
+    let assetReuploaded = false;
+
+    // Se l'edit locale NON ha toccato l'immagine (assetDirty !== 1), il sync non è
+    // autorità sull'URL: una sostituzione in-place (Gestione Dati) può aver già
+    // aggiornato il remoto. Adottiamo gli URL remoti correnti per evitare di
+    // ripristinare un image_url stale verso uno storage già cancellato (-> 404).
+    if (localFloorPlan.assetDirty !== 1 && remoteAssetUrls) {
+      if (remoteAssetUrls.image_url) imageUrl = remoteAssetUrls.image_url;
+      if (remoteAssetUrls.thumbnail_url) thumbnailUrl = remoteAssetUrls.thumbnail_url;
+      if (remoteAssetUrls.pdf_url) pdfUrl = remoteAssetUrls.pdf_url;
+    }
 
     if ((!imageUrl || localFloorPlan.assetDirty === 1) && localFloorPlan.imageBlob) {
       const { uploadFloorPlan } = await import('../utils/floorPlanUtils');
@@ -463,6 +481,7 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       );
       imageUrl = urls.fullResUrl;
       thumbnailUrl = urls.thumbnailUrl;
+      assetReuploaded = true;
       await db.floorPlans.update(floorPlan.id, { imageUrl, thumbnailUrl, synced: 1 });
     }
 
@@ -482,16 +501,21 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
           localFloorPlan.createdBy
         );
         await db.floorPlans.update(floorPlan.id, { pdfUrl });
+        assetReuploaded = true;
         console.log(`📄 Uploaded PDF originale for floor plan ${floorPlan.id}`);
       } catch (pdfErr) {
         console.warn(`⚠️  Failed to upload PDF for floor plan ${floorPlan.id}:`, pdfErr);
       }
     }
 
+    // Pulizia vecchi asset SOLO se abbiamo caricato nuovi oggetti in storage.
+    // Senza questo guard, un edit metadati che adotta gli URL remoti tenterebbe
+    // di cancellare lo storage stale (gia rimosso) o, peggio, file ancora vivi.
     if (
-      (previousImageUrl && previousImageUrl !== imageUrl) ||
+      assetReuploaded &&
+      ((previousImageUrl && previousImageUrl !== imageUrl) ||
       (previousThumbnailUrl && previousThumbnailUrl !== thumbnailUrl) ||
-      (previousPdfUrl && previousPdfUrl !== pdfUrl)
+      (previousPdfUrl && previousPdfUrl !== pdfUrl))
     ) {
       const { deleteFloorPlan } = await import('../utils/floorPlanUtils');
       try {
@@ -527,12 +551,28 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       throw new Error(`Sync floor_plans failed: ${fpRes.statusText}`);
     }
 
-    // After successful upload, update remoteUpdatedAt to match what we just wrote
+    // After successful upload, update remoteUpdatedAt to match what we just wrote.
+    // Persistiamo anche gli URL effettivamente scritti: se abbiamo adottato quelli
+    // remoti (sostituzione in-place), il blob locale stale va invalidato così il
+    // prossimo accesso scarica la nuova immagine invece di puntare a storage 404.
     await db.floorPlans.update(localFloorPlan.id, {
       remoteUpdatedAt: localFloorPlan.updatedAt,
       assetDirty: 0,
       synced: 1,
+      imageUrl,
+      thumbnailUrl,
+      pdfUrl,
     });
+
+    // Se abbiamo adottato URL remoti senza ri-upload (sostituzione in-place altrove),
+    // il blob locale e ormai stale e va eliminato: Dexie.update ignora i valori
+    // undefined, quindi usiamo modify per cancellare davvero le proprieta blob.
+    if (!assetReuploaded && (imageUrl !== previousImageUrl || thumbnailUrl !== previousThumbnailUrl)) {
+      await db.floorPlans.where('id').equals(localFloorPlan.id).modify((fp: any) => {
+        if (imageUrl !== previousImageUrl) delete fp.imageBlob;
+        if (thumbnailUrl !== previousThumbnailUrl) delete fp.thumbnailBlob;
+      });
+    }
   } else if (item.operation === 'DELETE') {
     // Delete tramite homeserver API
     const delRes = await apiFetch(`/api/floor_plans?id=eq.${floorPlan.id}`, { method: 'DELETE' });
