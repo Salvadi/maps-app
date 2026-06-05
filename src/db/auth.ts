@@ -236,12 +236,45 @@ async function loginOffline(email: string, password: string): Promise<User | nul
 }
 
 /**
- * Registrazione non disponibile: solo admin crea utenti tramite homeserver.
- * // disableSignUp: true sul homeserver — solo admin crea utenti
+ * Registrazione self-service tramite homeserver better-auth.
+ * Il dominio è ristretto a @opifiresafe.com dal middleware validateEmailDomain.
+ * better-auth usa il campo `name`: vi mappiamo lo username.
+ * autoSignIn è disabilitato lato server → l'utente deve poi fare login.
  */
 export async function signUp(email: string, password: string, username: string): Promise<User | null> {
-  // disableSignUp: true sul homeserver — solo admin crea utenti
-  throw new Error('Registrazione non disponibile: contattare l\'amministratore Opifiresafe');
+  const response = await apiFetch('/api/auth/sign-up/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name: username }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    let message = 'Registrazione fallita';
+    try {
+      const parsed = JSON.parse(errText);
+      message = parsed.message || parsed.error || message;
+    } catch {
+      if (errText) message = errText;
+    }
+    console.error('❌ Sign up error:', response.status, errText);
+    throw new Error(message);
+  }
+
+  const data = await response.json().catch(() => null);
+  const u = data?.user;
+  if (!u) {
+    // Registrazione riuscita ma payload inatteso: trattiamo come successo "soft".
+    return null;
+  }
+
+  return {
+    id: u.id,
+    email: u.email,
+    username: u.name || u.email.split('@')[0],
+    role: u.role || 'standard',
+    createdAt: u.createdAt ? new Date(u.createdAt).getTime() : Date.now(),
+  };
 }
 
 /**
@@ -413,17 +446,67 @@ export function onAuthStateChange(callback: (user: User | null) => void) {
 }
 
 /**
- * Invia email di reset password.
- * Non supportato sul homeserver — stub per compatibilità.
+ * Richiede l'invio dell'email di reset password (homeserver better-auth + Resend).
+ * redirectTo = origin app: better-auth, dopo aver validato il token via link,
+ * redirige all'app con `?token=...`, che Login.tsx intercetta per il form reset.
+ * La risposta è sempre generica (non rivela se l'email esiste).
  */
 export async function sendPasswordResetEmail(email: string): Promise<{ success: boolean; error?: string }> {
-  return { success: false, error: 'Reset password non disponibile: contattare l\'amministratore Opifiresafe' };
+  try {
+    const response = await apiFetch('/api/auth/request-password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, redirectTo: window.location.origin }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      let message = 'Invio email di reset fallito';
+      try {
+        const parsed = JSON.parse(errText);
+        message = parsed.message || parsed.error || message;
+      } catch {
+        if (errText) message = errText;
+      }
+      console.error('❌ Reset password request error:', response.status, errText);
+      return { success: false, error: message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Reset password request exception:', err);
+    return { success: false, error: 'Errore di rete: riprova quando sei online' };
+  }
 }
 
 /**
- * Aggiorna la password (quando l'utente clicca il link di reset).
- * Non supportato sul homeserver — stub per compatibilità.
+ * Imposta la nuova password usando il token ricevuto via email (link reset).
+ * Chiamata dopo che Login.tsx ha letto `?token=...` dall'URL.
  */
-export async function updatePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
-  return { success: false, error: 'Aggiornamento password non disponibile: contattare l\'amministratore Opifiresafe' };
+export async function updatePassword(newPassword: string, token: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await apiFetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword, token }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      let message = 'Aggiornamento password fallito';
+      try {
+        const parsed = JSON.parse(errText);
+        message = parsed.message || parsed.error || message;
+      } catch {
+        if (errText) message = errText;
+      }
+      console.error('❌ Reset password error:', response.status, errText);
+      return { success: false, error: message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Reset password exception:', err);
+    return { success: false, error: 'Errore di rete: riprova quando sei online' };
+  }
 }

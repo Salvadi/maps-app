@@ -22,7 +22,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [success, setSuccess] = useState('');
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [homeserverEnabled, setHomeserverEnabled] = useState(false);
-  const unsupportedAuthFlowsEnabled = false;
   const [showPassword, setShowPassword] = useState(false);
 
   // Validation states
@@ -74,15 +73,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setSuccess('');
 
     if (mode === 'forgot') {
-      // Handle forgot password
-      if (!unsupportedAuthFlowsEnabled) {
-        setError('Servizio non disponibile');
-        return;
-      }
-
       const emailValidation = validateEmail(email);
       if (!emailValidation.isValid) {
-        setError(emailValidation.error || 'Invalid email');
+        setError(emailValidation.error || 'Email non valida');
         return;
       }
 
@@ -91,11 +84,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       setIsLoading(false);
 
       if (result.success) {
-        setSuccess('Password reset link sent to your email. Check your inbox!');
+        setSuccess('Se l\'email è registrata, riceverai un link per reimpostare la password. Controlla la posta.');
         setEmail('');
-        setTimeout(() => setMode('login'), 3000);
+        setTimeout(() => setMode('login'), 4000);
       } else {
-        setError(result.error || 'Failed to send reset email');
+        setError(result.error || 'Invio email di reset fallito');
       }
       return;
     }
@@ -121,16 +114,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       setIsLoading(true);
       try {
-        const user = await signUp(email, password, username);
-        if (user) {
-          setSuccess('Account created! Please check your email to verify your account before logging in.');
-          setMode('login');
-          setEmail('');
-          setPassword('');
-          setUsername('');
-        } else {
-          setError('Failed to create account. Please try again.');
-        }
+        await signUp(email, password, username);
+        setSuccess('Account creato! Ora puoi accedere con le tue credenziali.');
+        setMode('login');
+        setPassword('');
+        setUsername('');
       } catch (err: any) {
         console.error('Sign up error:', err);
         const errorMessage = err?.message || 'An error occurred during sign up';
@@ -160,6 +148,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
+  // Signup richiede password robusta ed email/username validi.
+  const submitDisabled =
+    isLoading ||
+    (mode === 'signup' && (!passwordStrength.isValid || !!emailError || !!usernameError));
+
   return (
     <div className="login-page">
       <div className="login-container">
@@ -177,7 +170,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         <h1 className="login-title">
-          {mode === 'login' ? 'Login' : mode === 'signup' ? 'Sign Up' : 'Reset Password'}
+          {mode === 'login' ? 'Accedi'
+            : mode === 'signup' ? 'Crea account'
+            : 'Recupera password'}
         </h1>
 
         <form onSubmit={handleSubmit} className="login-form">
@@ -196,7 +191,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="your_username"
+                placeholder="nome_utente"
                 className="login-input"
                 required
                 disabled={isLoading}
@@ -218,7 +213,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 color: 'var(--color-text-secondary)',
                 marginTop: '4px'
               }}>
-                3-20 characters, letters, numbers, and underscores only
+                3-20 caratteri: lettere, numeri e underscore
               </div>
             </div>
           )}
@@ -237,7 +232,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@opifiresafe.com"
+              placeholder="nome@opifiresafe.com"
               className="login-input"
               required
               autoComplete="email"
@@ -255,13 +250,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 {emailError}
               </div>
             )}
-            {mode !== 'login' && (
+            {(mode === 'signup' || mode === 'forgot') && (
               <div style={{
                 fontSize: '0.75rem',
                 color: 'var(--color-text-secondary)',
                 marginTop: '4px'
               }}>
-                Must be @opifiresafe.com email
+                Solo email @opifiresafe.com
               </div>
             )}
           </div>
@@ -282,7 +277,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'signup' ? 'Strong password' : 'Password'}
+                  placeholder={mode === 'signup' ? 'Password robusta' : 'Password'}
                   className="login-input"
                   required
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
@@ -397,20 +392,20 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <button
             type="submit"
             className="login-button"
-            disabled={isLoading || (mode === 'signup' && (!passwordStrength.isValid || !!emailError || !!usernameError))}
+            disabled={submitDisabled}
             style={{
-              opacity: isLoading || (mode === 'signup' && (!passwordStrength.isValid || !!emailError || !!usernameError)) ? 0.6 : 1,
-              cursor: isLoading || (mode === 'signup' && (!passwordStrength.isValid || !!emailError || !!usernameError)) ? 'not-allowed' : 'pointer'
+              opacity: submitDisabled ? 0.6 : 1,
+              cursor: submitDisabled ? 'not-allowed' : 'pointer'
             }}
           >
             {isLoading
-              ? mode === 'login' ? 'Logging in...' : mode === 'signup' ? 'Creating account...' : 'Sending reset link...'
-              : mode === 'login' ? 'Login' : mode === 'signup' ? 'Sign Up' : 'Send Reset Link'
+              ? mode === 'login' ? 'Accesso...' : mode === 'signup' ? 'Creazione account...' : 'Invio link...'
+              : mode === 'login' ? 'Accedi' : mode === 'signup' ? 'Crea account' : 'Invia link di reset'
             }
           </button>
 
           {/* Forgot password link - only in login mode */}
-          {mode === 'login' && unsupportedAuthFlowsEnabled && (
+          {mode === 'login' && (
             <button
               type="button"
               className="reset-link"
@@ -431,12 +426,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 padding: '4px'
               }}
             >
-              Forgot password?
+              Password dimenticata?
             </button>
           )}
 
           {/* Mode toggle */}
-          {unsupportedAuthFlowsEnabled && (
+          {(
             <div style={{
               marginTop: '16px',
               textAlign: 'center',
@@ -466,36 +461,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 }}
               >
                 {mode === 'forgot'
-                  ? 'Back to login'
+                  ? 'Torna al login'
                   : mode === 'login'
-                  ? 'Need an account? Sign up'
-                  : 'Already have an account? Login'
+                  ? 'Non hai un account? Registrati'
+                  : 'Hai già un account? Accedi'
                 }
               </button>
             </div>
           )}
         </form>
-
-        {/* Demo accounts hint - only in offline mode */}
-        {!unsupportedAuthFlowsEnabled && mode === 'login' && (
-          <div className="login-hint" style={{
-            marginTop: '24px',
-            padding: '16px',
-            backgroundColor: 'var(--color-bg-input)',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <p style={{
-              color: 'var(--color-text-secondary)',
-              fontSize: '0.875rem',
-              margin: 0
-            }}>
-              <strong>Demo accounts:</strong><br />
-              Admin: admin@opifiresafe.com (any password)<br />
-              User: user@opifiresafe.com (any password)
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

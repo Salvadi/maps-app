@@ -40,6 +40,7 @@ const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<View>('login');
+  const [resetToken, setResetToken] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentMappingProject, setCurrentMappingProject] = useState<Project | null>(null);
@@ -127,11 +128,16 @@ const App: React.FC = () => {
 
         const locationHash = window.location?.hash ?? '';
         const pathname = window.location?.pathname ?? '/';
+        const search = window.location?.search ?? '';
         const hashParams = new URLSearchParams(locationHash.substring(1));
+        const queryParams = new URLSearchParams(search);
         const type = hashParams.get('type');
         const accessToken = hashParams.get('access_token');
+        // better-auth: dopo la validazione del link, redirige all'app con ?token=...
+        const resetTokenFromUrl = queryParams.get('token');
 
-        if (type === 'recovery' || pathname === '/reset-password') {
+        if (resetTokenFromUrl || type === 'recovery' || pathname === '/reset-password') {
+          if (resetTokenFromUrl) setResetToken(resetTokenFromUrl);
           setCurrentView('passwordReset');
           setIsInitialized(true);
           return;
@@ -619,7 +625,8 @@ const App: React.FC = () => {
 
   // Non-authenticated views
   if (currentView === 'passwordReset') {
-    return <PasswordReset onSuccess={() => {
+    return <PasswordReset token={resetToken} onSuccess={() => {
+      setResetToken('');
       setCurrentView('login');
       window.history.replaceState(null, '', window.location.pathname);
     }} />;

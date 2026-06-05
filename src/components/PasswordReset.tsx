@@ -8,10 +8,11 @@ import {
 import './Login.css';
 
 interface PasswordResetProps {
+  token: string;
   onSuccess: () => void;
 }
 
-const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
+const PasswordReset: React.FC<PasswordResetProps> = ({ token, onSuccess }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,33 +41,38 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
     setError('');
     setSuccess('');
 
-    // Validate password strength
-    if (!passwordStrength.isValid) {
-      setError('Please choose a stronger password');
+    if (!token) {
+      setError('Link di reset non valido o scaduto. Richiedi un nuovo link.');
       return;
     }
 
-    // Check passwords match
+    // Valida robustezza password
+    if (!passwordStrength.isValid) {
+      setError('Scegli una password più robusta');
+      return;
+    }
+
+    // Verifica corrispondenza password
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Le password non coincidono');
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await updatePassword(password);
+      const result = await updatePassword(password, token);
 
       if (result.success) {
-        setSuccess('Password updated successfully! Redirecting to login...');
+        setSuccess('Password aggiornata! Reindirizzamento al login...');
         setTimeout(() => {
           onSuccess();
         }, 2000);
       } else {
-        setError(result.error || 'Failed to update password');
+        setError(result.error || 'Aggiornamento password fallito. Il link potrebbe essere scaduto.');
       }
     } catch (err) {
       console.error('Password reset error:', err);
-      setError('An error occurred while updating your password');
+      setError('Errore durante l\'aggiornamento della password');
     } finally {
       setIsLoading(false);
     }
@@ -84,10 +90,10 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
           fontSize: '0.75rem',
           color: '#1976D2'
         }}>
-          🔐 Reset Your Password
+          🔐 Reimposta la password
         </div>
 
-        <h1 className="login-title">Create New Password</h1>
+        <h1 className="login-title">Nuova password</h1>
 
         <form onSubmit={handleSubmit} className="login-form">
           {/* New Password */}
@@ -98,14 +104,14 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
               fontSize: '0.875rem',
               color: 'var(--color-text-secondary)'
             }}>
-              New Password *
+              Nuova password *
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter strong password"
+                placeholder="Inserisci una password robusta"
                 className="login-input"
                 required
                 autoComplete="new-password"
@@ -193,13 +199,13 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
               fontSize: '0.875rem',
               color: 'var(--color-text-secondary)'
             }}>
-              Confirm Password *
+              Conferma password *
             </label>
             <input
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
+              placeholder="Ripeti la password"
               className="login-input"
               required
               autoComplete="new-password"
@@ -214,7 +220,7 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
                 fontSize: '0.75rem',
                 marginTop: '4px'
               }}>
-                Passwords do not match
+                Le password non coincidono
               </div>
             )}
           </div>
@@ -259,7 +265,7 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
               cursor: isLoading || !passwordStrength.isValid || password !== confirmPassword ? 'not-allowed' : 'pointer'
             }}
           >
-            {isLoading ? 'Updating password...' : 'Reset Password'}
+            {isLoading ? 'Aggiornamento...' : 'Reimposta password'}
           </button>
 
           <div style={{
@@ -268,7 +274,7 @@ const PasswordReset: React.FC<PasswordResetProps> = ({ onSuccess }) => {
             fontSize: '0.75rem',
             color: 'var(--color-text-secondary)'
           }}>
-            Password must be at least 8 characters with uppercase, lowercase, numbers, and special characters
+La password deve avere almeno 8 caratteri con maiuscole, minuscole, numeri e caratteri speciali
           </div>
         </form>
       </div>
