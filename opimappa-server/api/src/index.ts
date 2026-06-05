@@ -1,3 +1,4 @@
+// API entrypoint (OPImaPPA homeserver). Vedi scripts/deploy-staging-api.sh per il deploy CI.
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
