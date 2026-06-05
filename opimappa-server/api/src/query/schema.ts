@@ -210,7 +210,7 @@ export const TABLE_SCHEMA: Record<string, TableSchemaDef> = {
     relationships: {},
   },
   dropdown_options: {
-    columns: { id: 'uuid', category: 'text', value: 'text', label: 'text', sort_order: 'integer', is_active: 'boolean', created_at: 'timestamptz', updated_at: 'timestamptz' },
+    columns: { id: 'uuid', category: 'text', value: 'text', label: 'text', unit: 'text', sort_order: 'integer', is_active: 'boolean', created_at: 'timestamptz', updated_at: 'timestamptz' },
     relationships: {},
   },
   products: {

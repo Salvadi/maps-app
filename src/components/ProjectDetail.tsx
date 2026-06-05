@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SUPPORTO_OPTIONS } from '../config/supporto';
 import { ATTRAVERSAMENTO_OPTIONS } from '../config/attraversamento';
+import { measureStructure, formatUnitTotals } from '../utils/measure';
 import {
   Project, MappingEntry, Photo, User, FloorPlan, FloorPlanPoint,
   getMappingEntriesForProject, getPhotosForMappings, deleteMappingEntry, resequenceMappingInterventions,
@@ -919,8 +920,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                                 <span>
                                                   {strutturaLabel}
                                                   {s.tipoStruttura && ` · ${s.tipoStruttura}`}
-                                                  {s.superficie !== undefined && ` · ${s.superficie} mq`}
-                                                  {s.lunghezza !== undefined && ` · ${s.lunghezza} ml`}
+                                                  {(() => {
+                                                    const m = measureStructure(s);
+                                                    return m.qty > 0 ? ` · ${formatUnitTotals({ [m.unit]: m.qty })}` : '';
+                                                  })()}
                                                 </span>
                                                 {linkedTypology && (
                                                   <span className="text-[10px] font-bold text-accent bg-accent/10 px-1.5 py-0.5 rounded-full flex-shrink-0">

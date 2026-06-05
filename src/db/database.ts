@@ -1,4 +1,5 @@
 import Dexie, { Table } from 'dexie';
+import type { MeasureUnit } from '../config/units';
 
 // TypeScript interfaces matching PRD data models
 export interface Project {
@@ -53,7 +54,9 @@ export interface Crossing {
   attraversamento: string;
   attraversamentoCustom?: string;
   tipologicoId?: string;
+  unit?: MeasureUnit; // unità della voce attraversamento (Fase B); default 'pz'
   quantita?: number;
+  lunghezza?: number; // ml/m (unit 'ml' | 'm', Fase B)
   diametro?: string;
   dimensioni?: string;
   notes?: string;
@@ -72,16 +75,26 @@ export function calcAsolaMq(b: number, h: number): number {
 // STRUTTURE INTERFACES
 // ============================================
 
+// Una "parte" di una struttura misurata in mq: il muro ad angolo = più parti sommate.
+export interface StrutturaParte {
+  id: string;
+  base?: number;              // m (larghezza)
+  altezza?: number;           // m (altezza)
+}
+
 export interface Structure {
   id: string;
   struttura: string;          // "Parete" | "Soffitto" | "Cassonetto porta-impianto" | "Altro"
   strutturaCustom?: string;   // usato quando struttura === 'Altro'
   tipoStruttura?: string;     // es. "Flessibile", "Rigido"
   tipologicoId?: string;      // → Project.typologies (category='struttura')
-  base?: number;              // m (larghezza)
-  altezza?: number;           // m (altezza)
-  superficie?: number;        // mq (calcolato da base × altezza)
-  lunghezza?: number;         // ml (per cassonetti)
+  unit?: MeasureUnit;         // unità della voce struttura (default 'mq'); guida i campi input
+  parti?: StrutturaParte[];   // unit 'mq': righe base×altezza, superficie = somma
+  base?: number;              // m (larghezza) — legacy/compat; ora vive in parti[0]
+  altezza?: number;           // m (altezza) — legacy/compat
+  superficie?: number;        // mq totale (somma delle parti)
+  lunghezza?: number;         // ml/m (unit 'ml' | 'm')
+  quantita?: number;          // pz (unit 'pz')
   notes?: string;
   salId?: string;             // UUID del SAL a cui è assegnato (undefined = non contabilizzato)
 }
@@ -355,6 +368,7 @@ export interface DropdownOptionCache {
   category: string; // e.g., 'supporto', 'tipo_supporto', 'attraversamento'
   value: string;
   label: string;
+  unit?: MeasureUnit; // unità di misura per voce (struttura/attraversamento); undefined = default categoria
   sortOrder: number;
   isActive: boolean;
   fetchedAt: number; // timestamp
