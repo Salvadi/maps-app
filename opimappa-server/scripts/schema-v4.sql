@@ -100,7 +100,9 @@ CREATE TABLE IF NOT EXISTS "verification" (
   identifier  TEXT NOT NULL,
   value       TEXT NOT NULL,
   "expiresAt" TIMESTAMPTZ NOT NULL,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Richiesto da better-auth (forget/reset password): senza, l'INSERT del token fallisce.
+  "updatedAt" TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_verification_identifier ON "verification"(identifier);
