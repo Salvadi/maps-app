@@ -293,7 +293,13 @@ export async function isAdmin(): Promise<boolean> {
  */
 export async function logout(): Promise<void> {
   try {
-    await apiFetch('/api/auth/sign-out', { method: 'POST' });
+    // better-auth richiede Content-Type: application/json sui POST, anche senza
+    // payload: senza header risponde 415 Unsupported Media Type.
+    await apiFetch('/api/auth/sign-out', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
     console.log('✅ User logged out (homeserver)');
   } catch (err) {
     console.error('❌ Logout error (rete), pulizia locale comunque:', err);

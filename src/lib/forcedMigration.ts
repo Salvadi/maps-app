@@ -73,7 +73,12 @@ export async function enforceForcedMigrationIfNeeded(): Promise<boolean> {
 
   try {
     try {
-      const res = await apiFetch('/api/auth/sign-out', { method: 'POST' });
+      // better-auth richiede Content-Type: application/json sui POST (altrimenti 415).
+      const res = await apiFetch('/api/auth/sign-out', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
       if (!res.ok) {
         console.warn(`[forcedMigration] sign-out non-OK: ${res.status} ${res.statusText}`);
       }
