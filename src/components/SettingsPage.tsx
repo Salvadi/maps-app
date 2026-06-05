@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LogOut, RefreshCw, Trash2,
-  Wifi, WifiOff, Shield, Plus, X, ChevronDown
+  Wifi, WifiOff, Shield, Plus, X, ChevronDown, Pencil, Check, Upload, Image as ImageIcon
 } from 'lucide-react';
 import { User, db, getDatabaseStats } from '../db';
 import { refreshDropdownCaches } from '../db/dropdownOptions';
 import { apiFetch, apiFetchJson } from '../lib/homeserver';
+import {
+  processFloorPlan,
+  uploadFloorPlan,
+  uploadFloorPlanPDF,
+  deleteFloorPlan as deleteFloorPlanAssets,
+} from '../utils/floorPlanUtils';
 import {
   SyncStats,
   getSyncIncludeArchivedProjects,
@@ -16,6 +22,17 @@ type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento' | 'stru
 
 interface DropdownItem { id: string; category: string; value: string; label: string; sort_order: number; is_active: boolean; }
 interface ProductItem { id: string; brand: string; name: string; sort_order: number; is_active: boolean; }
+interface ProjectRow { id: string; title: string; client: string; }
+interface FloorPlanRow {
+  id: string;
+  project_id: string;
+  floor: string;
+  image_url: string | null;
+  thumbnail_url: string | null;
+  pdf_url: string | null;
+  original_filename: string | null;
+  created_by: string | null;
+}
 
 interface SettingsPageProps {
   currentUser: User;
@@ -44,19 +61,36 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [syncPrefsLoading, setSyncPrefsLoading] = useState(true);
 
   // Admin data management state
-  const [adminTab, setAdminTab] = useState<'dropdown' | 'products'>('dropdown');
+  const [adminTab, setAdminTab] = useState<'dropdown' | 'products' | 'floorplans'>('dropdown');
   const [ddCategory, setDdCategory] = useState<DropdownCategory>('supporto');
   const [ddItems, setDdItems] = useState<DropdownItem[]>([]);
   const [ddLabel, setDdLabel] = useState('');
   const [ddValue, setDdValue] = useState('');
   const [ddLoading, setDdLoading] = useState(false);
   const [ddSaving, setDdSaving] = useState(false);
+  // Modifica inline opzione dropdown
+  const [ddEditingId, setDdEditingId] = useState<string | null>(null);
+  const [ddEditLabel, setDdEditLabel] = useState('');
+  const [ddEditValue, setDdEditValue] = useState('');
 
   const [prodItems, setProdItems] = useState<ProductItem[]>([]);
   const [prodBrand, setProdBrand] = useState('');
   const [prodName, setProdName] = useState('');
   const [prodLoading, setProdLoading] = useState(false);
   const [prodSaving, setProdSaving] = useState(false);
+  // Modifica inline prodotto
+  const [prodEditingId, setProdEditingId] = useState<string | null>(null);
+  const [prodEditBrand, setProdEditBrand] = useState('');
+  const [prodEditName, setProdEditName] = useState('');
+
+  // Cambio planimetria (admin)
+  const [fpProjects, setFpProjects] = useState<ProjectRow[]>([]);
+  const [fpProjectsLoading, setFpProjectsLoading] = useState(false);
+  const [fpSelectedProject, setFpSelectedProject] = useState('');
+  const [fpPlans, setFpPlans] = useState<FloorPlanRow[]>([]);
+  const [fpPlansLoading, setFpPlansLoading] = useState(false);
+  const [fpPointCounts, setFpPointCounts] = useState<Record<string, number>>({});
+  const [fpReplacingId, setFpReplacingId] = useState<string | null>(null);
 
   const [adminError, setAdminError] = useState('');
 
@@ -136,11 +170,68 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }, []);
 
+  // ─── Cambio planimetria (admin) ──────────────────────────────────────────
+  const loadFpProjects = useCallback(async () => {
+    if (!navigator.onLine) return;
+    setFpProjectsLoading(true);
+    setAdminError('');
+    try {
+      const { data } = await apiFetchJson<{ data: ProjectRow[] }>(
+        '/api/projects?select=id,title,client&order=title.asc&limit=2000'
+      );
+      setFpProjects(data || []);
+    } catch (e: any) {
+      setAdminError(e.message || 'Errore caricamento progetti');
+    } finally {
+      setFpProjectsLoading(false);
+    }
+  }, []);
+
+  const loadFpPlans = useCallback(async (projectId: string) => {
+    if (!projectId || !navigator.onLine) {
+      setFpPlans([]);
+      setFpPointCounts({});
+      return;
+    }
+    setFpPlansLoading(true);
+    setAdminError('');
+    try {
+      const { data } = await apiFetchJson<{ data: FloorPlanRow[] }>(
+        `/api/floor_plans?project_id=eq.${projectId}&select=id,project_id,floor,image_url,thumbnail_url,pdf_url,original_filename,created_by&order=floor.asc&limit=1000`
+      );
+      const plans = data || [];
+      setFpPlans(plans);
+      // Conta i punti per ogni planimetria (per rassicurare che restano dopo lo swap)
+      const counts: Record<string, number> = {};
+      await Promise.all(plans.map(async (plan) => {
+        try {
+          const res = await apiFetchJson<{ data: { id: string }[]; count?: number }>(
+            `/api/floor_plan_points?floor_plan_id=eq.${plan.id}&select=id&limit=1000`
+          );
+          counts[plan.id] = typeof res.count === 'number' ? res.count : (res.data?.length || 0);
+        } catch {
+          counts[plan.id] = 0;
+        }
+      }));
+      setFpPointCounts(counts);
+    } catch (e: any) {
+      setAdminError(e.message || 'Errore caricamento planimetrie');
+    } finally {
+      setFpPlansLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentUser.role !== 'admin') return;
     if (adminTab === 'dropdown') loadDropdownItems(ddCategory);
-    else loadProducts();
-  }, [currentUser.role, adminTab, ddCategory, loadDropdownItems, loadProducts]);
+    else if (adminTab === 'products') loadProducts();
+    else if (adminTab === 'floorplans') loadFpProjects();
+  }, [currentUser.role, adminTab, ddCategory, loadDropdownItems, loadProducts, loadFpProjects]);
+
+  useEffect(() => {
+    if (currentUser.role !== 'admin' || adminTab !== 'floorplans') return;
+    loadFpPlans(fpSelectedProject);
+  }, [currentUser.role, adminTab, fpSelectedProject, loadFpPlans]);
 
   const handleAddDropdown = async () => {
     if (!ddLabel.trim()) return;
@@ -184,6 +275,41 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   };
 
+  const startEditDropdown = (item: DropdownItem) => {
+    setDdEditingId(item.id);
+    setDdEditLabel(item.label);
+    setDdEditValue(item.value);
+    setAdminError('');
+  };
+
+  const cancelEditDropdown = () => {
+    setDdEditingId(null);
+    setDdEditLabel('');
+    setDdEditValue('');
+  };
+
+  const handleSaveEditDropdown = async (id: string) => {
+    if (!ddEditLabel.trim()) return;
+    setDdSaving(true);
+    setAdminError('');
+    try {
+      const val = ddEditValue.trim() || ddEditLabel.trim().toLowerCase().replace(/\s+/g, '_');
+      const response = await apiFetch(`/api/dropdown_options?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: ddEditLabel.trim(), value: val }),
+      });
+      await ensureAdminWriteOk(response, 'Errore modifica opzione');
+      cancelEditDropdown();
+      await loadDropdownItems(ddCategory);
+      await refreshDropdownCaches();
+    } catch (e: any) {
+      setAdminError(e.message || 'Errore modifica opzione');
+    } finally {
+      setDdSaving(false);
+    }
+  };
+
   const handleAddProduct = async () => {
     if (!prodBrand.trim() || !prodName.trim()) return;
     setProdSaving(true);
@@ -221,6 +347,94 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       await refreshDropdownCaches();
     } catch (e: any) {
       setAdminError(e.message || 'Errore eliminazione');
+    }
+  };
+
+  const startEditProduct = (item: ProductItem) => {
+    setProdEditingId(item.id);
+    setProdEditBrand(item.brand);
+    setProdEditName(item.name);
+    setAdminError('');
+  };
+
+  const cancelEditProduct = () => {
+    setProdEditingId(null);
+    setProdEditBrand('');
+    setProdEditName('');
+  };
+
+  const handleSaveEditProduct = async (id: string) => {
+    if (!prodEditBrand.trim() || !prodEditName.trim()) return;
+    setProdSaving(true);
+    setAdminError('');
+    try {
+      const response = await apiFetch(`/api/products?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand: prodEditBrand.trim(), name: prodEditName.trim() }),
+      });
+      await ensureAdminWriteOk(response, 'Errore modifica prodotto');
+      cancelEditProduct();
+      await loadProducts();
+      await refreshDropdownCaches();
+    } catch (e: any) {
+      setAdminError(e.message || 'Errore modifica prodotto');
+    } finally {
+      setProdSaving(false);
+    }
+  };
+
+  // Sostituzione in-place: stesso floor_plan id → punti/etichette restano collegati.
+  const handleReplaceFloorPlan = async (plan: FloorPlanRow, file: File) => {
+    setFpReplacingId(plan.id);
+    setAdminError('');
+    try {
+      const { fullRes, thumbnail, width, height, originalFormat, pdfBlob } = await processFloorPlan(file);
+
+      const { fullResUrl, thumbnailUrl } = await uploadFloorPlan(
+        plan.project_id,
+        plan.floor,
+        fullRes,
+        thumbnail,
+        plan.created_by || currentUser.id
+      );
+
+      let pdfUrl: string | null = null;
+      if (pdfBlob) {
+        try {
+          pdfUrl = await uploadFloorPlanPDF(plan.project_id, plan.floor, pdfBlob, plan.created_by || currentUser.id);
+        } catch (pdfErr) {
+          console.warn('Upload PDF originale fallito (planimetria comunque sostituita):', pdfErr);
+        }
+      }
+
+      const response = await apiFetch(`/api/floor_plans?id=eq.${plan.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: fullResUrl,
+          thumbnail_url: thumbnailUrl,
+          pdf_url: pdfUrl,
+          original_filename: file.name,
+          original_format: originalFormat,
+          width,
+          height,
+        }),
+      });
+      await ensureAdminWriteOk(response, 'Errore sostituzione planimetria');
+
+      // Pulizia asset vecchi dallo storage (best-effort, dopo PATCH riuscito).
+      try {
+        await deleteFloorPlanAssets(plan.image_url || undefined, plan.thumbnail_url || undefined, plan.pdf_url || undefined);
+      } catch (cleanupErr) {
+        console.warn('Pulizia asset planimetria precedente fallita:', cleanupErr);
+      }
+
+      await loadFpPlans(fpSelectedProject);
+    } catch (e: any) {
+      setAdminError(e.message || 'Errore sostituzione planimetria');
+    } finally {
+      setFpReplacingId(null);
     }
   };
 
@@ -412,7 +626,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <div className="bg-white rounded-2xl shadow-card overflow-hidden">
               {/* Tab selector */}
               <div className="flex border-b border-brand-100">
-                {(['dropdown', 'products'] as const).map(tab => (
+                {(['dropdown', 'products', 'floorplans'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setAdminTab(tab)}
@@ -420,7 +634,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                       adminTab === tab ? 'text-accent border-b-2 border-accent' : 'text-brand-500'
                     }`}
                   >
-                    {tab === 'dropdown' ? 'Dropdown' : 'Prodotti'}
+                    {tab === 'dropdown' ? 'Dropdown' : tab === 'products' ? 'Prodotti' : 'Planimetrie'}
                   </button>
                 ))}
               </div>
@@ -482,18 +696,56 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     ) : ddItems.length === 0 ? (
                       <div className="text-center py-6 text-brand-400 text-sm">Nessuna opzione</div>
                     ) : ddItems.map(item => (
-                      <div key={item.id} className="flex items-center gap-2 px-3 py-2 bg-brand-50 rounded-xl">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm text-brand-700 font-medium">{item.label}</span>
-                          <span className="ml-2 text-xs text-brand-400">{item.value}</span>
+                      ddEditingId === item.id ? (
+                        <div key={item.id} className="flex items-center gap-2 px-2 py-2 bg-blue-50 rounded-xl">
+                          <div className="flex-1 min-w-0 flex flex-col gap-1">
+                            <input
+                              value={ddEditLabel}
+                              onChange={e => setDdEditLabel(e.target.value)}
+                              placeholder="Etichetta *"
+                              className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-sm text-brand-800 focus:outline-none focus:border-accent"
+                            />
+                            <input
+                              value={ddEditValue}
+                              onChange={e => setDdEditValue(e.target.value)}
+                              placeholder="Value (opzionale)"
+                              className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
+                            />
+                          </div>
+                          <button
+                            onClick={() => handleSaveEditDropdown(item.id)}
+                            disabled={!ddEditLabel.trim() || ddSaving}
+                            className="w-7 h-7 flex items-center justify-center text-success hover:bg-green-50 rounded-lg flex-shrink-0 disabled:opacity-40"
+                          >
+                            <Check size={15} />
+                          </button>
+                          <button
+                            onClick={cancelEditDropdown}
+                            className="w-7 h-7 flex items-center justify-center text-brand-400 hover:bg-brand-100 rounded-lg flex-shrink-0"
+                          >
+                            <X size={15} />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleDeleteDropdown(item.id)}
-                          className="w-7 h-7 flex items-center justify-center text-danger hover:bg-red-50 rounded-lg flex-shrink-0"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
+                      ) : (
+                        <div key={item.id} className="flex items-center gap-2 px-3 py-2 bg-brand-50 rounded-xl">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-brand-700 font-medium">{item.label}</span>
+                            <span className="ml-2 text-xs text-brand-400">{item.value}</span>
+                          </div>
+                          <button
+                            onClick={() => startEditDropdown(item)}
+                            className="w-7 h-7 flex items-center justify-center text-accent hover:bg-blue-50 rounded-lg flex-shrink-0"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDropdown(item.id)}
+                            className="w-7 h-7 flex items-center justify-center text-danger hover:bg-red-50 rounded-lg flex-shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )
                     ))}
                   </div>
                 </div>
@@ -551,21 +803,139 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           <div className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-1 px-1">{brand}</div>
                           <div className="space-y-1">
                             {items.map(item => (
-                              <div key={item.id} className="flex items-center gap-2 px-3 py-2 bg-brand-50 rounded-xl">
-                                <span className="flex-1 text-sm text-brand-700">{item.name}</span>
-                                <button
-                                  onClick={() => handleDeleteProduct(item.id)}
-                                  className="w-7 h-7 flex items-center justify-center text-danger hover:bg-red-50 rounded-lg flex-shrink-0"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
+                              prodEditingId === item.id ? (
+                                <div key={item.id} className="flex items-center gap-2 px-2 py-2 bg-blue-50 rounded-xl">
+                                  <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                    <input
+                                      value={prodEditBrand}
+                                      onChange={e => setProdEditBrand(e.target.value)}
+                                      placeholder="Marca *"
+                                      className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
+                                    />
+                                    <input
+                                      value={prodEditName}
+                                      onChange={e => setProdEditName(e.target.value)}
+                                      placeholder="Nome prodotto *"
+                                      className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-sm text-brand-800 focus:outline-none focus:border-accent"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() => handleSaveEditProduct(item.id)}
+                                    disabled={!prodEditBrand.trim() || !prodEditName.trim() || prodSaving}
+                                    className="w-7 h-7 flex items-center justify-center text-success hover:bg-green-50 rounded-lg flex-shrink-0 disabled:opacity-40"
+                                  >
+                                    <Check size={15} />
+                                  </button>
+                                  <button
+                                    onClick={cancelEditProduct}
+                                    className="w-7 h-7 flex items-center justify-center text-brand-400 hover:bg-brand-100 rounded-lg flex-shrink-0"
+                                  >
+                                    <X size={15} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div key={item.id} className="flex items-center gap-2 px-3 py-2 bg-brand-50 rounded-xl">
+                                  <span className="flex-1 text-sm text-brand-700">{item.name}</span>
+                                  <button
+                                    onClick={() => startEditProduct(item)}
+                                    className="w-7 h-7 flex items-center justify-center text-accent hover:bg-blue-50 rounded-lg flex-shrink-0"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(item.id)}
+                                    className="w-7 h-7 flex items-center justify-center text-danger hover:bg-red-50 rounded-lg flex-shrink-0"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              )
                             ))}
                           </div>
                         </div>
                       ))
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Floor plans tab — cambio planimetria in-place */}
+              {adminTab === 'floorplans' && (
+                <div className="p-4 space-y-4">
+                  <p className="text-xs text-brand-500 leading-relaxed">
+                    Sostituisci l'immagine di una planimetria mantenendo intatti punti, etichette e dati associati
+                    (le posizioni restano perché normalizzate sulla planimetria).
+                  </p>
+
+                  {/* Selettore progetto */}
+                  <div className="relative">
+                    <select
+                      value={fpSelectedProject}
+                      onChange={e => setFpSelectedProject(e.target.value)}
+                      disabled={fpProjectsLoading}
+                      className="w-full px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 focus:outline-none focus:border-accent appearance-none"
+                    >
+                      <option value="">{fpProjectsLoading ? 'Caricamento progetti...' : 'Seleziona progetto…'}</option>
+                      {fpProjects.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.title || '(senza titolo)'}{p.client ? ` — ${p.client}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                  </div>
+
+                  {/* Lista planimetrie */}
+                  {fpSelectedProject && (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {fpPlansLoading ? (
+                        <div className="text-center py-6 text-brand-500 text-sm">Caricamento planimetrie...</div>
+                      ) : fpPlans.length === 0 ? (
+                        <div className="text-center py-6 text-brand-400 text-sm">Nessuna planimetria per questo progetto</div>
+                      ) : fpPlans.map(plan => (
+                        <div key={plan.id} className="flex items-center gap-3 px-3 py-3 bg-brand-50 rounded-xl">
+                          <div className="w-12 h-12 rounded-lg bg-brand-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {plan.thumbnail_url ? (
+                              <img src={plan.thumbnail_url} alt={plan.floor} className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon size={18} className="text-brand-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-brand-700">Piano {plan.floor}</div>
+                            <div className="text-xs text-brand-400 truncate">{plan.original_filename || '—'}</div>
+                            <div className="text-[11px] text-brand-500 mt-0.5">
+                              {(fpPointCounts[plan.id] ?? 0)} punti/etichette mantenuti
+                            </div>
+                          </div>
+                          <label
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold flex-shrink-0 cursor-pointer ${
+                              fpReplacingId === plan.id
+                                ? 'bg-brand-200 text-brand-500 cursor-wait'
+                                : 'bg-accent text-white hover:bg-accent/90'
+                            }`}
+                          >
+                            <Upload size={14} />
+                            {fpReplacingId === plan.id ? 'Carico...' : 'Sostituisci'}
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              disabled={fpReplacingId !== null}
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                if (!file) return;
+                                if (window.confirm(`Sostituire la planimetria del piano "${plan.floor}"?\n\nL'immagine attuale verrà eliminata. Punti ed etichette restano invariati.`)) {
+                                  handleReplaceFloorPlan(plan, file);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
