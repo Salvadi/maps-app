@@ -90,7 +90,17 @@ export function addFilter(filter: FilterClause, build: WhereBuild): void {
 
   const op = OP_SQL[filter.op];
   if (!op) httpError(400, 'unknown op: ' + filter.op);
-  build.clauses.push(`${col} ${op} ${addParam(build.values, filter.value)}`);
+  // postgres.js serializza una stringa JS ('true'/'false') verso una colonna boolean
+  // sempre come false (vedi serializer interno): un filtro is_active=eq.true tornerebbe
+  // 0 righe. Convertiamo qui il valore in un boolean JS reale prima del bind.
+  let boundValue: unknown = filter.value;
+  if (filter.colType === 'boolean') {
+    const lower = filter.value.toLowerCase();
+    if (lower === 'true' || lower === 't' || lower === '1') boundValue = true;
+    else if (lower === 'false' || lower === 'f' || lower === '0') boundValue = false;
+    else httpError(400, 'invalid boolean value: ' + filter.value);
+  }
+  build.clauses.push(`${col} ${op} ${addParam(build.values, boundValue)}`);
 }
 
 function buildWhere(tableName: string, plan: QueryPlan, userId: string, role: string): WhereBuild {

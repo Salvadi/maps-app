@@ -34,3 +34,28 @@ describe('query builder in operator', () => {
     expect(build.clauses[0]).toContain('= ANY');
   });
 });
+
+describe('query builder boolean eq', () => {
+  function runBool(value: string) {
+    const build = { clauses: [] as string[], values: [] as unknown[] };
+    addFilter({ type: 'direct', col: 'is_active', colType: 'boolean', op: 'eq', value }, build);
+    return build;
+  }
+
+  it('converte "true" in boolean JS reale (non stringa)', () => {
+    const build = runBool('true');
+    expect(build.values).toEqual([true]);
+    expect(build.clauses[0]).toBe('"is_active" = $1');
+  });
+
+  it('converte "false" in boolean JS reale', () => {
+    const build = runBool('false');
+    expect(build.values).toEqual([false]);
+  });
+
+  it('rifiuta valori boolean non validi con 400', () => {
+    let caughtErr: any;
+    try { runBool('maybe'); } catch (e: any) { caughtErr = e; }
+    expect(caughtErr?.status).toBe(400);
+  });
+});

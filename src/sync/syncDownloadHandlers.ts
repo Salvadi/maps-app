@@ -525,9 +525,16 @@ export async function downloadFloorPlansFromSupabase(
     const thumbnailLocation = extractStorageLocation(remoteFloorPlan.thumbnail_url || undefined);
     const pdfLocation = extractStorageLocation(remoteFloorPlan.pdf_url || undefined);
 
-    let imageBlob = existingFloorPlan?.imageBlob;
-    let thumbnailBlob = existingFloorPlan?.thumbnailBlob;
-    let pdfBlobBase64 = existingFloorPlan?.pdfBlobBase64;
+    // Se l'immagine remota è cambiata (es. sostituzione planimetria da Gestione Dati),
+    // l'URL contiene un nuovo timestamp: invalidiamo il blob cache locale così il
+    // progetto mostra la nuova planimetria invece di quella vecchia ancora in cache.
+    const imageChanged = !!existingFloorPlan && existingFloorPlan.imageUrl !== (remoteFloorPlan.image_url || undefined);
+    const thumbnailChanged = !!existingFloorPlan && existingFloorPlan.thumbnailUrl !== (remoteFloorPlan.thumbnail_url || undefined);
+    const pdfChanged = !!existingFloorPlan && existingFloorPlan.pdfUrl !== (remoteFloorPlan.pdf_url || undefined);
+
+    let imageBlob = imageChanged ? undefined : existingFloorPlan?.imageBlob;
+    let thumbnailBlob = thumbnailChanged ? undefined : existingFloorPlan?.thumbnailBlob;
+    let pdfBlobBase64 = pdfChanged ? undefined : existingFloorPlan?.pdfBlobBase64;
 
     if (options?.includeImageBlobs && !imageBlob) {
       imageBlob = await fetchBucketBlob(imageLocation, remoteFloorPlan.image_url || undefined);
