@@ -26,6 +26,18 @@ app.use('*', async (c, next) => {
   }, 'request');
 });
 
+// Le risposte dati /api NON devono essere cachate (browser disk cache / Cloudflare):
+// una GET stantia reintroduce dati obsoleti nel client. Bug concreto: /api/floor_plans
+// cachato con un image_url gia sostituito reinseriva l'url morto in Dexie via download
+// handler -> planimetria 404 a intermittenza. Gli asset sotto /api/storage/proxy hanno
+// filename con timestamp (immutabili) e restano cacheabili per performance.
+app.use('/api/*', async (c, next) => {
+  await next();
+  if (!c.req.path.startsWith('/api/storage/proxy/')) {
+    c.header('Cache-Control', 'no-store');
+  }
+});
+
 app.use('/api/auth/*', auditLog);
 
 // Validazione dominio email: solo @opifiresafe.com è ammesso

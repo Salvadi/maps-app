@@ -17,7 +17,12 @@ export function isHomeserverConfigured(): boolean {
  * Usa percorsi relativi: nessuna trasformazione di base URL necessaria (same-origin).
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, { credentials: 'include', ...init });
+  // cache: 'no-store' OBBLIGATORIO: senza, browser/edge (Cloudflare cacha /api,
+  // vedi apiFetchJson) possono servire una GET /api/* stantia. Bug concreto:
+  // /api/floor_plans cachato con un image_url ormai sostituito reintroduceva
+  // l'url morto in Dexie via download handler -> editor planimetria 404 a
+  // intermittenza. Override esplicito possibile passando init.cache.
+  return fetch(path, { credentials: 'include', cache: 'no-store', ...init });
 }
 
 export class ApiResponseError extends Error {
