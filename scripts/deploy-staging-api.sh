@@ -25,7 +25,10 @@ echo "========================================"
 
 echo "[*] Test + build API (tsc + vitest)..."
 cd "$API_DIR"
-npm ci
+# --legacy-peer-deps: better-auth richiede peer drizzle-orm/kit più recenti del pin
+# del progetto. Allinea al Dockerfile (npm install --legacy-peer-deps) e al .npmrc
+# di root, che npm NON legge da questa subdir.
+npm ci --legacy-peer-deps
 npm run build
 npm test
 
