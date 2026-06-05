@@ -525,6 +525,14 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
       }
     }
 
+    // L'app legge *_storage_path (convertRemoteToLocalFloorPlan lo preferisce su
+    // *_url): va mantenuto allineato all'url corrente, altrimenti dopo un
+    // re-upload asset resta puntato al file vecchio cancellato -> 404. Deriviamo
+    // il path canonico MinIO dall'url proxy; per url non-proxy (legacy) mandiamo
+    // null cosi l'app fa fallback su *_url.
+    const toStoragePath = (u: string | undefined | null) =>
+      u && u.startsWith('/api/storage/proxy/') ? u.replace('/api/storage/proxy/', '') : null;
+
     // Create/update floor plan record tramite homeserver API
     const fpRes = await apiFetch('/api/floor_plans', {
       method: 'PUT',
@@ -536,6 +544,9 @@ async function syncFloorPlan(item: SyncQueueItem): Promise<void> {
         image_url: imageUrl,
         thumbnail_url: thumbnailUrl,
         pdf_url: pdfUrl || null,
+        image_storage_path: toStoragePath(imageUrl),
+        thumbnail_storage_path: toStoragePath(thumbnailUrl),
+        pdf_storage_path: toStoragePath(pdfUrl),
         original_filename: localFloorPlan.originalFilename,
         original_format: localFloorPlan.originalFormat,
         width: localFloorPlan.width,

@@ -1,7 +1,6 @@
 /**
  * homeserver.ts — helper condiviso per le chiamate all'API homeserver.
  * Tutte le richieste usano credenziali SameSite=Lax (cookie __Host-opimappa-*).
- * build-marker: no-store apiFetch (rebuild staging web)
  */
 
 /**

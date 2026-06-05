@@ -408,6 +408,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         }
       }
 
+      // IMPORTANTE: l'app legge *_storage_path (convertRemoteToLocalFloorPlan
+      // preferisce synthUrl(storage_path) su *_url). Aggiornare solo *_url lascia
+      // storage_path puntato al file vecchio (gia cancellato) -> 404 planimetria.
+      // Deriviamo il path canonico MinIO dall'url proxy del nuovo upload.
+      const toStoragePath = (u: string | null) =>
+        u ? u.replace('/api/storage/proxy/', '') : null;
+
       const response = await apiFetch(`/api/floor_plans?id=eq.${plan.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -415,6 +422,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           image_url: fullResUrl,
           thumbnail_url: thumbnailUrl,
           pdf_url: pdfUrl,
+          image_storage_path: toStoragePath(fullResUrl),
+          thumbnail_storage_path: toStoragePath(thumbnailUrl),
+          pdf_storage_path: toStoragePath(pdfUrl),
           original_filename: file.name,
           original_format: originalFormat,
           width,
