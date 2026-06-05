@@ -309,21 +309,30 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
   const pendingIds = await getPendingEntityIds('mapping_entry');
   let downloadedCount = 0;
 
+  // F5: pre-carico le righe locali una sola volta per (a) saltare le scritture
+  // di righe immutate e (b) riusarle nel pruning, evitando una seconda query.
+  const existingLocal = await db.mappingEntries.where('projectId').anyOf(projectIds).toArray();
+  const existingById = new Map(existingLocal.map((e) => [e.id, e]));
+
   for (const remoteEntry of data || []) {
     if (pendingIds.has(remoteEntry.id)) {
       continue;
     }
 
     const entry = convertRemoteToLocalMapping(remoteEntry);
+    const existing = existingById.get(entry.id);
+    // F5: salta il put se la riga locale è già identica (stesso lastModified),
+    // riducendo il churn IndexedDB e i re-render inutili a ogni ciclo di sync.
+    if (existing && entry.lastModified != null && existing.lastModified === entry.lastModified) {
+      continue;
+    }
     await db.mappingEntries.put(entry);
     downloadedCount += 1;
   }
 
   // Pruning: rimuovere localmente le mapping entries non più presenti remoto
   const remoteEntryIds = new Set((data || []).map((r: any) => r.id));
-  const localEntryIds = projectIds.length > 0
-    ? await db.mappingEntries.where('projectId').anyOf(projectIds).primaryKeys() as string[]
-    : [];
+  const localEntryIds = existingLocal.map((e) => e.id);
   const toDeleteEntries = localEntryIds.filter((id) => !remoteEntryIds.has(id) && !pendingIds.has(id));
   if (toDeleteEntries.length > 0) await db.mappingEntries.bulkDelete(toDeleteEntries);
 
@@ -333,7 +342,7 @@ export async function downloadMappingEntriesFromSupabase(userId: string, isAdmin
 export async function downloadPhotosFromSupabase(
   userId: string,
   isAdmin = false,
-  options?: { includeBlobs?: boolean }
+  options?: { includeBlobs?: boolean; includeThumbnailBlobs?: boolean }
 ): Promise<{ downloaded: number; failed: number }> {
   ensureOnline();
 
@@ -442,7 +451,9 @@ export async function downloadPhotosFromSupabase(
         blob = await fetchStorageBlob(remotePhoto.storage_path || undefined, remotePhoto.url || undefined);
       }
 
-      if (options?.includeBlobs && !thumbnailBlob) {
+      // F4: la thumbnail si scarica anche in modalità "solo thumbnail" (offline
+      // leggero). Il blob full sopra resta condizionato a includeBlobs.
+      if ((options?.includeBlobs || options?.includeThumbnailBlobs) && !thumbnailBlob) {
         thumbnailBlob = await fetchStorageBlob(
           remotePhoto.thumbnail_storage_path || undefined,
           remotePhoto.thumbnail_url || undefined
@@ -913,21 +924,28 @@ export async function downloadStructureEntriesFromSupabase(userId: string, isAdm
   const pendingIds = await getPendingEntityIds('structure_entry');
   let downloadedCount = 0;
 
+  // F5: pre-carico le righe locali una sola volta (skip scritture immutate + pruning).
+  const existingLocal = await db.structureEntries.where('projectId').anyOf(projectIds).toArray();
+  const existingById = new Map(existingLocal.map((e) => [e.id, e]));
+
   for (const remoteEntry of data || []) {
     if (pendingIds.has(remoteEntry.id)) {
       continue;
     }
 
     const entry = convertRemoteToLocalStructure(remoteEntry);
+    const existing = existingById.get(entry.id);
+    // F5: salta il put se la riga locale è già identica (stesso lastModified).
+    if (existing && entry.lastModified != null && existing.lastModified === entry.lastModified) {
+      continue;
+    }
     await db.structureEntries.put(entry);
     downloadedCount += 1;
   }
 
   // Pruning: rimuovere localmente le structure entries non più presenti remoto
   const remoteEntryIds = new Set((data || []).map((r: any) => r.id));
-  const localEntryIds = projectIds.length > 0
-    ? await db.structureEntries.where('projectId').anyOf(projectIds).primaryKeys() as string[]
-    : [];
+  const localEntryIds = existingLocal.map((e) => e.id);
   const toDeleteEntries = localEntryIds.filter((id) => !remoteEntryIds.has(id) && !pendingIds.has(id));
   if (toDeleteEntries.length > 0) await db.structureEntries.bulkDelete(toDeleteEntries);
 

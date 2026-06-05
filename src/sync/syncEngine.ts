@@ -161,11 +161,34 @@ export function triggerImmediateUpload(): void {
   uploadDebounceTimer = setTimeout(async () => {
     try {
       if (!navigator.onLine || !isHomeserverConfigured()) return;
-      await lockedSync();
+      // F1: dopo una modifica locale facciamo SOLO upload. Il download dei dati
+      // remoti arriva via realtime (triggerImmediateDownload) e dal poll periodico,
+      // evitando un full re-download a ogni edit.
+      await lockedUpload();
     } catch (err) {
       console.error('Debounced upload failed:', err);
     }
   }, 2000);
+}
+
+// F2: debounce per il download immediato innescato da un evento realtime
+// (modifica proveniente da un altro tab/dispositivo).
+let downloadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Innesca un download remoto immediato (debounced) in risposta a un evento
+ * realtime. Coalesce eventi ravvicinati in un solo sync di download.
+ */
+export function triggerImmediateDownload(): void {
+  if (downloadDebounceTimer) clearTimeout(downloadDebounceTimer);
+  downloadDebounceTimer = setTimeout(async () => {
+    try {
+      if (!navigator.onLine || !isHomeserverConfigured()) return;
+      await lockedDownload();
+    } catch (err) {
+      console.error('Debounced download failed:', err);
+    }
+  }, 400);
 }
 
 // ============================================
@@ -597,6 +620,42 @@ export async function lockedSync(): Promise<void> {
   await emitSyncComplete();
 }
 
+/**
+ * F1: sync di solo upload (processSyncQueue) sotto lock. Usato dopo le modifiche
+ * locali: non scarica nulla dal server, evitando il full re-download a ogni edit.
+ */
+export async function lockedUpload(): Promise<void> {
+  if (!await acquireSyncLock()) {
+    console.log('⏭️  lockedUpload skipped: sync already in progress');
+    return;
+  }
+  try {
+    await processSyncQueue();
+  } finally {
+    await releaseSyncLock();
+  }
+
+  await emitSyncComplete();
+}
+
+/**
+ * F2: sync di solo download (syncFromSupabase) sotto lock. Usato in risposta a un
+ * evento realtime per propagare subito le modifiche remote senza attendere il poll.
+ */
+export async function lockedDownload(): Promise<void> {
+  if (!await acquireSyncLock()) {
+    console.log('⏭️  lockedDownload skipped: sync already in progress');
+    return;
+  }
+  try {
+    await syncFromSupabase();
+  } finally {
+    await releaseSyncLock();
+  }
+
+  await emitSyncComplete();
+}
+
 // ============================================
 // SEZIONE: Sync manuale (manualSync)
 // Sync bidirezionale con lock atomico: prima upload locale, poi download remoto
@@ -738,7 +797,7 @@ export async function phasedSyncFromSupabase(options?: {
   if (shouldDownloadPhotos) {
     progress?.({ step: 5, totalSteps, phase: 'Download foto...' });
     console.log('📸 Fase 3: Sincronizzazione foto...');
-    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: true });
+    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: false, includeThumbnailBlobs: true });
     photosCount = photosResult.downloaded;
     photosFailedCount = photosResult.failed;
     progress?.({ step: 5, totalSteps, phase: 'Download foto', detail: `${photosCount} foto${photosFailedCount > 0 ? ` (${photosFailedCount} fallite)` : ''}` });
@@ -847,7 +906,7 @@ export async function clearAndSync(): Promise<{
     const floorPlanPointsCount = await downloadFloorPlanPointsFromSupabase(userId, isAdmin);
     const standaloneMapsCount = await downloadStandaloneMapsFromSupabase(userId, isAdmin);
     const salsCount = await downloadSalsFromSupabase(userId, isAdmin);
-    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: true });
+    const photosResult = await downloadPhotosFromSupabase(userId, isAdmin, { includeBlobs: false, includeThumbnailBlobs: true });
     const downloadResult = {
       projectsCount,
       entriesCount,

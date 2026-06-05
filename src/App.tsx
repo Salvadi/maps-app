@@ -16,10 +16,10 @@ import { apiFetchJson } from './lib/homeserver';
 import { enforceForcedMigrationIfNeeded } from './lib/forcedMigration';
 import type { UnmappedEntry } from './components/FloorPlanEditor';
 import {
-  startAutoSync, stopAutoSync, lockedSync,
+  startAutoSync, stopAutoSync, lockedSync, triggerImmediateDownload,
   getSyncStats, manualSync, clearAndSync, SyncStats, SyncProgress, onSyncComplete, offSyncComplete
 } from './sync/syncEngine';
-import { eventStream } from './realtime/eventStream';
+import { eventStream, tabId } from './realtime/eventStream';
 import { handleProjectDeleteLocal, drainPendingCascades } from './realtime/projectCascade';
 import './App.css';
 
@@ -236,6 +236,16 @@ const App: React.FC = () => {
       window.history.replaceState({ view: 'tabs', tab: activeTab }, '', window.location.pathname);
     };
 
+    // F2: qualsiasi modifica remota (insert/update/delete) su dati propaga subito
+    // un download incrementale, invece di attendere il poll periodico (60s).
+    // Salta gli eventi originati da QUESTO tab: sono già stati applicati localmente
+    // e caricati via triggerImmediateUpload, quindi un download li ri-scaricherebbe
+    // solo per nulla vanificando F1.
+    const handleRemoteDataChange = async (ev: import('./realtime/eventStream').ChangeLogRow): Promise<void> => {
+      if (ev.originator && ev.originator === tabId) return;
+      triggerImmediateDownload();
+    };
+
     const run = async () => {
       await eventStream.init();
       if (!active) return;
@@ -244,6 +254,7 @@ const App: React.FC = () => {
       if (!active) return;
       eventStream.subscribe(handleProjectDeleteLocal);
       eventStream.subscribe(handleStaleView);
+      eventStream.subscribe(handleRemoteDataChange);
       eventStream.start();
     };
     run();
@@ -251,6 +262,7 @@ const App: React.FC = () => {
       active = false;
       eventStream.unsubscribe(handleProjectDeleteLocal);
       eventStream.unsubscribe(handleStaleView);
+      eventStream.unsubscribe(handleRemoteDataChange);
       eventStream.stop();
     };
     // activeTab è letto solo in replaceState dentro handleStaleView: includerlo

@@ -1,29 +1,12 @@
 /**
- * LEGACY shim di compatibilità tipi — non è un client runtime.
+ * LEGACY shim di SOLI tipi — non è un client runtime.
  *
- * Legacy: client runtime rimosso dopo cutover homeserver.
- * Proxy throwing: qualsiasi accesso solleva eccezione esplicita per
- * evitare regressioni future ('supabase=null' silenzioso era un footgun).
- * Solo Database types sotto restano per consumer type-only.
+ * Il client runtime Supabase è stato rimosso al cutover homeserver (insieme al
+ * proxy throwing `supabase` e a `isSupabaseConfigured`, ormai senza consumer).
+ * Restano solo i Database types qui sotto, usati dai consumer type-only
+ * (`import type { Database }`). Per dati/storage usare apiFetch/apiFetchJson da
+ * './homeserver'.
  */
-export const supabase: any = new Proxy(
-  {},
-  {
-    get(_target, prop) {
-      throw new Error(
-        `Supabase client runtime rimosso (cutover homeserver). ` +
-          `Accesso a 'supabase.${String(prop)}' non supportato. Usare apiFetch/apiFetchJson da '../lib/homeserver'.`,
-      );
-    },
-  },
-);
-
-/**
- * Compat legacy: il client runtime Supabase è disabilitato.
- */
-export function isSupabaseConfigured(): boolean {
-  return false;
-}
 
 /**
  * Database types for TypeScript support
