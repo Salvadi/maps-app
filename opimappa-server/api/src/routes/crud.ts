@@ -276,11 +276,11 @@ export function createCrudHandler(tableName: string) {
         } else if (existingRow) {
           // Su UPDATE l'upsert costruisce comunque una tuple INSERT che deve rispettare
           // i NOT NULL (es. projects.owner_id), anche se ON CONFLICT poi fa UPDATE.
-          // Un client che invia owner_id/user_id null (admin che modifica un progetto
-          // la cui copia locale ha perso ownerId) causerebbe un 500. Ripristiniamo il
-          // valore esistente: l'ownership NON cambia mai (è esclusa da updateSet).
-          if ('owner_id' in rawBody && rawBody.owner_id == null) rawBody.owner_id = existingRow.owner_id;
-          if ('user_id' in rawBody && rawBody.user_id == null) rawBody.user_id = existingRow.user_id;
+          // Un client che invia owner_id/user_id null O che li OMETTE del tutto
+          // (es. payload project UPDATE in syncUploadHandlers) causerebbe un 500.
+          // Backfill dal valore esistente: l'ownership NON cambia mai (esclusa da updateSet).
+          if (!('owner_id' in rawBody) || rawBody.owner_id == null) rawBody.owner_id = existingRow.owner_id;
+          if (!('user_id' in rawBody) || rawBody.user_id == null) rawBody.user_id = existingRow.user_id;
         }
 
         const body = sanitizeBody(tableName, rawBody);
