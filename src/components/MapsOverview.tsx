@@ -111,7 +111,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
                 </span>
                 <ChevronRight size={14} className="text-brand-400" />
               </button>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-5">
                 {floorPlans.map((plan) => (
                   <div key={plan.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
                     <button
