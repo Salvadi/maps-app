@@ -1,4 +1,4 @@
-// API entrypoint (OPImaPPA homeserver). Vedi scripts/deploy-staging-api.sh per il deploy CI.
+// API entrypoint (OPImaPPA homeserver). Deploy CI: scripts/deploy-staging-api.sh (npm ci --legacy-peer-deps).
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
