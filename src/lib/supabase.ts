@@ -358,6 +358,7 @@ export interface Database {
           category: string;
           value: string;
           label: string;
+          unit: string | null;
           sort_order: number;
           is_active: boolean;
           created_at: string;
@@ -368,6 +369,7 @@ export interface Database {
           category: string;
           value: string;
           label: string;
+          unit?: string | null;
           sort_order?: number;
           is_active?: boolean;
         };
@@ -375,6 +377,7 @@ export interface Database {
           category?: string;
           value?: string;
           label?: string;
+          unit?: string | null;
           sort_order?: number;
           is_active?: boolean;
         };

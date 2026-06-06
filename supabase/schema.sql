@@ -204,12 +204,16 @@ CREATE TABLE IF NOT EXISTS public.dropdown_options (
   category    TEXT NOT NULL,
   value       TEXT NOT NULL,
   label       TEXT NOT NULL,
+  unit        TEXT,                              -- unità di misura per voce: 'mq' | 'ml' | 'm' | 'pz' (NULL = default per categoria)
   sort_order  INTEGER NOT NULL DEFAULT 0,
   is_active   BOOLEAN NOT NULL DEFAULT true,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (category, value)
 );
+
+-- Colonna `unit` aggiunta in modo idempotente (per DB già esistenti dove il CREATE IF NOT EXISTS non la applica).
+ALTER TABLE public.dropdown_options ADD COLUMN IF NOT EXISTS unit TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_dropdown_options_category   ON public.dropdown_options(category);
 CREATE INDEX IF NOT EXISTS idx_dropdown_options_sort_order ON public.dropdown_options(category, sort_order);

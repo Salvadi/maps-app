@@ -6,6 +6,8 @@ import ProjectList from './components/ProjectList';
 import UpdateNotification from './components/UpdateNotification';
 import ErrorBoundary from './components/ErrorBoundary';
 import BottomTabBar, { TabId } from './components/BottomTabBar';
+import DesktopSidebar from './components/DesktopSidebar';
+import { useDesktopLayout } from './hooks/useDesktopLayout';
 import {
   db, initializeDatabase, initializeMockUsers, getCurrentUser, deleteProject, logout,
   User, Project, MappingEntry, FloorPlan, StructureEntry,
@@ -60,6 +62,8 @@ const App: React.FC = () => {
     isSyncing: false
   });
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+
+  const isDesktop = useDesktopLayout();
 
   // Floor plan editor state for maps tab
   const [editorFloorPlan, setEditorFloorPlan] = useState<FloorPlan | null>(null);
@@ -844,53 +848,68 @@ const App: React.FC = () => {
         return null;
 
       case 'tabs':
-      default:
+      default: {
+        const tabContent = (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {activeTab === 'dashboard' && (
+              <Dashboard
+                currentUser={currentUser}
+                syncStats={syncStats}
+                syncProgress={syncProgress}
+                isOnline={isOnline}
+                onNavigateToProject={handleViewProject}
+                onAddMapping={handleEnterMapping}
+                onCreateProject={handleCreateProject}
+                onManualSync={handleManualSync}
+              />
+            )}
+            {activeTab === 'projects' && (
+              <ProjectList
+                currentUser={currentUser}
+                onEditProject={handleEditProject}
+                onDeleteProject={handleDeleteProject}
+                onViewProject={handleViewProject}
+                onEnterMapping={handleEnterMapping}
+              />
+            )}
+            {activeTab === 'maps' && (
+              <MapsOverview
+                currentUser={currentUser}
+                onOpenFloorPlan={handleOpenFloorPlanEditor}
+                onOpenStandaloneEditor={handleOpenStandaloneEditor}
+                onNavigateToProject={handleViewProject}
+              />
+            )}
+            {activeTab === 'settings' && (
+              <SettingsPage
+                currentUser={currentUser}
+                syncStats={syncStats}
+                isOnline={isOnline}
+                onLogout={handleLogout}
+                onManualSync={handleManualSync}
+                onClearAndSync={handleClearAndSync}
+              />
+            )}
+          </div>
+        );
+
+        if (isDesktop) {
+          return (
+            <div className="flex flex-1 overflow-hidden">
+              <DesktopSidebar
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                pendingSyncCount={syncStats.pendingCount}
+                isOnline={isOnline}
+              />
+              {tabContent}
+            </div>
+          );
+        }
+
         return (
           <>
-            {/* Tab content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {activeTab === 'dashboard' && (
-                <Dashboard
-                  currentUser={currentUser}
-                  syncStats={syncStats}
-                  syncProgress={syncProgress}
-                  isOnline={isOnline}
-                  onNavigateToProject={handleViewProject}
-                  onAddMapping={handleEnterMapping}
-                  onCreateProject={handleCreateProject}
-                  onManualSync={handleManualSync}
-                />
-              )}
-              {activeTab === 'projects' && (
-                <ProjectList
-                  currentUser={currentUser}
-                  onEditProject={handleEditProject}
-                  onDeleteProject={handleDeleteProject}
-                  onViewProject={handleViewProject}
-                  onEnterMapping={handleEnterMapping}
-                />
-              )}
-              {activeTab === 'maps' && (
-                <MapsOverview
-                  currentUser={currentUser}
-                  onOpenFloorPlan={handleOpenFloorPlanEditor}
-                  onOpenStandaloneEditor={handleOpenStandaloneEditor}
-                  onNavigateToProject={handleViewProject}
-                />
-              )}
-              {activeTab === 'settings' && (
-                <SettingsPage
-                  currentUser={currentUser}
-                  syncStats={syncStats}
-                  isOnline={isOnline}
-                  onLogout={handleLogout}
-                  onManualSync={handleManualSync}
-                  onClearAndSync={handleClearAndSync}
-                />
-              )}
-            </div>
-
-            {/* Bottom tab bar */}
+            {tabContent}
             <BottomTabBar
               activeTab={activeTab}
               onTabChange={handleTabChange}
@@ -898,11 +917,12 @@ const App: React.FC = () => {
             />
           </>
         );
+      }
     }
   };
 
   return (
-    <div className="App">
+    <div className={`App${isDesktop ? ' app-desktop' : ''}`}>
       {/* Offline indicator */}
       {!isOnline && currentView === 'tabs' && (
         <div className="bg-warning text-white text-xs font-medium text-center py-2 px-4">

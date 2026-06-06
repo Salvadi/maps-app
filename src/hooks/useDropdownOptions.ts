@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getDropdownOptions, getProductsByBrand, getBrandOptions } from '../db/dropdownOptions';
+import type { MeasureUnit } from '../config/units';
 
 export interface MenuOption {
   value: string;
   label: string;
+  unit?: MeasureUnit; // unità di misura per voce (struttura/attraversamento)
 }
 
 /**

@@ -7,6 +7,11 @@
   position: relative;
 }
 
+/* Desktop: sovrascrive il padding-bottom mobile usato dai tab content per la BottomTabBar */
+.app-desktop .pb-24 {
+  padding-bottom: 1.5rem !important;
+}
+
 /* Offline indicator bar */
 .offline-indicator {
   background-color: #FF9500;

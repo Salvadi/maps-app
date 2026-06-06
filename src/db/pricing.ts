@@ -1,4 +1,5 @@
 import { db, TypologyPrice, generateId, now, SyncQueueItem } from './database';
+import { MeasureUnit, legacyToUnit } from '../config/units';
 import { triggerImmediateUpload } from '../sync/syncEngine';
 import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
 import {
@@ -21,7 +22,7 @@ function convertRemoteToLocalTypologyPrice(remote: any): TypologyPrice {
     attraversamento: remote.attraversamento,
     tipologicoId: remote.tipologico_id || undefined,
     pricePerUnit: remote.price_per_unit,
-    unit: remote.unit,
+    unit: legacyToUnit(remote.unit, (remote.category === 'struttura' ? 'mq' : 'pz')),
     createdAt: remote.created_at ? new Date(remote.created_at).getTime() : undefined,
     updatedAt: remote.updated_at ? new Date(remote.updated_at).getTime() : undefined,
     synced: 1,
@@ -100,7 +101,7 @@ export async function upsertTypologyPrice(
   projectId: string,
   attraversamento: string,
   pricePerUnit: number,
-  unit: 'piece' | 'sqm',
+  unit: MeasureUnit,
   tipologicoId?: string,
   category: 'attraversamento' | 'struttura' = 'attraversamento'
 ): Promise<void> {

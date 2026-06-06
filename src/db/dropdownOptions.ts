@@ -1,5 +1,6 @@
 import { db, DropdownOptionCache, ProductCache } from './database';
 import { apiFetchJson, isHomeserverConfigured } from '../lib/homeserver';
+import { MeasureUnit, asMeasureUnit } from '../config/units';
 
 // Static fallbacks (from original config files)
 import { SUPPORTO_OPTIONS } from '../config/supporto';
@@ -25,6 +26,7 @@ const TIPO_STRUTTURA_OPTIONS: MenuOption[] = [
 export interface MenuOption {
   value: string;
   label: string;
+  unit?: MeasureUnit; // unità di misura per voce (struttura/attraversamento)
 }
 
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -74,6 +76,7 @@ async function fetchAndCacheOptions(category: string): Promise<MenuOption[]> {
       category: item.category,
       value: item.value,
       label: item.label,
+      unit: asMeasureUnit(item.unit),
       sortOrder: item.sort_order,
       isActive: item.is_active,
       fetchedAt: now,
@@ -84,6 +87,7 @@ async function fetchAndCacheOptions(category: string): Promise<MenuOption[]> {
     return [{ value: '', label: '' }, ...cacheItems.map(item => ({
       value: item.value,
       label: item.label,
+      unit: item.unit,
     }))];
   } catch (err) {
     console.warn(`Failed to fetch ${category} options dall'homeserver:`, err);
@@ -154,6 +158,7 @@ export async function getDropdownOptions(category: string): Promise<MenuOption[]
     return [{ value: '', label: '' }, ...cached.map(item => ({
       value: item.value,
       label: item.label,
+      unit: item.unit,
     }))];
   }
 

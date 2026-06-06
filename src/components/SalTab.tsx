@@ -11,6 +11,10 @@ import {
   getStructureEntriesForProject,
 } from '../db';
 import { PlusCircle, Edit, Link, Trash, Info, AlertTriangle } from 'lucide-react';
+import { MeasureUnit } from '../config/units';
+import { measureStructure, measureCrossing, sumByUnit, formatUnitTotals, UnitQty } from '../utils/measure';
+
+type UnitTotals = Partial<Record<MeasureUnit, number>>;
 
 interface SalTabProps {
   project: Project;
@@ -23,6 +27,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   const [toCompleteUnassignedCount, setToCompleteUnassignedCount] = useState(0);
   const [unassignedStructuresCount, setUnassignedStructuresCount] = useState(0);
   const [salItemsMap, setSalItemsMap] = useState<Record<string, number>>({});
+  const [salTotalsMap, setSalTotalsMap] = useState<Record<string, UnitTotals>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,12 +68,20 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
     setUnassignedStructuresCount(unassignedStructures);
 
     const salMap: Record<string, number> = {};
+    const totalsMap: Record<string, UnitTotals> = {};
     for (const sal of projectSals) {
-      const crossingCount = allCrossings.filter(c => c.salId === sal.id).length;
-      const structureCount = allStructures.filter(s => s.salId === sal.id).length;
-      salMap[sal.id] = crossingCount + structureCount;
+      const salCrossings = allCrossings.filter(c => c.salId === sal.id);
+      const salStructures = allStructures.filter(s => s.salId === sal.id);
+      salMap[sal.id] = salCrossings.length + salStructures.length;
+      // Totali per unità (asola-safe: contributi via measureCrossing/measureStructure).
+      const contributi: UnitQty[] = [
+        ...salStructures.map(measureStructure),
+        ...salCrossings.flatMap(measureCrossing),
+      ];
+      totalsMap[sal.id] = sumByUnit(contributi);
     }
     setSalItemsMap(salMap);
+    setSalTotalsMap(totalsMap);
     setLoading(false);
   }, [project.id]);
 
@@ -328,7 +341,12 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                   : 'Non specificata'}
               </p>
               <p className="text-sm">
-                {salItemsMap[sal.id] || 0} element{(salItemsMap[sal.id] || 0) === 1 ? 'o' : 'i'} assegnat{(salItemsMap[sal.id] || 0) === 1 ? 'o' : 'i'}
+                {(() => {
+                  const n = salItemsMap[sal.id] || 0;
+                  const totals = formatUnitTotals(salTotalsMap[sal.id] || {});
+                  // Totali per unità (es. "18 mq · 8 ml · 3 pz"); fallback al conteggio se non misurabili.
+                  return totals || `${n} element${n === 1 ? 'o' : 'i'} assegnat${n === 1 ? 'o' : 'i'}`;
+                })()}
               </p>
               {sal.notes && <p className="text-sm">Note: {sal.notes}</p>}
 

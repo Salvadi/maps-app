@@ -17,10 +17,14 @@ import {
   getSyncIncludeArchivedProjects,
   setSyncIncludeArchivedProjects
 } from '../sync/syncEngine';
+import { UNIT_OPTIONS } from '../config/units';
 
 type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento' | 'struttura' | 'tipo_struttura';
 
-interface DropdownItem { id: string; category: string; value: string; label: string; sort_order: number; is_active: boolean; }
+// Solo le voci di Struttura e Attraversamento hanno un'unità di misura assegnabile.
+const categoryHasUnit = (c: DropdownCategory) => c === 'struttura' || c === 'attraversamento';
+
+interface DropdownItem { id: string; category: string; value: string; label: string; unit?: string | null; sort_order: number; is_active: boolean; }
 interface ProductItem { id: string; brand: string; name: string; sort_order: number; is_active: boolean; }
 interface ProjectRow { id: string; title: string; client: string; }
 interface FloorPlanRow {
@@ -66,12 +70,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   const [ddItems, setDdItems] = useState<DropdownItem[]>([]);
   const [ddLabel, setDdLabel] = useState('');
   const [ddValue, setDdValue] = useState('');
+  const [ddUnit, setDdUnit] = useState(''); // unità nuova voce (struttura/attraversamento); '' = default categoria
   const [ddLoading, setDdLoading] = useState(false);
   const [ddSaving, setDdSaving] = useState(false);
   // Modifica inline opzione dropdown
   const [ddEditingId, setDdEditingId] = useState<string | null>(null);
   const [ddEditLabel, setDdEditLabel] = useState('');
   const [ddEditValue, setDdEditValue] = useState('');
+  const [ddEditUnit, setDdEditUnit] = useState('');
 
   const [prodItems, setProdItems] = useState<ProductItem[]>([]);
   const [prodBrand, setProdBrand] = useState('');
@@ -247,6 +253,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           category: ddCategory,
           value: val,
           label: ddLabel.trim(),
+          unit: categoryHasUnit(ddCategory) ? (ddUnit || null) : null,
           sort_order: maxOrder + 1,
           is_active: true,
         }),
@@ -254,6 +261,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       await ensureAdminWriteOk(response, 'Errore aggiunta opzione');
       setDdLabel('');
       setDdValue('');
+      setDdUnit('');
       await loadDropdownItems(ddCategory);
       await refreshDropdownCaches();
     } catch (e: any) {
@@ -279,6 +287,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     setDdEditingId(item.id);
     setDdEditLabel(item.label);
     setDdEditValue(item.value);
+    setDdEditUnit(item.unit || '');
     setAdminError('');
   };
 
@@ -286,6 +295,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     setDdEditingId(null);
     setDdEditLabel('');
     setDdEditValue('');
+    setDdEditUnit('');
   };
 
   const handleSaveEditDropdown = async (id: string) => {
@@ -297,7 +307,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       const response = await apiFetch(`/api/dropdown_options?id=eq.${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: ddEditLabel.trim(), value: val }),
+        body: JSON.stringify({
+          label: ddEditLabel.trim(),
+          value: val,
+          unit: categoryHasUnit(ddCategory) ? (ddEditUnit || null) : null,
+        }),
       });
       await ensureAdminWriteOk(response, 'Errore modifica opzione');
       cancelEditDropdown();
@@ -689,6 +703,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                         placeholder="Value (opzionale)"
                         className="flex-1 min-w-0 px-3 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 placeholder-brand-400 focus:outline-none focus:border-accent"
                       />
+                      {categoryHasUnit(ddCategory) && (
+                        <div className="relative flex-shrink-0">
+                          <select
+                            value={ddUnit}
+                            onChange={e => setDdUnit(e.target.value)}
+                            title="Unità di misura"
+                            className="h-full px-3 py-2.5 pr-7 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-800 focus:outline-none focus:border-accent appearance-none"
+                          >
+                            <option value="">Unità…</option>
+                            {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                          </select>
+                          <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+                        </div>
+                      )}
                       <button
                         onClick={handleAddDropdown}
                         disabled={!ddLabel.trim() || ddSaving}
@@ -721,6 +749,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                               placeholder="Value (opzionale)"
                               className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
                             />
+                            {categoryHasUnit(ddCategory) && (
+                              <select
+                                value={ddEditUnit}
+                                onChange={e => setDdEditUnit(e.target.value)}
+                                title="Unità di misura"
+                                className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
+                              >
+                                <option value="">Unità…</option>
+                                {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                              </select>
+                            )}
                           </div>
                           <button
                             onClick={() => handleSaveEditDropdown(item.id)}
@@ -741,6 +780,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           <div className="flex-1 min-w-0">
                             <span className="text-sm text-brand-700 font-medium">{item.label}</span>
                             <span className="ml-2 text-xs text-brand-400">{item.value}</span>
+                            {item.unit && (
+                              <span className="ml-2 text-[11px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded">{item.unit}</span>
+                            )}
                           </div>
                           <button
                             onClick={() => startEditDropdown(item)}

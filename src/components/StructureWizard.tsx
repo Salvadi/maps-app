@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { validateFileSignature } from '../utils/validation';
 import {
-  Project, Structure, User, StructureEntry, generateId,
+  Project, Structure, StrutturaParte, User, StructureEntry, generateId,
   createStructureEntry, getMappingEntriesForProject,
   updateStructureEntry, deleteStructureEntry, getPhotosForStructure, ensurePhotoBlob,
   addPhotosToStructure, removePhotoFromStructure,
@@ -16,6 +16,7 @@ import {
   updateFloorPlanLabelsForMapping, getStructureEntriesForProject,
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
+import { MeasureUnit } from '../config/units';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import TypologyViewerModal from './TypologyViewerModal';
 import FloorPlanEditor from './FloorPlanEditor';
@@ -77,8 +78,14 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
 
   const [structures, setStructures] = useState<Structure[]>(
     editingEntry && editingEntry.structures.length > 0
-      ? editingEntry.structures
-      : [{ id: generateId(), struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }]
+      // Migrazione: strutture legacy senza `parti` → seed da base/altezza esistenti.
+      ? editingEntry.structures.map(s => ({
+          ...s,
+          parti: s.parti && s.parti.length > 0
+            ? s.parti
+            : [{ id: generateId(), base: s.base, altezza: s.altezza }],
+        }))
+      : [{ id: generateId(), struttura: '', tipoStruttura: '', tipologicoId: undefined, parti: [{ id: generateId() }], notes: '' }]
   );
 
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -189,7 +196,7 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
   const addStructure = () => {
     setStructures(prev => [
       ...prev,
-      { id: generateId(), struttura: '', tipoStruttura: '', tipologicoId: undefined, base: undefined, altezza: undefined, superficie: undefined, lunghezza: undefined, notes: '' }
+      { id: generateId(), struttura: '', tipoStruttura: '', tipologicoId: undefined, parti: [{ id: generateId() }], notes: '' }
     ]);
   };
 
@@ -200,6 +207,33 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
 
   const updateStructure = (id: string, updates: Partial<Structure>) => {
     setStructures(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  // Unità della voce struttura selezionata (default 'mq'); guida i campi input.
+  const unitOf = (s: Structure): MeasureUnit =>
+    STRUTTURA_OPTIONS.find(o => o.value === s.struttura)?.unit ?? 'mq';
+
+  // Superficie totale (mq) = somma base×altezza di tutte le parti.
+  const superficieOf = (s: Structure): number =>
+    (s.parti || []).reduce((sum, p) => sum + ((p.base || 0) * (p.altezza || 0)), 0);
+
+  // Gestione parti (solo unit 'mq': muro ad angolo = più righe base×altezza sommate).
+  const addParte = (structureId: string) => {
+    setStructures(prev => prev.map(s => s.id === structureId
+      ? { ...s, parti: [...(s.parti || []), { id: generateId() }] }
+      : s));
+  };
+
+  const removeParte = (structureId: string, parteId: string) => {
+    setStructures(prev => prev.map(s => s.id === structureId
+      ? { ...s, parti: (s.parti || []).filter(p => p.id !== parteId) }
+      : s));
+  };
+
+  const updateParte = (structureId: string, parteId: string, updates: Partial<StrutturaParte>) => {
+    setStructures(prev => prev.map(s => s.id === structureId
+      ? { ...s, parti: (s.parti || []).map(p => p.id === parteId ? { ...p, ...updates } : p) }
+      : s));
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,13 +295,39 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
         compressedBlobs = results;
       }
 
-      const safeStructures = structures.map(s => ({
-        ...s,
-        base: s.base || undefined,
-        altezza: s.altezza || undefined,
-        superficie: s.superficie || undefined,
-        lunghezza: s.lunghezza || undefined,
-      }));
+      const safeStructures = structures.map(s => {
+        const unit = unitOf(s);
+        if (unit === 'mq') {
+          const parti = (s.parti || []).map(p => ({
+            id: p.id,
+            base: p.base || undefined,
+            altezza: p.altezza || undefined,
+          }));
+          const totalMq = parti.reduce((sum, p) => sum + ((p.base || 0) * (p.altezza || 0)), 0);
+          return {
+            ...s,
+            unit,
+            parti,
+            // mirror legacy base/altezza dalla prima parte (compat con vecchi lettori)
+            base: parti[0]?.base,
+            altezza: parti[0]?.altezza,
+            superficie: totalMq > 0 ? parseFloat(totalMq.toFixed(4)) : undefined,
+            lunghezza: undefined,
+            quantita: undefined,
+          };
+        }
+        if (unit === 'ml' || unit === 'm') {
+          return {
+            ...s, unit, parti: undefined, base: undefined, altezza: undefined,
+            superficie: undefined, lunghezza: s.lunghezza || undefined, quantita: undefined,
+          };
+        }
+        // pz
+        return {
+          ...s, unit, parti: undefined, base: undefined, altezza: undefined,
+          superficie: undefined, lunghezza: undefined, quantita: s.quantita || undefined,
+        };
+      });
 
       if (editingEntry) {
         await updateStructureEntry(editingEntry.id, {
@@ -671,58 +731,93 @@ const StructureWizard: React.FC<StructureWizardProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Base (m)</label>
-                      <input
-                        type="number"
-                        value={s.base ?? ''}
-                        onChange={e => {
-                          const base = e.target.value ? parseFloat(e.target.value) : undefined;
-                          const superficie = base !== undefined && s.altezza !== undefined ? parseFloat((base * s.altezza).toFixed(4)) : undefined;
-                          updateStructure(s.id, { base, superficie });
-                        }}
-                        placeholder="Es. 4.0"
-                        min="0"
-                        step="0.01"
-                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Altezza (m)</label>
-                      <input
-                        type="number"
-                        value={s.altezza ?? ''}
-                        onChange={e => {
-                          const altezza = e.target.value ? parseFloat(e.target.value) : undefined;
-                          const superficie = s.base !== undefined && altezza !== undefined ? parseFloat((s.base * altezza).toFixed(4)) : undefined;
-                          updateStructure(s.id, { altezza, superficie });
-                        }}
-                        placeholder="Es. 3.0"
-                        min="0"
-                        step="0.01"
-                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
-                      />
-                    </div>
-                  </div>
-                  {s.base !== undefined && s.altezza !== undefined && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-accent/10 rounded-xl">
-                      <span className="text-[11px] font-medium text-brand-500">Superficie calcolata:</span>
-                      <span className="text-sm font-semibold text-accent">{(s.base * s.altezza).toFixed(2)} mq</span>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-[11px] font-medium text-brand-500 mb-1">Lunghezza (ml)</label>
-                    <input
-                      type="number"
-                      value={s.lunghezza ?? ''}
-                      onChange={e => updateStructure(s.id, { lunghezza: e.target.value ? parseFloat(e.target.value) : undefined })}
-                      placeholder="Es. 3.5"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
-                    />
-                  </div>
+                  {/* Misura guidata dall'unità della voce struttura */}
+                  {(() => {
+                    const unit = unitOf(s);
+                    if (unit === 'mq') {
+                      const totalMq = superficieOf(s);
+                      return (
+                        <div className="space-y-2">
+                          <label className="block text-[11px] font-medium text-brand-500">Misure (Base × Altezza)</label>
+                          {(s.parti || []).map(parte => (
+                            <div key={parte.id} className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={parte.base ?? ''}
+                                onChange={e => updateParte(s.id, parte.id, { base: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                placeholder="Base (m)"
+                                min="0"
+                                step="0.01"
+                                className="flex-1 min-w-0 px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                              />
+                              <span className="text-brand-400 text-sm">×</span>
+                              <input
+                                type="number"
+                                value={parte.altezza ?? ''}
+                                onChange={e => updateParte(s.id, parte.id, { altezza: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                placeholder="Altezza (m)"
+                                min="0"
+                                step="0.01"
+                                className="flex-1 min-w-0 px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                              />
+                              {(s.parti?.length || 0) > 1 && (
+                                <button
+                                  onClick={() => removeParte(s.id, parte.id)}
+                                  className="w-9 h-9 flex items-center justify-center text-danger/60 hover:text-danger rounded-lg flex-shrink-0"
+                                  title="Rimuovi parte"
+                                >
+                                  <X size={16} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => addParte(s.id)}
+                            className="w-full py-2 border-2 border-dashed border-brand-200 rounded-xl text-xs font-medium text-brand-500 flex items-center justify-center gap-1.5 active:bg-brand-50"
+                          >
+                            <Plus size={14} />
+                            Aggiungi parte
+                          </button>
+                          {totalMq > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-accent/10 rounded-xl">
+                              <span className="text-[11px] font-medium text-brand-500">Superficie totale:</span>
+                              <span className="text-sm font-semibold text-accent">{totalMq.toFixed(2)} mq</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (unit === 'ml' || unit === 'm') {
+                      return (
+                        <div>
+                          <label className="block text-[11px] font-medium text-brand-500 mb-1">Lunghezza ({unit})</label>
+                          <input
+                            type="number"
+                            value={s.lunghezza ?? ''}
+                            onChange={e => updateStructure(s.id, { lunghezza: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            placeholder="Es. 3.5"
+                            min="0"
+                            step="0.01"
+                            className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                          />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div>
+                        <label className="block text-[11px] font-medium text-brand-500 mb-1">Quantità (pz)</label>
+                        <input
+                          type="number"
+                          value={s.quantita ?? ''}
+                          onChange={e => updateStructure(s.id, { quantita: e.target.value ? parseInt(e.target.value) : undefined })}
+                          placeholder="Es. 2"
+                          min="0"
+                          step="1"
+                          className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                        />
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <label className="block text-[11px] font-medium text-brand-500 mb-1">Note</label>

@@ -16,6 +16,7 @@ import {
   updateFloorPlanLabelsForMapping, getFloorPlanBlobUrl, getFloorPlanPoints, ensureFloorPlanAsset
 } from '../db';
 import { useDropdownOptions } from '../hooks/useDropdownOptions';
+import { MeasureUnit } from '../config/units';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import TypologyViewerModal from './TypologyViewerModal';
 import FloorPlanEditor from './FloorPlanEditor';
@@ -272,6 +273,22 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
     setCrossings(updated);
   };
 
+  // Unità della voce attraversamento selezionata (default 'pz'); guida il campo misura primario.
+  const crossingUnit = (c: Crossing): MeasureUnit =>
+    ATTRAVERSAMENTO_OPTIONS.find(o => o.value === c.attraversamento)?.unit ?? 'pz';
+
+  // Persiste l'unità della voce e tiene solo il campo misura pertinente (l'asola resta gestita a parte).
+  const normalizeCrossing = (c: Crossing): Crossing => {
+    const unit = crossingUnit(c);
+    return {
+      ...c,
+      unit,
+      quantita: unit === 'pz' ? c.quantita : undefined,
+      lunghezza: (unit === 'ml' || unit === 'm') ? c.lunghezza : undefined,
+      superficie: unit === 'mq' ? c.superficie : undefined,
+    };
+  };
+
   const needsDiametro = (a: string) => a.toLowerCase().includes('tubo');
   const needsDimensioni = (a: string) => {
     const types = ['canalina', 'serranda', 'canala', 'asola', 'altro'];
@@ -423,7 +440,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           room: project.useRoomNumbering ? roomNumber : undefined,
           intervention: project.useInterventionNumbering ? interventionNumber : undefined,
           toComplete: finalPhotoCount === 0 || toComplete,
-          crossings: crossings.map((s, i) => ({ ...s, id: s.id || `${Date.now()}-${i}` })),
+          crossings: crossings.map((s, i) => normalizeCrossing({ ...s, id: s.id || `${Date.now()}-${i}` })),
         }, currentUser.id);
 
         try { await updateFloorPlanLabelsForMapping(existing.id, () => generateLabelText()); } catch {}
@@ -441,7 +458,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
           room: project.useRoomNumbering ? roomNumber : undefined,
           intervention: project.useInterventionNumbering ? interventionNumber : undefined,
           toComplete: compressedBlobs.length === 0 || toComplete,
-          crossings: crossings.map((s) => ({ ...s, id: generateId() })),
+          crossings: crossings.map((s) => normalizeCrossing({ ...s, id: generateId() })),
           createdBy: currentUser.id,
         }, compressedBlobs);
 
@@ -739,16 +756,53 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-medium text-brand-500 mb-1">Quantità</label>
-                      <input
-                        type="number"
-                        value={crossing.quantita || ''}
-                        onChange={e => handleCrossingChange(i, 'quantita', parseInt(e.target.value))}
-                        placeholder="Qt."
-                        className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
-                      />
-                    </div>
+                    {(() => {
+                      const u = crossingUnit(crossing);
+                      if (u === 'ml' || u === 'm') {
+                        return (
+                          <div>
+                            <label className="block text-[11px] font-medium text-brand-500 mb-1">Lunghezza ({u})</label>
+                            <input
+                              type="number"
+                              value={crossing.lunghezza ?? ''}
+                              onChange={e => handleCrossingChange(i, 'lunghezza', parseFloat(e.target.value))}
+                              placeholder="Es. 3.5"
+                              min="0"
+                              step="0.01"
+                              className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                            />
+                          </div>
+                        );
+                      }
+                      if (u === 'mq') {
+                        return (
+                          <div>
+                            <label className="block text-[11px] font-medium text-brand-500 mb-1">Superficie (mq)</label>
+                            <input
+                              type="number"
+                              value={crossing.superficie ?? ''}
+                              onChange={e => handleCrossingChange(i, 'superficie', parseFloat(e.target.value))}
+                              placeholder="Es. 0.5"
+                              min="0"
+                              step="0.01"
+                              className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                            />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div>
+                          <label className="block text-[11px] font-medium text-brand-500 mb-1">Quantità</label>
+                          <input
+                            type="number"
+                            value={crossing.quantita || ''}
+                            onChange={e => handleCrossingChange(i, 'quantita', parseInt(e.target.value))}
+                            placeholder="Qt."
+                            className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm focus:ring-2 focus:ring-accent/30 outline-none"
+                          />
+                        </div>
+                      );
+                    })()}
                     {needsDiametro(crossing.attraversamento) && (
                       <div>
                         <label className="block text-[11px] font-medium text-brand-500 mb-1">Diametro (mm)</label>

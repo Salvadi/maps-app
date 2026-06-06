@@ -12,8 +12,8 @@ describe('OPImaPPA App', () => {
 
     // Wait for the app to initialize and show login page
     await waitFor(() => {
-      // Look for the login title specifically (using heading role)
-      expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument();
+      // Il titolo della login (h1) in modalità accesso è "Accedi"
+      expect(screen.getByRole('heading', { name: /accedi/i })).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 

@@ -115,7 +115,7 @@ function makeTypologyPrice(id: string, projectId: string) {
     projectId,
     attraversamento: 'Tubo metallico NUDO',
     pricePerUnit: 10,
-    unit: 'piece' as const,
+    unit: 'pz' as const,
     synced: 0 as const,
   };
 }

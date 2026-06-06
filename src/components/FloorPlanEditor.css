@@ -1244,3 +1244,27 @@
   border-color: #999;
 }
 
+/* ── Desktop layout: pannelli laterali fissi (≥1024px) ── */
+@media (min-width: 1024px) {
+  .editor-content {
+    display: grid !important;
+    grid-template-columns: 300px 1fr 300px;
+    grid-template-rows: 1fr;
+  }
+
+  /* Pannelli escono dall'overlay e occupano colonna fissa */
+  .editor-menu {
+    position: static !important;
+    width: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-shadow: none !important;
+    transition: none !important;
+  }
+
+  /* Nasconde bottoni hamburger: pannelli sempre visibili */
+  .toolbar-hamburger-btn {
+    display: none !important;
+  }
+}
+
