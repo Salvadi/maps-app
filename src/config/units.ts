@@ -27,3 +27,11 @@ export function asMeasureUnit(value: unknown): MeasureUnit | undefined {
 export function defaultUnitForCategory(category: string): MeasureUnit {
   return category === 'attraversamento' ? 'pz' : 'mq';
 }
+
+// Normalizza i valori unità legacy dei prezzi ('piece'->'pz', 'sqm'->'mq')
+// verso MeasureUnit. Usato leggendo typology_prices storici.
+export function legacyToUnit(value: string | undefined | null, fallback: MeasureUnit = 'pz'): MeasureUnit {
+  if (value === 'piece') return 'pz';
+  if (value === 'sqm') return 'mq';
+  return asMeasureUnit(value) ?? fallback;
+}

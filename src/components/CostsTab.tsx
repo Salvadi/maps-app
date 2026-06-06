@@ -9,6 +9,8 @@ import {
   TypologyPrice,
   getSalsForProject, createSal, assignCrossingsToSal, assignStructuresToSal, deleteSal,
 } from '../db';
+import { MeasureUnit } from '../config/units';
+import { measureStructure } from '../utils/measure';
 
 interface CostsTabProps {
   project: Project;
@@ -34,7 +36,7 @@ interface AggregatedRow {
   priceConfigKey: string;       // form/save key
   quantity: number;
   pricePerUnit: number;
-  unit: 'piece' | 'sqm';
+  unit: MeasureUnit;
   total: number;
   mappingEntryId: string;
   crossingId: string;
@@ -48,7 +50,7 @@ interface SummaryGroupRow {
   secondaryLabel?: string;
   detailLabel?: string;
   quantity: number;
-  unit: 'piece' | 'sqm';
+  unit: MeasureUnit;
   pricePerUnit: number;
   total: number;
   isAsola: boolean;
@@ -63,7 +65,7 @@ interface StructureCostRow {
   tipologicoId?: string;
   tipologicoLabel: string;
   quantity: number;
-  unit: 'sqm';
+  unit: MeasureUnit;
   priceConfigKey: string;
   pricePerUnit: number;
   total: number;
@@ -201,8 +203,8 @@ function formatDateOnly(value: number): string {
   return new Date(value).toLocaleDateString('it-IT');
 }
 
-function formatUnitLabel(unit: 'piece' | 'sqm'): string {
-  return unit === 'piece' ? 'pz' : 'mq';
+function formatUnitLabel(unit: MeasureUnit): string {
+  return unit;
 }
 
 function applyColumnFormats(
@@ -233,7 +235,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   const [structures, setStructures] = useState<StructureEntry[]>([]);
   const [prices, setPrices] = useState<TypologyPrice[]>([]);
   const [groupBy, setGroupBy] = useState<GroupBy>('floor');
-  const [localPrices, setLocalPrices] = useState<Record<string, { price: string; unit: 'piece' | 'sqm' }>>({});
+  const [localPrices, setLocalPrices] = useState<Record<string, { price: string; unit: MeasureUnit }>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   // SAL state
@@ -260,7 +262,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
     setSals(loadedSals);
 
     // Initialize local price state keyed by form row (attraversamento + tipologico).
-    const init: Record<string, { price: string; unit: 'piece' | 'sqm' }> = {};
+    const init: Record<string, { price: string; unit: MeasureUnit }> = {};
     for (const lp of loadedPrices) {
       const priceKey = lp.tipologicoId
         ? buildPriceConfigKey(lp.attraversamento, lp.tipologicoId)
@@ -349,7 +351,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           : specificPriceMap[priceConfigKey] ?? genericPriceMap[attrKey];
         const pricePerUnit = price?.pricePerUnit ?? 0;
 
-        let unit: 'piece' | 'sqm';
+        let unit: MeasureUnit;
         let quantity: number;
         if (isAsolaType) {
           const parsedDim = parseDimensioniMq(crossing.dimensioni);
@@ -357,9 +359,15 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           quantity = parsedDim !== null
             ? parsedDim
             : hasSize ? calcAsolaMq(crossing.asolaB!, crossing.asolaH!) : 0.2;
-          unit = 'sqm';
+          unit = 'mq';
+        } else if (crossing.unit === 'ml' || crossing.unit === 'm') {
+          unit = crossing.unit;
+          quantity = crossing.lunghezza ?? 0;
+        } else if (crossing.unit === 'mq') {
+          unit = 'mq';
+          quantity = crossing.superficie ?? 0;
         } else {
-          unit = price?.unit ?? 'piece';
+          unit = price?.unit ?? 'pz';
           quantity = crossing.quantita ?? 1;
         }
 
@@ -416,7 +424,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             priceConfigKey: ASOLA_KEY,
             quantity: asolaMq,
             pricePerUnit: asolaPricePerUnit,
-            unit: 'sqm',
+            unit: 'mq',
             total: asolaPricePerUnit * asolaMq,
             mappingEntryId: entry.id,
             crossingId: crossing.id + '_asola',
@@ -443,7 +451,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           ? structureSpecificPriceMap[priceKey] ?? structureGenericPriceMap[strutturaLabel]
           : structureGenericPriceMap[strutturaLabel];
         const pricePerUnit = price?.pricePerUnit ?? 0;
-        const quantity = structure.superficie ?? 0;
+        const measure = measureStructure(structure);
+        const quantity = measure.qty;
         const tipObj = structure.tipologicoId ? typologyMap[structure.tipologicoId] : undefined;
         result.push({
           structureEntryId: entry.id,
@@ -453,7 +462,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           tipologicoId: structure.tipologicoId,
           tipologicoLabel: tipObj?.listLabel || 'Senza tipologico',
           quantity,
-          unit: 'sqm',
+          unit: measure.unit,
           priceConfigKey: priceKey,
           pricePerUnit,
           total: quantity * pricePerUnit,
@@ -645,7 +654,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       tipologicoBrand?: string;
       tipologicoProducts?: string[];
       isAsola: boolean;
-      defaultUnit: 'piece' | 'sqm';
+      unit: MeasureUnit;
     }>();
 
     for (const entry of mappings) {
@@ -665,7 +674,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
               tipologicoBrand: tipObj?.brand,
               tipologicoProducts: tipObj?.products,
               isAsola: false,
-              defaultUnit: 'piece',
+              unit: crossing.unit ?? 'pz',
             });
           }
         }
@@ -680,7 +689,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
             tipologicoBrand: undefined,
             tipologicoProducts: undefined,
             isAsola: true,
-            defaultUnit: 'sqm',
+            unit: 'mq',
           });
         }
       }
@@ -701,7 +710,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
   }, [priceFormRows]);
 
   const structurePriceFormRows = React.useMemo(() => {
-    const uniqueRows = new Map<string, { key: string; struttura: string; tipologicoId?: string; tipologicoLabel: string }>();
+    const uniqueRows = new Map<string, { key: string; struttura: string; tipologicoId?: string; tipologicoLabel: string; unit: MeasureUnit }>();
     for (const row of structureRows) {
       if (!uniqueRows.has(row.priceConfigKey)) {
         uniqueRows.set(row.priceConfigKey, {
@@ -709,6 +718,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           struttura: row.struttura,
           tipologicoId: row.tipologicoId,
           tipologicoLabel: row.tipologicoLabel,
+          unit: row.unit,
         });
       }
     }
@@ -726,7 +736,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       ...prev,
       [key]: {
         price: prev[key]?.price ?? '0',
-        unit: prev[key]?.unit ?? 'piece',
+        unit: prev[key]?.unit ?? 'pz',
         [field]: value,
       },
     }));
@@ -746,7 +756,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           project.id,
           structurePriceRow.struttura,
           parsed,
-          'sqm',
+          structurePriceRow.unit,
           structurePriceRow.tipologicoId,
           'struttura'
         );
@@ -755,7 +765,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
           project.id,
           priceRow.attraversamento,
           parsed,
-          lp.unit,
+          priceRow.unit,
           priceRow.isAsola ? undefined : priceRow.tipologicoId
         );
       }
@@ -837,7 +847,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         formatExportTypology(row),
         row.supporto,
         row.attraversamento,
-        row.unit === 'sqm' ? Number(row.quantity.toFixed(2)) : row.quantity,
+        row.unit !== 'pz' ? Number(row.quantity.toFixed(2)) : row.quantity,
         formatUnitLabel(row.unit),
         row.pricePerUnit,
         row.total,
@@ -866,7 +876,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         row.supporto,
         row.tipoSupporto,
         row.attraversamento,
-        row.unit === 'sqm' ? Number(row.quantity.toFixed(2)) : row.quantity,
+        row.unit !== 'pz' ? Number(row.quantity.toFixed(2)) : row.quantity,
         formatUnitLabel(row.unit),
         row.pricePerUnit,
         row.total,
@@ -1081,7 +1091,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                 : specificPriceMap[row.key] ?? genericPriceMap[row.attraversamento];
               const lp = localPrices[row.key] ?? {
                 price: effectivePrice ? String(effectivePrice.pricePerUnit) : '',
-                unit: effectivePrice?.unit ?? row.defaultUnit,
+                unit: row.unit,
               };
               const isSavingNow = saving[row.key];
               return (
@@ -1113,17 +1123,9 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                         placeholder="0.00"
                       />
                     </div>
-                    <select
-                      value={lp.unit}
-                      onChange={e => {
-                        handlePriceChange(row.key, 'unit', e.target.value);
-                        setTimeout(() => handlePriceSave(row.key), 50);
-                      }}
-                      className="bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-700 px-2.5 py-2 focus:outline-none"
-                    >
-                      <option value="piece">al pezzo</option>
-                      <option value="sqm">al mq</option>
-                    </select>
+                    <span className="bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-700 px-2.5 py-2 whitespace-nowrap">
+                      €/{formatUnitLabel(row.unit)}
+                    </span>
                     {isSavingNow && (
                       <span className="text-[11px] text-brand-400">salvo...</span>
                     )}
@@ -1153,7 +1155,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                 : structureGenericPriceMap[row.struttura];
               const lp = localPrices[row.key] ?? {
                 price: effectivePrice ? String(effectivePrice.pricePerUnit) : '',
-                unit: 'sqm' as const,
+                unit: row.unit,
               };
               const isSavingNow = saving[row.key];
               return (
@@ -1174,8 +1176,8 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                         placeholder="0.00"
                       />
                     </div>
-                    <span className="bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-700 px-2.5 py-2">
-                      al mq
+                    <span className="bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-700 px-2.5 py-2 whitespace-nowrap">
+                      €/{formatUnitLabel(row.unit)}
                     </span>
                     {isSavingNow && (
                       <span className="text-[11px] text-brand-400">salvo...</span>
@@ -1304,7 +1306,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
                                   {row.detailLabel || '—'}
                                 </div>
                                 <div className="text-xs text-right font-semibold text-brand-700">
-                                  {row.unit === 'sqm' ? row.quantity.toFixed(2) : row.quantity}
+                                  {row.unit !== 'pz' ? row.quantity.toFixed(2) : row.quantity}
                                 </div>
                                 <div className="text-xs text-brand-500">
                                   {formatUnitLabel(row.unit)}

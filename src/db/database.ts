@@ -54,9 +54,10 @@ export interface Crossing {
   attraversamento: string;
   attraversamentoCustom?: string;
   tipologicoId?: string;
-  unit?: MeasureUnit; // unità della voce attraversamento (Fase B); default 'pz'
+  unit?: MeasureUnit; // unità della voce attraversamento; default 'pz'
   quantita?: number;
-  lunghezza?: number; // ml/m (unit 'ml' | 'm', Fase B)
+  lunghezza?: number; // ml/m (unit 'ml' | 'm')
+  superficie?: number; // mq (unit 'mq', non-asola)
   diametro?: string;
   dimensioni?: string;
   notes?: string;
@@ -311,7 +312,7 @@ export interface TypologyPrice {
   attraversamento: string;  // chiave: tipo (es. "Tubo metallico NUDO", "Parete")
   tipologicoId?: string;
   pricePerUnit: number;
-  unit: 'piece' | 'sqm';
+  unit: MeasureUnit;
   createdAt?: number;
   updatedAt?: number;
   synced?: 0 | 1;

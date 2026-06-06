@@ -53,8 +53,10 @@ export function measureCrossing(c: Crossing): UnitQty[] {
     const hasSize = c.asolaB && c.asolaH;
     const mq = parsed !== null ? parsed : hasSize ? calcAsolaMq(c.asolaB!, c.asolaH!) : 0.2;
     out.push({ unit: 'mq', qty: mq });
+  } else if (c.unit === 'mq') {
+    out.push({ unit: 'mq', qty: c.superficie ?? 0 });
   } else {
-    out.push({ unit: c.unit ?? 'pz', qty: c.quantita ?? 1 });
+    out.push({ unit: 'pz', qty: c.quantita ?? 1 });
   }
 
   // L'asola aggiunge sempre una riga mq separata (floor 0,2 via calcAsolaMq).
