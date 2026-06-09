@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, FolderOpen, Map, Settings, Wifi, WifiOff } from 'lucide-react';
+import { Home, FolderOpen, Map, Settings, Wifi, WifiOff, Flame } from 'lucide-react';
 import { TabId } from './BottomTabBar';
 import './DesktopSidebar.css';
 
@@ -21,7 +21,13 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ activeTab, onTabChange,
   return (
     <aside className="desktop-sidebar">
       <div className="desktop-sidebar__logo">
-        <span className="desktop-sidebar__app-name">OPImaPPA</span>
+        <span className="desktop-sidebar__logo-mark">
+          <Flame size={20} strokeWidth={2.2} />
+        </span>
+        <span>
+          <span className="desktop-sidebar__app-name">OPImaPPA</span>
+          <span className="desktop-sidebar__app-sub">Fire Safety</span>
+        </span>
       </div>
       <nav className="desktop-sidebar__nav">
         {tabs.map((tab) => {

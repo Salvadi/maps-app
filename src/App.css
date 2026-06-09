@@ -14,7 +14,7 @@
 
 /* Offline indicator bar */
 .offline-indicator {
-  background-color: #FF9500;
+  background-color: rgb(var(--c-warning));
   color: white;
   text-align: center;
   padding: 6px 16px;

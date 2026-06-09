@@ -514,7 +514,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
   return (
     <div className="flex flex-col h-full bg-brand-100">
       {/* Header */}
-      <div className="bg-white shadow-card z-10 px-4 pt-4 pb-3">
+      <div className="bg-surface shadow-card z-10 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={onBack} className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-600 hover:bg-brand-50">
             <ArrowLeft size={20} />
@@ -559,15 +559,15 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       <input ref={fileInputRef} type="file" onChange={handleImageChange} accept="image/*" multiple className="hidden" />
 
       {/* Step content */}
-      <div className="flex-1 overflow-auto px-4 pt-4 pb-32">
+      <div className="flex-1 overflow-auto px-4 pt-4 pb-32 lg:px-[max(2rem,calc((100%-48rem)/2))]">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-danger text-sm rounded-xl flex items-center gap-2">
+          <div className="mb-4 p-3 bg-danger-soft text-danger text-sm rounded-xl flex items-center gap-2">
             <AlertTriangle size={16} />
             {error}
           </div>
         )}
         {duplicateWarning && (
-          <div className="mb-4 p-3 bg-orange-50 text-warning text-sm font-medium rounded-xl flex items-center gap-2">
+          <div className="mb-4 p-3 bg-warning-soft text-warning text-sm font-medium rounded-xl flex items-center gap-2">
             <AlertTriangle size={16} />
             {duplicateWarning}
           </div>
@@ -576,7 +576,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
         {/* STEP 0: Position */}
         {step === 0 && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-card p-4 space-y-4">
+            <div className="bg-surface rounded-2xl shadow-card p-4 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-brand-600 mb-1.5">Piano</label>
                 <div className="relative">
@@ -628,7 +628,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
             {/* Typology viewer button - always visible to allow adding */}
             <button
               onClick={() => setShowTypologyViewer(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface rounded-xl shadow-card text-xs font-medium text-accent active:bg-accent/5 transition-colors"
             >
               <Eye size={14} />
               {projectTypologies.length > 0
@@ -637,7 +637,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
             </button>
 
             {crossings.map((crossing, i) => (
-              <div key={crossing.id} className="bg-white rounded-2xl shadow-card p-4">
+              <div key={crossing.id} className="bg-surface rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold text-brand-600">Attraversamento {i + 1}</span>
                   {crossings.length > 1 && (
@@ -857,7 +857,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                         }}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${crossing.inAsola ? 'bg-accent' : 'bg-brand-200'}`}
                       >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${crossing.inAsola ? 'translate-x-6' : 'translate-x-1'}`} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-surface shadow transition-transform ${crossing.inAsola ? 'translate-x-6' : 'translate-x-1'}`} />
                       </button>
                     </div>
                     {crossing.inAsola && (
@@ -931,7 +931,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-1 bg-white text-brand-700 rounded-2xl py-4 flex flex-col items-center gap-2 active:scale-[0.98] transition-transform shadow-card border border-brand-200"
+                className="flex-1 bg-surface text-brand-700 rounded-2xl py-4 flex flex-col items-center gap-2 active:scale-[0.98] transition-transform shadow-card border border-brand-200"
               >
                 <Image size={24} />
                 <span className="text-sm font-semibold">Sfoglia</span>
@@ -964,9 +964,9 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
             {currentFloorPlan && (
               <button
                 onClick={handleOpenFloorPlanEditor}
-                className="w-full bg-white rounded-2xl shadow-card p-4 flex items-center gap-3 active:scale-[0.99] transition-transform"
+                className="w-full bg-surface rounded-2xl shadow-card p-4 flex items-center gap-3 active:scale-[0.99] transition-transform"
               >
-                <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-success-soft flex items-center justify-center">
                   <MapPin size={18} className="text-success" />
                 </div>
                 <div className="text-left flex-1">
@@ -980,12 +980,12 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
             {/* EI Rating selector */}
             {currentFloorPlan && (
-              <div className="bg-white rounded-2xl shadow-card p-4">
+              <div className="bg-surface rounded-2xl shadow-card p-4">
                 <div className="text-sm font-medium text-brand-700 mb-3">Resistenza al fuoco (EI)</div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setEiRating(undefined)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${!eiRating ? 'border-brand-400 bg-brand-100 text-brand-700' : 'border-brand-200 bg-white text-brand-400'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${!eiRating ? 'border-brand-400 bg-brand-100 text-brand-700' : 'border-brand-200 bg-surface text-brand-400'}`}
                   >
                     Nessuna
                   </button>
@@ -1004,7 +1004,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
             )}
 
             {/* To complete checkbox */}
-            <label className="flex items-center gap-3 bg-white rounded-2xl shadow-card p-4 cursor-pointer">
+            <label className="flex items-center gap-3 bg-surface rounded-2xl shadow-card p-4 cursor-pointer">
               <input
                 type="checkbox"
                 checked={toComplete}
@@ -1021,7 +1021,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
       </div>
 
       {/* Bottom action buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-brand-200 px-4 pt-3 z-40" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="fixed bottom-0 left-0 right-0 bg-surface border-t border-brand-200 px-4 pt-3 z-40" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="flex gap-3 max-w-lg mx-auto">
           {step > 0 && (
             <button

@@ -445,7 +445,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   return (
     <div className="flex flex-col h-full bg-brand-100">
       {/* Header */}
-      <div className="bg-white shadow-card z-10">
+      <div className="bg-surface shadow-card z-10">
         <div className="flex items-center gap-3 px-4 pt-4 pb-2">
           <button
             onClick={onBack}
@@ -512,7 +512,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto pb-20">
+      <div className="flex-1 overflow-auto pb-20 lg:px-[max(2rem,calc((100%-64rem)/2))]">
         {isLoading ? (
           <div className="text-center py-12 text-brand-500 text-sm">Caricamento...</div>
         ) : (
@@ -527,14 +527,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                     <select
                       value={mappingInterventionSort}
                       onChange={e => setMappingInterventionSort(e.target.value as InterventionSortOrder)}
-                      className="text-[11px] bg-white border border-brand-200 rounded-lg px-2 py-1 text-brand-600"
+                      className="text-[11px] bg-surface border border-brand-200 rounded-lg px-2 py-1 text-brand-600"
                       title="Ordina per Intervento"
                     >
                       <option value="az">Int. n A-Z</option>
                       <option value="za">Int. n Z-A</option>
                     </select>
                     {totalToComplete > 0 && (
-                      <span className="flex items-center gap-1 text-xs text-warning font-medium bg-orange-50 px-2 py-0.5 rounded-full">
+                      <span className="flex items-center gap-1 text-xs text-warning font-medium bg-warning-soft px-2 py-0.5 rounded-full">
                         <AlertTriangle size={11} />
                         {totalToComplete} da completare
                       </span>
@@ -552,7 +552,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                       <Filter size={12} />
                       Filtri
                       {hasActiveFilters && (
-                        <span className="bg-white/30 text-[10px] px-1 rounded-full ml-0.5">
+                        <span className="bg-surface/30 text-[10px] px-1 rounded-full ml-0.5">
                           {[showOnlyToComplete, filterTipologico, filterSupporto, filterAttraversamento].filter(Boolean).length}
                         </span>
                       )}
@@ -562,7 +562,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
                 {/* Filter panel */}
                 {filtersOpen && (
-                  <div className="bg-white rounded-xl shadow-card p-3 mb-4 space-y-2.5">
+                  <div className="bg-surface rounded-xl shadow-card p-3 mb-4 space-y-2.5">
                     {/* Da Completare toggle */}
                     <button
                       onClick={() => setShowOnlyToComplete(v => !v)}
@@ -629,7 +629,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                     {hasActiveFilters && (
                       <button
                         onClick={clearFilters}
-                        className="w-full flex items-center justify-center gap-1.5 text-xs text-danger font-medium py-2 rounded-lg hover:bg-red-50 transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 text-xs text-danger font-medium py-2 rounded-lg hover:bg-danger-soft transition-colors"
                       >
                         <X size={12} />
                         Cancella filtri
@@ -658,7 +658,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                     <div key={group.floor}>
                       <button
                         onClick={() => toggleFloor(group.floor)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white rounded-xl shadow-card mb-2"
+                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface rounded-xl shadow-card mb-2"
                       >
                         {expandedFloors.has(group.floor) ? (
                           <ChevronDown size={16} className="text-brand-500" />
@@ -676,7 +676,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                             const isExpanded = expandedMappings.has(entry.id);
 
                             return (
-                              <div key={entry.id} className="bg-white rounded-xl shadow-card overflow-hidden">
+                              <div key={entry.id} className="bg-surface rounded-xl shadow-card overflow-hidden">
                                 {/* Entry header */}
                                 <button
                                   onClick={() => toggleMappingExpand(entry.id)}
@@ -789,7 +789,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                       </button>
                                       <button
                                         onClick={() => handleDelete(entry)}
-                                        className="flex items-center justify-center w-10 py-2 bg-red-50 text-danger rounded-lg hover:bg-red-100 transition-colors"
+                                        className="flex items-center justify-center w-10 py-2 bg-danger-soft text-danger rounded-lg hover:bg-danger-soft transition-colors"
                                       >
                                         <Trash2 size={13} />
                                       </button>
@@ -832,7 +832,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                     <select
                       value={structureInterventionSort}
                       onChange={e => setStructureInterventionSort(e.target.value as InterventionSortOrder)}
-                      className="text-[11px] bg-white border border-brand-200 rounded-lg px-2 py-1 text-brand-600"
+                      className="text-[11px] bg-surface border border-brand-200 rounded-lg px-2 py-1 text-brand-600"
                       title="Ordina per Intervento"
                     >
                       <option value="az">Int. n A-Z</option>
@@ -845,7 +845,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                     <div key={group.floor}>
                       <button
                         onClick={() => toggleFloor(group.floor)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white rounded-xl shadow-card mb-2"
+                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-surface rounded-xl shadow-card mb-2"
                       >
                         {expandedFloors.has(group.floor) ? (
                           <ChevronDown size={16} className="text-brand-500" />
@@ -865,7 +865,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                             const isExpanded = expandedStructures.has(entry.id);
 
                             return (
-                              <div key={entry.id} className="bg-white rounded-xl shadow-card overflow-hidden">
+                              <div key={entry.id} className="bg-surface rounded-xl shadow-card overflow-hidden">
                                 {/* Entry header */}
                                 <button
                                   onClick={() => toggleStructureExpand(entry.id)}
@@ -986,7 +986,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                       </button>
                                       <button
                                         onClick={() => handleDeleteStructure(entry)}
-                                        className="flex items-center justify-center w-10 py-2 bg-red-50 text-danger rounded-lg hover:bg-red-100 transition-colors"
+                                        className="flex items-center justify-center w-10 py-2 bg-danger-soft text-danger rounded-lg hover:bg-danger-soft transition-colors"
                                       >
                                         <Trash2 size={13} />
                                       </button>
@@ -1031,7 +1031,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {floorPlans.map(plan => (
-                      <div key={plan.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
+                      <div key={plan.id} className="bg-surface rounded-2xl shadow-card overflow-hidden">
                         <button
                           onClick={() => onOpenFloorPlanEditor(project, plan)}
                           className="w-full active:scale-[0.98] transition-transform"
@@ -1074,7 +1074,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
             {/* Info Tab */}
             {activeTab === 'info' && (
               <div className="px-4 pt-4 space-y-4">
-                    <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
+                    <div className="bg-surface rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
                   <div className="px-4 py-3.5">
                     <div className="text-xs text-brand-500 mb-0.5">Titolo</div>
                     <div className="text-sm font-medium text-brand-800">{project.title}</div>
@@ -1179,7 +1179,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                       </button>
                     </div>
                     {localTypologies.length > 0 && (
-                    <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
+                    <div className="bg-surface rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
                       {localTypologies.slice().sort((a, b) => a.number - b.number).map(tip => (
                         <div key={tip.id} className="px-4 py-3">
                           <div className="flex items-center gap-2 mb-1">

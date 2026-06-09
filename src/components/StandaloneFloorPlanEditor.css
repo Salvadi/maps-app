@@ -54,7 +54,7 @@
 
 .project-name-badge {
   padding: var(--spacing-xs) var(--spacing-sm);
-  background-color: var(--color-primary, #007aff);
+  background-color: rgb(var(--c-action));
   color: white;
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
@@ -86,8 +86,8 @@
 
 .header-action-button:hover {
   background-color: var(--color-bg-primary);
-  border-color: var(--color-primary, #007aff);
-  color: var(--color-primary, #007aff);
+  border-color: rgb(var(--c-action));
+  color: rgb(var(--c-action));
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -170,7 +170,7 @@
 
 .load-button {
   padding: var(--spacing-md) var(--spacing-lg);
-  background-color: var(--color-primary, #007aff);
+  background-color: rgb(var(--c-action));
   border: none;
   border-radius: var(--radius-sm);
   font-size: 1rem;
@@ -270,7 +270,7 @@
 
 .name-input:focus {
   outline: none;
-  border-color: var(--color-primary, #007aff);
+  border-color: rgb(var(--c-action));
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.1);
 }
 
@@ -302,7 +302,7 @@
 }
 
 .dialog-button.confirm {
-  background-color: var(--color-primary, #007aff);
+  background-color: rgb(var(--c-action));
   color: white;
 }
 
@@ -365,7 +365,7 @@
 
 .map-item:hover {
   background-color: var(--color-bg-secondary);
-  border-color: var(--color-primary, #007aff);
+  border-color: rgb(var(--c-action));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -407,7 +407,7 @@
 }
 
 .map-action-button.load {
-  background-color: var(--color-primary, #007aff);
+  background-color: rgb(var(--c-action));
   color: white;
 }
 
@@ -417,14 +417,14 @@
 }
 
 .map-action-button.delete {
-  background-color: #ff3b30;
+  background-color: rgb(var(--c-danger));
   color: white;
   padding: var(--spacing-xs);
   min-width: 36px;
 }
 
 .map-action-button.delete:hover {
-  background-color: #d32f2f;
+  background-color: rgb(var(--c-danger));
   transform: translateY(-1px);
 }
 

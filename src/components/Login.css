@@ -105,3 +105,47 @@
     font-size: 2rem;
   }
 }
+
+/* ============================================================
+   Restyling login — sfondo brand navy, card in evidenza
+   ============================================================ */
+
+.login-page {
+  background: linear-gradient(160deg, #1e3a5f 0%, #15293f 55%, #122237 100%);
+}
+
+[data-theme='dark'] .login-page {
+  background: linear-gradient(160deg, #131d2a 0%, #0e151e 100%);
+}
+
+.login-container {
+  box-shadow: 0 8px 24px rgba(8, 15, 26, 0.35), 0 24px 64px rgba(8, 15, 26, 0.35);
+}
+
+.login-title {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.login-button {
+  background-color: rgb(var(--c-action));
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(var(--c-action) / 0.35);
+}
+
+.login-button:hover {
+  background-color: rgb(var(--c-action-strong));
+  box-shadow: 0 2px 8px rgb(var(--c-action) / 0.4);
+}
+
+.login-input:focus {
+  border-color: rgb(var(--c-action));
+  box-shadow: 0 0 0 3px rgb(var(--c-action) / 0.15);
+}
+
+.reset-link {
+  color: rgb(var(--c-action));
+}

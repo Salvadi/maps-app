@@ -1074,7 +1074,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       </div>
 
       {/* Price management — per attraversamento + tipologico */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+      <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
         <div className="px-4 py-3 border-b border-brand-100">
           <h3 className="text-sm font-bold text-brand-800">Gestione Prezzi</h3>
           <p className="text-xs text-brand-400 mt-0.5">Prezzo unitario per attraversamento e tipologico di sigillatura</p>
@@ -1138,7 +1138,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       </div>
 
       {/* Price management — strutture */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+      <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
         <div className="px-4 py-3 border-b border-brand-100">
           <h3 className="text-sm font-bold text-brand-800">Gestione Prezzi Strutture</h3>
           <p className="text-xs text-brand-400 mt-0.5">Prezzo al mq per tipologia struttura</p>
@@ -1190,7 +1190,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-card p-4">
+      <div className="bg-surface rounded-2xl shadow-card p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-brand-800">Riepilogo strutture</h3>
           <span className="text-xs text-brand-500">{filteredStructureRows.length} righe</span>
@@ -1206,7 +1206,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       </div>
 
       {/* Summary table */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+      <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
         <div className="px-4 py-3 border-b border-brand-100">
           <h3 className="text-sm font-bold text-brand-800">
             {selectedSal
@@ -1372,7 +1372,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       {showCreateSalModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowCreateSalModal(false)}>
           <div
-            className="bg-white w-full max-w-lg rounded-t-2xl p-5 space-y-4 animate-slide-up"
+            className="bg-surface w-full max-w-lg rounded-t-2xl p-5 space-y-4 animate-slide-up"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1436,7 +1436,7 @@ const CostsTab: React.FC<CostsTabProps> = ({ project, currentUser }) => {
       {showDeleteConfirm && selectedSal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteConfirm(false)}>
           <div
-            className="bg-white mx-4 max-w-sm w-full rounded-2xl p-5 space-y-4"
+            className="bg-surface mx-4 max-w-sm w-full rounded-2xl p-5 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             <h3 className="text-base font-bold text-brand-800">Elimina SAL {selectedSal.number}?</h3>

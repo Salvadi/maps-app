@@ -30,13 +30,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgb(var(--c-line));
 }
 
 .color-picker-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #333;
+  color: rgb(var(--c-ink));
 }
 
 .color-picker-close {
@@ -44,7 +44,7 @@
   border: none;
   font-size: 28px;
   cursor: pointer;
-  color: #666;
+  color: rgb(var(--c-ink-2));
   padding: 0;
   width: 32px;
   height: 32px;
@@ -55,8 +55,8 @@
 }
 
 .color-picker-close:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: rgb(var(--c-surface-3));
+  color: rgb(var(--c-ink));
 }
 
 /* Content */
@@ -66,7 +66,7 @@
 
 .selected-count {
   font-size: 14px;
-  color: #666;
+  color: rgb(var(--c-ink-2));
   margin-bottom: 16px;
   text-align: center;
 }
@@ -75,9 +75,9 @@
 .color-preview-box {
   margin-bottom: 24px;
   padding: 16px;
-  background: #f9f9f9;
+  background: rgb(var(--c-surface-2));
   border-radius: 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgb(var(--c-line));
 }
 
 .color-preview-label {
@@ -94,7 +94,7 @@
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: rgb(var(--c-ink));
 }
 
 .recent-colors-grid {
@@ -106,7 +106,7 @@
 .recent-color-btn {
   width: 100%;
   aspect-ratio: 1;
-  border: 2px solid #ddd;
+  border: 2px solid rgb(var(--c-line));
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
@@ -123,7 +123,7 @@
 }
 
 .recent-color-btn:hover {
-  border-color: #2196f3;
+  border-color: rgb(var(--c-action));
   transform: scale(1.1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
@@ -147,12 +147,12 @@
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: rgb(var(--c-ink));
 }
 
 .slider-value {
   font-weight: bold;
-  color: #2196f3;
+  color: rgb(var(--c-action));
 }
 
 .color-slider {
@@ -172,7 +172,7 @@
   height: 20px;
   border-radius: 50%;
   background: white;
-  border: 2px solid #333;
+  border: 2px solid rgb(var(--c-line-strong));
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -182,7 +182,7 @@
   height: 20px;
   border-radius: 50%;
   background: white;
-  border: 2px solid #333;
+  border: 2px solid rgb(var(--c-line-strong));
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -209,13 +209,13 @@
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: rgb(var(--c-ink));
 }
 
 .hex-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid rgb(var(--c-line));
   border-radius: 4px;
   font-size: 14px;
   font-family: monospace;
@@ -224,7 +224,7 @@
 
 .hex-input:focus {
   outline: none;
-  border-color: #2196f3;
+  border-color: rgb(var(--c-action));
   box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
 }
 
@@ -246,32 +246,32 @@
 }
 
 .btn-reset {
-  background: #f5f5f5;
-  color: #666;
+  background: rgb(var(--c-surface-3));
+  color: rgb(var(--c-ink-2));
   margin-right: auto;
 }
 
 .btn-reset:hover {
-  background: #e0e0e0;
-  color: #333;
+  background: rgb(var(--c-line));
+  color: rgb(var(--c-ink));
 }
 
 .btn-cancel {
-  background: #f5f5f5;
-  color: #333;
+  background: rgb(var(--c-surface-3));
+  color: rgb(var(--c-ink));
 }
 
 .btn-cancel:hover {
-  background: #e0e0e0;
+  background: rgb(var(--c-line));
 }
 
 .btn-apply {
-  background: #2196f3;
+  background: rgb(var(--c-action));
   color: white;
 }
 
 .btn-apply:hover {
-  background: #1976d2;
+  background: rgb(var(--c-action-strong));
 }
 
 /* Animations */
@@ -296,7 +296,7 @@
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 2px solid rgb(var(--c-line));
 }
 
 .mode-tab {
@@ -307,18 +307,18 @@
   border-bottom: 3px solid transparent;
   font-size: 1rem;
   font-weight: 500;
-  color: #666;
+  color: rgb(var(--c-ink-2));
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .mode-tab.active {
-  color: #2196f3;
-  border-bottom-color: #2196f3;
+  color: rgb(var(--c-action));
+  border-bottom-color: rgb(var(--c-action));
 }
 
 .mode-tab:hover {
-  background-color: #f5f5f5;
+  background-color: rgb(var(--c-surface-3));
 }
 
 /* Responsive */

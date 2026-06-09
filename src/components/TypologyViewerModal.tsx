@@ -89,7 +89,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg max-h-[85vh] bg-white rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
+        className="relative w-full max-w-lg max-h-[85vh] bg-surface rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -143,20 +143,20 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
                         type="number"
                         value={tip.number}
                         onChange={e => handleChange(tip.id, 'number', parseInt(e.target.value) || 1)}
-                        className="w-14 px-2 py-1.5 bg-white border border-brand-200 rounded-xl text-sm text-brand-800 text-center focus:outline-none focus:border-accent"
+                        className="w-14 px-2 py-1.5 bg-surface border border-brand-200 rounded-xl text-sm text-brand-800 text-center focus:outline-none focus:border-accent"
                         min="1" max="999"
                       />
                     </div>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setEditingId(null)}
-                        className="w-8 h-8 flex items-center justify-center text-success hover:bg-green-50 rounded-xl"
+                        className="w-8 h-8 flex items-center justify-center text-success hover:bg-success-soft rounded-xl"
                       >
                         <CheckIcon size={16} />
                       </button>
                       <button
                         onClick={() => handleRemove(tip.id)}
-                        className="w-8 h-8 flex items-center justify-center text-danger hover:bg-red-50 rounded-xl"
+                        className="w-8 h-8 flex items-center justify-center text-danger hover:bg-danger-soft rounded-xl"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -318,7 +318,7 @@ const TypologyViewerModal: React.FC<TypologyViewerModalProps> = ({ project, onCl
                       <Package size={12} className="text-accent flex-shrink-0 mt-0.5" />
                       <div className="flex flex-wrap gap-1">
                         {tip.prodottiSelezionati.map((prod, idx) => (
-                          <span key={idx} className="text-[11px] bg-white text-brand-600 px-2 py-0.5 rounded-md border border-brand-200">
+                          <span key={idx} className="text-[11px] bg-surface text-brand-600 px-2 py-0.5 rounded-md border border-brand-200">
                             {prod}
                           </span>
                         ))}

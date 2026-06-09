@@ -404,7 +404,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
 
   const LoadDialogContent = () => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-card-hover">
+      <div className="bg-surface rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-card-hover">
         <div className="px-6 py-5 border-b border-brand-200">
           <h3 className="text-lg font-bold text-brand-800">Apri Progetto</h3>
         </div>
@@ -416,7 +416,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         ) : (
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
             {availableMaps.map(map => (
-              <div key={map.id} className="flex items-center gap-3 p-3 bg-brand-50 rounded-xl border border-brand-200 hover:border-accent/40 hover:bg-white transition-colors">
+              <div key={map.id} className="flex items-center gap-3 p-3 bg-brand-50 rounded-xl border border-brand-200 hover:border-accent/40 hover:bg-surface transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-brand-800 truncate">{map.name}</div>
                   <div className="text-xs text-brand-500 mt-0.5">
@@ -463,7 +463,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
   if (!imageUrl) {
     return (
       <div className="flex flex-col h-[100dvh] bg-brand-100">
-        <div className="bg-white border-b border-brand-200 px-5 py-4 flex items-center gap-3">
+        <div className="bg-surface border-b border-brand-200 px-5 py-4 flex items-center gap-3">
           <button
             onClick={onBack}
             className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center active:scale-95 transition-transform"
@@ -501,7 +501,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
             </div>
             <button
               onClick={handleOpenFromDatabase}
-              className="w-full flex items-center justify-center gap-2 bg-white border border-brand-200 text-brand-700 rounded-2xl py-3 font-semibold active:scale-[0.98] transition-transform"
+              className="w-full flex items-center justify-center gap-2 bg-surface border border-brand-200 text-brand-700 rounded-2xl py-3 font-semibold active:scale-[0.98] transition-transform"
             >
               <Database size={18} />
               Apri da Database
@@ -524,7 +524,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
         style={{ display: 'none' }}
       />
 
-      <div className="bg-white border-b border-brand-200 px-5 py-4 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-surface border-b border-brand-200 px-5 py-4 flex items-center gap-3 flex-shrink-0">
         <button
           onClick={onBack}
           className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center active:scale-95 transition-transform"
@@ -563,7 +563,7 @@ const StandaloneFloorPlanEditor: React.FC<StandaloneFloorPlanEditorProps> = ({
 
       {showNameDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-card-hover">
+          <div className="bg-surface rounded-2xl w-full max-w-sm shadow-card-hover">
             <div className="px-6 py-5 border-b border-brand-200">
               <h3 className="text-lg font-bold text-brand-800">Salva Progetto</h3>
               <p className="text-sm text-brand-500 mt-1">Inserisci un nome per il progetto</p>
