@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check, Tag } from 'lucide-react';
 import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry } from '../db';
 import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
 import ProductSelector from './ProductSelector';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
 import { validateFileSignature } from '../utils/validation';
+import TypologyViewerModal from './TypologyViewerModal';
 
 /**
  * ProjectForm
@@ -53,6 +54,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [showTipologici, setShowTipologici] = useState(
     project?.typologies && project.typologies.length > 0
   );
+  const [showTypologyModal, setShowTypologyModal] = useState(false);
   const [typologies, setTypologies] = useState<Typology[]>(
     project?.typologies && project.typologies.length > 0
       ? project.typologies
@@ -389,14 +391,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             .filter((f) => f !== '')
         : ['0'];
 
-      // Sort typologies by number before saving
-      const sortedTypologies = showTipologici
-        ? [...typologies].sort((a, b) => a.number - b.number)
-        : (project?.typologies || []);
-
       if (project) {
         // Detect modified typologies before saving
         const oldTypologies = project.typologies || [];
+        const sortedTypologies = [...typologies].sort((a, b) => a.number - b.number);
 
         // Update existing project
         await updateProject(project.id, {
@@ -412,12 +410,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         });
         console.log('Project updated:', project.id);
 
-        // Check if any typologies were modified and cascade to existing mappings
-        if (showTipologici) {
-          await cascadeTypologyChangesToMappings(project.id, oldTypologies, sortedTypologies, currentUser.id);
-        }
+        // Cascade typology changes to existing mappings
+        await cascadeTypologyChangesToMappings(project.id, oldTypologies, sortedTypologies, currentUser.id);
       } else {
         // Create new project
+        const createTypologies = showTipologici
+          ? [...typologies].sort((a, b) => a.number - b.number)
+          : [];
         const newProject = await createProject({
           title,
           client,
@@ -427,7 +426,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           plans: [],
           useRoomNumbering,
           useInterventionNumbering,
-          typologies: showTipologici ? sortedTypologies : [],
+          typologies: createTypologies,
           ownerId: currentUser.id,
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : [currentUser.id],
         });
@@ -646,18 +645,52 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-brand-700">Tipologici</h2>
-              <button type="button" onClick={() => setShowTipologici(!showTipologici)} className="text-xs font-semibold text-accent">
-                {showTipologici ? 'Nascondi' : 'Mostra'}
-              </button>
+              {project ? (
+                <button
+                  type="button"
+                  onClick={() => setShowTypologyModal(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-accent"
+                >
+                  <Tag size={13} />
+                  Gestisci
+                </button>
+              ) : (
+                <button type="button" onClick={() => setShowTipologici(!showTipologici)} className="text-xs font-semibold text-accent">
+                  {showTipologici ? 'Nascondi' : 'Mostra'}
+                </button>
+              )}
             </div>
 
-            {!showTipologici && (
+            {/* Edit mode: summary */}
+            {project && (() => {
+              const atravCount = typologies.filter(t => (t.category ?? 'attraversamento') === 'attraversamento').length;
+              const strutCount = typologies.filter(t => t.category === 'struttura').length;
+              return typologies.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-brand-500">Nessun tipologico configurato</div>
+              ) : (
+                <div className="px-4 py-3 flex gap-3">
+                  {atravCount > 0 && (
+                    <span className="text-xs font-medium bg-accent/10 text-accent px-2.5 py-1 rounded-full">
+                      {atravCount} attraversament{atravCount === 1 ? 'o' : 'i'}
+                    </span>
+                  )}
+                  {strutCount > 0 && (
+                    <span className="text-xs font-medium bg-brand-100 text-brand-600 px-2.5 py-1 rounded-full">
+                      {strutCount} struttur{strutCount === 1 ? 'a' : 'e'}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Create mode: inline form */}
+            {!project && !showTipologici && (
               <div className="px-4 py-3 text-sm text-brand-500">
                 {typologies.length} tipologic{typologies.length === 1 ? 'o' : 'i'} configurati
               </div>
             )}
 
-            {showTipologici && (
+            {!project && showTipologici && (
               <div className="divide-y divide-brand-100">
                 {[...typologies].sort((a, b) => a.number - b.number).map(typology => (
                   <div key={typology.id} className="px-4 py-4 space-y-3">
@@ -815,6 +848,15 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           {isSubmitting ? 'Salvataggio...' : (project ? 'Salva' : 'Crea')}
         </button>
       </div>
+
+      {/* Modal tipologici per edit mode */}
+      {showTypologyModal && project && (
+        <TypologyViewerModal
+          project={{ ...project, typologies }}
+          onClose={() => setShowTypologyModal(false)}
+          onTypologiesChanged={(updated) => setTypologies(updated)}
+        />
+      )}
     </div>
   );
 };
