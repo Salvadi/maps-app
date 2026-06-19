@@ -220,6 +220,8 @@ export async function refreshDropdownCaches(): Promise<void> {
     fetchAndCacheOptions('supporto'),
     fetchAndCacheOptions('tipo_supporto'),
     fetchAndCacheOptions('attraversamento'),
+    fetchAndCacheOptions('struttura'),
+    fetchAndCacheOptions('tipo_struttura'),
     fetchAndCacheProducts(),
   ]);
 
