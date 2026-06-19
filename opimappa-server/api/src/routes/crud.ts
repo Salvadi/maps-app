@@ -26,6 +26,11 @@ function toBindValues(tableName: string, body: Record<string, unknown>): unknown
     if (colTypes[col] === 'jsonb' && value !== null && value !== undefined && typeof value !== 'string') {
       return JSON.stringify(value);
     }
+    // postgres.js .unsafe() non conosce il tipo colonna: integer non ha cast implicito
+    // verso boolean in PostgreSQL → converte 0/1 numerici in boolean JS reale.
+    if (colTypes[col] === 'boolean' && typeof value === 'number') {
+      return value !== 0;
+    }
     return value;
   });
 }
