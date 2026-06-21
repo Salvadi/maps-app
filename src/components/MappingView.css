@@ -123,7 +123,7 @@
 
 .clear-filters-btn {
   padding: 8px 16px;
-  background-color: #ef4444;
+  background-color: rgb(var(--c-danger));
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -134,7 +134,7 @@
 }
 
 .clear-filters-btn:hover {
-  background-color: #dc2626;
+  background-color: rgb(var(--c-danger));
 }
 
 .control-label {
@@ -302,9 +302,9 @@
 }
 
 .mapping-action-btn.delete:hover {
-  background-color: #FEE2E2;
-  color: #DC2626;
-  border-color: #DC2626;
+  background-color: rgb(var(--c-danger-soft));
+  color: rgb(var(--c-danger));
+  border-color: rgb(var(--c-danger));
 }
 
 .mapping-action-btn .icon {
@@ -695,14 +695,14 @@
 }
 
 .floor-plan-action-btn.export {
-  background-color: #4caf50;
+  background-color: rgb(var(--c-success));
   color: white;
-  border-color: #4caf50;
+  border-color: rgb(var(--c-success));
 }
 
 .floor-plan-action-btn.export:hover {
-  background-color: #45a049;
-  border-color: #45a049;
+  background-color: rgb(var(--c-success));
+  border-color: rgb(var(--c-success));
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
@@ -737,4 +737,14 @@
   bottom: 0;
   z-index: 9999;
   background-color: rgba(0, 0, 0, 0.95);
+}
+
+/* Desktop: contenuto centrato con larghezza massima */
+@media (min-width: 1024px) {
+  .mapping-view-container {
+    max-width: 64rem;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
 }

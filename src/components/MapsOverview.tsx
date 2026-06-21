@@ -74,18 +74,19 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-auto pb-20 bg-brand-100">
+    <div className="flex-1 overflow-auto pb-20 bg-page">
+      <div className="max-w-6xl mx-auto w-full">
       {/* Header */}
-      <div className="px-5 pt-6 pb-4 flex items-start justify-between gap-3">
+      <div className="px-5 pt-6 pb-4 lg:px-8 lg:pt-8 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-brand-800">Planimetrie</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-brand-800 tracking-tight">Planimetrie</h1>
           <p className="text-sm text-brand-500 mt-0.5">
             {totalPlans} planimetri{totalPlans === 1 ? 'a' : 'e'} in {projectsWithPlans.length} progett{projectsWithPlans.length === 1 ? 'o' : 'i'}
           </p>
         </div>
         <button
           onClick={onOpenStandaloneEditor}
-          className="inline-flex items-center gap-2 rounded-xl bg-white border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-700 shadow-card hover:border-accent/40 hover:text-accent transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-2 rounded-xl bg-surface border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-700 shadow-card hover:border-accent/40 hover:text-accent transition-colors flex-shrink-0"
         >
           <Plus size={16} />
           Nuova mappa standalone
@@ -97,7 +98,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
           Caricamento planimetrie...
         </div>
       ) : (
-        <div className="px-5 space-y-5">
+        <div className="px-5 lg:px-8 space-y-5 lg:space-y-7">
           {/* Plans by project */}
           {projectsWithPlans.map(({ project, floorPlans }) => (
             <div key={project.id}>
@@ -113,12 +114,12 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
               </button>
               <div className="grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-5">
                 {floorPlans.map((plan) => (
-                  <div key={plan.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
+                  <div key={plan.id} className="bg-surface rounded-2xl shadow-card hover:shadow-card-hover transition-shadow overflow-hidden group/card">
                     <button
                       onClick={() => onOpenFloorPlan(project, plan)}
                       className="w-full active:scale-[0.98] transition-transform"
                     >
-                      <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center">
+                      <div className="aspect-[4/3] bg-brand-50 flex items-center justify-center overflow-hidden [&_img]:transition-transform [&_img]:duration-300 group-hover/card:[&_img]:scale-[1.04]">
                         <ThumbnailImage blob={plan.thumbnailBlob} remoteUrl={plan.thumbnailUrl || plan.imageUrl} alt={`Piano ${plan.floor}`} />
                       </div>
                     </button>
@@ -161,6 +162,7 @@ const MapsOverview: React.FC<MapsOverviewProps> = ({
       )}
 
       <div className="h-4" />
+      </div>
     </div>
   );
 };

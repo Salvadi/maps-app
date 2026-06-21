@@ -1,35 +1,68 @@
+/* Sidebar desktop — identità navy con accento flame */
+
 .desktop-sidebar {
-  width: 220px;
-  min-width: 220px;
+  width: 240px;
+  min-width: 240px;
   height: 100%;
-  background: #fff;
-  border-right: 1px solid #e5dfd5;
+  background: linear-gradient(180deg, #1e3a5f 0%, #15293f 60%, #122237 100%);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
 }
 
+[data-theme='dark'] .desktop-sidebar {
+  background: linear-gradient(180deg, #131d2a 0%, #0f1722 100%);
+  border-right: 1px solid rgb(var(--c-line));
+}
+
 .desktop-sidebar__logo {
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid #e5dfd5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.desktop-sidebar__logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ff8a50 0%, #ea580c 100%);
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35);
 }
 
 .desktop-sidebar__app-name {
   font-size: 16px;
   font-weight: 700;
-  color: #3a3a3a;
+  color: #fff;
   letter-spacing: -0.3px;
+  line-height: 1.2;
+  display: block;
+}
+
+.desktop-sidebar__app-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .desktop-sidebar__nav {
   flex: 1;
-  padding: 12px 8px;
+  padding: 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .desktop-sidebar__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -40,18 +73,35 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  color: #9c9385;
+  color: rgba(255, 255, 255, 0.6);
   transition: background 0.15s, color 0.15s;
 }
 
 .desktop-sidebar__item:hover {
-  background: #f5f0e8;
-  color: #3a3a3a;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .desktop-sidebar__item--active {
-  background: #f0f7ff;
-  color: #007AFF;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Indicatore attivo: barra flame a sinistra */
+.desktop-sidebar__item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ff8a50, #ea580c);
+}
+
+.desktop-sidebar__item--active .desktop-sidebar__icon-wrap {
+  color: #ff9d6b;
 }
 
 .desktop-sidebar__item--active .desktop-sidebar__label {
@@ -61,13 +111,14 @@
 .desktop-sidebar__icon-wrap {
   position: relative;
   flex-shrink: 0;
+  display: flex;
 }
 
 .desktop-sidebar__badge {
   position: absolute;
   top: -4px;
   right: -6px;
-  background: #FF3B30;
+  background: #ef4444;
   color: white;
   font-size: 9px;
   font-weight: 700;
@@ -85,22 +136,26 @@
 }
 
 .desktop-sidebar__footer {
-  padding: 16px 20px;
-  border-top: 1px solid #e5dfd5;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .desktop-sidebar__status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
-  color: #9c9385;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .desktop-sidebar__status--online {
-  color: #34C759;
+  color: #5fd99a;
 }
 
 .desktop-sidebar__status--offline {
-  color: #FF9500;
+  color: #ffb764;
 }

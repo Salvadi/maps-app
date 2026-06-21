@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check, Tag } from 'lucide-react';
 import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry } from '../db';
 import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
 import ProductSelector from './ProductSelector';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
 import { validateFileSignature } from '../utils/validation';
+import TypologyViewerModal from './TypologyViewerModal';
 
 /**
  * ProjectForm
@@ -53,6 +54,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
   const [showTipologici, setShowTipologici] = useState(
     project?.typologies && project.typologies.length > 0
   );
+  const [showTypologyModal, setShowTypologyModal] = useState(false);
   const [typologies, setTypologies] = useState<Typology[]>(
     project?.typologies && project.typologies.length > 0
       ? project.typologies
@@ -389,14 +391,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
             .filter((f) => f !== '')
         : ['0'];
 
-      // Sort typologies by number before saving
-      const sortedTypologies = showTipologici
-        ? [...typologies].sort((a, b) => a.number - b.number)
-        : (project?.typologies || []);
-
       if (project) {
         // Detect modified typologies before saving
         const oldTypologies = project.typologies || [];
+        const sortedTypologies = [...typologies].sort((a, b) => a.number - b.number);
 
         // Update existing project
         await updateProject(project.id, {
@@ -412,12 +410,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
         });
         console.log('Project updated:', project.id);
 
-        // Check if any typologies were modified and cascade to existing mappings
-        if (showTipologici) {
-          await cascadeTypologyChangesToMappings(project.id, oldTypologies, sortedTypologies, currentUser.id);
-        }
+        // Cascade typology changes to existing mappings
+        await cascadeTypologyChangesToMappings(project.id, oldTypologies, sortedTypologies, currentUser.id);
       } else {
         // Create new project
+        const createTypologies = showTipologici
+          ? [...typologies].sort((a, b) => a.number - b.number)
+          : [];
         const newProject = await createProject({
           title,
           client,
@@ -427,7 +426,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           plans: [],
           useRoomNumbering,
           useInterventionNumbering,
-          typologies: showTipologici ? sortedTypologies : [],
+          typologies: createTypologies,
           ownerId: currentUser.id,
           accessibleUsers: currentUser.role === 'admin' ? selectedUserIds : [currentUser.id],
         });
@@ -493,14 +492,14 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       onClick={onChange}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${value ? 'bg-accent' : 'bg-brand-200'}`}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-surface shadow transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
     </button>
   );
 
   return (
     <div className="flex flex-col h-full bg-brand-100">
       {/* Header */}
-      <div className="bg-white shadow-card z-10 flex-shrink-0 flex items-center gap-3 px-4 py-4">
+      <div className="bg-surface shadow-card z-10 flex-shrink-0 flex items-center gap-3 px-4 py-4">
         <button
           onClick={onCancel}
           className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-600 hover:bg-brand-50 active:bg-brand-100"
@@ -522,18 +521,18 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       </div>
 
       {/* Scrollable form */}
-      <form id="project-form" onSubmit={handleSubmit} className="flex-1 overflow-auto">
+      <form id="project-form" onSubmit={handleSubmit} className="flex-1 overflow-auto lg:px-[max(2rem,calc((100%-56rem)/2))]">
         <div className="px-4 py-4 space-y-4 pb-6">
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+            <div className="bg-danger-soft border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">
               {error}
             </div>
           )}
 
           {/* Nome Cantiere */}
-          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100">
               <h2 className="text-sm font-semibold text-brand-700">Nome Cantiere</h2>
             </div>
@@ -550,7 +549,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           </div>
 
           {/* Anagrafica */}
-          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100">
               <h2 className="text-sm font-semibold text-brand-700">Anagrafica</h2>
             </div>
@@ -563,7 +562,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
 
           {/* Admin: Condividi Progetto */}
           {currentUser.role === 'admin' && (
-            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
               <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-brand-700">Condividi Progetto</h2>
                 <span className="text-[11px] font-semibold bg-warning/10 text-warning px-2 py-0.5 rounded-full">ADMIN</span>
@@ -610,7 +609,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           )}
 
           {/* Struttura */}
-          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100">
               <h2 className="text-sm font-semibold text-brand-700">Struttura</h2>
             </div>
@@ -626,7 +625,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           </div>
 
           {/* Numerazione interventi */}
-          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100">
               <h2 className="text-sm font-semibold text-brand-700">Numerazione interventi</h2>
             </div>
@@ -643,21 +642,55 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           </div>
 
           {/* Tipologici */}
-          <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-brand-700">Tipologici</h2>
-              <button type="button" onClick={() => setShowTipologici(!showTipologici)} className="text-xs font-semibold text-accent">
-                {showTipologici ? 'Nascondi' : 'Mostra'}
-              </button>
+              {project ? (
+                <button
+                  type="button"
+                  onClick={() => setShowTypologyModal(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-accent"
+                >
+                  <Tag size={13} />
+                  Gestisci
+                </button>
+              ) : (
+                <button type="button" onClick={() => setShowTipologici(!showTipologici)} className="text-xs font-semibold text-accent">
+                  {showTipologici ? 'Nascondi' : 'Mostra'}
+                </button>
+              )}
             </div>
 
-            {!showTipologici && (
+            {/* Edit mode: summary */}
+            {project && (() => {
+              const atravCount = typologies.filter(t => (t.category ?? 'attraversamento') === 'attraversamento').length;
+              const strutCount = typologies.filter(t => t.category === 'struttura').length;
+              return typologies.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-brand-500">Nessun tipologico configurato</div>
+              ) : (
+                <div className="px-4 py-3 flex gap-3">
+                  {atravCount > 0 && (
+                    <span className="text-xs font-medium bg-accent/10 text-accent px-2.5 py-1 rounded-full">
+                      {atravCount} attraversament{atravCount === 1 ? 'o' : 'i'}
+                    </span>
+                  )}
+                  {strutCount > 0 && (
+                    <span className="text-xs font-medium bg-brand-100 text-brand-600 px-2.5 py-1 rounded-full">
+                      {strutCount} struttur{strutCount === 1 ? 'a' : 'e'}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Create mode: inline form */}
+            {!project && !showTipologici && (
               <div className="px-4 py-3 text-sm text-brand-500">
                 {typologies.length} tipologic{typologies.length === 1 ? 'o' : 'i'} configurati
               </div>
             )}
 
-            {showTipologici && (
+            {!project && showTipologici && (
               <div className="divide-y divide-brand-100">
                 {[...typologies].sort((a, b) => a.number - b.number).map(typology => (
                   <div key={typology.id} className="px-4 py-4 space-y-3">
@@ -673,7 +706,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                         />
                       </div>
                       {typologies.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveTypology(typology.id)} className="w-8 h-8 flex items-center justify-center text-danger hover:bg-red-50 rounded-xl">
+                        <button type="button" onClick={() => handleRemoveTypology(typology.id)} className="w-8 h-8 flex items-center justify-center text-danger hover:bg-danger-soft rounded-xl">
                           <Trash2 size={15} />
                         </button>
                       )}
@@ -728,7 +761,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
 
           {/* Planimetrie (existing project) */}
           {project && (
-            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
               <div className="px-4 py-3 border-b border-brand-100">
                 <h2 className="text-sm font-semibold text-brand-700">Planimetrie</h2>
               </div>
@@ -759,7 +792,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
                                 >
                                   <Eye size={13} /> Visualizza
                                 </button>
-                                <button type="button" onClick={() => handleFloorPlanDelete(floor)} className="w-8 h-8 flex items-center justify-center bg-red-50 text-danger rounded-xl">
+                                <button type="button" onClick={() => handleFloorPlanDelete(floor)} className="w-8 h-8 flex items-center justify-center bg-danger-soft text-danger rounded-xl">
                                   <Trash2 size={14} />
                                 </button>
                               </>
@@ -785,7 +818,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
 
           {/* Archive / Unarchive */}
           {project && (
-            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
               <div className="px-4 py-3 border-b border-brand-100">
                 <h2 className="text-sm font-semibold text-brand-700">Zona pericolosa</h2>
               </div>
@@ -807,7 +840,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
       </form>
 
       {/* Fixed bottom action bar */}
-      <div className="flex-shrink-0 bg-white border-t border-brand-200 px-4 py-4 flex gap-3">
+      <div className="flex-shrink-0 bg-surface border-t border-brand-200 px-4 py-4 flex gap-3">
         <button type="button" onClick={onCancel} disabled={isSubmitting} className="flex-1 py-3 rounded-2xl border border-brand-200 text-brand-700 text-sm font-semibold disabled:opacity-50">
           Annulla
         </button>
@@ -815,6 +848,15 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
           {isSubmitting ? 'Salvataggio...' : (project ? 'Salva' : 'Crea')}
         </button>
       </div>
+
+      {/* Modal tipologici per edit mode */}
+      {showTypologyModal && project && (
+        <TypologyViewerModal
+          project={{ ...project, typologies }}
+          onClose={() => setShowTypologyModal(false)}
+          onTypologiesChanged={(updated) => setTypologies(updated)}
+        />
+      )}
     </div>
   );
 };

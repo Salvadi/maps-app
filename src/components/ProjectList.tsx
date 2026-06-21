@@ -117,13 +117,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-auto pb-20 bg-brand-100">
+    <div className="flex-1 overflow-auto pb-20 bg-page">
+      <div className="max-w-6xl mx-auto w-full relative">
       {/* Header */}
-      <div className="px-5 pt-6 pb-3 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-brand-800">Progetti</h1>
+      <div className="px-5 pt-6 pb-3 lg:px-8 lg:pt-8 flex items-center justify-between">
+        <h1 className="text-2xl lg:text-3xl font-bold text-brand-800 tracking-tight">Progetti</h1>
         <button
           onClick={() => setShowSortMenu(!showSortMenu)}
-          className="relative w-10 h-10 rounded-xl bg-white shadow-card flex items-center justify-center text-brand-600 active:scale-95 transition-transform"
+          aria-label="Ordina progetti"
+          className="relative w-10 h-10 rounded-xl bg-surface shadow-card flex items-center justify-center text-brand-600 active:scale-95 transition-transform cursor-pointer"
         >
           <SlidersHorizontal size={18} />
         </button>
@@ -133,13 +135,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
       {showSortMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowSortMenu(false)} />
-          <div className="absolute right-5 top-[72px] z-50 bg-white rounded-xl shadow-card-hover border border-brand-200 overflow-hidden min-w-[180px]">
+          <div className="absolute right-5 lg:right-8 top-[72px] lg:top-[84px] z-50 bg-surface rounded-xl shadow-pop border border-line overflow-hidden min-w-[180px]">
             {(Object.entries(sortLabels) as [SortOption, string][]).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => { setSortOption(key); setShowSortMenu(false); }}
-                className={`w-full text-left px-4 py-3 text-sm transition-colors ${
-                  sortOption === key ? 'bg-blue-50 text-accent font-semibold' : 'text-brand-700 hover:bg-brand-50'
+                className={`w-full text-left px-4 py-3 text-sm transition-colors cursor-pointer ${
+                  sortOption === key ? 'bg-accent-soft text-accent font-semibold' : 'text-brand-700 hover:bg-brand-50'
                 }`}
               >
                 {label}
@@ -149,8 +151,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </>
       )}
 
+      {/* Search + filtri: su desktop una riga sola */}
+      <div className="lg:flex lg:items-center lg:gap-4 lg:px-8 lg:mb-5">
       {/* Search bar */}
-      <div className="px-5 mb-3">
+      <div className="px-5 mb-3 lg:px-0 lg:mb-0 lg:flex-1">
         <div className="relative">
           <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400" />
           <input
@@ -158,36 +162,37 @@ const ProjectList: React.FC<ProjectListProps> = ({
             placeholder="Cerca per nome, cliente o indirizzo..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white rounded-xl text-sm text-brand-700 placeholder:text-brand-400 shadow-card focus:ring-2 focus:ring-accent/30 outline-none"
+            className="w-full pl-10 pr-4 py-3 bg-surface border border-line rounded-xl text-sm text-brand-700 placeholder:text-brand-400 shadow-card focus:ring-2 focus:ring-accent/30 focus:border-accent/50 outline-none transition-shadow"
           />
         </div>
       </div>
 
       {/* Filter tabs */}
-      <div className="px-5 mb-4 flex gap-2">
+      <div className="px-5 mb-4 lg:px-0 lg:mb-0 flex gap-2">
         {filterTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setFilterTab(tab.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer ${
               filterTab === tab.id
                 ? 'bg-accent text-white shadow-sm'
-                : 'bg-white text-brand-600 shadow-card active:scale-95'
+                : 'bg-surface text-brand-600 shadow-card active:scale-95 hover:text-brand-700'
             }`}
           >
             {tab.label}
           </button>
         ))}
       </div>
+      </div>
 
       {/* Project list */}
-      <div className="px-5 space-y-3">
+      <div className="px-5 lg:px-8 grid grid-cols-1 xl:grid-cols-2 gap-3 lg:gap-4">
         {isLoading ? (
-          <div className="text-center py-12 text-brand-500 text-sm">
+          <div className="text-center py-12 text-brand-500 text-sm xl:col-span-2">
             Caricamento progetti...
           </div>
         ) : filteredProjects.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12 xl:col-span-2">
             <FolderOpen size={40} className="mx-auto text-brand-300 mb-3" />
               <p className="text-brand-500 text-sm">Nessun progetto trovato</p>
               <p className="text-brand-400 text-xs mt-1">
@@ -200,7 +205,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
           filteredProjects.map((project) => (
             <div
               key={project.id}
-              className="bg-white rounded-2xl shadow-card overflow-hidden"
+              className="bg-surface rounded-2xl shadow-card hover:shadow-card-hover transition-shadow overflow-hidden flex flex-col"
             >
               {/* Card header - tap to view */}
               <button
@@ -208,7 +213,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 className="w-full text-left p-4 pb-3 active:bg-brand-50 transition-colors"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center flex-shrink-0 mt-0.5">
                     <FolderOpen size={18} className="text-accent" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -235,7 +240,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
               </button>
 
               {/* Stats row */}
-              <div className="px-4 pb-3 flex items-center gap-2">
+              <div className="px-4 pb-3 flex items-center gap-2 flex-wrap mt-auto">
                 <div className="flex items-center gap-1 bg-brand-50 rounded-lg px-2.5 py-1.5">
                   <Camera size={13} className="text-brand-500" />
                   <span className="text-xs font-semibold text-brand-600">{mappingCounts[project.id] || 0}</span>
@@ -246,14 +251,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
                   <span className="text-[11px] text-brand-500">piani</span>
                 </div>
                 {(toCompleteCounts[project.id] || 0) > 0 && (
-                  <div className="flex items-center gap-1 bg-orange-50 rounded-lg px-2.5 py-1.5">
+                  <div className="flex items-center gap-1 bg-warning-soft rounded-lg px-2.5 py-1.5">
                     <span className="text-xs font-semibold text-warning">{toCompleteCounts[project.id]}</span>
                     <span className="text-[11px] text-warning">da compl.</span>
                   </div>
                 )}
                 <div className="flex-1" />
                 <div
-                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 bg-green-50 text-success"
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 bg-success-soft text-success"
                   title="Accesso online-first con cache locale"
                 >
                   <Wifi size={12} />
@@ -266,7 +271,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
               <div className="border-t border-brand-100 flex">
                 <button
                   onClick={() => onEnterMapping(project)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-3 font-medium text-sm transition-colors text-accent hover:bg-blue-50 active:bg-blue-100"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-3 font-medium text-sm transition-colors text-accent hover:bg-accent-soft active:bg-accent-soft"
                 >
                   <Camera size={15} />
                   <span>Mappatura</span>
@@ -289,7 +294,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 <div className="w-px bg-brand-100" />
                 <button
                   onClick={() => handleDelete(project)}
-                  className="flex items-center justify-center w-12 py-3 text-danger/70 hover:bg-red-50 active:bg-red-100 transition-colors"
+                  className="flex items-center justify-center w-12 py-3 text-danger/70 hover:bg-danger-soft active:bg-danger-soft transition-colors"
                 >
                   <Trash2 size={15} />
                 </button>
@@ -300,6 +305,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
       </div>
 
       <div className="h-4" />
+      </div>
     </div>
   );
 };

@@ -18,7 +18,7 @@ const tabs: { id: TabId; label: string; icon: typeof Home }[] = [
 
 const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onTabChange, pendingSyncCount }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-brand-200 shadow-nav pb-safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface/95 backdrop-blur-md border-t border-line shadow-nav pb-safe-bottom">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -27,16 +27,19 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onTabChange, pen
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-colors duration-200 ${
+              aria-current={isActive ? 'page' : undefined}
+              className={`relative flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-colors duration-200 cursor-pointer ${
                 isActive
                   ? 'text-accent'
                   : 'text-brand-500 active:text-brand-700'
               }`}
             >
-              <div className="relative">
-                <Icon size={22} strokeWidth={isActive ? 2.2 : 1.8} />
+              <div className={`relative flex items-center justify-center px-4 py-1 rounded-full transition-colors duration-200 ${
+                isActive ? 'bg-accent-soft' : ''
+              }`}>
+                <Icon size={21} strokeWidth={isActive ? 2.2 : 1.8} />
                 {tab.id === 'settings' && pendingSyncCount && pendingSyncCount > 0 ? (
-                  <span className="absolute -top-1 -right-2 bg-danger text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  <span className="absolute -top-1 right-1 bg-danger text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                     {pendingSyncCount > 9 ? '9+' : pendingSyncCount}
                   </span>
                 ) : null}
@@ -44,9 +47,6 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onTabChange, pen
               <span className={`text-[11px] leading-tight ${isActive ? 'font-semibold' : 'font-medium'}`}>
                 {tab.label}
               </span>
-              {isActive && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-accent rounded-full" />
-              )}
             </button>
           );
         })}

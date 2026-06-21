@@ -18,6 +18,7 @@ import {
   setSyncIncludeArchivedProjects
 } from '../sync/syncEngine';
 import { UNIT_OPTIONS } from '../config/units';
+import { useTheme, ThemePreference } from '../lib/theme';
 
 type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento' | 'struttura' | 'tipo_struttura';
 
@@ -55,6 +56,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onManualSync,
   onClearAndSync,
 }) => {
+  const [themePref, setThemePref] = useTheme();
   const [projectCount, setProjectCount] = useState(0);
   const [mappingCount, setMappingCount] = useState(0);
   const [photoCount, setPhotoCount] = useState(0);
@@ -480,16 +482,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-auto pb-20 bg-brand-100">
+    <div className="flex-1 overflow-auto pb-20 bg-page">
+      <div className="max-w-3xl mx-auto w-full">
       {/* Header */}
-      <div className="px-5 pt-6 pb-4">
-        <h1 className="text-2xl font-bold text-brand-800">Impostazioni</h1>
+      <div className="px-5 pt-6 pb-4 lg:pt-8">
+        <h1 className="text-2xl lg:text-3xl font-bold text-brand-800 tracking-tight">Impostazioni</h1>
       </div>
 
       {/* Account Section */}
       <div className="px-5 mb-5">
         <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">Account</h2>
-        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           <div className="p-4 flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
               <span className="text-lg font-bold text-accent">
@@ -507,7 +510,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           <div className="border-t border-brand-100">
             <button
               onClick={onLogout}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-danger hover:bg-red-50 active:bg-red-100 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors"
             >
               <LogOut size={18} />
               <span className="text-sm font-medium">Logout</span>
@@ -519,11 +522,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       {/* Data Connection Section */}
       <div className="px-5 mb-5">
         <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">Dati e connessione</h2>
-        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           {/* Status */}
           <div className="p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              isOnline ? 'bg-green-50' : 'bg-orange-50'
+              isOnline ? 'bg-success-soft' : 'bg-warning-soft'
             }`}>
               {isOnline ? <Wifi size={18} className="text-success" /> : <WifiOff size={18} className="text-warning" />}
             </div>
@@ -547,7 +550,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <button
               onClick={onManualSync}
               disabled={syncStats.isSyncing}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-accent hover:bg-blue-50 active:bg-blue-100 transition-colors disabled:opacity-50"
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-accent hover:bg-accent-soft active:bg-accent-soft transition-colors disabled:opacity-50"
             >
               <RefreshCw size={18} className={syncStats.isSyncing ? 'animate-spin' : ''} />
               <span className="text-sm font-medium">
@@ -559,7 +562,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <button
               onClick={onClearAndSync}
               disabled={syncStats.isSyncing}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-warning hover:bg-orange-50 active:bg-orange-100 transition-colors disabled:opacity-50"
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-warning hover:bg-warning-soft active:bg-warning-soft transition-colors disabled:opacity-50"
             >
               <Trash2 size={18} />
               <span className="text-sm font-medium">Reset cache locale</span>
@@ -589,7 +592,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       {/* Data Section */}
       <div className="px-5 mb-5">
         <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">Dati locali</h2>
-        <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
+        <div className="bg-surface rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
           <div className="px-4 py-3.5 flex items-center justify-between">
             <span className="text-sm text-brand-700">Progetti</span>
             <span className="text-sm font-semibold text-brand-800">{projectCount}</span>
@@ -617,10 +620,48 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
       </div>
 
+      {/* Aspetto */}
+      <div className="px-5 mb-5">
+        <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">Aspetto</h2>
+        <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
+          <div className="px-4 py-3.5">
+            <span className="text-sm text-brand-700 block mb-3">Tema</span>
+            <div className="grid grid-cols-3 gap-1 p-1 bg-surface-3 rounded-xl" role="radiogroup" aria-label="Tema applicazione">
+              {([
+                { value: 'light', label: 'Chiaro', icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                ) },
+                { value: 'dark', label: 'Scuro', icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                ) },
+                { value: 'system', label: 'Sistema', icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8m-4-4v4"/></svg>
+                ) },
+              ] as { value: ThemePreference; label: string; icon: React.ReactNode }[]).map(({ value, label, icon }) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={themePref === value}
+                  onClick={() => setThemePref(value)}
+                  className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                    themePref === value
+                      ? 'bg-surface text-accent shadow-card'
+                      : 'text-brand-600 hover:text-brand-700'
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* App Info */}
       <div className="px-5 mb-5">
         <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">App</h2>
-        <div className="bg-white rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
+        <div className="bg-surface rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
           <div className="px-4 py-3.5 flex items-center justify-between">
             <span className="text-sm text-brand-700">Versione</span>
             <span className="text-sm text-brand-500">1.0.0</span>
@@ -641,13 +682,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
           </h2>
 
           {!isOnline && (
-            <div className="bg-orange-50 border border-orange-200 text-orange-700 text-sm px-4 py-3 rounded-2xl mb-3">
+            <div className="bg-warning-soft border border-warning/30 text-warning text-sm px-4 py-3 rounded-2xl mb-3">
               Nessuna connessione — funzione non disponibile.
             </div>
           )}
 
           {isOnline && (
-            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
               {/* Tab selector */}
               <div className="flex border-b border-brand-100">
                 {(['dropdown', 'products', 'floorplans'] as const).map(tab => (
@@ -664,7 +705,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
 
               {adminError && (
-                <div className="mx-4 mt-3 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-xl">
+                <div className="mx-4 mt-3 bg-danger-soft border border-danger/30 text-danger text-xs px-3 py-2 rounded-xl">
                   {adminError}
                 </div>
               )}
@@ -735,26 +776,26 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                       <div className="text-center py-6 text-brand-400 text-sm">Nessuna opzione</div>
                     ) : ddItems.map(item => (
                       ddEditingId === item.id ? (
-                        <div key={item.id} className="flex items-center gap-2 px-2 py-2 bg-blue-50 rounded-xl">
+                        <div key={item.id} className="flex items-center gap-2 px-2 py-2 bg-accent-soft rounded-xl">
                           <div className="flex-1 min-w-0 flex flex-col gap-1">
                             <input
                               value={ddEditLabel}
                               onChange={e => setDdEditLabel(e.target.value)}
                               placeholder="Etichetta *"
-                              className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-sm text-brand-800 focus:outline-none focus:border-accent"
+                              className="w-full px-2 py-1.5 bg-surface border border-brand-200 rounded-lg text-sm text-brand-800 focus:outline-none focus:border-accent"
                             />
                             <input
                               value={ddEditValue}
                               onChange={e => setDdEditValue(e.target.value)}
                               placeholder="Value (opzionale)"
-                              className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
+                              className="w-full px-2 py-1.5 bg-surface border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
                             />
                             {categoryHasUnit(ddCategory) && (
                               <select
                                 value={ddEditUnit}
                                 onChange={e => setDdEditUnit(e.target.value)}
                                 title="Unità di misura"
-                                className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
+                                className="w-full px-2 py-1.5 bg-surface border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
                               >
                                 <option value="">Unità…</option>
                                 {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
@@ -764,7 +805,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           <button
                             onClick={() => handleSaveEditDropdown(item.id)}
                             disabled={!ddEditLabel.trim() || ddSaving}
-                            className="w-7 h-7 flex items-center justify-center text-success hover:bg-green-50 rounded-lg flex-shrink-0 disabled:opacity-40"
+                            className="w-7 h-7 flex items-center justify-center text-success hover:bg-success-soft rounded-lg flex-shrink-0 disabled:opacity-40"
                           >
                             <Check size={15} />
                           </button>
@@ -786,13 +827,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           </div>
                           <button
                             onClick={() => startEditDropdown(item)}
-                            className="w-7 h-7 flex items-center justify-center text-accent hover:bg-blue-50 rounded-lg flex-shrink-0"
+                            className="w-7 h-7 flex items-center justify-center text-accent hover:bg-accent-soft rounded-lg flex-shrink-0"
                           >
                             <Pencil size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteDropdown(item.id)}
-                            className="w-7 h-7 flex items-center justify-center text-danger hover:bg-red-50 rounded-lg flex-shrink-0"
+                            className="w-7 h-7 flex items-center justify-center text-danger hover:bg-danger-soft rounded-lg flex-shrink-0"
                           >
                             <X size={14} />
                           </button>
@@ -856,25 +897,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                           <div className="space-y-1">
                             {items.map(item => (
                               prodEditingId === item.id ? (
-                                <div key={item.id} className="flex items-center gap-2 px-2 py-2 bg-blue-50 rounded-xl">
+                                <div key={item.id} className="flex items-center gap-2 px-2 py-2 bg-accent-soft rounded-xl">
                                   <div className="flex-1 min-w-0 flex flex-col gap-1">
                                     <input
                                       value={prodEditBrand}
                                       onChange={e => setProdEditBrand(e.target.value)}
                                       placeholder="Marca *"
-                                      className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
+                                      className="w-full px-2 py-1.5 bg-surface border border-brand-200 rounded-lg text-xs text-brand-600 focus:outline-none focus:border-accent"
                                     />
                                     <input
                                       value={prodEditName}
                                       onChange={e => setProdEditName(e.target.value)}
                                       placeholder="Nome prodotto *"
-                                      className="w-full px-2 py-1.5 bg-white border border-brand-200 rounded-lg text-sm text-brand-800 focus:outline-none focus:border-accent"
+                                      className="w-full px-2 py-1.5 bg-surface border border-brand-200 rounded-lg text-sm text-brand-800 focus:outline-none focus:border-accent"
                                     />
                                   </div>
                                   <button
                                     onClick={() => handleSaveEditProduct(item.id)}
                                     disabled={!prodEditBrand.trim() || !prodEditName.trim() || prodSaving}
-                                    className="w-7 h-7 flex items-center justify-center text-success hover:bg-green-50 rounded-lg flex-shrink-0 disabled:opacity-40"
+                                    className="w-7 h-7 flex items-center justify-center text-success hover:bg-success-soft rounded-lg flex-shrink-0 disabled:opacity-40"
                                   >
                                     <Check size={15} />
                                   </button>
@@ -890,13 +931,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                   <span className="flex-1 text-sm text-brand-700">{item.name}</span>
                                   <button
                                     onClick={() => startEditProduct(item)}
-                                    className="w-7 h-7 flex items-center justify-center text-accent hover:bg-blue-50 rounded-lg flex-shrink-0"
+                                    className="w-7 h-7 flex items-center justify-center text-accent hover:bg-accent-soft rounded-lg flex-shrink-0"
                                   >
                                     <Pencil size={14} />
                                   </button>
                                   <button
                                     onClick={() => handleDeleteProduct(item.id)}
-                                    className="w-7 h-7 flex items-center justify-center text-danger hover:bg-red-50 rounded-lg flex-shrink-0"
+                                    className="w-7 h-7 flex items-center justify-center text-danger hover:bg-danger-soft rounded-lg flex-shrink-0"
                                   >
                                     <X size={14} />
                                   </button>
@@ -996,6 +1037,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       )}
 
       <div className="h-4" />
+      </div>
     </div>
   );
 };

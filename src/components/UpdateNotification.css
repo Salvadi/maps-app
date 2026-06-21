@@ -21,7 +21,7 @@
 }
 
 .update-content {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
   color: white;
   padding: 20px;
   border-radius: 12px;
@@ -81,17 +81,17 @@
 
 .update-btn-primary {
   background: white;
-  color: #667eea;
+  color: rgb(var(--c-action));
 }
 
 .update-btn-primary:hover:not(:disabled) {
-  background: #f0f0f0;
+  background: rgb(var(--c-surface-3));
   transform: scale(1.05);
 }
 
 .update-btn-primary:disabled {
-  background: #e0e0e0;
-  color: #999;
+  background: rgb(var(--c-line-strong));
+  color: rgb(var(--c-ink-3));
   cursor: not-allowed;
   opacity: 0.6;
 }

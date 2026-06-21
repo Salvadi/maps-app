@@ -4,11 +4,26 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#f1f4f8" />
     <meta
       name="description"
-      content="Web site created using create-react-app"
+      content="OPImaPPA — mappatura antincendio OPI FIRE SAFE"
     />
+    <script>
+      // Applica il tema prima del primo paint per evitare flash del tema sbagliato
+      (function () {
+        try {
+          var pref = localStorage.getItem('opimappa-theme') || 'system';
+          var dark = pref === 'dark' || (pref === 'system' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#0d131b');
+          }
+        } catch (e) { /* localStorage non disponibile: resta tema chiaro */ }
+      })();
+    </script>
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
       manifest.json provides metadata used when your web app is installed on a

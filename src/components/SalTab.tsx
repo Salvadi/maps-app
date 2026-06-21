@@ -185,9 +185,9 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
   return (
     <div className="px-4 pt-4 pb-24 space-y-4">
       {(unassignedCount > 0 || unassignedStructuresCount > 0) && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center space-x-2">
-          <Info size={20} className="text-yellow-600 flex-shrink-0" />
-          <p className="text-sm text-yellow-800">
+        <div className="bg-warning-soft border border-warning/30 rounded-2xl px-4 py-3 flex items-center space-x-2">
+          <Info size={20} className="text-warning flex-shrink-0" />
+          <p className="text-sm text-warning">
             {[
               unassignedCount > 0 && `${unassignedCount} attraversament${unassignedCount === 1 ? 'o' : 'i'}`,
               unassignedStructuresCount > 0 && `${unassignedStructuresCount} struttur${unassignedStructuresCount === 1 ? 'a' : 'e'}`,
@@ -196,9 +196,9 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
         </div>
       )}
       {toCompleteUnassignedCount > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 flex items-center space-x-2">
-          <AlertTriangle size={18} className="text-orange-500 flex-shrink-0" />
-          <p className="text-sm text-orange-800">
+        <div className="bg-warning-soft border border-warning/30 rounded-2xl px-4 py-3 flex items-center space-x-2">
+          <AlertTriangle size={18} className="text-warning flex-shrink-0" />
+          <p className="text-sm text-warning">
             {toCompleteUnassignedCount} crossing "da completare" esclusi dall'assegnazione automatica
           </p>
         </div>
@@ -216,12 +216,12 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
       </button>
 
       {(showForm || editingId) && (
-        <div className="bg-white rounded-2xl shadow-card p-4 space-y-3">
+        <div className="bg-surface rounded-2xl shadow-card p-4 space-y-3">
           <h3 className="text-lg font-bold">
             {editingId ? 'Modifica SAL' : 'Nuovo SAL'}
           </h3>
           <div>
-            <label htmlFor="salName" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="salName" className="block text-sm font-medium text-brand-700">
               Nome (opz.)
             </label>
             <input
@@ -233,7 +233,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
             />
           </div>
           <div>
-            <label htmlFor="salDate" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="salDate" className="block text-sm font-medium text-brand-700">
               Data
             </label>
             <input
@@ -245,7 +245,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
             />
           </div>
           <div>
-            <label htmlFor="salNotes" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="salNotes" className="block text-sm font-medium text-brand-700">
               Note (opz.)
             </label>
             <textarea
@@ -276,14 +276,14 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
       )}
 
       {sals.length === 0 && !showForm && (
-        <div className="bg-white rounded-2xl shadow-card p-4 text-center text-gray-500">
+        <div className="bg-surface rounded-2xl shadow-card p-4 text-center text-brand-500">
           <p>Nessun SAL creato. Premi "+ Nuovo SAL" per iniziare.</p>
         </div>
       )}
 
       <div className="space-y-3">
         {sals.map((sal) => (
-          <div key={sal.id} className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div key={sal.id} className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-brand-100 flex items-center justify-between">
               <h4 className="text-base font-bold">SAL {sal.number}</h4>
               <div className="flex space-x-2">
@@ -312,7 +312,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                   <button
                     onClick={() => handleAssignToComplete(sal.id)}
                     disabled={assigning !== null}
-                    className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-xl text-sm flex items-center space-x-1 disabled:opacity-50"
+                    className="px-3 py-2 text-warning hover:bg-warning-soft rounded-xl text-sm flex items-center space-x-1 disabled:opacity-50"
                   >
                     {assigning === sal.id + '_tc' ? (
                       'Assegnazione...'
@@ -326,7 +326,7 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
                 )}
                 <button
                   onClick={() => setConfirmDeleteId(sal.id)}
-                  className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-xl text-sm flex items-center space-x-1"
+                  className="px-3 py-2 text-danger hover:bg-danger-soft rounded-xl text-sm flex items-center space-x-1"
                 >
                   <Trash size={16} />
                 </button>
@@ -351,22 +351,22 @@ const SalTab: React.FC<SalTabProps> = ({ project, currentUser }) => {
               {sal.notes && <p className="text-sm">Note: {sal.notes}</p>}
 
               {confirmDeleteId === sal.id && (
-                <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
-                  <p className="text-sm text-red-800">
+                <div className="mt-3 bg-danger-soft border border-danger/30 rounded-xl p-3 space-y-2">
+                  <p className="text-sm text-danger">
                     Eliminare SAL {sal.number}? Gli attraversamenti e le strutture assegnate torneranno non contabilizzati.
                   </p>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleDeleteSal(sal.id)}
                       disabled={saving}
-                      className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium disabled:opacity-50"
+                      className="px-4 py-2 bg-danger text-white rounded-xl text-sm font-medium disabled:opacity-50"
                     >
                       {saving ? 'Eliminazione...' : 'Conferma'}
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(null)}
                       disabled={saving}
-                      className="px-3 py-2 text-red-600 hover:bg-red-100 rounded-xl text-sm disabled:opacity-50"
+                      className="px-3 py-2 text-danger hover:bg-danger-soft rounded-xl text-sm disabled:opacity-50"
                     >
                       Annulla
                     </button>

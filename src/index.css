@@ -2,20 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---- Custom layers on top of Tailwind ---- */
+/* ============================================================
+   Design tokens OPImaPPA — tema chiaro (default) e scuro.
+   I valori sono triplette RGB per supportare l'alpha di Tailwind:
+   rgb(var(--c-surface) / <alpha-value>)
+   ============================================================ */
 
 @layer base {
   :root {
-    /* Legacy CSS vars kept for old components (ProjectForm, etc.) */
-    --color-bg-primary: #f5f0e8;
-    --color-bg-secondary: #ffffff;
-    --color-bg-input: #faf8f4;
-    --color-text-primary: #3a3a3a;
-    --color-text-secondary: #6b6b6b;
-    --color-text-placeholder: #a8a8a8;
-    --color-border: #e5dfd5;
-    --color-shadow: rgba(0, 0, 0, 0.08);
-    --color-shadow-hover: rgba(0, 0, 0, 0.12);
+    color-scheme: light;
+
+    /* Superfici */
+    --c-bg: 241 244 248;          /* sfondo pagina */
+    --c-surface: 255 255 255;     /* card / pannelli */
+    --c-surface-2: 247 249 252;   /* sezioni interne */
+    --c-surface-3: 238 242 247;   /* input / inset */
+
+    /* Testo */
+    --c-ink: 24 34 46;            /* testo primario */
+    --c-ink-2: 74 90 106;         /* testo secondario */
+    --c-ink-3: 140 155 171;       /* placeholder / disabled */
+
+    /* Bordi */
+    --c-line: 221 228 236;
+    --c-line-strong: 195 206 218;
+
+    /* Brand e azioni */
+    --c-navy: 30 58 95;           /* navy istituzionale */
+    --c-navy-deep: 21 41 68;
+    --c-action: 37 99 235;        /* blu interattivo */
+    --c-action-strong: 29 78 216;
+    --c-action-soft: 219 234 254;
+    --c-flame: 234 88 12;         /* arancio firma antincendio */
+    --c-flame-soft: 255 237 224;
+
+    /* Semantici */
+    --c-success: 21 128 61;
+    --c-success-soft: 220 244 228;
+    --c-warning: 180 83 9;
+    --c-warning-soft: 254 240 217;
+    --c-danger: 220 38 38;
+    --c-danger-soft: 254 226 226;
+
+    /* Scala neutra (ex "brand" beige, ora theme-aware) */
+    --n-50: 250 251 253;
+    --n-100: 241 244 248;
+    --n-200: 221 228 236;
+    --n-300: 195 206 218;
+    --n-400: 140 155 171;
+    --n-500: 110 126 143;
+    --n-600: 74 90 106;
+    --n-700: 24 34 46;
+    --n-800: 16 24 34;
+    --n-900: 10 16 24;
+
+    /* Elevazione */
+    --shadow-card: 0 1px 2px rgba(16, 24, 34, 0.05), 0 2px 8px rgba(16, 24, 34, 0.06);
+    --shadow-card-hover: 0 2px 4px rgba(16, 24, 34, 0.06), 0 8px 24px rgba(16, 24, 34, 0.10);
+    --shadow-nav: 0 -1px 12px rgba(16, 24, 34, 0.08);
+    --shadow-pop: 0 4px 12px rgba(16, 24, 34, 0.10), 0 12px 40px rgba(16, 24, 34, 0.14);
+
+    /* Legacy CSS vars (vecchi componenti .css) — rimappate sui token */
+    --color-bg-primary: rgb(var(--c-bg));
+    --color-bg-secondary: rgb(var(--c-surface));
+    --color-bg-input: rgb(var(--c-surface-3));
+    --color-text-primary: rgb(var(--c-ink));
+    --color-text-secondary: rgb(var(--c-ink-2));
+    --color-text-placeholder: rgb(var(--c-ink-3));
+    --color-border: rgb(var(--c-line));
+    --color-shadow: rgba(16, 24, 34, 0.08);
+    --color-shadow-hover: rgba(16, 24, 34, 0.12);
     --radius-sm: 12px;
     --radius-md: 16px;
     --radius-lg: 20px;
@@ -26,6 +82,56 @@
     --spacing-xl: 32px;
   }
 
+  [data-theme='dark'] {
+    color-scheme: dark;
+
+    --c-bg: 13 19 27;
+    --c-surface: 21 29 40;
+    --c-surface-2: 28 39 53;
+    --c-surface-3: 36 49 64;
+
+    --c-ink: 231 236 242;
+    --c-ink-2: 159 174 190;
+    --c-ink-3: 107 124 142;
+
+    --c-line: 42 56 74;
+    --c-line-strong: 59 77 98;
+
+    --c-navy: 110 150 200;
+    --c-navy-deep: 21 41 68;
+    --c-action: 77 159 255;
+    --c-action-strong: 122 183 255;
+    --c-action-soft: 23 45 77;
+    --c-flame: 255 138 80;
+    --c-flame-soft: 61 35 21;
+
+    --c-success: 52 211 153;
+    --c-success-soft: 16 50 38;
+    --c-warning: 251 191 36;
+    --c-warning-soft: 61 47 13;
+    --c-danger: 248 113 113;
+    --c-danger-soft: 70 24 24;
+
+    --n-50: 16 23 31;
+    --n-100: 13 19 27;
+    --n-200: 42 56 74;
+    --n-300: 59 77 98;
+    --n-400: 120 136 153;
+    --n-500: 138 152 167;
+    --n-600: 159 174 190;
+    --n-700: 231 236 242;
+    --n-800: 240 244 249;
+    --n-900: 248 250 252;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 10px rgba(0, 0, 0, 0.35);
+    --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
+    --shadow-nav: 0 -1px 12px rgba(0, 0, 0, 0.45);
+    --shadow-pop: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.6);
+
+    --color-shadow: rgba(0, 0, 0, 0.4);
+    --color-shadow-hover: rgba(0, 0, 0, 0.55);
+  }
+
   html, body {
     height: 100%;
     width: 100%;
@@ -34,15 +140,15 @@
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+      'Helvetica Neue', Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #f5f0e8;
-    color: #3a3a3a;
+    background-color: rgb(var(--c-bg));
+    color: rgb(var(--c-ink));
     font-size: 16px;
     line-height: 1.5;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   #root {
@@ -57,12 +163,30 @@
   button, a {
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Tutti i bottoni attivi mostrano cursore pointer */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Numeri tabellari per dati e contatori */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* Focus styles */
 *:focus-visible {
-  outline: 2px solid #6b6b6b;
+  outline: 2px solid rgb(var(--c-action));
   outline-offset: 2px;
+}
+
+/* Riduzione movimento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Legacy component overrides — keep existing .css files working */
@@ -85,9 +209,9 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #e5dfd5;
+  background: rgb(var(--c-line-strong));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b6b6b;
+  background: rgb(var(--c-ink-3));
 }
