@@ -608,6 +608,7 @@
 
 .menu-content {
   padding: 20px;
+  padding-bottom: 48px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
