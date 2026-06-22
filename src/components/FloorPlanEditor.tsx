@@ -1123,7 +1123,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                 </label>
 
                 {showCartiglioPanel && (
-                  <div style={{ marginTop: '12px' }}>
+                  <div style={{ marginTop: '12px', paddingBottom: '32px' }}>
                     <div className="cartiglio-editor-header">
                       <div>
                         <h3>Cartiglio planimetria</h3>
