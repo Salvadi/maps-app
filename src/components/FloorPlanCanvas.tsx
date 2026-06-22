@@ -1307,8 +1307,9 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     return null;
   };
 
-  // Handle wheel zoom
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+  // Handle wheel zoom — aggiornato ad ogni render per catturare zoom/pan correnti
+  const handleWheelRef = useRef<((e: WheelEvent) => void) | null>(null);
+  handleWheelRef.current = (e: WheelEvent) => {
     e.preventDefault();
 
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -1331,6 +1332,15 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
 
     setZoom(newZoom);
   };
+
+  // Registra wheel listener nativo con passive:false per permettere preventDefault (React 17+ usa passive di default)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handler = (e: WheelEvent) => handleWheelRef.current?.(e);
+    canvas.addEventListener('wheel', handler, { passive: false });
+    return () => canvas.removeEventListener('wheel', handler);
+  }, []);
 
   // Handle zoom buttons - expose these functions
   const handleZoomIn = useCallback(() => {
@@ -1555,7 +1565,6 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         onMouseUp={handleMouseUp}
         onDoubleClick={handleDoubleClick}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
