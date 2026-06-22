@@ -624,8 +624,7 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
     const point: FloorPlanPoint = {
       id: remotePoint.id,
       floorPlanId: remotePoint.floor_plan_id,
-      // Keep mappingEntryId populated (from either column) so the editor can display the point.
-      // structureEntryId is set when the point is linked to a structure_entry.
+      // mappingEntryId: fallback su structure_entry_id per compatibilità display (StructureWizard usa questo campo per filtrare/navigare)
       mappingEntryId: remotePoint.mapping_entry_id || remotePoint.structure_entry_id || undefined,
       structureEntryId: remotePoint.structure_entry_id || undefined,
       pointType: remotePoint.point_type,
@@ -648,12 +647,18 @@ export async function downloadFloorPlanPointsFromSupabase(userId: string, isAdmi
     downloadedCount += 1;
   }
 
-  // Pruning: rimuovere localmente i points non più presenti remoto
+  // Pruning: rimuovere localmente i points non più presenti remoto.
+  // Protegge anche item con retryCount >= 5 (permanentFailed): sono ancora in queue (synced=0)
+  // ma getPendingEntityIds li esclude perché retryCount >= 5.
   const remotePointIds = new Set((data || []).map((r: any) => r.id));
   const localPointIds = floorPlanIds.length > 0
     ? await db.floorPlanPoints.where('floorPlanId').anyOf(floorPlanIds).primaryKeys() as string[]
     : [];
-  const toDeletePoints = localPointIds.filter((id) => !remotePointIds.has(id) && !pendingIds.has(id));
+  const queuedEntityIds = new Set(
+    (await db.syncQueue.where('entityType').equals('floor_plan_point').and(i => i.synced === 0).toArray())
+      .map(i => i.entityId)
+  );
+  const toDeletePoints = localPointIds.filter((id) => !remotePointIds.has(id) && !queuedEntityIds.has(id));
   if (toDeletePoints.length > 0) await db.floorPlanPoints.bulkDelete(toDeletePoints);
 
   return downloadedCount;

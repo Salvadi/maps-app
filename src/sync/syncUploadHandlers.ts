@@ -670,7 +670,7 @@ async function syncFloorPlanPoint(item: SyncQueueItem): Promise<void> {
 
     if (effectivePoint.structureEntryId) {
       resolvedStructureEntryId = effectivePoint.structureEntryId;
-      resolvedMappingEntryId = effectivePoint.mappingEntryId || null;
+      resolvedMappingEntryId = null; // structure e mapping sono esclusivi per constraint DB fpp_exactly_one_parent
     } else if (effectivePoint.mappingEntryId) {
       const isStructureEntry = !!(await db.structureEntries.get(effectivePoint.mappingEntryId));
       if (isStructureEntry) {
