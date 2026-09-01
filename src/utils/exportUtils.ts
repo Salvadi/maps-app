@@ -505,7 +505,11 @@ function getLabelDimensions(
 }
 
 /**
- * Trova il midpoint del bordo dell'etichetta più vicino a `from`.
+ * Trova il punto più vicino a `from` sul perimetro del rettangolo etichetta
+ * (proiezione clampata su ciascun lato, poi minima distanza).
+ * Deve restare identico a `getClosestPointOnSegment`/`drawConnectingLine` in
+ * FloorPlanCanvas.tsx, altrimenti la linea tratteggiata si aggancia in un
+ * punto diverso tra editor ed export.
  * Coordinate PDF (bottom-left origin).
  * @param from  punto di partenza (PDF coords)
  * @param label rettangolo etichetta (x,y = bottom-left in PDF coords)
@@ -514,13 +518,17 @@ function nearestLabelEdge(
   from: { x: number; y: number },
   label: { x: number; y: number; w: number; h: number }
 ): { x: number; y: number } {
-  const cx = label.x + label.w / 2;
-  const cy = label.y + label.h / 2;
+  const left   = label.x;
+  const right  = label.x + label.w;
+  const bottom = label.y;
+  const top    = label.y + label.h;
+  const clampedX = Math.max(left,   Math.min(right, from.x));
+  const clampedY = Math.max(bottom, Math.min(top,   from.y));
   const edges = [
-    { x: cx,           y: label.y + label.h },  // bordo top
-    { x: cx,           y: label.y             },  // bordo bottom
-    { x: label.x,      y: cy                  },  // bordo left
-    { x: label.x + label.w, y: cy             },  // bordo right
+    { x: clampedX, y: top    },  // bordo top
+    { x: clampedX, y: bottom },  // bordo bottom
+    { x: left,     y: clampedY },  // bordo left
+    { x: right,    y: clampedY },  // bordo right
   ];
   let minDist = Infinity;
   let nearest = edges[0];

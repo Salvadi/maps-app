@@ -225,9 +225,9 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
   useEffect(() => { setColsInput(String(gridConfig.cols)); }, [gridConfig.cols]);
 
   // EI Legend state (normalized 0-1 coordinates, null = hidden)
-  const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>({ x: 0.02, y: 0.02 });
+  const [eiLegendPosition, setEiLegendPosition] = useState<{ x: number; y: number } | null>(null);
   const buildCartiglioState = useCallback((): FloorPlanCartiglioData => ({
-    enabled: initialCartiglio?.enabled ?? true,
+    enabled: initialCartiglio?.enabled ?? false,
     positionX: initialCartiglio?.positionX ?? CARTIGLIO_DEFAULT_POSITION_X,
     positionY: initialCartiglio?.positionY ?? CARTIGLIO_DEFAULT_POSITION_Y,
     scale: Math.max(CARTIGLIO_MIN_SCALE, Math.min(CARTIGLIO_MAX_SCALE, initialCartiglio?.scale ?? 1)),
@@ -238,7 +238,7 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     standaloneRowCount: Math.max(1, initialCartiglio?.standaloneRowCount ?? 1),
   }), [defaultCommittente, defaultTavola, initialCartiglio]);
   const [cartiglio, setCartiglio] = useState<FloorPlanCartiglioData>(buildCartiglioState);
-  const [showCartiglioOnCanvas, setShowCartiglioOnCanvas] = useState<boolean>(true);
+  const [showCartiglioOnCanvas, setShowCartiglioOnCanvas] = useState<boolean>(false);
 
   useEffect(() => {
     setCartiglio(buildCartiglioState());
