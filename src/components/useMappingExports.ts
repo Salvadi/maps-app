@@ -12,6 +12,7 @@ import { saveAs } from 'file-saver';
 import {
   Project,
   MappingEntry,
+  StructureEntry,
   Photo,
   User,
   FloorPlan,
@@ -37,6 +38,10 @@ interface UseMappingExportsParams {
   project: Project;
   mappings: MappingEntry[];
   mappingPhotos: Record<string, Photo[]>;
+  /** Structure entries del progetto (opzionale: solo l'export project-level le passa). */
+  structures?: StructureEntry[];
+  /** Foto delle strutture indicizzate per structureEntryId. */
+  structurePhotos?: Record<string, Photo[]>;
   users: User[];
   floorPlans: FloorPlan[];
   floorPlanPoints: Record<string, FloorPlanPoint[]>;
@@ -55,6 +60,8 @@ export function useMappingExports({
   project,
   mappings,
   mappingPhotos,
+  structures = [],
+  structurePhotos = {},
   users,
   floorPlans,
   floorPlanPoints,
@@ -67,6 +74,83 @@ export function useMappingExports({
   const [isExporting, setIsExporting] = useState(false);
   const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
   const resolveExportLabel = buildFloorPlanLabelResolver(mappings, mappingPhotos, generateMappingLabel);
+
+  // ============================================
+  // SEZIONE: Righe Excel strutture
+  // Una riga per struttura (come per gli attraversamenti). Vuoto se il
+  // progetto non ha structure entries (caller mapping-only).
+  // ============================================
+  const buildStructureRows = (): any[] => {
+    const data: any[] = [];
+
+    for (const entry of structures) {
+      const photos = structurePhotos[entry.id] || [];
+      const items = entry.structures.length > 0 ? entry.structures : [null];
+
+      for (const structure of items) {
+        const row: any = {};
+
+        if (project.floors && project.floors.length > 1) {
+          row['Piano'] = entry.floor;
+        }
+        if (project.useRoomNumbering) {
+          row['Stanza'] = entry.room || '-';
+        }
+        if (project.useInterventionNumbering) {
+          row['Intervento N.'] = entry.intervention || '-';
+        }
+
+        const photoNumbers = photos.map((_, idx) => {
+          const photoNum = (idx + 1).toString().padStart(2, '0');
+          const prefix = generatePhotoPrefix(entry.floor, entry.room, entry.intervention);
+          return `${prefix}${photoNum}`;
+        }).join(', ');
+        row['N. foto'] = photoNumbers || '-';
+
+        if (structure) {
+          const strutturaText = structure.struttura === 'Altro' && structure.strutturaCustom
+            ? structure.strutturaCustom
+            : structure.struttura || '-';
+          row['Struttura'] = strutturaText;
+          row['Tipo struttura'] = structure.tipoStruttura || '-';
+          row['Base (m)'] = structure.base ?? '-';
+          row['Altezza (m)'] = structure.altezza ?? '-';
+          row['Superficie (mq)'] = structure.superficie ?? '-';
+          row['Lunghezza (ml)'] = structure.lunghezza ?? '-';
+          row['Tipologico'] = structure.tipologicoId ? getTipologicoNumber(structure.tipologicoId) : '-';
+          row['Note'] = structure.notes || '-';
+        } else {
+          row['Struttura'] = '-';
+          row['Tipo struttura'] = '-';
+          row['Base (m)'] = '-';
+          row['Altezza (m)'] = '-';
+          row['Superficie (mq)'] = '-';
+          row['Lunghezza (ml)'] = '-';
+          row['Tipologico'] = '-';
+          row['Note'] = '-';
+        }
+
+        const date = new Date(entry.timestamp);
+        row['Data'] = date.toLocaleDateString('it-IT');
+        row['Ora'] = date.toLocaleTimeString('it-IT');
+        row['User'] = getUsername(entry.createdBy);
+
+        data.push(row);
+      }
+    }
+
+    return data;
+  };
+
+  const appendStructureSheet = (wb: XLSX.WorkBook) => {
+    const struttureData = buildStructureRows();
+    if (struttureData.length === 0) {
+      return;
+    }
+    const wsStrutture = XLSX.utils.json_to_sheet(struttureData);
+    wsStrutture['!cols'] = Array(Object.keys(struttureData[0]).length).fill({ wch: 15 });
+    XLSX.utils.book_append_sheet(wb, wsStrutture, 'Strutture');
+  };
 
   // ============================================
   // SEZIONE: Export Excel
@@ -174,6 +258,8 @@ export function useMappingExports({
         wsTipologici['!cols'] = Array(6).fill({ wch: 20 });
         XLSX.utils.book_append_sheet(wb, wsTipologici, 'Tipologici');
       }
+
+      appendStructureSheet(wb);
 
       XLSX.writeFile(wb, `${project.title}_mappings.xlsx`);
 
@@ -294,6 +380,8 @@ export function useMappingExports({
         XLSX.utils.book_append_sheet(wb, wsTipologici, 'Tipologici');
       }
 
+      appendStructureSheet(wb);
+
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       zip.file(`${project.title}_mappings.xlsx`, excelBuffer);
 
@@ -322,6 +410,50 @@ export function useMappingExports({
           const filename = `${prefix}${photoNum}.jpg`;
           const fullPath = folderPath + filename;
           zip.file(fullPath, photo.blob);
+        }
+      }
+
+      // Add structure photos under the Strutture/ folder (mirror della gerarchia Piano/Stanza)
+      for (const entry of structures) {
+        const photos = structurePhotos[entry.id] || [];
+        const prefix = generatePhotoPrefix(entry.floor, entry.room, entry.intervention);
+
+        let folderPath = 'Strutture/';
+        if (project.floors && project.floors.length > 1) {
+          folderPath += `Piano ${entry.floor}/`;
+          if (project.useRoomNumbering && entry.room) {
+            folderPath += `Stanza ${entry.room}/`;
+          }
+        } else if (project.useRoomNumbering && entry.room) {
+          folderPath += `Stanza ${entry.room}/`;
+        }
+
+        for (let i = 0; i < photos.length; i++) {
+          // getPhotosForStructure non fa write-through cache: il blob va idratato
+          // dal signed remoteUrl (ensurePhotoBlob fallirebbe perché manca la riga in Dexie).
+          let photo = photos[i];
+          if (!photo.blob) {
+            const hydrated = await ensurePhotoBlob(photo.id);
+            if (hydrated?.blob) {
+              photo = hydrated;
+            }
+          }
+          let blob = photo.blob;
+          if (!blob && photo.remoteUrl) {
+            try {
+              const response = await fetch(photo.remoteUrl);
+              if (response.ok) {
+                blob = await response.blob();
+              }
+            } catch (error) {
+              console.warn(`Failed to fetch structure photo ${photo.id}`, error);
+            }
+          }
+          if (!blob) {
+            continue;
+          }
+          const photoNum = (i + 1).toString().padStart(2, '0');
+          zip.file(folderPath + `${prefix}${photoNum}.jpg`, blob);
         }
       }
 
