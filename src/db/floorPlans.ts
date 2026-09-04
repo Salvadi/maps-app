@@ -571,7 +571,7 @@ export async function deleteFloorPlan(id: string): Promise<void> {
 export async function createFloorPlanPoint(
   floorPlanId: string,
   mappingEntryId: string,
-  pointType: 'parete' | 'solaio' | 'perimetro' | 'generico',
+  pointType: 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura',
   pointX: number,
   pointY: number,
   labelX: number,

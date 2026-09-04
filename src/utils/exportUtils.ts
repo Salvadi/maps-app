@@ -26,7 +26,7 @@ const EI_COLORS: Record<number, string> = {
  * Accettato sia da CanvasPoint (FloorPlanCanvas) sia da FloorPlanPoint (DB).
  */
 export interface ExportPoint {
-  type: 'parete' | 'solaio' | 'perimetro' | 'generico';
+  type: 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura';
   pointX: number;   // 0-1 normalizzato
   pointY: number;   // 0-1 normalizzato
   labelX: number;   // 0-1 normalizzato
@@ -135,6 +135,7 @@ function getExportPointColor(type: string): string {
     case 'solaio':    return '#00CC66';
     case 'perimetro': return '#FF6600';
     case 'generico':  return '#9933FF';
+    case 'struttura': return '#CC0033';
     default:          return '#333333';
   }
 }
@@ -652,11 +653,33 @@ function _drawAnnotationsOnPage(
   // 3. Cerchi punto (non per i perimetri: rappresentati solo dalla linea tratteggiata)
   for (const point of points) {
     if (point.type === 'perimetro') continue;
+    const color = hexToRgbLib(getExportPointColor(point.type));
+    if (point.type === 'struttura') {
+      // Marker struttura puntuale: quadrato con pallino al centro
+      const px = toX(point.pointX);
+      const py = toY(point.pointY);
+      const half = dynPointR + 1;
+      page.drawRectangle({
+        x: px - half,
+        y: py - half,
+        width: half * 2,
+        height: half * 2,
+        borderColor: color,
+        borderWidth: 1.5,
+      });
+      page.drawCircle({
+        x: px,
+        y: py,
+        size: Math.max(1, dynPointR * 0.4),
+        color,
+      });
+      continue;
+    }
     page.drawCircle({
       x: toX(point.pointX),
       y: toY(point.pointY),
       size: dynPointR,
-      color: hexToRgbLib(getExportPointColor(point.type)),
+      color,
     });
   }
 

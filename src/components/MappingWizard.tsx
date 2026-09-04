@@ -135,6 +135,9 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
   const [showTypologyViewer, setShowTypologyViewer] = useState(false);
   const [projectTypologies, setProjectTypologies] = useState(project?.typologies || []);
+  // Solo i tipologici categoria 'attraversamento' vanno mostrati nel selettore dei crossing:
+  // quelli 'struttura' hanno supporto/attraversamento vuoti e apparirebbero come "#N -  / ".
+  const crossingTypologies = projectTypologies.filter(t => (t.category ?? 'attraversamento') === 'attraversamento');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState('');
   const [error, setError] = useState('');
@@ -649,7 +652,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
 
                 <div className="space-y-3">
                   {/* Typology selector */}
-                  {projectTypologies.length > 0 && (
+                  {crossingTypologies.length > 0 && (
                     <div>
                       <label className="block text-[11px] font-medium text-brand-500 mb-1">Tipologico</label>
                       <div className="relative">
@@ -660,7 +663,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                             const updated = [...crossings];
                             updated[i] = { ...updated[i], tipologicoId: tipId || undefined };
                             if (tipId) {
-                              const tip = projectTypologies.find(t => t.id === tipId);
+                              const tip = crossingTypologies.find(t => t.id === tipId);
                               if (tip) {
                                 updated[i].supporto = tip.supporto;
                                 updated[i].tipoSupporto = tip.tipoSupporto;
@@ -672,7 +675,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                           className="w-full px-3 py-2.5 bg-brand-50 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-accent/30 outline-none"
                         >
                           <option value="">Nessuno</option>
-                          {[...projectTypologies].sort((a, b) => a.number - b.number).map(t => {
+                          {[...crossingTypologies].sort((a, b) => a.number - b.number).map(t => {
                             const products = t.prodottiSelezionati && t.prodottiSelezionati.length > 0
                               ? t.prodottiSelezionati.join(', ')
                               : '';
@@ -690,7 +693,7 @@ const MappingWizard: React.FC<MappingWizardProps> = ({
                       </div>
                       {/* Show linked typology info */}
                       {crossing.tipologicoId && (() => {
-                        const tip = projectTypologies.find(t => t.id === crossing.tipologicoId);
+                        const tip = crossingTypologies.find(t => t.id === crossing.tipologicoId);
                         if (!tip || (!tip.marcaProdottoUtilizzato && (!tip.prodottiSelezionati || tip.prodottiSelezionati.length === 0))) return null;
                         return (
                           <div className="mt-1.5 px-3 py-2 bg-accent/5 rounded-lg border border-accent/10">

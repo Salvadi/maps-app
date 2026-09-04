@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, RefreshCw, Plus, Trash2, Upload, Eye, Check, Tag } from 'lucide-react';
-import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry } from '../db';
+import { Project, Typology, User, createProject, updateProject, archiveProject, unarchiveProject, getAllUsers, FloorPlan, createFloorPlan, getFloorPlansByProject, deleteFloorPlan, getFloorPlanBlobUrl, hasFloorPlan, getMappingEntriesForProject, updateMappingEntry, renameProjectFloors } from '../db';
 import { updateFloorPlanLabelsForMapping } from '../db/floorPlans';
 import ProductSelector from './ProductSelector';
 import { useDropdownOptions, useBrandOptions } from '../hooks/useDropdownOptions';
@@ -412,6 +412,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ project, currentUser, onSave,
 
         // Cascade typology changes to existing mappings
         await cascadeTypologyChangesToMappings(project.id, oldTypologies, sortedTypologies, currentUser.id);
+
+        // Rinomina piani: propaga il nuovo nome a mappature/strutture/planimetrie collegate
+        // (altrimenti restano indicizzate col vecchio nome e spariscono dalla UI).
+        const oldFloors = project.floors || [];
+        if (oldFloors.length === floorsArray.length) {
+          const conflicts = await renameProjectFloors(project.id, oldFloors, floorsArray, currentUser.id);
+          if (conflicts.length > 0) {
+            alert(
+              'Alcuni piani sono stati rinominati, ma la planimetria non è stata spostata perché sul piano di destinazione ne esiste già una:\n' +
+              conflicts.map(c => `- "${c.oldFloor}" → "${c.newFloor}"`).join('\n')
+            );
+          }
+        }
       } else {
         // Create new project
         const createTypologies = showTipologici

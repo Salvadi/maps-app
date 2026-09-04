@@ -475,7 +475,7 @@ export interface FloorPlanPoint {
   id: string;
   floorPlanId: string;
   mappingEntryId: string;
-  pointType: 'parete' | 'solaio' | 'perimetro' | 'generico';
+  pointType: 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura';
   pointX: number; // Normalized 0-1
   pointY: number; // Normalized 0-1
   labelX: number; // Normalized 0-1
