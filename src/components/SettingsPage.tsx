@@ -18,6 +18,7 @@ import {
   setSyncIncludeArchivedProjects
 } from '../sync/syncEngine';
 import { UNIT_OPTIONS } from '../config/units';
+import { APP_VERSION, getRecentChangelog } from '../appChangelog';
 import { useTheme, ThemePreference } from '../lib/theme';
 
 type DropdownCategory = 'supporto' | 'tipo_supporto' | 'attraversamento' | 'struttura' | 'tipo_struttura';
@@ -57,6 +58,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onClearAndSync,
 }) => {
   const [themePref, setThemePref] = useTheme();
+  const [showChangelog, setShowChangelog] = useState(false);
   const [projectCount, setProjectCount] = useState(0);
   const [mappingCount, setMappingCount] = useState(0);
   const [photoCount, setPhotoCount] = useState(0);
@@ -662,10 +664,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       <div className="px-5 mb-5">
         <h2 className="text-xs font-semibold text-brand-500 uppercase tracking-wider mb-2 px-1">App</h2>
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden divide-y divide-brand-100">
-          <div className="px-4 py-3.5 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowChangelog(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-brand-50 transition-colors"
+          >
             <span className="text-sm text-brand-700">Versione</span>
-            <span className="text-sm text-brand-500">1.0.0</span>
-          </div>
+            <span className="text-sm text-accent underline decoration-dotted">{APP_VERSION}</span>
+          </button>
           <div className="px-4 py-3.5 flex items-center justify-between">
             <span className="text-sm text-brand-700">OPImaPPA</span>
             <span className="text-sm text-brand-500">PWA Online-First</span>
@@ -1038,6 +1044,36 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
       <div className="h-4" />
       </div>
+
+      {showChangelog && (
+        <div
+          className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4"
+          onClick={() => setShowChangelog(false)}
+        >
+          <div
+            className="bg-surface rounded-2xl shadow-card w-full max-w-sm max-h-[70vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-4 py-3.5 flex items-center justify-between border-b border-brand-100">
+              <span className="text-sm font-semibold text-brand-700">Novità versioni</span>
+              <button type="button" onClick={() => setShowChangelog(false)} className="p-1 text-brand-400 hover:text-brand-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="divide-y divide-brand-100">
+              {getRecentChangelog(3).map(entry => (
+                <div key={entry.version} className="px-4 py-3.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-brand-700">v{entry.version}</span>
+                    <span className="text-xs text-brand-400">{entry.date}</span>
+                  </div>
+                  <div className="text-sm text-brand-500">{entry.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
