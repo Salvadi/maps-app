@@ -32,7 +32,7 @@ export interface CartiglioCanvasData {
 
 export interface CanvasPoint {
   id: string;
-  type: 'parete' | 'solaio' | 'perimetro' | 'generico';
+  type: 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura';
   pointX: number; // Normalized 0-1
   pointY: number; // Normalized 0-1
   labelX: number; // Normalized 0-1
@@ -54,7 +54,7 @@ export interface GridConfig {
   offsetY: number;
 }
 
-export type Tool = 'pan' | 'move' | 'parete' | 'solaio' | 'perimetro' | 'generico' | 'zoom-in' | 'zoom-out' | 'color-picker';
+export type Tool = 'pan' | 'move' | 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura' | 'zoom-in' | 'zoom-out' | 'color-picker';
 
 // EI (Fire Resistance) rating colors - distinct colors for each rating level
 export const EI_COLORS: Record<number, string> = {
@@ -212,6 +212,30 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     
     img.src = imageUrl;
   }, [imageUrl]);
+
+  // Centra e adatta la planimetria al container quando viene caricata
+  // (senza questo, pan resta a {0,0} e l'immagine appare in alto a sinistra)
+  useEffect(() => {
+    if (!image || !imageLoaded) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    if (containerWidth === 0 || containerHeight === 0) return;
+
+    const fitZoom = Math.max(0.1, Math.min(5, Math.min(
+      containerWidth / image.width,
+      containerHeight / image.height
+    )));
+
+    setZoom(fitZoom);
+    setPan({
+      x: (containerWidth - image.width * fitZoom) / 2,
+      y: (containerHeight - image.height * fitZoom) / 2,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image, imageLoaded]);
 
   // Convert normalized coordinates (0-1) to canvas coordinates
   const normalizedToCanvas = useCallback((nx: number, ny: number): { x: number; y: number } => {
@@ -426,7 +450,27 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     }
 
     // Perimetro selection is shown via line color change; no dot or ring needed
-    if (point.type !== 'perimetro') {
+    if (point.type === 'struttura') {
+      // Marker struttura puntuale: quadrato con pallino al centro
+      const color = isSelected ? '#FF0000' : getPointColor(point.type);
+      const half = isSelected ? 7 : 5;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x - half, y - half, half * 2, half * 2);
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, isSelected ? 2.5 : 2, 0, 2 * Math.PI);
+      ctx.fill();
+
+      if (isSelected) {
+        ctx.strokeStyle = '#FF0000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+    } else if (point.type !== 'perimetro') {
       // Draw point dot
       ctx.fillStyle = isSelected ? '#FF0000' : getPointColor(point.type);
       ctx.beginPath();
@@ -1043,6 +1087,8 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         return '#FF6600';
       case 'generico':
         return '#9933FF';
+      case 'struttura':
+        return '#CC0033';
       default:
         return '#333333';
     }
@@ -1103,7 +1149,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
         // Add vertex to perimeter - subsequent clicks
         setPerimeterPoints(prev => [...prev, normalized]);
       }
-    } else if (['parete', 'solaio', 'generico'].includes(activeTool)) {
+    } else if (['parete', 'solaio', 'generico', 'struttura'].includes(activeTool)) {
       // Add new point
       const normalized = canvasToNormalized(x, y);
       const snapped = snapToGrid(normalized.x, normalized.y);

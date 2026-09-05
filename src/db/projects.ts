@@ -1,7 +1,8 @@
 import { db, generateId, now, Project, ProjectCachePref, SyncQueueItem } from './database';
 import { triggerImmediateUpload } from '../sync/syncEngine';
-import { getMappingEntriesForProject, getPhotosForMappings, ensurePhotoBlob } from './mappings';
-import { getFloorPlansByProject, ensureFloorPlanAsset } from './floorPlans';
+import { getMappingEntriesForProject, getPhotosForMappings, ensurePhotoBlob, updateMappingEntry } from './mappings';
+import { getFloorPlansByProject, ensureFloorPlanAsset, updateFloorPlan } from './floorPlans';
+import { getStructureEntriesForProject, updateStructureEntry } from './structures';
 
 /**
  * Create a new project
@@ -440,4 +441,86 @@ export async function archiveProject(id: string): Promise<Project> {
  */
 export async function unarchiveProject(id: string): Promise<Project> {
   return await updateProject(id, { archived: 0 });
+}
+
+export interface FloorRenameConflict {
+  oldFloor: string;
+  newFloor: string;
+  reason: 'floor_plan_exists';
+}
+
+/**
+ * Rinomina un piano di un progetto propagando il nuovo nome a tutte le entità
+ * collegate (mappature, strutture, planimetrie), che referenziano il piano
+ * tramite il campo `floor` come stringa letterale. Senza questa cascata,
+ * rinominare un piano in ProjectForm orfanizza tutti i dati esistenti su quel
+ * piano (restano indicizzati col vecchio nome e spariscono dalla UI).
+ *
+ * Se sul piano di destinazione esiste già una planimetria, quella del piano
+ * di origine NON viene spostata (evita di sovrascrivere/duplicare) e la
+ * rinomina viene segnalata come conflitto: chi chiama decide se avvisare
+ * l'utente.
+ */
+/**
+ * Rinomina in batch i piani di un progetto date le vecchie e nuove liste
+ * (confronto posizionale, stessa lunghezza), propagando il nuovo nome a
+ * tutte le entità collegate (mappature, strutture, planimetrie) che
+ * referenziano il piano tramite il campo `floor` come stringa letterale.
+ * Senza questa cascata, rinominare un piano orfanizza tutti i dati
+ * esistenti su quel piano (restano indicizzati col vecchio nome e
+ * spariscono dalla UI).
+ *
+ * Legge lo stato di TUTTE le entità del progetto in un colpo solo, PRIMA di
+ * scrivere qualunque rename: cosi' anche uno scambio di nomi tra due piani
+ * nella stessa modifica (es. "0" -> "1" e "1" -> "0") usa il piano
+ * ORIGINALE di ciascuna entità e non uno già riscritto da un rename
+ * precedente nello stesso batch.
+ *
+ * Le planimetrie sono al più una per piano: se il piano di destinazione ne
+ * ha già una, quella del piano di origine NON viene spostata (evita di
+ * sovrascriverla/duplicarla) e viene segnalata come conflitto.
+ */
+export async function renameProjectFloors(
+  projectId: string,
+  oldFloors: string[],
+  newFloors: string[],
+  userId: string
+): Promise<FloorRenameConflict[]> {
+  if (oldFloors.length !== newFloors.length) return [];
+
+  const renameMap = new Map<string, string>();
+  for (let i = 0; i < oldFloors.length; i++) {
+    if (oldFloors[i] !== newFloors[i]) renameMap.set(oldFloors[i], newFloors[i]);
+  }
+  if (renameMap.size === 0) return [];
+
+  const [mappingEntries, structureEntries, floorPlans] = await Promise.all([
+    getMappingEntriesForProject(projectId),
+    getStructureEntriesForProject(projectId),
+    getFloorPlansByProject(projectId),
+  ]);
+
+  const targetOccupied = new Set(floorPlans.map(fp => fp.floor));
+
+  await Promise.all([
+    ...mappingEntries
+      .filter(e => renameMap.has(e.floor))
+      .map(e => updateMappingEntry(e.id, { floor: renameMap.get(e.floor)! }, userId)),
+    ...structureEntries
+      .filter(e => renameMap.has(e.floor))
+      .map(e => updateStructureEntry(e.id, { floor: renameMap.get(e.floor)! }, userId)),
+  ]);
+
+  const conflicts: FloorRenameConflict[] = [];
+  for (const fp of floorPlans) {
+    const newFloor = renameMap.get(fp.floor);
+    if (!newFloor) continue;
+    if (targetOccupied.has(newFloor)) {
+      conflicts.push({ oldFloor: fp.floor, newFloor, reason: 'floor_plan_exists' });
+      continue;
+    }
+    await updateFloorPlan(fp.id, { floor: newFloor });
+  }
+
+  return conflicts;
 }

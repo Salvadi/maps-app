@@ -243,7 +243,7 @@ export interface FloorPlanPoint {
   floorPlanId: string;
   mappingEntryId?: string;      // opzionale: usato quando il punto è collegato a un MappingEntry
   structureEntryId?: string;    // opzionale: usato quando il punto è collegato a un StructureEntry
-  pointType: 'parete' | 'solaio' | 'perimetro' | 'generico';
+  pointType: 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura';
   pointX: number; // Normalized 0-1
   pointY: number; // Normalized 0-1
   labelX: number; // Normalized 0-1
@@ -276,7 +276,7 @@ export interface StandaloneMap {
   height: number;
   points: Array<{
     id: string;
-    pointType: 'parete' | 'solaio' | 'perimetro' | 'generico';
+    pointType: 'parete' | 'solaio' | 'perimetro' | 'generico' | 'struttura';
     pointX: number;
     pointY: number;
     labelX: number;

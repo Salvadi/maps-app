@@ -960,6 +960,17 @@ const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
                   <span className="tool-icon">●</span>
                   Generico
                 </button>
+                <button
+                  className={`tool-btn tool-struttura ${activeTool === 'struttura' ? 'active' : ''}`}
+                  onClick={() => setActiveTool('struttura')}
+                  title="Struttura (punto singolo)"
+                >
+                  <svg className="tool-icon-svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <rect x="3" y="3" width="10" height="10" stroke="currentColor" strokeWidth="1.5"/>
+                    <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                  </svg>
+                  Struttura
+                </button>
               </div>
 
               {selectedPoint && (
