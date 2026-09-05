@@ -1047,11 +1047,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
 
       {showChangelog && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4"
           onClick={() => setShowChangelog(false)}
         >
           <div
-            className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-card w-full sm:max-w-sm max-h-[70vh] overflow-y-auto"
+            className="bg-surface rounded-2xl shadow-card w-full max-w-sm max-h-[70vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="px-4 py-3.5 flex items-center justify-between border-b border-brand-100">
