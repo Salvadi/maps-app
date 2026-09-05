@@ -213,6 +213,30 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, FloorPlanCanvasProps>(
     img.src = imageUrl;
   }, [imageUrl]);
 
+  // Centra e adatta la planimetria al container quando viene caricata
+  // (senza questo, pan resta a {0,0} e l'immagine appare in alto a sinistra)
+  useEffect(() => {
+    if (!image || !imageLoaded) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    if (containerWidth === 0 || containerHeight === 0) return;
+
+    const fitZoom = Math.max(0.1, Math.min(5, Math.min(
+      containerWidth / image.width,
+      containerHeight / image.height
+    )));
+
+    setZoom(fitZoom);
+    setPan({
+      x: (containerWidth - image.width * fitZoom) / 2,
+      y: (containerHeight - image.height * fitZoom) / 2,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image, imageLoaded]);
+
   // Convert normalized coordinates (0-1) to canvas coordinates
   const normalizedToCanvas = useCallback((nx: number, ny: number): { x: number; y: number } => {
     if (!image) return { x: 0, y: 0 };
